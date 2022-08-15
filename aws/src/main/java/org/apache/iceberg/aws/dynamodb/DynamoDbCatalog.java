@@ -38,6 +38,7 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -109,6 +110,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   private String warehousePath;
   private AwsProperties awsProperties;
   private FileIO fileIO;
+  private EncryptionManagerFactory encryptionManagerFactory;
+
   private CloseableGroup closeableGroup;
 
   public DynamoDbCatalog() {}
@@ -120,12 +123,18 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         AwsClientFactories.from(properties).dynamo(),
-        initializeFileIO(properties));
+        initializeFileIO(properties),
+        initializeEncryptionManagerFactory(properties));
   }
 
   @VisibleForTesting
   void initialize(
-      String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
+      String name,
+      String path,
+      AwsProperties properties,
+      DynamoDbClient client,
+      FileIO io,
+      EncryptionManagerFactory encryption) {
     Preconditions.checkArgument(
         path != null && path.length() > 0,
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
@@ -135,10 +144,12 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     this.warehousePath = LocationUtil.stripTrailingSlash(path);
     this.dynamo = client;
     this.fileIO = io;
+    this.encryptionManagerFactory = encryption;
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(dynamo);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(encryptionManagerFactory);
     closeableGroup.setSuppressCloseFailure(true);
 
     ensureCatalogTableExistsOrCreate();
@@ -152,7 +163,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     validateTableIdentifier(tableIdentifier);
-    return new DynamoDbTableOperations(dynamo, awsProperties, catalogName, fileIO, tableIdentifier);
+    return new DynamoDbTableOperations(
+        dynamo, awsProperties, catalogName, fileIO, encryptionManagerFactory, tableIdentifier);
   }
 
   @Override
@@ -537,6 +549,11 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     } else {
       return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
     }
+  }
+
+  private EncryptionManagerFactory initializeEncryptionManagerFactory(
+      Map<String, String> properties) {
+    return CatalogUtil.loadEncryptionManagerFactory(properties);
   }
 
   private void validateNamespace(Namespace namespace) {

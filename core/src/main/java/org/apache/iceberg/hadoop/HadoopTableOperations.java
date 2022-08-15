@@ -38,6 +38,8 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -64,6 +66,8 @@ public class HadoopTableOperations implements TableOperations {
   private final Configuration conf;
   private final Path location;
   private final FileIO fileIO;
+  private final EncryptionManagerFactory encryptionManagerFactory;
+
   private final LockManager lockManager;
 
   private volatile TableMetadata currentMetadata = null;
@@ -71,10 +75,15 @@ public class HadoopTableOperations implements TableOperations {
   private volatile boolean shouldRefresh = true;
 
   protected HadoopTableOperations(
-      Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
+      Path location,
+      FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
+      Configuration conf,
+      LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
+    this.encryptionManagerFactory = encryptionManagerFactory;
     this.lockManager = lockManager;
   }
 
@@ -174,6 +183,16 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public FileIO io() {
     return fileIO;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    TableMetadata metadata = current();
+    if (null != metadata) {
+      return encryptionManagerFactory.create(metadata);
+    } else {
+      return new PlaintextEncryptionManager();
+    }
   }
 
   @Override

@@ -32,6 +32,7 @@ import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -47,16 +48,19 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final String catalogName;
   private final TableIdentifier tableIdentifier;
   private final FileIO fileIO;
+  private final EncryptionManagerFactory encryptionManagerFactory;
   private final JdbcClientPool connections;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
       FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
       String catalogName,
       TableIdentifier tableIdentifier) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
+    this.encryptionManagerFactory = encryptionManagerFactory;
     this.connections = dbConnPool;
   }
 
@@ -207,6 +211,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected String tableName() {
     return tableIdentifier.toString();
+  }
+
+  @Override
+  protected EncryptionManagerFactory encryptionManagerFactory() {
+    return encryptionManagerFactory;
   }
 
   private Map<String, String> getTable()
