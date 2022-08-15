@@ -184,31 +184,6 @@ public class BucketFunction implements UnboundFunction {
     }
   }
 
-  // bucketing by Float is not allowed by the spec, but this has the float hash implementation
-  public static class BucketFloat extends BucketBase {
-
-    public static int invoke(int numBuckets, float value) {
-      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
-    }
-
-    @Override
-    public DataType[] inputTypes() {
-      return new DataType[] {DataTypes.IntegerType, DataTypes.FloatType};
-    }
-
-    @Override
-    public String canonicalName() {
-      return "iceberg.bucket(float)";
-    }
-
-    @Override
-    public Integer produceResult(InternalRow input) {
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getFloat(VALUE_ORDINAL));
-    }
-  }
-
   public static class BucketString extends BucketBase {
     // magic function for usage with codegen
     public static Integer invoke(int numBuckets, UTF8String value) {
