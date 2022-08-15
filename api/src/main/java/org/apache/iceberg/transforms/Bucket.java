@@ -166,7 +166,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Integer value) {
-      return BucketUtil.hashInteger(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -182,7 +182,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Long value) {
-      return BucketUtil.hashLong(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -202,7 +202,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Float value) {
-      return BucketUtil.hashFloat(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -220,7 +220,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Double value) {
-      return BucketUtil.hashDouble(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -236,7 +236,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(CharSequence value) {
-      return BucketUtil.hashCharSequence(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -254,7 +254,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(ByteBuffer value) {
-      return BucketUtil.hashByteBuffer(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -270,7 +270,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(UUID value) {
-      return BucketUtil.hashUUID(value);
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -286,7 +286,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(BigDecimal value) {
-      return BucketUtil.hashDecimal(value);
+      return BucketUtil.hash(value);
     }
 
     @Override

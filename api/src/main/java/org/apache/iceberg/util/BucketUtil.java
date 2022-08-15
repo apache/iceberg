@@ -35,27 +35,27 @@ public class BucketUtil {
 
   private BucketUtil() {}
 
-  public static int hashInteger(Integer value) {
-    return MURMUR3.hashLong(value.longValue()).asInt();
+  public static int hash(int value) {
+    return MURMUR3.hashLong((long) value).asInt();
   }
 
-  public static int hashLong(Long value) {
+  public static int hash(long value) {
     return MURMUR3.hashLong(value).asInt();
   }
 
-  public static int hashFloat(Float value) {
+  public static int hash(float value) {
     return MURMUR3.hashLong(Double.doubleToLongBits((double) value)).asInt();
   }
 
-  public static int hashDouble(Double value) {
+  public static int hash(double value) {
     return MURMUR3.hashLong(Double.doubleToLongBits(value)).asInt();
   }
 
-  public static int hashCharSequence(CharSequence value) {
+  public static int hash(CharSequence value) {
     return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
   }
 
-  public static int hashByteBuffer(ByteBuffer value) {
+  public static int hash(ByteBuffer value) {
     if (value.hasArray()) {
       return MURMUR3
           .hashBytes(
@@ -76,7 +76,7 @@ public class BucketUtil {
     }
   }
 
-  public static int hashUUID(UUID value) {
+  public static int hash(UUID value) {
     return MURMUR3
         .newHasher(16)
         .putLong(Long.reverseBytes(value.getMostSignificantBits()))
@@ -85,7 +85,7 @@ public class BucketUtil {
         .asInt();
   }
 
-  public static int hashDecimal(BigDecimal value) {
+  public static int hash(BigDecimal value) {
     return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
   }
 }

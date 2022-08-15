@@ -127,7 +127,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic method used in codegen
     public static int invoke(int numBuckets, int value) {
-      return (BucketUtil.hashInteger(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     public BucketInt(DataType sqlType) {
@@ -159,7 +159,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic function for usage with codegen - needs to be static
     public static int invoke(int numBuckets, long value) {
-      return (BucketUtil.hashLong(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     public BucketLong(DataType sqlType) {
@@ -188,7 +188,7 @@ public class BucketFunction implements UnboundFunction {
   public static class BucketFloat extends BucketBase {
 
     public static int invoke(int numBuckets, float value) {
-      return (BucketUtil.hashFloat(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -216,7 +216,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hashCharSequence(value.toString()) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(value.toString()) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -243,7 +243,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hashByteBuffer(ByteBuffer.wrap(value)) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(ByteBuffer.wrap(value)) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -274,7 +274,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hashDecimal(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hash(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
     }
 
     public BucketDecimal(int precision, int scale) {
