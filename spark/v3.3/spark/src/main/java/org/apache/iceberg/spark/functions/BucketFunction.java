@@ -84,7 +84,7 @@ public class BucketFunction implements UnboundFunction {
     } else if (type instanceof TimestampType) {
       return new BucketLong(DataTypes.TimestampType);
     } else if (type instanceof DecimalType) {
-      return new BucketDecimal(((DecimalType) type).precision(), ((DecimalType) type).scale());
+      return new BucketDecimal(type);
     } else if (type instanceof StringType) {
       return new BucketString();
     } else if (type instanceof BinaryType) {
@@ -243,6 +243,7 @@ public class BucketFunction implements UnboundFunction {
   }
 
   public static class BucketDecimal extends BucketBase {
+    private final DataType sqlType;
     private final int precision;
     private final int scale;
 
@@ -255,14 +256,15 @@ public class BucketFunction implements UnboundFunction {
       return apply(numBuckets, BucketUtil.hash(value.toJavaBigDecimal()));
     }
 
-    public BucketDecimal(int precision, int scale) {
-      this.precision = precision;
-      this.scale = scale;
+    public BucketDecimal(DataType sqlType) {
+      this.sqlType = sqlType;
+      this.precision = ((DecimalType) sqlType).precision();
+      this.scale = ((DecimalType) sqlType).scale();
     }
 
     @Override
     public DataType[] inputTypes() {
-      return new DataType[] {DataTypes.IntegerType, DataTypes.createDecimalType(precision, scale)};
+      return new DataType[] {DataTypes.IntegerType, sqlType};
     }
 
     @Override
@@ -275,7 +277,7 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return String.format("iceberg.bucket(decimal)");
+      return "iceberg.bucket(decimal)";
     }
   }
 }
