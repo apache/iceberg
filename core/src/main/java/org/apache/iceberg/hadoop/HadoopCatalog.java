@@ -162,7 +162,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       return false;
     } catch (IOException e) {
       if (shouldSuppressPermissionError(e)) {
-        LOG.warn("Unable to list metadata directory {}: {}", metadataPath, e);
+        LOG.warn("Unable to list metadata directory {}", metadataPath, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
@@ -177,7 +177,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       return false;
     } catch (IOException e) {
       if (shouldSuppressPermissionError(e)) {
-        LOG.warn("Unable to list directory {}: {}", path, e);
+        LOG.warn("Unable to list directory {}", path, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
