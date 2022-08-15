@@ -37,13 +37,13 @@ SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": R
 
 
 @click.group()
-@click.option("--catalog")
+@click.option("--catalog", default=None)
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
-    uri_env_var = "PYICEBERG__URI"
+def run(ctx: Context, catalog: Optional[str], output: str, uri: Optional[str], credential: Optional[str]):
+    uri_env_var = "PYICEBERG_URI"
     credential_env_var = "PYICEBERG_CREDENTIAL"
 
     if not uri:
@@ -115,7 +115,7 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    if len(identifier_tuple) > 0:
+    if entity in {"namespace", "any"} and len(identifier_tuple) > 0:
         try:
             namespace_properties = catalog.load_namespace_properties(identifier_tuple)
             output.describe_properties(namespace_properties)
@@ -125,7 +125,7 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
                 output.exception(exc)
                 ctx.exit(1)
 
-    if len(identifier_tuple) > 1:
+    if entity in {"table", "any"} and len(identifier_tuple) > 1:
         try:
             catalog_table = catalog.load_table(identifier)
             output.describe_table(catalog_table)

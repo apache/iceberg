@@ -163,14 +163,14 @@ class OAuthErrorResponse(IcebergBaseModel):
 
 
 class RestCatalog(Catalog):
-    token: str
+    token: Optional[str]
     config: Properties
 
     uri: str
 
     def __init__(
         self,
-        name: str,
+        name: Optional[str],
         uri: str,
         credential: Optional[str] = None,
         token: Optional[str] = None,
@@ -192,6 +192,8 @@ class RestCatalog(Catalog):
             self.token = self._fetch_access_token(credential)
         elif token:
             self.token = token
+        else:
+            self.token = None
         self.config = self._fetch_config(properties)
         super().__init__(name, **properties)
 
@@ -373,9 +375,8 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError})
 
         table_response = TableResponse(**response.json())
-
         return Table(
-            identifier=(self.name,) + identifier_tuple,
+            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
             metadata_location=table_response.metadata_location,
             metadata=table_response.metadata,
         )

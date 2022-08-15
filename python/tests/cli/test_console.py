@@ -113,7 +113,7 @@ class MockCatalog(Catalog):
             raise NoSuchNamespaceError(f"Namespace does not exists: {namespace}")
 
 
-MOCK_ENVIRONMENT = {"PYICEBERG__URI": "test://doesnotexist"}
+MOCK_ENVIRONMENT = {"PYICEBERG_URI": "test://doesnotexist"}
 MOCK_CATALOGS = {"test": MockCatalog}
 
 
@@ -121,7 +121,7 @@ def test_missing_uri():
     runner = CliRunner()
     result = runner.invoke(run, ["list"])
     assert result.exit_code == 1
-    assert result.output == "Missing uri. Please provide using --uri or using environment variable \nPYICEBERG__URI\n"
+    assert result.output == "Missing uri. Please provide using --uri or using environment variable \nPYICEBERG_URI\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
