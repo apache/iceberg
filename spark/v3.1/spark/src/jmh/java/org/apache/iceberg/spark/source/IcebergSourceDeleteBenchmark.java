@@ -103,6 +103,36 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
         });
   }
 
+  @Benchmark
+  @Threads(1)
+  public void readIcebergWithIsDeletedColumn() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
+          materialize(df);
+        });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readDeletedRows() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
+          materialize(df);
+        });
+  }
+
   protected abstract void appendData() throws IOException;
 
   protected void writeData(int fileNum) {
