@@ -16,8 +16,9 @@
 # under the License.
 # pylint:disable=redefined-outer-name,eval-used
 
-import pytest
 from typing import Any, Dict
+
+import pytest
 
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.sorting import (
