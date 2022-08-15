@@ -242,22 +242,6 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testMagicFunctionsResolveForTinyIntAndSmallIntNumberOfBuckets() {
-    // Magic functions have staticinvoke in the explain output.
-    // Nonmagic calls use applyfunctionexpression instead and go through produceResults.
-    String tinyIntWidthExplain = (String) scalarSql("EXPLAIN EXTENDED SELECT system.bucket(1Y, 6)");
-    Assertions.assertThat(tinyIntWidthExplain)
-        .contains("cast(1 as int)")
-        .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
-
-    String smallIntWidth = (String) scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5S, 6L)");
-    Assertions.assertThat(smallIntWidth)
-        .contains("cast(5 as int)")
-        .contains(
-            "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
-  }
-
-  @Test
   public void testThatMagicFunctionsAreInvoked() {
     // TinyInt
     Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
