@@ -214,6 +214,8 @@ If `older_than` and `retain_last` are omitted, the table's [expiration propertie
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `deleted_data_files_count` | long | Number of data files deleted by this operation |
+| `deleted_position_delete_files_count` | long | Number of position delete data files deleted by this operation |
+| `deleted_equality_delete_files_count` | long | Number of equality delete data files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
 | `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
 
@@ -238,6 +240,10 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
+| `file_list_view`       |    | string | Name of an existing table which contains the list of actual files |
+| `equal_schemes`  | ️   | map<string, string> | A map of equal schemes. The keys include a comma-separate list of authorities. For instance, Map("s1name,s2name","servicename") |
+| `equal_authorities`    |    | map<string, string> | A map of equal authorities. The keys include a comma-separated list of schemes. For instance, Map("s3a,s3,s3n","s3") |
+| `prefix_mismatch_mode`     |    | string   | Mode for handling prefix mismatches, Possible values are "ERROR", "IGNORE", "DELETE". (defaults to "ERROR", which means an exception is thrown whenever there is a mismatch in authority/scheme. It's the recommended mismatch mode and should be changed only in some rare circumstances.) |
 
 #### Output
 
@@ -462,6 +468,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `table`       | ✔️  | string | Table which will have files added to|
 | `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+| `check_duplicate_files`  | ️   | boolean | When true, throw exception if import results in a duplicate data file (defaults to true) |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
