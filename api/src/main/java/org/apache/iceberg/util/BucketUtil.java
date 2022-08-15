@@ -61,7 +61,7 @@ public class BucketUtil {
           .hashBytes(
               value.array(),
               value.arrayOffset() + value.position(),
-              value.arrayOffset() + value.remaining())
+              value.remaining())
           .asInt();
     } else {
       int position = value.position();

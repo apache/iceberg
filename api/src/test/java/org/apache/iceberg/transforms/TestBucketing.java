@@ -300,6 +300,25 @@ public class TestBucketing {
   }
 
   @Test
+  public void testByteBufferOnHeapArrayOffset() {
+    byte[] bytes = randomBytes(128);
+    ByteBuffer raw = ByteBuffer.wrap(bytes, 5, 100);
+    ByteBuffer buffer = raw.slice();
+    Assert.assertEquals("Buffer arrayOffset should be 5", 5, buffer.arrayOffset());
+
+    Bucket<ByteBuffer> bucketFunc = Bucket.get(Types.BinaryType.get(), 100);
+
+    Assert.assertEquals(
+        "HeapByteBuffer hash should match hash for correct slice",
+        hashBytes(bytes, 5, 100),
+        bucketFunc.hash(buffer));
+
+    // verify that the buffer was not modified
+    Assert.assertEquals("Buffer position should be 0", 0, buffer.position());
+    Assert.assertEquals("Buffer limit should not change", 100, buffer.limit());
+  }
+
+  @Test
   public void testByteBufferOffHeap() {
     byte[] bytes = randomBytes(128);
     ByteBuffer buffer = ByteBuffer.allocateDirect(128);
