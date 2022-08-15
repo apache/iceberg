@@ -35,7 +35,7 @@ from hive_metastore.ttypes import (
 from hive_metastore.ttypes import Table as HiveTable
 
 from pyiceberg.catalog import PropertiesUpdateSummary
-from pyiceberg.catalog.hive import WAREHOUSE, HiveCatalog, _construct_hive_storage_descriptor
+from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -160,7 +160,7 @@ def hive_database(tmp_path_factory) -> HiveDatabase:
 
 
 def test_check_number_of_namespaces(table_schema_simple: Schema):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     with pytest.raises(ValueError):
         catalog.create_table(("default", "namespace", "table"), schema=table_schema_simple)
@@ -178,7 +178,7 @@ def test_check_number_of_namespaces(table_schema_simple: Schema):
 @patch("time.time", MagicMock(return_value=12345))
 @patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, hive_table: HiveTable):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().create_table.return_value = None
@@ -291,7 +291,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
 
 
 def test_load_table(hive_table: HiveTable):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_table.return_value = hive_table
@@ -384,7 +384,7 @@ def test_load_table(hive_table: HiveTable):
 
 
 def test_rename_table_from_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().alter_table.side_effect = NoSuchObjectException(
@@ -398,7 +398,7 @@ def test_rename_table_from_does_not_exists():
 
 
 def test_rename_table_to_namespace_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().alter_table.side_effect = InvalidOperationException(
@@ -412,7 +412,7 @@ def test_rename_table_to_namespace_does_not_exists():
 
 
 def test_drop_database_does_not_empty():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().drop_database.side_effect = InvalidOperationException(
@@ -426,7 +426,7 @@ def test_drop_database_does_not_empty():
 
 
 def test_drop_database_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().drop_database.side_effect = MetaException(message="java.lang.NullPointerException")
@@ -438,7 +438,7 @@ def test_drop_database_does_not_exists():
 
 
 def test_list_tables():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_all_tables.return_value = ["table1", "table2"]
@@ -457,7 +457,7 @@ def test_list_tables():
 
 
 def test_list_namespaces():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_all_databases.return_value = ["namespace1", "namespace2"]
@@ -475,7 +475,7 @@ def test_list_namespaces_with_parent():
 
 
 def test_drop_table():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_all_databases.return_value = ["namespace1", "namespace2"]
@@ -486,7 +486,7 @@ def test_drop_table():
 
 
 def test_drop_table_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().drop_table.side_effect = NoSuchObjectException(message="does_not_exists")
@@ -498,14 +498,14 @@ def test_drop_table_does_not_exists():
 
 
 def test_purge_table():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     with pytest.raises(NotImplementedError):
         catalog.purge_table(("default", "does_not_exists"))
 
 
 def test_create_database():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().create_database.return_value = None
@@ -532,7 +532,7 @@ def test_create_database():
 
 
 def test_create_database_already_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().create_database.side_effect = AlreadyExistsException(message="Database default already exists")
@@ -544,7 +544,7 @@ def test_create_database_already_exists():
 
 
 def test_load_namespace_properties(hive_database: HiveDatabase):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_database.return_value = hive_database
@@ -555,7 +555,7 @@ def test_load_namespace_properties(hive_database: HiveDatabase):
 
 
 def test_load_namespace_properties_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_database.side_effect = NoSuchObjectException(message="does_not_exists")
@@ -567,7 +567,7 @@ def test_load_namespace_properties_does_not_exists():
 
 
 def test_update_namespace_properties(hive_database: HiveDatabase):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_database.return_value = hive_database
@@ -598,7 +598,7 @@ def test_update_namespace_properties(hive_database: HiveDatabase):
 
 
 def test_update_namespace_properties_namespace_does_not_exists():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_database.side_effect = NoSuchObjectException(message="does_not_exists")
@@ -610,7 +610,7 @@ def test_update_namespace_properties_namespace_does_not_exists():
 
 
 def test_update_namespace_properties_overlap():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     with pytest.raises(ValueError) as exc_info:
         catalog.update_namespace_properties(("table",), removals=set("a"), updates={"a": "b"})
@@ -683,7 +683,7 @@ def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
 
 
 def test_resolve_table_location_warehouse(hive_database: HiveDatabase):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {WAREHOUSE: "/tmp/warehouse/"}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, warehouse="/tmp/warehouse/", uri=HIVE_METASTORE_FAKE_URL)
 
     # Set this one to None, so we'll fall back to the properties
     hive_database.locationUri = None

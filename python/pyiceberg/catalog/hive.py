@@ -235,8 +235,8 @@ class HiveCatalog(Catalog):
 
         return tuple_identifier[0], tuple_identifier[1]
 
-    def __init__(self, name: str, properties: Properties, uri: str):
-        super().__init__(name, properties)
+    def __init__(self, name: str, uri: str, **properties: str):
+        super().__init__(name, **properties)
         self._client = _HiveClient(uri)
 
     def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO) -> Table:

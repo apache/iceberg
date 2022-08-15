@@ -44,21 +44,16 @@ class Catalog(ABC):
     or tuple of strings.
 
     Attributes:
-        name (str): Name of the catalog
+        name (str | None): Name of the catalog
         properties (Properties): Catalog properties
     """
 
-    def __init__(self, name: str, properties: Properties):
-        self._name = name
-        self._properties = properties
+    name: str | None
+    properties: Properties
 
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def properties(self) -> Properties:
-        return self._properties
+    def __init__(self, name: str | None, **properties: str):
+        self.name = name
+        self.properties = properties
 
     @abstractmethod
     def create_table(
