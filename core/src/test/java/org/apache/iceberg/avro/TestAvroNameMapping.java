@@ -102,6 +102,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
                             Types.NestedField.required(1, "lat", Types.FloatType.get()))))));
 
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
+    @SuppressWarnings("unchecked")
     Record projectedL1 = ((Map<String, Record>) projected.get("location")).get("l1");
     Assert.assertNotNull(
         "Field missing from table mapping is renamed", projectedL1.getSchema().getField("long_r2"));
@@ -172,7 +173,8 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     // The data is read back as a map
-    Map<Record, Record> projectedLocation = castToMapOf(Record.class, Record.class, projected.get("location"));
+    @SuppressWarnings("unchecked")
+    Map<Record, Record> projectedLocation = (Map<Record, Record>) projected.get("location");
     Record projectedKey = projectedLocation.keySet().iterator().next();
     Record projectedValue = projectedLocation.values().iterator().next();
     Assert.assertEquals(
@@ -390,29 +392,5 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
         Avro.read(Files.localInput(file)).project(readSchema).withNameMapping(nameMapping).build();
 
     return Iterables.getOnlyElement(records);
-  }
-
-  private static <K, V> Map<K, V> castToMapOf(
-      Class<K> clazzK, Class<V> clazzV, Object map) {
-
-    for ( Map.Entry<?, ?> e: ((Map<?,?>)map).entrySet() ) {
-      checkCast( clazzK, e.getKey() );
-      checkCast( clazzV, e.getValue() );
-    }
-
-    @SuppressWarnings("unchecked")
-    Map<K, V> result = (Map<K, V>) map;
-    return result;
-  }
-
-  private static <T> void checkCast(
-      Class<T> clazz, Object obj) {
-    if ( !clazz.isInstance(obj) ) {
-      throw new ClassCastException(
-              System.getProperty("line.separator") + "Expected: " + clazz.getName() +
-                      System.getProperty("line.separator") + "Was:      " + obj.getClass().getName() +
-                      System.getProperty("line.separator") + "Value:    " + obj
-      );
-    }
   }
 }
