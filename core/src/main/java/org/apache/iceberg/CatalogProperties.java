@@ -146,4 +146,7 @@ public class CatalogProperties {
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
+
+  public static final String ENCRYPTION_MANAGER_FACTORY_IMPL = "encryption.manager.factory-impl";
+  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
 }

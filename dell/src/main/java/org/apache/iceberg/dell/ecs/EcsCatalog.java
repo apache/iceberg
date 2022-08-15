@@ -47,6 +47,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.dell.DellClientFactories;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -83,6 +84,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private EcsURI warehouseLocation;
 
   private FileIO fileIO;
+  private EncryptionManagerFactory encryptionManagerFactory;
   private CloseableGroup closeableGroup;
 
   /**
@@ -103,10 +105,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
     this.warehouseLocation = new EcsURI(LocationUtil.stripTrailingSlash(inputWarehouseLocation));
     this.client = DellClientFactories.from(properties).ecsS3();
     this.fileIO = initializeFileIO(properties);
+    this.encryptionManagerFactory = CatalogUtil.loadEncryptionManagerFactory(properties);
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(encryptionManagerFactory);
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -127,6 +131,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
         String.format("%s.%s", catalogName, tableIdentifier),
         tableURI(tableIdentifier),
         fileIO,
+        encryptionManagerFactory,
         this);
   }
 

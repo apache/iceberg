@@ -63,6 +63,8 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -165,6 +167,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long maxHiveTablePropertySize;
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
+  private final EncryptionManagerFactory encryptionManagerFactory;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
   private final ScheduledExecutorService exitingScheduledExecutorService;
 
@@ -175,9 +178,28 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       String database,
       String table) {
+    this(
+        conf,
+        metaClients,
+        fileIO,
+        PlaintextEncryptionManagerFactory.INSTANCE,
+        catalogName,
+        database,
+        table);
+  }
+
+  protected HiveTableOperations(
+      Configuration conf,
+      ClientPool metaClients,
+      FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
+      String catalogName,
+      String database,
+      String table) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
+    this.encryptionManagerFactory = encryptionManagerFactory;
     this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
@@ -209,6 +231,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected String tableName() {
     return fullName;
+  }
+
+  @Override
+  protected EncryptionManagerFactory encryptionManagerFactory() {
+    return encryptionManagerFactory;
   }
 
   @Override

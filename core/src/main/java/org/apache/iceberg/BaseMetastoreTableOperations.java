@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -73,6 +75,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * @return The full name
    */
   protected abstract String tableName();
+
+  protected abstract EncryptionManagerFactory encryptionManagerFactory();
 
   @Override
   public TableMetadata current() {
@@ -235,6 +239,17 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public LocationProvider locationProvider() {
     return LocationProviders.locationsFor(current().location(), current().properties());
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    TableMetadata metadata = current();
+    EncryptionManagerFactory factory = encryptionManagerFactory();
+    if (null != metadata && null != factory) {
+      return factory.create(metadata);
+    } else {
+      return new PlaintextEncryptionManager();
+    }
   }
 
   @Override

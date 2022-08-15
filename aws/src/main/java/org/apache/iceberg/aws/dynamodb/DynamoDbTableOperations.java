@@ -27,6 +27,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -52,23 +53,31 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   private final TableIdentifier tableIdentifier;
   private final String fullTableName;
   private final FileIO fileIO;
+  private final EncryptionManagerFactory encryptionManagerFactory;
 
   DynamoDbTableOperations(
       DynamoDbClient dynamo,
       AwsProperties awsProperties,
       String catalogName,
       FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
       TableIdentifier tableIdentifier) {
     this.dynamo = dynamo;
     this.awsProperties = awsProperties;
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
+    this.encryptionManagerFactory = encryptionManagerFactory;
   }
 
   @Override
   protected String tableName() {
     return fullTableName;
+  }
+
+  @Override
+  protected EncryptionManagerFactory encryptionManagerFactory() {
+    return encryptionManagerFactory;
   }
 
   @Override

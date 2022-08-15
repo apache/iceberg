@@ -51,9 +51,11 @@ import org.apache.iceberg.catalog.BaseSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
@@ -106,7 +108,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
+  private EncryptionManagerFactory encryptionManagerFactory = null;
   private MetricsReporter reporter = null;
+
+  private CloseableGroup closeableGroup;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -178,6 +183,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
     this.reporter = new LoggingMetricsReporter();
+
+    this.encryptionManagerFactory = CatalogUtil.loadEncryptionManagerFactory(mergedProps);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(io);
+    closeableGroup.addCloseable(encryptionManagerFactory);
+    closeableGroup.addCloseable(client);
+    closeableGroup.setSuppressCloseFailure(true);
 
     super.initialize(name, mergedProps);
   }
@@ -297,6 +310,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             paths.table(loadedIdent),
             session::headers,
             tableFileIO(response.config()),
+            encryptionManagerFactory,
             response.tableMetadata());
 
     TableIdentifier tableIdentifier = loadedIdent;
@@ -469,8 +483,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   public void close() throws IOException {
     shutdownRefreshExecutor();
 
-    if (client != null) {
-      client.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
     }
   }
 
@@ -574,6 +588,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               paths.table(ident),
               session::headers,
               tableFileIO(response.config()),
+              encryptionManagerFactory,
               response.tableMetadata());
 
       return new BaseTable(ops, fullTableName(ident));
@@ -593,6 +608,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               paths.table(ident),
               session::headers,
               tableFileIO(response.config()),
+              encryptionManagerFactory,
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta);
@@ -643,6 +659,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               paths.table(ident),
               session::headers,
               tableFileIO(response.config()),
+              encryptionManagerFactory,
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base);
