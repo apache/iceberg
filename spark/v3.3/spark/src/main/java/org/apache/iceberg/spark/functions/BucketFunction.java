@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.functions;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -130,7 +131,12 @@ public class BucketFunction implements UnboundFunction {
 
     // magic method used in codegen
     public static int invoke(int numBuckets, int value) {
-      return apply(numBuckets, BucketUtil.hash(value));
+      return apply(numBuckets, hash(value));
+    }
+
+    // Visible for testing
+    public static int hash(int value) {
+      return BucketUtil.hash(value);
     }
 
     public BucketInt(DataType sqlType) {
@@ -162,7 +168,12 @@ public class BucketFunction implements UnboundFunction {
 
     // magic function for usage with codegen - needs to be static
     public static int invoke(int numBuckets, long value) {
-      return apply(numBuckets, BucketUtil.hash(value));
+      return apply(numBuckets, hash(value));
+    }
+
+    // Visible for testing
+    public static int hash(long value) {
+      return BucketUtil.hash(value);
     }
 
     public BucketLong(DataType sqlType) {
@@ -195,7 +206,12 @@ public class BucketFunction implements UnboundFunction {
       }
 
       // TODO - We can probably hash the bytes directly given they're already UTF-8 input.
-      return apply(numBuckets, BucketUtil.hash(value.toString()));
+      return apply(numBuckets, hash(value.toString()));
+    }
+
+    // Visible for testing
+    public static int hash(String value) {
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -222,7 +238,12 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return apply(numBuckets, BucketUtil.hash(ByteBuffer.wrap(value)));
+      return apply(numBuckets, hash(ByteBuffer.wrap(value)));
+    }
+
+    // Visible for testing
+    public static int hash(ByteBuffer value) {
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -254,7 +275,12 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return apply(numBuckets, BucketUtil.hash(value.toJavaBigDecimal()));
+      return apply(numBuckets, hash(value.toJavaBigDecimal()));
+    }
+
+    // Visible for testing
+    public static int hash(BigDecimal value) {
+      return BucketUtil.hash(value);
     }
 
     public BucketDecimal(DataType sqlType) {

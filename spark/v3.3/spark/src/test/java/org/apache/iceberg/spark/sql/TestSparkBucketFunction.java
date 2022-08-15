@@ -18,22 +18,71 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.functions.BucketFunction;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.types.DataTypes;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
-  public TestSparkBucketFunction() {}
-
   @Before
   public void useCatalog() {
     sql("USE %s", catalogName);
+  }
+
+  @Test
+  public void testSpecValues() {
+    Assert.assertEquals(
+        "Spec example: hash(34) = 2017239379",
+        2017239379,
+        new BucketFunction.BucketInt(DataTypes.IntegerType).hash(34));
+
+    Assert.assertEquals(
+        "Spec example: hash(34L) = 2017239379",
+        2017239379,
+        new BucketFunction.BucketLong(DataTypes.LongType).hash(34L));
+
+    Assert.assertEquals(
+        "Spec example: hash(decimal2(14.20)) = -500754589",
+        -500754589,
+        new BucketFunction.BucketDecimal(DataTypes.createDecimalType(9, 2))
+            .hash(new BigDecimal("14.20")));
+
+    Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16) = -653330422",
+        -653330422,
+        new BucketFunction.BucketInt(DataTypes.DateType).hash(date.value()));
+
+    Literal<Long> timestampVal =
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
+        -2047944441,
+        new BucketFunction.BucketLong(DataTypes.TimestampType).hash(timestampVal.value()));
+
+    Assert.assertEquals(
+        "Spec example: hash(\"iceberg\") = 1210000089",
+        1210000089,
+        new BucketFunction.BucketString().hash("iceberg"));
+
+    ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
+    Assert.assertEquals(
+        "Spec example: hash([00 01 02 03]) = -188683207",
+        -188683207,
+        new BucketFunction.BucketBinary().hash(bytes));
   }
 
   @Test
