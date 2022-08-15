@@ -161,7 +161,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic function for usage with codegen - needs to be static
     public static int invoke(int numBuckets, long value) {
-      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
+      return apply(numBuckets, BucketUtil.hash(value));
     }
 
     public BucketLong(DataType sqlType) {
@@ -193,7 +193,8 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hash(value.toString()) & Integer.MAX_VALUE) % numBuckets;
+      // TODO - We can probably hash the bytes directly given they're already UTF-8 input.
+      return apply(numBuckets, BucketUtil.hash(value.toString()));
     }
 
     @Override
@@ -220,7 +221,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hash(ByteBuffer.wrap(value)) & Integer.MAX_VALUE) % numBuckets;
+      return apply(numBuckets, BucketUtil.hash(ByteBuffer.wrap(value)));
     }
 
     @Override
@@ -251,7 +252,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketUtil.hash(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
+      return apply(numBuckets, BucketUtil.hash(value.toJavaBigDecimal()));
     }
 
     public BucketDecimal(int precision, int scale) {
