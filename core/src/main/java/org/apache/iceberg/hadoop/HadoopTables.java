@@ -208,8 +208,7 @@ public class HadoopTables implements Tables, Configurable {
     Map<String, String> props = Maps.newHashMap();
     // this map could be big as we are copying hadoop conf to map
     // we don't filter out encryption related conf because this will make the code hard to track if
-    // we want to add
-    // new encryption related conf property
+    // we want to add new encryption related conf property
     for (Map.Entry<String, String> entry : conf) {
       props.put(entry.getKey(), entry.getValue());
     }
