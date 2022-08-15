@@ -386,6 +386,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       dataFileWriter.create(writeAvroSchema, file);
       dataFileWriter.append(record);
     }
+
     Iterable<GenericData.Record> records =
         Avro.read(Files.localInput(file)).project(readSchema).withNameMapping(nameMapping).build();
 
