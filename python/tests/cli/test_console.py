@@ -33,7 +33,7 @@ from pyiceberg.table import Table, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
-from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V2
+from tests.conftest import EXAMPLE_TABLE_METADATA_V2
 
 
 class MockCatalog(Catalog):
@@ -52,7 +52,9 @@ class MockCatalog(Catalog):
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
         if tuple_identifier == ("default", "foo"):
             return Table(
-                identifier=tuple_identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+                identifier=tuple_identifier,
+                metadata_location="s3://tmp/",
+                metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {'.'.join(tuple_identifier)}")

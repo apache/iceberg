@@ -35,7 +35,7 @@ from hive_metastore.ttypes import (
 from hive_metastore.ttypes import Table as HiveTable
 
 from pyiceberg.catalog import PropertiesUpdateSummary
-from pyiceberg.catalog.hive import WAREHOUSE, HiveCatalog, _construct_hive_storage_descriptor
+from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -71,8 +71,7 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 @pytest.fixture
 def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
     metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
-    ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2),
-                                LocalFileIO().new_output(str(metadata_path)), True)
+    ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2), LocalFileIO().new_output(str(metadata_path)), True)
 
     return HiveTable(
         tableName="new_tabl2e",
@@ -359,8 +358,7 @@ def test_load_table(hive_table: HiveTable):
             SortOrder(
                 3,
                 SortField(
-                    source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC,
-                    null_order=NullOrder.NULLS_FIRST
+                    source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
                 ),
                 SortField(
                     source_id=3,
@@ -530,8 +528,7 @@ def test_create_database_already_exists():
     catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
-    catalog._client.__enter__().create_database.side_effect = AlreadyExistsException(
-        message="Database default already exists")
+    catalog._client.__enter__().create_database.side_effect = AlreadyExistsException(message="Database default already exists")
 
     with pytest.raises(NamespaceAlreadyExistsError) as exc_info:
         catalog.create_namespace("default")
@@ -679,7 +676,7 @@ def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
 
 
 def test_resolve_table_location_warehouse(hive_database: HiveDatabase):
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {WAREHOUSE: "/tmp/warehouse/"}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, warehouse="/tmp/warehouse/", uri=HIVE_METASTORE_FAKE_URL)
 
     # Set this one to None, so we'll fall back to the properties
     hive_database.locationUri = None
