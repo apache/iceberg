@@ -3,7 +3,7 @@ title: "Doris"
 bookIconImage: ../img/doris-logo.png
 bookFlatSection: true
 weight: 430
-bookExternalUrlNewWindow: https://doris.apache.org/docs/ecosystem/external-table/iceberg-of-doris.html
+bookExternalUrlNewWindow: https://doris.apache.org/docs/ecosystem/external-table/iceberg-of-doris
 ---
 <!--
 
