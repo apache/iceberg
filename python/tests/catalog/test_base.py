@@ -138,7 +138,7 @@ class InMemoryCatalog(Catalog):
 
         return list_tables
 
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         return list(self.__namespaces.keys())
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:

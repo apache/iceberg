@@ -474,12 +474,16 @@ class HiveCatalog(Catalog):
         with self._client as open_client:
             return [(database_name, table_name) for table_name in open_client.get_all_tables(db_name=database_name)]
 
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
+        # Hive does not support hierarchical namespaces, therefore return an empty list
+        if namespace:
+            return []
+
         with self._client as open_client:
             return list(map(self.identifier_to_tuple, open_client.get_all_databases()))
 

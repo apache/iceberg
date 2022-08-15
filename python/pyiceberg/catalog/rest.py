@@ -422,15 +422,24 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
 
-    def list_namespaces(self) -> List[Identifier]:
-        response = requests.get(self.url(Endpoints.list_namespaces), headers=self.headers)
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        namespace_tuple = self.identifier_to_tuple(namespace)
+        response = requests.get(
+            self.url(
+                f"{Endpoints.list_namespaces}?parent={NAMESPACE_SEPARATOR.join(namespace_tuple)}"
+                if namespace_tuple
+                else Endpoints.list_namespaces
+            ),
+            headers=self.headers,
+        )
         response.raise_for_status()
         namespaces = ListNamespaceResponse(**response.json())
         try:
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {})
-        return namespaces.namespaces
+
+        return [namespace_tuple + child_namespace for child_namespace in namespaces.namespaces]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
