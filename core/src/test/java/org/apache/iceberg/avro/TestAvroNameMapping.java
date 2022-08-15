@@ -44,6 +44,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
+@SuppressWarnings("unchecked")
 public class TestAvroNameMapping extends TestAvroReadProjection {
   @Test
   public void testMapProjections() throws IOException {
@@ -102,7 +103,6 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
                             Types.NestedField.required(1, "lat", Types.FloatType.get()))))));
 
     projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
-    @SuppressWarnings("unchecked")
     Record projectedL1 = ((Map<String, Record>) projected.get("location")).get("l1");
     Assert.assertNotNull(
         "Field missing from table mapping is renamed", projectedL1.getSchema().getField("long_r2"));
@@ -173,7 +173,6 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     Record projected = writeAndRead(writeSchema, readSchema, record, nameMapping);
     // The data is read back as a map
-    @SuppressWarnings("unchecked")
     Map<Record, Record> projectedLocation = (Map<Record, Record>) projected.get("location");
     Record projectedKey = projectedLocation.keySet().iterator().next();
     Record projectedValue = projectedLocation.values().iterator().next();
@@ -387,7 +386,6 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
       dataFileWriter.create(writeAvroSchema, file);
       dataFileWriter.append(record);
     }
-
     Iterable<GenericData.Record> records =
         Avro.read(Files.localInput(file)).project(readSchema).withNameMapping(nameMapping).build();
 
