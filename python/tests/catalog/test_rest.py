@@ -158,7 +158,7 @@ def test_list_namespace_with_parent_200(rest_mock: Mocker):
         status_code=200,
     )
     assert RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).list_namespaces(("accounting",)) == [
-        ("tax",),
+        ("accounting", "tax"),
     ]
 
 
