@@ -109,6 +109,9 @@ public class BucketFunction implements UnboundFunction {
   }
 
   public abstract static class BucketBase implements ScalarFunction<Integer> {
+    public static int apply(int numBuckets, int hashedValue) {
+      return (hashedValue & Integer.MAX_VALUE) % numBuckets;
+    }
     @Override
     public String name() {
       return "bucket";
@@ -126,7 +129,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic method used in codegen
     public static int invoke(int numBuckets, int value) {
-      return (BucketUtil.hash(value) & Integer.MAX_VALUE) % numBuckets;
+      return apply(numBuckets, BucketUtil.hash(value));
     }
 
     public BucketInt(DataType sqlType) {
