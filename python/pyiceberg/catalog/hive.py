@@ -16,6 +16,7 @@
 #  under the License.
 import getpass
 import time
+import uuid
 from typing import (
     Any,
     Dict,
@@ -56,9 +57,12 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
     TableAlreadyExistsError,
 )
-from pyiceberg.schema import Schema
+from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table.metadata import DEFAULT_LAST_PARTITION_ID, TableMetadataV1, TableMetadataV2
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
@@ -69,11 +73,12 @@ from pyiceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
-    IcebergType,
     IntegerType,
     ListType,
     LongType,
     MapType,
+    NestedField,
+    PrimitiveType,
     StringType,
     StructType,
     TimestampType,
@@ -95,13 +100,15 @@ hive_types = {
     UUIDType: "string",
     BinaryType: "binary",
     FixedType: "binary",
-    DecimalType: None,
-    StructType: None,
-    ListType: None,
-    MapType: None,
 }
 
+COMMENT = "comment"
 OWNER = "owner"
+TABLE_TYPE = "table_type"
+METADATA_LOCATION = "metadata_location"
+ICEBERG = "iceberg"
+LOCATION = "location"
+WAREHOUSE = "warehouse"
 
 
 class _HiveClient:
@@ -129,22 +136,12 @@ class _HiveClient:
 def _construct_hive_storage_descriptor(schema: Schema, location: Optional[str]) -> StorageDescriptor:
     ser_de_info = SerDeInfo(serializationLib="org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe")
     return StorageDescriptor(
-        _convert_schema_to_columns(schema),
+        [FieldSchema(field.name, visit(field.field_type, SchemaToHiveConverter()), field.doc) for field in schema.fields],
         location,
         "org.apache.hadoop.mapred.FileInputFormat",
         "org.apache.hadoop.mapred.FileOutputFormat",
         serdeInfo=ser_de_info,
     )
-
-
-def _convert_schema_to_columns(schema: Schema) -> List[FieldSchema]:
-    return [FieldSchema(field.name, _iceberg_type_to_hive_types(field.field_type), field.doc) for field in schema.fields]
-
-
-def _iceberg_type_to_hive_types(col_type: IcebergType) -> str:
-    if hive_type := hive_types.get(type(col_type)):
-        return hive_type
-    raise NotImplementedError(f"Not yet implemented column type {col_type}")
 
 
 PROP_EXTERNAL = "EXTERNAL"
@@ -164,14 +161,54 @@ def _construct_parameters(metadata_location: str, previous_metadata_location: Op
 def _annotate_namespace(database: HiveDatabase, properties: Properties) -> HiveDatabase:
     params = {}
     for key, value in properties.items():
-        if key == "comment":
+        if key == COMMENT:
             database.description = value
-        elif key == "location":
+        elif key == LOCATION:
             database.locationUri = value
         else:
             params[key] = value
     database.parameters = params
     return database
+
+
+HIVE_PRIMITIVE_TYPES = {
+    BooleanType: "boolean",
+    IntegerType: "int",
+    LongType: "bigint",
+    FloatType: "float",
+    DoubleType: "double",
+    DateType: "date",
+    TimeType: "string",
+    TimestampType: "timestamp",
+    StringType: "string",
+    UUIDType: "string",
+    BinaryType: "binary",
+    FixedType: "binary",
+}
+
+
+class SchemaToHiveConverter(SchemaVisitor[str]):
+    def schema(self, schema: Schema, struct_result: str) -> str:
+        return struct_result
+
+    def struct(self, struct: StructType, field_results: List[str]) -> str:
+        return f"struct<{','.join(field_results)}>"
+
+    def field(self, field: NestedField, field_result: str) -> str:
+        return f"{field.name}:{field_result}"
+
+    def list(self, list_type: ListType, element_result: str) -> str:
+        return f"array<{element_result}>"
+
+    def map(self, map_type: MapType, key_result: str, value_result: str) -> str:
+        # Key has to be primitive for Hive
+        return f"map<{key_result},{value_result}>"
+
+    def primitive(self, primitive: PrimitiveType) -> str:
+        if isinstance(primitive, DecimalType):
+            return f"decimal({primitive.precision},{primitive.scale})"
+        else:
+            return HIVE_PRIMITIVE_TYPES[type(primitive)]
 
 
 class HiveCatalog(Catalog):
@@ -202,17 +239,46 @@ class HiveCatalog(Catalog):
         super().__init__(name, properties)
         self._client = _HiveClient(uri)
 
-    def _convert_hive_into_iceberg(self, table: HiveTable) -> Table:
-        # Requires reading the manifest, will implement this in another PR
-        # Check the table type
-        return Table(identifier=(table.dbName, table.tableName))
+    def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO) -> Table:
+        properties: Dict[str, str] = table.parameters
+        if TABLE_TYPE not in properties:
+            raise NoSuchTableError(f"Property table_type missing, could not determine type: {table.dbName}.{table.tableName}")
+
+        table_type = properties[TABLE_TYPE]
+        if table_type.lower() != ICEBERG:
+            raise NoSuchTableError(f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}")
+
+        if prop_metadata_location := properties.get(METADATA_LOCATION):
+            metadata_location = prop_metadata_location
+        else:
+            raise NoSuchTableError(f"Table property {METADATA_LOCATION} is missing")
+
+        file = io.new_input(metadata_location)
+        metadata = FromInputFile.table_metadata(file)
+        return Table(identifier=(table.dbName, table.tableName), metadata=metadata, metadata_location=metadata_location)
+
+    def _write_metadata(self, metadata: Union[TableMetadataV1, TableMetadataV2], io: FileIO, metadata_path: str):
+        ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
+
+    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str):
+        if not location:
+            database_properties = self.load_namespace_properties(database_name)
+            if database_location := database_properties.get(LOCATION):
+                database_location = database_location.rstrip("/")
+                return f"{database_location}/{table_name}"
+
+            if warehouse_location := self.properties.get(WAREHOUSE):
+                warehouse_location = warehouse_location.rstrip("/")
+                return f"{warehouse_location}/{database_name}/{table_name}"
+            raise ValueError("Cannot determine location from warehouse, please provide an explicit location")
+        return location
 
     def create_table(
         self,
         identifier: Union[str, Identifier],
         schema: Schema,
         location: Optional[str] = None,
-        partition_spec: Optional[PartitionSpec] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
@@ -234,7 +300,29 @@ class HiveCatalog(Catalog):
             ValueError: If the identifier is invalid
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
-        current_time_millis = int(time.time())
+        current_time_millis = int(time.time() * 1000)
+
+        location = self._resolve_table_location(location, database_name, table_name)
+
+        metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
+        metadata = TableMetadataV2(
+            location=location,
+            schemas=[schema],
+            current_schema_id=schema.schema_id,
+            partition_specs=[partition_spec],
+            default_spec_id=partition_spec.spec_id,
+            sort_orders=[sort_order],
+            default_sort_order_id=sort_order.order_id,
+            properties=properties or {},
+            last_updated_ms=current_time_millis,
+            last_column_id=schema.highest_field_id,
+            last_partition_id=max(field.field_id for field in partition_spec.fields)
+            if partition_spec.fields
+            else DEFAULT_LAST_PARTITION_ID,
+        )
+        io = load_file_io({**self.properties, **properties})
+        self._write_metadata(metadata, io, metadata_location)
+
         tbl = HiveTable(
             dbName=database_name,
             tableName=table_name,
@@ -243,7 +331,7 @@ class HiveCatalog(Catalog):
             lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
             tableType="EXTERNAL_TABLE",
-            parameters=_construct_parameters("s3://"),
+            parameters=_construct_parameters(metadata_location),
         )
         try:
             with self._client as open_client:
@@ -251,7 +339,8 @@ class HiveCatalog(Catalog):
                 hive_table = open_client.get_table(dbname=database_name, tbl_name=table_name)
         except AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
-        return self._convert_hive_into_iceberg(hive_table)
+
+        return self._convert_hive_into_iceberg(hive_table, io)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
@@ -275,7 +364,8 @@ class HiveCatalog(Catalog):
         except NoSuchObjectException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
 
-        return self._convert_hive_into_iceberg(hive_table)
+        io = load_file_io({**self.properties, **hive_table.parameters})
+        return self._convert_hive_into_iceberg(hive_table, io)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
@@ -410,9 +500,9 @@ class HiveCatalog(Catalog):
             with self._client as open_client:
                 database = open_client.get_database(name=database_name)
                 properties = database.parameters
-                properties["location"] = database.locationUri
+                properties[LOCATION] = database.locationUri
                 if comment := database.description:
-                    properties["comment"] = comment
+                    properties[COMMENT] = comment
                 return properties
         except NoSuchObjectException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e

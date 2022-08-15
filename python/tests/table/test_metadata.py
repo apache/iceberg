@@ -17,6 +17,7 @@
 
 import io
 import json
+from typing import Any, Dict
 from uuid import UUID
 
 import pytest
@@ -49,90 +50,28 @@ EXAMPLE_TABLE_METADATA_V1 = {
     "current-snapshot-id": -1,
     "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
 }
-EXAMPLE_TABLE_METADATA_V2 = {
-    "format-version": 2,
-    "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
-    "location": "s3://bucket/test/location",
-    "last-sequence-number": 34,
-    "last-updated-ms": 1602638573590,
-    "last-column-id": 3,
-    "current-schema-id": 1,
-    "schemas": [
-        {"type": "struct", "schema-id": 0, "fields": [{"id": 1, "name": "x", "required": True, "type": "long"}]},
-        {
-            "type": "struct",
-            "schema-id": 1,
-            "identifier-field-ids": [1, 2],
-            "fields": [
-                {"id": 1, "name": "x", "required": True, "type": "long"},
-                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-                {"id": 3, "name": "z", "required": True, "type": "long"},
-            ],
-        },
-    ],
-    "default-spec-id": 0,
-    "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
-    "last-partition-id": 1000,
-    "default-sort-order-id": 3,
-    "sort-orders": [
-        {
-            "order-id": 3,
-            "fields": [
-                {"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"},
-                {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"},
-            ],
-        }
-    ],
-    "properties": {"read.split.target.size": 134217728},
-    "current-snapshot-id": 3055729675574597004,
-    "snapshots": [
-        {
-            "snapshot-id": 3051729675574597004,
-            "timestamp-ms": 1515100955770,
-            "sequence-number": 0,
-            "summary": {"operation": "append"},
-            "manifest-list": "s3://a/b/1.avro",
-        },
-        {
-            "snapshot-id": 3055729675574597004,
-            "parent-snapshot-id": 3051729675574597004,
-            "timestamp-ms": 1555100955770,
-            "sequence-number": 1,
-            "summary": {"operation": "append"},
-            "manifest-list": "s3://a/b/2.avro",
-            "schema-id": 1,
-        },
-    ],
-    "snapshot-log": [
-        {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
-        {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
-    ],
-    "metadata-log": [],
-}
 
 
-@pytest.mark.parametrize(
-    "metadata",
-    [
-        EXAMPLE_TABLE_METADATA_V1,
-        EXAMPLE_TABLE_METADATA_V2,
-    ],
-)
-def test_from_dict(metadata: dict):
+def test_from_dict_v1():
     """Test initialization of a TableMetadata instance from a dictionary"""
-    TableMetadata.parse_obj(metadata)
+    TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V1)
 
 
-def test_from_byte_stream():
+def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]):
+    """Test initialization of a TableMetadata instance from a dictionary"""
+    TableMetadata.parse_obj(example_table_metadata_v2)
+
+
+def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]):
     """Test generating a TableMetadata instance from a file-like byte stream"""
-    data = bytes(json.dumps(EXAMPLE_TABLE_METADATA_V2), encoding="utf-8")
+    data = bytes(json.dumps(example_table_metadata_v2), encoding="utf-8")
     byte_stream = io.BytesIO(data)
     FromByteStream.table_metadata(byte_stream=byte_stream)
 
 
-def test_v2_metadata_parsing():
+def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]):
     """Test retrieving values from a TableMetadata instance of version 2"""
-    table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
+    table_metadata = TableMetadata.parse_obj(example_table_metadata_v2)
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1")
@@ -173,17 +112,17 @@ def test_v1_metadata_parsing_directly():
     assert table_metadata.default_sort_order_id == 0
 
 
-def test_parsing_correct_types():
-    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+def test_parsing_correct_types(example_table_metadata_v2: Dict[str, Any]):
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
     assert isinstance(table_metadata.schemas[0], Schema)
     assert isinstance(table_metadata.schemas[0].fields[0], NestedField)
     assert isinstance(table_metadata.schemas[0].fields[0].field_type, LongType)
 
 
-def test_updating_metadata():
+def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]):
     """Test creating a new TableMetadata instance that's an updated version of
     an existing TableMetadata instance"""
-    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
 
     new_schema = {
         "type": "struct",
@@ -211,8 +150,8 @@ def test_serialize_v1():
     assert table_metadata == expected
 
 
-def test_serialize_v2():
-    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2).json()
+def test_serialize_v2(example_table_metadata_v2: Dict[str, Any]):
+    table_metadata = TableMetadataV2(**example_table_metadata_v2).json()
     expected = """{"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}"""
     assert table_metadata == expected
 
@@ -523,8 +462,8 @@ def test_v1_write_metadata_for_v2():
     assert "partition-spec" not in metadata_v2
 
 
-def test_v2_ref_creation():
-    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+def test_v2_ref_creation(example_table_metadata_v2: Dict[str, Any]):
+    table_metadata = TableMetadataV2(**example_table_metadata_v2)
     assert table_metadata.refs == {"main": SnapshotRef(snapshot_id=3055729675574597004, snapshot_ref_type=SnapshotRefType.BRANCH)}
 
 
