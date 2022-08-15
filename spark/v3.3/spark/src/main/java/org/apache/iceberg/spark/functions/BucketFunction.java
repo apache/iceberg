@@ -271,7 +271,7 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return String.format("iceberg.bucket(decimal(%d,%d))", precision, scale);
+      return String.format("iceberg.bucket(decimal)");
     }
   }
 }
