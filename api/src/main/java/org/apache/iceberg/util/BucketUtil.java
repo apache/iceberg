@@ -58,10 +58,7 @@ public class BucketUtil {
   public static int hash(ByteBuffer value) {
     if (value.hasArray()) {
       return MURMUR3
-          .hashBytes(
-              value.array(),
-              value.arrayOffset() + value.position(),
-              value.remaining())
+          .hashBytes(value.array(), value.arrayOffset() + value.position(), value.remaining())
           .asInt();
     } else {
       int position = value.position();

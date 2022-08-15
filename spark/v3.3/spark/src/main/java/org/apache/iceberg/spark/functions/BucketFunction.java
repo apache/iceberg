@@ -74,15 +74,15 @@ public class BucketFunction implements UnboundFunction {
 
     DataType type = valueField.dataType();
     if (type instanceof DateType) {
-      return new BucketInt(DataTypes.DateType);
+      return new BucketInt(type);
     } else if (type instanceof ByteType
         || type instanceof ShortType
         || type instanceof IntegerType) {
       return new BucketInt(DataTypes.IntegerType);
     } else if (type instanceof LongType) {
-      return new BucketLong(DataTypes.LongType);
+      return new BucketLong(type);
     } else if (type instanceof TimestampType) {
-      return new BucketLong(DataTypes.TimestampType);
+      return new BucketLong(type);
     } else if (type instanceof DecimalType) {
       return new BucketDecimal(type);
     } else if (type instanceof StringType) {
@@ -112,6 +112,7 @@ public class BucketFunction implements UnboundFunction {
     public static int apply(int numBuckets, int hashedValue) {
       return (hashedValue & Integer.MAX_VALUE) % numBuckets;
     }
+
     @Override
     public String name() {
       return "bucket";
