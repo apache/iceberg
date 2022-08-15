@@ -123,12 +123,10 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
                       .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
                       .build();
 
-              if (updated.changes().isEmpty()) {
-                // do not commit if the metadata has not changed. for example, this may happen when
-                // setting the current
-                // snapshot to an ID that is already current. note that this check uses identity.
-                return;
-              }
+              // Do commit this operation even if the metadata has not changed, as we need to
+              // advance the hasLastOpCommited for the transaction's commit to work properly.
+              // (Without any other operations in the transaction, the commitTransaction() call
+              // will be a no-op anyway)
 
               // if the table UUID is missing, add it here. the UUID will be re-created each time
               // this operation retries

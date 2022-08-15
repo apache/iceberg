@@ -59,7 +59,7 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
   static <I, O> CloseableIterator<O> transform(
       CloseableIterator<I> iterator, Function<I, O> transform) {
-    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+    Preconditions.checkNotNull(transform, "Invalid transform: null");
 
     return new CloseableIterator<O>() {
       @Override

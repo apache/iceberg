@@ -169,6 +169,10 @@ class Schema(IcebergBaseModel):
             raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
         return field.field_type
 
+    @property
+    def highest_field_id(self):
+        return visit(self.as_struct(), _FindLastFieldId())
+
     def find_column_name(self, column_id: int) -> Optional[str]:
         """Find a column name given a column ID
 
@@ -612,3 +616,25 @@ def build_position_accessors(schema_or_type: Union[Schema, IcebergType]) -> Dict
         Dict[int, Accessor]: An index of field IDs to accessors
     """
     return visit(schema_or_type, _BuildPositionAccessors())
+
+
+class _FindLastFieldId(SchemaVisitor[int]):
+    """Traverses the schema to get the highest field-id"""
+
+    def schema(self, schema: Schema, struct_result: int) -> int:
+        return struct_result
+
+    def struct(self, struct: StructType, field_results: List[int]) -> int:
+        return max(field_results)
+
+    def field(self, field: NestedField, field_result: int) -> int:
+        return max(field.field_id, field_result)
+
+    def list(self, list_type: ListType, element_result: int) -> int:
+        return element_result
+
+    def map(self, map_type: MapType, key_result: int, value_result: int) -> int:
+        return max(key_result, value_result)
+
+    def primitive(self, primitive: PrimitiveType) -> int:
+        return 0

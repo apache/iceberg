@@ -621,4 +621,15 @@ public class TestSnapshotManager extends TableTestBase {
     Assert.assertEquals(SnapshotRef.branchBuilder(1).build(), actualBranch);
     Assert.assertEquals(SnapshotRef.tagBuilder(1).build(), actualTag);
   }
+
+  @Test
+  public void testAttemptToRollbackToCurrentSnapshot() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    long currentSnapshotTimestampPlus100 = table.currentSnapshot().timestampMillis() + 100;
+    table.manageSnapshots().rollbackToTime(currentSnapshotTimestampPlus100).commit();
+
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().rollbackTo(currentSnapshotId).commit();
+  }
 }

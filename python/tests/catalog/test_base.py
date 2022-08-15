@@ -25,8 +25,12 @@ from typing import (
 
 import pytest
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -35,10 +39,11 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import INITIAL_SPEC_ID
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.typedef import EMPTY_DICT
 from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 
@@ -60,7 +65,7 @@ class InMemoryCatalog(Catalog):
         location: Optional[str] = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Optional[Properties] = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
 
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -114,7 +119,7 @@ class InMemoryCatalog(Catalog):
         )
         return self.__tables[to_identifier]
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
             raise NamespaceAlreadyExistsError(f"Namespace already exists: {namespace}")
@@ -150,7 +155,7 @@ class InMemoryCatalog(Catalog):
             raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}") from error
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         removed: Set[str] = set()
         updated: Set[str] = set()

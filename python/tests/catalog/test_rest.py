@@ -14,13 +14,13 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name,unused-argument
 from uuid import UUID
 
 import pytest
 from requests_mock import Mocker
 
-from pyiceberg.catalog.base import PropertiesUpdateSummary, Table
+from pyiceberg.catalog import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (
     BadCredentialsError,
@@ -622,3 +622,63 @@ def test_delete_table_404(rest_mock: Mocker):
     with pytest.raises(NoSuchTableError) as e:
         RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(("example", "fokko"))
     assert "Table does not exist" in str(e.value)
+
+
+def test_create_table_missing_namespace(rest_mock: Mocker, table_schema_simple: Schema):
+    table = "table"
+    with pytest.raises(NoSuchTableError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_table(table, table_schema_simple)
+    assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
+
+
+def test_load_table_invalid_namespace(rest_mock: Mocker):
+    table = "table"
+    with pytest.raises(NoSuchTableError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_table(table)
+    assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
+
+
+def test_drop_table_invalid_namespace(rest_mock: Mocker):
+    table = "table"
+    with pytest.raises(NoSuchTableError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(table)
+    assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
+
+
+def test_purge_table_invalid_namespace(rest_mock: Mocker):
+    table = "table"
+    with pytest.raises(NoSuchTableError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).purge_table(table)
+    assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
+
+
+def test_create_namespace_invalid_namespace(rest_mock: Mocker):
+    with pytest.raises(NoSuchNamespaceError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_namespace(())
+    assert "Empty namespace identifier" in str(e.value)
+
+
+def test_drop_namespace_invalid_namespace(rest_mock: Mocker):
+    with pytest.raises(NoSuchNamespaceError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_namespace(())
+    assert "Empty namespace identifier" in str(e.value)
+
+
+def test_load_namespace_properties_invalid_namespace(rest_mock: Mocker):
+    with pytest.raises(NoSuchNamespaceError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_namespace_properties(())
+    assert "Empty namespace identifier" in str(e.value)
+
+
+def test_update_namespace_properties_invalid_namespace(rest_mock: Mocker):
+    with pytest.raises(NoSuchNamespaceError) as e:
+        # Missing namespace
+        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).update_namespace_properties(())
+    assert "Empty namespace identifier" in str(e.value)

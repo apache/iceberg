@@ -17,7 +17,7 @@
 
 from io import SEEK_CUR, SEEK_END, SEEK_SET
 
-from pyiceberg.io.base import InputStream
+from pyiceberg.io import InputStream
 
 
 class MemoryInputStream(InputStream):
@@ -70,3 +70,9 @@ class MemoryInputStream(InputStream):
     def close(self) -> None:
         del self.buffer
         self.pos = 0
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()

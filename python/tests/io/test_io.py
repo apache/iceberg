@@ -22,7 +22,7 @@ from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from pyiceberg.io.base import (
+from pyiceberg.io import (
     FileIO,
     InputFile,
     InputStream,

@@ -26,6 +26,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestClosingIterator {
@@ -66,5 +67,13 @@ public class TestClosingIterator {
     assertFalse(closingIterator.hasNext());
     assertFalse(closingIterator.hasNext());
     verify(underlying, times(1)).close();
+  }
+
+  @Test
+  public void transformNullCheck() {
+    Assertions.assertThatThrownBy(
+            () -> CloseableIterator.transform(CloseableIterator.empty(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid transform: null");
   }
 }

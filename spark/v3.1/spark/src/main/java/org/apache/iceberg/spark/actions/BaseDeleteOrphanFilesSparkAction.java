@@ -60,9 +60,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An action that removes orphan metadata and data files by listing a given location and comparing
- * the actual files in that location with data and metadata files referenced by all valid snapshots.
- * The location must be accessible for listing via the Hadoop {@link FileSystem}.
+ * An action that removes orphan metadata, data and delete files by listing a given location and
+ * comparing the actual files in that location with content and metadata files referenced by all
+ * valid snapshots. The location must be accessible for listing via the Hadoop {@link FileSystem}.
  *
  * <p>By default, this action cleans up the table location returned by {@link Table#location()} and
  * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can
@@ -169,7 +169,7 @@ public class BaseDeleteOrphanFilesSparkAction
   }
 
   private DeleteOrphanFiles.Result doExecute() {
-    Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+    Dataset<Row> validDataFileDF = buildValidContentFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();

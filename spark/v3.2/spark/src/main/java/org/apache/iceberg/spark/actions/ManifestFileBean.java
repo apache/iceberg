@@ -22,8 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
 
 public class ManifestFileBean implements ManifestFile {
+  public static final Encoder<ManifestFileBean> ENCODER = Encoders.bean(ManifestFileBean.class);
+
   private String path = null;
   private Long length = null;
   private Integer partitionSpecId = null;

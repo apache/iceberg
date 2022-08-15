@@ -238,9 +238,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private DeleteOrphanFiles.Result doExecute() {
-    Dataset<Row> validContentFileDF = buildValidContentFileDF(table);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
-    Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
+    Dataset<Row> validFileDF = buildValidFileDF();
     Dataset<Row> actualFileDF =
         compareToFileList == null ? buildActualFileDF() : filteredCompareToFileList();
 
@@ -256,6 +254,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         .run(deleteFunc::accept);
 
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);
+  }
+
+  private Dataset<Row> buildValidFileDF() {
+    return contentFileDS(table)
+        .union(manifestDS(table))
+        .union(manifestListDS(table))
+        .union(otherMetadataFileDS(table))
+        .toDF(FILE_PATH, FILE_TYPE)
+        .select(FILE_PATH);
   }
 
   private Dataset<Row> buildActualFileDF() {

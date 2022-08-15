@@ -48,6 +48,14 @@ public class IcebergArrowColumnVector extends ColumnVector {
     this.accessor = ArrowVectorAccessors.getVectorAccessor(holder);
   }
 
+  protected ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor() {
+    return accessor;
+  }
+
+  protected NullabilityHolder nullabilityHolder() {
+    return nullabilityHolder;
+  }
+
   @Override
   public void close() {
     accessor.close();
