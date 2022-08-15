@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import uuid
 from copy import copy
 from typing import (
     Any,
@@ -137,7 +138,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     are always assigned an unused ID when evolving specs."""
 
     properties: Dict[str, str] = Field(default_factory=dict)
-    """	A string to string map of table properties. This is used to
+    """A string to string map of table properties. This is used to
     control settings that affect reading and writing and is not intended
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
@@ -323,12 +324,12 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     def check_sort_orders(cls, values: Dict[str, Any]):
         return check_sort_orders(values)
 
-    format_version: Literal[2] = Field(alias="format-version")
+    format_version: Literal[2] = Field(alias="format-version", default=2)
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
 
-    table_uuid: UUID = Field(alias="table-uuid")
+    table_uuid: UUID = Field(alias="table-uuid", default_factory=uuid.uuid4)
     """A UUID that identifies the table, generated when the table is created.
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""

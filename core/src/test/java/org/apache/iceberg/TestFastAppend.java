@@ -487,4 +487,54 @@ public class TestFastAppend extends TableTestBase {
         table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
     Assert.assertEquals("Should set changed partition count", "2", changedPartitions);
   }
+
+  @Test
+  public void testAppendToExistingBranch() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.newFastAppend().appendFile(FILE_B).toBranch("branch").commit();
+    int branchSnapshot = 2;
+
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), 1);
+    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
+  }
+
+  @Test
+  public void testAppendCreatesBranchIfNeeded() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).toBranch("branch").commit();
+    int branchSnapshot = 2;
+
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), 1);
+    Assert.assertNotNull(table.ops().current().ref("branch"));
+    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
+  }
+
+  @Test
+  public void testAppendToBranchEmptyTable() {
+    table.newFastAppend().appendFile(FILE_B).toBranch("branch").commit();
+    int branchSnapshot = 1;
+
+    Assert.assertNull(table.currentSnapshot());
+    Assert.assertNotNull(table.ops().current().ref("branch"));
+    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
+  }
+
+  @Test
+  public void testAppendToNullBranchFails() {
+    AssertHelpers.assertThrows(
+        "Invalid branch",
+        IllegalArgumentException.class,
+        () -> table.newFastAppend().appendFile(FILE_A).toBranch(null));
+  }
+
+  @Test
+  public void testAppendToTagFails() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.manageSnapshots().createTag("some-tag", table.currentSnapshot().snapshotId()).commit();
+    AssertHelpers.assertThrows(
+        "Invalid branch",
+        IllegalArgumentException.class,
+        () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit());
+  }
 }

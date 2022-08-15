@@ -84,6 +84,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       Schema expectedSchema,
       List<Expression> filters,
       CaseInsensitiveStringMap options) {
+
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
@@ -191,13 +194,16 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+    boolean hasNoEqDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasEqDeletes);
+
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
-    boolean readUsingBatch =
-        batchReadsEnabled
-            && hasNoDeleteFiles
-            && (allOrcFileScanTasks
-                || (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+    boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
+
+    boolean batchReadParquet =
+        hasNoEqDeleteFiles && allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
+
+    boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
 
     int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
 

@@ -50,6 +50,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.Dataset;
@@ -60,12 +62,25 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
 
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
+  private final boolean vectorized;
+
+  public TestSparkReaderDeletes(boolean vectorized) {
+    this.vectorized = vectorized;
+  }
+
+  @Parameterized.Parameters(name = "vectorized = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {new Object[] {false}, new Object[] {true}};
+  }
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -108,7 +123,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
-
+    if (vectorized) {
+      table
+          .updateProperties()
+          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true")
+          .set(
+              TableProperties.PARQUET_BATCH_SIZE,
+              "4") // split 7 records to two batches to cover more code paths
+          .commit();
+    }
     return table;
   }
 
@@ -241,5 +264,33 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     Assert.assertEquals("should include 4 deleted row", 4, actualRowSet.size());
     Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
+  }
+
+  @Test
+  public void testPosDeletesAllRowsInBatch() throws IOException {
+    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all
+    // deleted.
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 1L), // id = 43
+            Pair.of(dataFile.path(), 2L), // id = 61
+            Pair.of(dataFile.path(), 3L) // id = 89
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table
+        .newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 43, 61, 89);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 }

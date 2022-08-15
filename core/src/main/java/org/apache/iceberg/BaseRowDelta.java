@@ -96,7 +96,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  protected void validate(TableMetadata base) {
+  protected void validate(TableMetadata base, Snapshot snapshot) {
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(

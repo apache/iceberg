@@ -1176,10 +1176,10 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should not delete any files", 0, deletedFiles.size());
 
-    Assert.assertSame(
-        "Multiple calls to expire should return the same deleted files",
-        pendingDeletes,
-        action.expire());
+    Assert.assertEquals(
+        "Multiple calls to expire should return the same count of deleted files",
+        pendingDeletes.count(),
+        action.expire().count());
   }
 
   @Test
@@ -1214,5 +1214,40 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
               4L,
               jobsRunDuringStreamResults);
         });
+  }
+
+  @Test
+  public void testExpireAfterExecute() {
+    table
+        .newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+
+    rightAfterSnapshot();
+
+    table
+        .newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    table
+        .newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = rightAfterSnapshot();
+
+    ExpireSnapshotsSparkAction action = SparkActions.get().expireSnapshots(table);
+
+    action.expireOlderThan(t3).retainLast(2);
+
+    ExpireSnapshots.Result result = action.execute();
+    checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
+
+    List<FileInfo> typedExpiredFiles = action.expireFiles().collectAsList();
+    Assert.assertEquals("Expired results must match", 1, typedExpiredFiles.size());
+
+    List<Row> untypedExpiredFiles = action.expire().collectAsList();
+    Assert.assertEquals("Expired results must match", 1, untypedExpiredFiles.size());
   }
 }

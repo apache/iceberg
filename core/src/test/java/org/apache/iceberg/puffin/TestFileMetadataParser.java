@@ -81,7 +81,7 @@ public class TestFileMetadataParser {
   public void testMissingBlobs() {
     assertThatThrownBy(() -> FileMetadataParser.fromJson("{\"properties\": {}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse blobs from non-array: null");
+        .hasMessage("Cannot parse missing field: blobs");
   }
 
   @Test

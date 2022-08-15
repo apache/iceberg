@@ -390,6 +390,15 @@ public class AwsProperties implements Serializable {
   @Deprecated public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
   /**
+   * This flag controls whether the S3 client will be initialized during the S3FileIO
+   * initialization, instead of default lazy initialization upon use. This is needed for cases that
+   * the credentials to use might change and needs to be preloaded.
+   */
+  public static final String S3_PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
+
+  public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link LakeFormationAwsClientFactory}. The table name used as part of lake formation
    * credentials request.
    */
@@ -416,6 +425,7 @@ public class AwsProperties implements Serializable {
   private int s3FileIoDeleteThreads;
   private boolean isS3DeleteEnabled;
   private final Map<String, String> s3BucketToAccessPointMapping;
+  private boolean s3PreloadClientEnabled;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -441,6 +451,7 @@ public class AwsProperties implements Serializable {
     this.s3FileIoDeleteThreads = Runtime.getRuntime().availableProcessors();
     this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
     this.s3BucketToAccessPointMapping = ImmutableMap.of();
+    this.s3PreloadClientEnabled = S3_PRELOAD_CLIENT_ENABLED_DEFAULT;
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -538,6 +549,11 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsBoolean(properties, S3_DELETE_ENABLED, S3_DELETE_ENABLED_DEFAULT);
     this.s3BucketToAccessPointMapping =
         PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
+    this.s3PreloadClientEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_PRELOAD_CLIENT_ENABLED,
+            AwsProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
@@ -645,6 +661,14 @@ public class AwsProperties implements Serializable {
 
   public void setS3FileIoAcl(ObjectCannedACL acl) {
     this.s3FileIoAcl = acl;
+  }
+
+  public void setS3PreloadClientEnabled(boolean s3PreloadClientEnabled) {
+    this.s3PreloadClientEnabled = s3PreloadClientEnabled;
+  }
+
+  public boolean s3PreloadClientEnabled() {
+    return s3PreloadClientEnabled;
   }
 
   public String dynamoDbTableName() {

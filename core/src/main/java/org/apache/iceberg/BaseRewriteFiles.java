@@ -110,7 +110,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
-  protected void validate(TableMetadata base) {
+  protected void validate(TableMetadata base, Snapshot snapshot) {
     if (replacedDataFiles.size() > 0) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data
       // files

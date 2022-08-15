@@ -98,6 +98,12 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
+  public FastAppend toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   public FastAppend appendManifest(ManifestFile manifest) {
     Preconditions.checkArgument(
         !manifest.hasExistingFiles(), "Cannot append manifest with existing files");
@@ -135,7 +141,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     List<ManifestFile> newManifests = Lists.newArrayList();
 
     try {
@@ -153,8 +159,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
             manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
-    if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().allManifests(ops.io()));
+    if (snapshot != null) {
+      newManifests.addAll(snapshot.allManifests(ops.io()));
     }
 
     return newManifests;

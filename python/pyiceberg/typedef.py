@@ -14,7 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict, Tuple
+
+from typing import Any, Dict, Tuple
+
+
+class FrozenDict(Dict):
+    def __setitem__(self, instance, value):
+        raise AttributeError("FrozenDict does not support assignment")
+
+    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore
+        raise AttributeError("FrozenDict does not support .update()")
+
+
+EMPTY_DICT = FrozenDict()
 
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]

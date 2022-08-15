@@ -18,12 +18,8 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 import java.util.Set;
 import java.util.stream.StreamSupport;
-import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -45,7 +41,8 @@ public class TestMetadataTableFilters extends TableTestBase {
       Sets.newHashSet(
           MetadataTableType.ALL_DATA_FILES,
           MetadataTableType.ALL_DATA_FILES,
-          MetadataTableType.ALL_FILES);
+          MetadataTableType.ALL_FILES,
+          MetadataTableType.ALL_ENTRIES);
 
   private final MetadataTableType type;
 
@@ -61,7 +58,11 @@ public class TestMetadataTableFilters extends TableTestBase {
       {MetadataTableType.ALL_DATA_FILES, 2},
       {MetadataTableType.ALL_DELETE_FILES, 2},
       {MetadataTableType.ALL_FILES, 1},
-      {MetadataTableType.ALL_FILES, 2}
+      {MetadataTableType.ALL_FILES, 2},
+      {MetadataTableType.ENTRIES, 1},
+      {MetadataTableType.ENTRIES, 2},
+      {MetadataTableType.ALL_ENTRIES, 1},
+      {MetadataTableType.ALL_ENTRIES, 2}
     };
   }
 
@@ -119,6 +120,10 @@ public class TestMetadataTableFilters extends TableTestBase {
         return new AllDeleteFilesTable(table.ops(), table);
       case ALL_FILES:
         return new AllFilesTable(table.ops(), table);
+      case ENTRIES:
+        return new ManifestEntriesTable(table.ops(), table);
+      case ALL_ENTRIES:
+        return new AllEntriesTable(table.ops(), table);
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
@@ -127,6 +132,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   private int expectedScanTaskCount(int partitions) {
     switch (type) {
       case FILES:
+      case ENTRIES:
         if (formatVersion == 1) {
           return partitions;
         } else {
@@ -139,6 +145,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       case ALL_DATA_FILES:
         return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
       case ALL_FILES:
+      case ALL_ENTRIES:
         if (formatVersion == 1) {
           return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
         } else {
@@ -153,20 +160,46 @@ public class TestMetadataTableFilters extends TableTestBase {
     return aggFileTables.contains(tableType);
   }
 
+  private String partitionColumn(String colName) {
+    switch (type) {
+      case FILES:
+      case DATA_FILES:
+      case DELETE_FILES:
+      case ALL_DATA_FILES:
+      case ALL_DELETE_FILES:
+      case ALL_FILES:
+        return String.format("partition.%s", colName);
+      case ENTRIES:
+      case ALL_ENTRIES:
+        return String.format("data_file.partition.%s", colName);
+      default:
+        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    }
+  }
+
+  /** @return a basic expression that always evaluates to true, to test AND logic */
+  private Expression dummyExpression() {
+    switch (type) {
+      case FILES:
+      case DATA_FILES:
+      case DELETE_FILES:
+      case ALL_DATA_FILES:
+      case ALL_DELETE_FILES:
+      case ALL_FILES:
+        return Expressions.greaterThan("record_count", 0);
+      case ENTRIES:
+      case ALL_ENTRIES:
+        return Expressions.greaterThan("data_file.record_count", 0);
+      default:
+        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    }
+  }
+
   @Test
   public void testNoFilter() {
     Table metadataTable = createMetadataTable();
-    Types.StructType expected =
-        new Schema(
-                required(
-                    102,
-                    "partition",
-                    Types.StructType.of(optional(1000, "data_bucket", Types.IntegerType.get())),
-                    "Partition data tuple, schema based on the partition spec"))
-            .asStruct();
 
-    TableScan scan = metadataTable.newScan().select("partition.data_bucket");
-    Assert.assertEquals(expected, scan.schema().asStruct());
+    TableScan scan = metadataTable.newScan().select(partitionColumn("data_bucket"));
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
     Assert.assertEquals(expectedScanTaskCount(4), Iterables.size(tasks));
@@ -181,9 +214,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression and =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -195,7 +226,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testLt() {
     Table metadataTable = createMetadataTable();
 
-    Expression lt = Expressions.lessThan("partition.data_bucket", 2);
+    Expression lt = Expressions.lessThan(partitionColumn("data_bucket"), 2);
     TableScan scan = metadataTable.newScan().filter(lt);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
     Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
@@ -208,9 +239,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression or =
-        Expressions.or(
-            Expressions.equal("partition.data_bucket", 2),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.or(Expressions.equal(partitionColumn("data_bucket"), 2), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(or);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -226,7 +255,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testNot() {
     Table metadataTable = createMetadataTable();
 
-    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
+    Expression not = Expressions.not(Expressions.lessThan(partitionColumn("data_bucket"), 2));
     TableScan scan = metadataTable.newScan().filter(not);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -239,7 +268,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testIn() {
     Table metadataTable = createMetadataTable();
 
-    Expression set = Expressions.in("partition.data_bucket", 2, 3);
+    Expression set = Expressions.in(partitionColumn("data_bucket"), 2, 3);
     TableScan scan = metadataTable.newScan().filter(set);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -252,7 +281,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   @Test
   public void testNotNull() {
     Table metadataTable = createMetadataTable();
-    Expression unary = Expressions.notNull("partition.data_bucket");
+    Expression unary = Expressions.notNull(partitionColumn("data_bucket"));
     TableScan scan = metadataTable.newScan().filter(unary);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -269,9 +298,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression and =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
 
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
@@ -329,8 +356,7 @@ public class TestMetadataTableFilters extends TableTestBase {
 
     Table metadataTable = createMetadataTable();
     Expression filter =
-        Expressions.and(
-            Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("id"), 10), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -338,9 +364,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
@@ -417,8 +441,7 @@ public class TestMetadataTableFilters extends TableTestBase {
 
     Table metadataTable = createMetadataTable();
     Expression filter =
-        Expressions.and(
-            Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("id"), 10), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -427,9 +450,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
@@ -490,8 +511,7 @@ public class TestMetadataTableFilters extends TableTestBase {
 
     Table metadataTable = createMetadataTable();
     Expression filter =
-        Expressions.and(
-            Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("id"), 10), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -500,9 +520,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
@@ -578,8 +596,7 @@ public class TestMetadataTableFilters extends TableTestBase {
 
     Table metadataTable = createMetadataTable();
     Expression filter =
-        Expressions.and(
-            Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("id"), 10), dummyExpression());
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -588,9 +605,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter =
-        Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
@@ -603,17 +618,15 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertTrue(
         "File scan tasks do not include correct file",
         StreamSupport.stream(fileScanTasks.spliterator(), false)
-            .anyMatch(
-                t -> {
-                  ManifestFile mf = ((ManifestReadTask) t).manifest();
-                  return manifestHasPartition(mf, partValue);
-                }));
+            .anyMatch(t -> manifestHasPartition(manifest(t), partValue)));
   }
 
   private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
-    StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((ManifestReadTask) t).manifest()))
-        .anyMatch(m -> manifestHasPartition(m, partValue));
+    Assert.assertTrue(
+        "File scan tasks do not include correct partition value",
+        StreamSupport.stream(tasks.spliterator(), false)
+            .flatMap(c -> c.files().stream().map(this::manifest))
+            .anyMatch(m -> manifestHasPartition(m, partValue)));
   }
 
   private boolean manifestHasPartition(ManifestFile mf, int partValue) {
@@ -622,5 +635,16 @@ public class TestMetadataTableFilters extends TableTestBase {
     int upper =
         Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
     return (lower <= partValue) && (upper >= partValue);
+  }
+
+  private ManifestFile manifest(FileScanTask task) {
+    if (task instanceof BaseFilesTable.ManifestReadTask) {
+      return ((BaseFilesTable.ManifestReadTask) task).manifest();
+    } else if (task instanceof BaseEntriesTable.ManifestReadTask) {
+      return ((BaseEntriesTable.ManifestReadTask) task).manifest();
+    } else {
+      throw new IllegalArgumentException(
+          "Unexpected task type: " + task.getClass().getCanonicalName());
+    }
   }
 }
