@@ -91,7 +91,7 @@ public class BucketFunction implements UnboundFunction {
       return new BucketBinary();
     } else {
       throw new UnsupportedOperationException(
-          "Expected bucketed column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
+          "Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
     }
   }
 

@@ -201,13 +201,13 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
     AssertHelpers.assertThrows(
         "Double type should not be bucketable",
         AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, float): Expected bucketed column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
+        "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
         () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"));
 
     AssertHelpers.assertThrows(
         "Double type should not be bucketable",
         AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, double): Expected bucketed column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
+        "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
         () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"));
 
     AssertHelpers.assertThrows(
