@@ -393,9 +393,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
   }
 
   private static <K, V> Map<K, V> castToMapOf(
-          Class<K> clazzK,
-          Class<V> clazzV,
-          Object map) {
+      Class<K> clazzK, Class<V> clazzV, Object map) {
 
     for ( Map.Entry<?, ?> e: ((Map<?,?>)map).entrySet() ) {
       checkCast( clazzK, e.getKey() );
@@ -407,7 +405,8 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     return result;
   }
 
-  private static <T> void checkCast(Class<T> clazz, Object obj) {
+  private static <T> void checkCast(
+      Class<T> clazz, Object obj) {
     if ( !clazz.isInstance(obj) ) {
       throw new ClassCastException(
               System.getProperty("line.separator") + "Expected: " + clazz.getName() +
