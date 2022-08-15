@@ -22,7 +22,7 @@ class FrozenDict(Dict):
     def __setitem__(self, instance, value):
         raise AttributeError("FrozenDict does not support assignment")
 
-    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore
+    def update(self, *args: Any, **kwargs: Any) -> None:
         raise AttributeError("FrozenDict does not support .update()")
 
 
