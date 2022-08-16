@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptionAlgorithm;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -349,4 +350,27 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key.id";
+
+  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
+  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
+
+  public static final String ENCRYPTION_DATA_ALGORITHM = "encryption.data.algorithm";
+  public static final String ENCRYPTION_DATA_ALGORITHM_DEFAULT =
+      EncryptionAlgorithm.AES_GCM.toString();
+
+  /**
+   * Leverage file format native encryption instead of encrypting the entire file through Iceberg
+   * encryption stream
+   */
+  public static final String ENCRYPTION_PUSHDOWN_ENABLED = "encryption.pushdown";
+
+  public static final boolean ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT = true;
+
+  /** Implementation of the KMS client for envelope encryption. */
+  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
+
+  /** Table and configuration properties, containing this string, will be passed to KMS client */
+  public static final String ENCRYPTION_KMS_CLIENT_CUSTOM_PROPERTIES_PREFIX = "kms.client";
 }
