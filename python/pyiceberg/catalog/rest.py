@@ -268,7 +268,7 @@ class RestCatalog(Catalog):
             raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier_tuple}")
         return {"namespace": identifier_tuple[:-1], "name": identifier_tuple[-1]}
 
-    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
+    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):  # noqa: C901
         exception: Type[Exception]
         code = exc.response.status_code
         if code in error_handler:

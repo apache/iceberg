@@ -260,7 +260,7 @@ def properties():
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
-def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):
+def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):  # noqa: C901
     """Fetches a property of a namespace or table"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
