@@ -33,7 +33,8 @@ class IcebergFilesCommitterMetrics {
   private final Counter committedDeleteFilesByteCount;
 
   IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName) {
-    MetricGroup committerMetrics = metrics.addGroup("IcebergFilesCommitter", fullTableName);
+    MetricGroup committerMetrics =
+        metrics.addGroup("IcebergFilesCommitter").addGroup("table", fullTableName);
     committerMetrics.gauge("lastCheckpointDurationMs", lastCheckpointDurationMs::get);
     committerMetrics.gauge("lastCommitDurationMs", lastCommitDurationMs::get);
     this.committedDataFilesCount = committerMetrics.counter("committedDataFilesCount");

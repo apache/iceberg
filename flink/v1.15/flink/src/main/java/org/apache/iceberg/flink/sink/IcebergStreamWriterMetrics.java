@@ -40,7 +40,8 @@ class IcebergStreamWriterMetrics {
   private final Histogram deleteFilesSizeHistogram;
 
   IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName) {
-    MetricGroup writerMetrics = metrics.addGroup("IcebergStreamWriter", fullTableName);
+    MetricGroup writerMetrics =
+        metrics.addGroup("IcebergStreamWriter").addGroup("table", fullTableName);
     this.flushedDataFiles = writerMetrics.counter("flushedDataFiles");
     this.flushedDeleteFiles = writerMetrics.counter("flushedDeleteFiles");
     this.flushedReferencedDataFiles = writerMetrics.counter("flushedReferencedDataFiles");
