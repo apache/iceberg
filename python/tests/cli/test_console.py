@@ -210,9 +210,9 @@ def test_schema():
     result = runner.invoke(run, ["schema", "default.foo"])
     assert result.exit_code == 0
     assert (
-        result.output
+        "\n".join([line.rstrip() for line in result.output.split("\n")])
         == """x  long
-y  long
+y  long  comment
 z  long
 """
     )

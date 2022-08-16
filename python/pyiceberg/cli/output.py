@@ -122,7 +122,7 @@ class ConsoleOutput(Output):
     def schema(self, schema: Schema):
         output_table = self._table
         for field in schema.fields:
-            output_table.add_row(field.name, str(field.field_type))
+            output_table.add_row(field.name, str(field.field_type), field.doc or "")
         Console().print(output_table)
 
     def spec(self, spec: PartitionSpec):
