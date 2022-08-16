@@ -54,16 +54,12 @@ public class FixedReservoirHistogram implements Histogram {
    */
   @Override
   public Statistics statistics() {
-    int size = measurements.length;
-    if (count < (long) measurements.length) {
-      size = count;
+    int size = (int) Math.min(count, (long) measurements.length);
+    if (size == 0) {
+      return UniformWeightStatistics.EMPTY;
     }
 
     long[] values = new long[size];
-    if (size == 0) {
-      return new UniformWeightStatistics(values, 0.0, 0.0);
-    }
-
     double sum = 0.0d;
     double sumSquares = 0.0d;
     for (int i = 0; i < values.length; ++i) {
@@ -86,6 +82,9 @@ public class FixedReservoirHistogram implements Histogram {
   }
 
   private static class UniformWeightStatistics implements Statistics {
+    private static final UniformWeightStatistics EMPTY =
+        new UniformWeightStatistics(new long[0], 0.0, 0.0);
+
     private final long[] values;
     private final double mean;
     private final double stdDev;
