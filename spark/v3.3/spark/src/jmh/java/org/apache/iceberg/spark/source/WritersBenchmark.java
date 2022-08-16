@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -77,6 +78,9 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
   private Iterable<InternalRow> positionDeleteRows;
   private PartitionSpec unpartitionedSpec;
   private PartitionSpec partitionedSpec;
+
+  @Override
+  protected abstract FileFormat fileFormat();
 
   @Setup
   public void setupBenchmark() {
