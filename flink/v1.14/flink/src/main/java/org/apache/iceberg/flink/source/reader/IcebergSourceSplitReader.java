@@ -60,7 +60,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     this.indexOfSubtask = context.getIndexOfSubtask();
     this.splits = new ArrayDeque<>();
 
-    MetricGroup metrics = context.metricGroup().addGroup("IcebergSourceReader", fullTableName);
+    MetricGroup metrics =
+        context.metricGroup().addGroup("IcebergSourceReader").addGroup("table", fullTableName);
     this.assignedSplits = metrics.counter("assignedSplits");
     this.assignedBytes = metrics.counter("assignedBytes");
     this.finishedSplits = metrics.counter("finishedSplits");
