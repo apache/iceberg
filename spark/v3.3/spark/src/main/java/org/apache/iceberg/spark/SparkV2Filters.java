@@ -169,14 +169,13 @@ public class SparkV2Filters {
             Preconditions.checkNotNull(
                 value, "Expression is always false (eq is not null-safe): %s", predicate);
             return handleEqual(unquote(attributeName), value);
-          } else if (predicate.name().equals("<=>")) {
+          } else { // "<=>"
             if (value == null) {
               return isNull(unquote(attributeName));
             } else {
               return handleEqual(unquote(attributeName), value);
             }
           }
-          break;
 
         case IN:
           return in(
