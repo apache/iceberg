@@ -21,7 +21,6 @@ package org.apache.iceberg.metrics;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -215,9 +214,9 @@ public class ScanReport {
     private final MetricsContext.Unit unit;
     private final long value;
 
-    static CounterResult fromCounter(Counter<Long> counter) {
+    static CounterResult fromCounter(Counter counter) {
       Preconditions.checkArgument(null != counter, "Invalid counter: null");
-      if (LongCounter.NOOP.equals(counter)) {
+      if (counter.isNoop()) {
         return null;
       }
       return new CounterResult(counter.name(), counter.unit(), counter.value());
@@ -418,71 +417,69 @@ public class ScanReport {
     public static final String TOTAL_DELETE_FILE_SIZE_IN_BYTES = "total-delete-file-size-in-bytes";
     public static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
     private final Timer totalPlanningDuration;
-    private final Counter<Long> resultDataFiles;
-    private final Counter<Long> resultDeleteFiles;
-    private final Counter<Long> totalDataManifests;
-    private final Counter<Long> totalDeleteManifests;
-    private final Counter<Long> scannedDataManifests;
-    private final Counter<Long> skippedDataManifests;
-    private final Counter<Long> totalFileSizeInBytes;
-    private final Counter<Long> totalDeleteFileSizeInBytes;
+    private final Counter resultDataFiles;
+    private final Counter resultDeleteFiles;
+    private final Counter totalDataManifests;
+    private final Counter totalDeleteManifests;
+    private final Counter scannedDataManifests;
+    private final Counter skippedDataManifests;
+    private final Counter totalFileSizeInBytes;
+    private final Counter totalDeleteFileSizeInBytes;
 
     public ScanMetrics(MetricsContext metricsContext) {
       Preconditions.checkArgument(null != metricsContext, "Invalid metrics context: null");
       this.totalPlanningDuration =
           metricsContext.timer(TOTAL_PLANNING_DURATION, TimeUnit.NANOSECONDS);
-      this.resultDataFiles =
-          metricsContext.counter(RESULT_DATA_FILES, Long.class, MetricsContext.Unit.COUNT);
+      this.resultDataFiles = metricsContext.counter(RESULT_DATA_FILES, MetricsContext.Unit.COUNT);
       this.resultDeleteFiles =
-          metricsContext.counter(RESULT_DELETE_FILES, Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(RESULT_DELETE_FILES, MetricsContext.Unit.COUNT);
       this.scannedDataManifests =
-          metricsContext.counter(SCANNED_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(SCANNED_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
       this.totalDataManifests =
-          metricsContext.counter(TOTAL_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(TOTAL_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
       this.totalDeleteManifests =
-          metricsContext.counter(TOTAL_DELETE_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(TOTAL_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
       this.totalFileSizeInBytes =
-          metricsContext.counter(TOTAL_FILE_SIZE_IN_BYTES, Long.class, MetricsContext.Unit.BYTES);
+          metricsContext.counter(TOTAL_FILE_SIZE_IN_BYTES, MetricsContext.Unit.BYTES);
       this.totalDeleteFileSizeInBytes =
-          metricsContext.counter(
-              TOTAL_DELETE_FILE_SIZE_IN_BYTES, Long.class, MetricsContext.Unit.BYTES);
+          metricsContext.counter(TOTAL_DELETE_FILE_SIZE_IN_BYTES, MetricsContext.Unit.BYTES);
       this.skippedDataManifests =
-          metricsContext.counter(SKIPPED_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(SKIPPED_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
     }
 
     public Timer totalPlanningDuration() {
       return totalPlanningDuration;
     }
 
-    public Counter<Long> resultDataFiles() {
+    public Counter resultDataFiles() {
       return resultDataFiles;
     }
 
-    public Counter<Long> resultDeleteFiles() {
+    public Counter resultDeleteFiles() {
       return resultDeleteFiles;
     }
 
-    public Counter<Long> scannedDataManifests() {
+    public Counter scannedDataManifests() {
       return scannedDataManifests;
     }
 
-    public Counter<Long> totalDataManifests() {
+    public Counter totalDataManifests() {
       return totalDataManifests;
     }
 
-    public Counter<Long> totalDeleteManifests() {
+    public Counter totalDeleteManifests() {
       return totalDeleteManifests;
     }
 
-    public Counter<Long> totalFileSizeInBytes() {
+    public Counter totalFileSizeInBytes() {
       return totalFileSizeInBytes;
     }
 
-    public Counter<Long> totalDeleteFileSizeInBytes() {
+    public Counter totalDeleteFileSizeInBytes() {
       return totalDeleteFileSizeInBytes;
     }
 
-    public Counter<Long> skippedDataManifests() {
+    public Counter skippedDataManifests() {
       return skippedDataManifests;
     }
 

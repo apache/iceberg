@@ -36,7 +36,7 @@ public class TestHadoopMetricsContextSerialization {
     MetricsContext deserializedMetricContext = KryoHelpers.roundTripSerialize(metricsContext);
     // statistics are properly re-initialized post de-serialization
     deserializedMetricContext
-        .counter(FileIOMetricsContext.WRITE_BYTES, Long.class, MetricsContext.Unit.BYTES)
+        .counter(FileIOMetricsContext.WRITE_BYTES, MetricsContext.Unit.BYTES)
         .increment();
   }
 
@@ -50,7 +50,7 @@ public class TestHadoopMetricsContextSerialization {
     MetricsContext deserializedMetricContext = TestHelpers.roundTripSerialize(metricsContext);
     // statistics are properly re-initialized post de-serialization
     deserializedMetricContext
-        .counter(FileIOMetricsContext.WRITE_BYTES, Long.class, MetricsContext.Unit.BYTES)
+        .counter(FileIOMetricsContext.WRITE_BYTES, MetricsContext.Unit.BYTES)
         .increment();
   }
 }

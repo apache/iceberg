@@ -43,23 +43,23 @@ public class TestTimerResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string name");
+        .hasMessage("Cannot parse missing string: name");
 
     Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{\"name\":\"timer-example\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing long count");
+        .hasMessage("Cannot parse missing long: count");
 
     Assertions.assertThatThrownBy(
             () -> TimerResultParser.fromJson("{\"name\":\"timer-example\",\"count\":44}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string time-unit");
+        .hasMessage("Cannot parse missing string: time-unit");
 
     Assertions.assertThatThrownBy(
             () ->
                 TimerResultParser.fromJson(
                     "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"hours\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing long total-duration");
+        .hasMessage("Cannot parse missing long: total-duration");
   }
 
   @Test
@@ -77,7 +77,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"hours\",\"total-duration\":\"xx\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse total-duration to a long value: \"xx\"");
+        .hasMessage("Cannot parse to a long value: total-duration: \"xx\"");
   }
 
   @Test
@@ -97,7 +97,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"name\":\"timer-example\",\"count\":\"illegal\",\"time-unit\":\"hours\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse count to a long value: \"illegal\"");
+        .hasMessage("Cannot parse to a long value: count: \"illegal\"");
   }
 
   @Test
@@ -107,7 +107,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"name\":23,\"count\":44,\"time-unit\":\"hours\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse name to a string value: 23");
+        .hasMessage("Cannot parse to a string value: name: 23");
   }
 
   @Test
