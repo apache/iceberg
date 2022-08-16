@@ -43,12 +43,12 @@ repos:
       - id: mypy
         args: [ --install-types, --non-interactive, --config=python/pyproject.toml]
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.0.4
+    rev: v2.1.1
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.37.2
+    rev: v2.37.3
     hooks:
       - id: pyupgrade
         args: [--py38-plus]
@@ -58,7 +58,7 @@ repos:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
   - repo: https://github.com/pycqa/flake8
-    rev: '4.0.1'
+    rev: '5.0.4'
     hooks:
       - id: flake8
         args: [ "--ignore=E501,W503,E203" ]
