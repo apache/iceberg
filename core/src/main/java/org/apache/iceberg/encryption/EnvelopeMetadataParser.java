@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -30,19 +29,25 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class EnvelopeMetadataParser {
 
-  private EnvelopeMetadataParser() {
-  }
+  private EnvelopeMetadataParser() {}
 
   private static final String KEK_ID = "kek-id";
   private static final String WRAPPED_DEK = "wrapped-dek";
   private static final String ALGORITHM = "algorithm";
+  // TODO remove in OSS version
+  private static final String APPLE_VERSION = "apple-version";
+  private static final String APPLE_V1 = "av1";
 
   public static void toJson(EnvelopeMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(KEK_ID, metadata.kekId());
     generator.writeStringField(WRAPPED_DEK, metadata.wrappedDek());
-    JsonUtil.writeStringIf(null != metadata.algorithm(), ALGORITHM, metadata.algorithm().name(), generator);
+    JsonUtil.writeStringIf(
+        null != metadata.algorithm(), ALGORITHM, metadata.algorithm().name(), generator);
+
+    // TODO remove in OSS version
+    generator.writeStringField(APPLE_VERSION, APPLE_V1);
 
     generator.writeEndObject();
   }
@@ -60,11 +65,13 @@ public class EnvelopeMetadataParser {
   }
 
   public static EnvelopeMetadata fromJson(JsonNode json) throws IOException {
-    Preconditions.checkArgument(json.isObject(), "Cannot parse envelope metadata from non-object: %s", json);
+    Preconditions.checkArgument(
+        json.isObject(), "Cannot parse envelope metadata from non-object: %s", json);
     String kekId = JsonUtil.getStringOrNull(KEK_ID, json);
     String wrappedDek = JsonUtil.getStringOrNull(WRAPPED_DEK, json);
     String algorithmName = JsonUtil.getStringOrNull(ALGORITHM, json);
-    EncryptionAlgorithm algorithm = null == algorithmName ? null : EncryptionAlgorithm.valueOf(algorithmName);
+    EncryptionAlgorithm algorithm =
+        null == algorithmName ? null : EncryptionAlgorithm.valueOf(algorithmName);
 
     EnvelopeMetadata metadata = new EnvelopeMetadata(kekId, wrappedDek, algorithm);
     return metadata;
@@ -78,4 +85,3 @@ public class EnvelopeMetadataParser {
     }
   }
 }
-

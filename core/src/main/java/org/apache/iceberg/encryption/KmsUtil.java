@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.util.Map;
@@ -25,8 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class KmsUtil {
 
-  private KmsUtil() {
-  }
+  private KmsUtil() {}
 
   public static KmsClient loadKmsClient(String classPath, Map<String, String> properties) {
     Preconditions.checkNotNull(classPath, "Cannot initialize KmsClient, class name is null");
@@ -35,8 +33,10 @@ public class KmsUtil {
     try {
       ctor = DynConstructors.builder(KmsClient.class).impl(classPath).buildChecked();
     } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot initialize KmsClient, missing no-arg constructor for class %s", classPath), e);
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize KmsClient, missing no-arg constructor for class %s", classPath),
+          e);
     }
 
     KmsClient kmsClient;
@@ -44,7 +44,8 @@ public class KmsUtil {
       kmsClient = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize KmsClient, %s does not implement KmsClient.", classPath), e);
+          String.format("Cannot initialize KmsClient, %s does not implement KmsClient.", classPath),
+          e);
     }
 
     kmsClient.initialize(properties);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.Serializable;
@@ -25,10 +24,10 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Configuration parameters for standard envelope encryption (where information is encrypted with a "data
- * encryption key" - DEK, and the dek is encrypted with a "key encryption key" - KEK).
- * Currently, supports only basic (single) envelope encryption and one KEK per table.
- * Future versions will add support for double envelope encryption (where KEKs are encrypted with a "master
+ * Configuration parameters for standard envelope encryption (where information is encrypted with a
+ * "data encryption key" - DEK, and the dek is encrypted with a "key encryption key" - KEK).
+ * Currently, supports only basic (single) envelope encryption and one KEK per table. Future
+ * versions will add support for double envelope encryption (where KEKs are encrypted with a "master
  * encryption key"), and for multiple keys per table (column keys).
  */
 public class EnvelopeConfiguration implements Serializable {
@@ -37,12 +36,13 @@ public class EnvelopeConfiguration implements Serializable {
   private final EncryptionAlgorithm algorithm;
 
   private EnvelopeConfiguration(String kekId, EncryptionAlgorithm algorithm) {
-    Preconditions.checkNotNull(kekId,
-            "Cannot construct envelope config because KEK ID is not specified");
+    Preconditions.checkNotNull(
+        kekId, "Cannot construct envelope config because KEK ID is not specified");
     this.kekId = kekId;
 
-    Preconditions.checkNotNull(algorithm,
-            "Cannot construct envelope config because encryption algorithm is not specified");
+    Preconditions.checkNotNull(
+        algorithm,
+        "Cannot construct envelope config because encryption algorithm is not specified");
     this.algorithm = algorithm;
   }
 
@@ -65,7 +65,7 @@ public class EnvelopeConfiguration implements Serializable {
     }
 
     EnvelopeConfiguration config = (EnvelopeConfiguration) o;
-    return  Objects.equals(kekId, config.kekId) && algorithm == config.algorithm;
+    return Objects.equals(kekId, config.kekId) && algorithm == config.algorithm;
   }
 
   @Override
@@ -76,24 +76,23 @@ public class EnvelopeConfiguration implements Serializable {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-            .add("kekId", kekId)
-            .add("algorithm", algorithm)
-            .toString();
+        .add("kekId", kekId)
+        .add("algorithm", algorithm)
+        .toString();
   }
 
   public static Builder builder() {
     return new Builder();
   }
 
-  /**
-   * A builder used to create valid {@link EnvelopeConfiguration}.
-   */
+  /** A builder used to create valid {@link EnvelopeConfiguration}. */
   public static class Builder {
     private String kekId;
     private EncryptionAlgorithm algorithm;
 
     /**
      * Sets the kekId for a basic (single) envelope encryption, where a DEK is wrapped once
+     *
      * @param keyId ID of the wrapping "key encryption key"
      */
     public Builder singleWrap(String keyId) {

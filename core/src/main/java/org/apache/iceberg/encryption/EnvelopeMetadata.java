@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
@@ -26,8 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Envelope encryption metadata used to encrypt and decrypt data.
- * All fields (except for cleartext KEKs and DEKs) are serialized and stored in Iceberg key_metadata columns.
+ * Envelope encryption metadata used to encrypt and decrypt data. All fields (except for cleartext
+ * KEKs and DEKs) are serialized and stored in Iceberg key_metadata columns.
  */
 public class EnvelopeMetadata implements EncryptionKeyMetadata {
 
@@ -39,18 +38,23 @@ public class EnvelopeMetadata implements EncryptionKeyMetadata {
   private byte[] dek;
 
   /**
-   * Constructor with non-secret fields, that can be stored.
-   * Secret fields (such as encryption keys) are set separately for in-memory sharing.
+   * Constructor with non-secret fields, that can be stored. Secret fields (such as encryption keys)
+   * are set separately for in-memory sharing.
+   *
    * @param kekId ID of the "key encryption key", used to wrap the "data encryption key" in KMS
-   * @param wrappedDek wrapped "data encryption key" (see {@link KmsClient#wrapKey(ByteBuffer, String)})
+   * @param wrappedDek wrapped "data encryption key" (see {@link KmsClient#wrapKey(ByteBuffer,
+   *     String)})
    * @param algorithm encryption algorithm
    */
   public EnvelopeMetadata(String kekId, String wrappedDek, EncryptionAlgorithm algorithm) {
-    this.kekId = Preconditions.checkNotNull(kekId,
-            "Cannot construct envelope metadata because KEK ID is not specified");
+    this.kekId =
+        Preconditions.checkNotNull(
+            kekId, "Cannot construct envelope metadata because KEK ID is not specified");
     this.wrappedDek = wrappedDek;
-    this.algorithm = Preconditions.checkNotNull(algorithm,
-              "Cannot construct envelope metadata because encryption algorithm is not specified");
+    this.algorithm =
+        Preconditions.checkNotNull(
+            algorithm,
+            "Cannot construct envelope metadata because encryption algorithm is not specified");
   }
 
   public String kekId() {
@@ -96,10 +100,10 @@ public class EnvelopeMetadata implements EncryptionKeyMetadata {
     }
 
     EnvelopeMetadata metadata = (EnvelopeMetadata) other;
-    return Objects.equals(kekId, metadata.kekId) &&
-        Objects.equals(wrappedDek, metadata.wrappedDek) &&
-        algorithm == metadata.algorithm &&
-        Arrays.equals(dek, metadata.dek);
+    return Objects.equals(kekId, metadata.kekId)
+        && Objects.equals(wrappedDek, metadata.wrappedDek)
+        && algorithm == metadata.algorithm
+        && Arrays.equals(dek, metadata.dek);
   }
 
   @Override
