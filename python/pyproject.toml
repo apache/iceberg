@@ -97,6 +97,7 @@ all = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unreachable = true
+warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = "pyarrow.*"
