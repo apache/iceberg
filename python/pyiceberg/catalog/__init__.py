@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -26,6 +27,40 @@ from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, Partition
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 from pyiceberg.utils.config import Config, merge_config
+
+logger = logging.getLogger(__name__)
+
+_env_config = Config()
+
+
+def load_catalog(name: str, uri: str, **properties: str | None) -> Catalog:
+    from pyiceberg.catalog.rest import RestCatalog
+
+    supported_catalogs: dict[str, type[Catalog]] = {"http": RestCatalog}
+
+    try:
+        # In case Thrift isn't installed
+        from pyiceberg.catalog.hive import HiveCatalog
+
+        supported_catalogs["thrift"] = HiveCatalog
+    except ImportError:
+        logger.warning("Apache Hive not supported, to enable: pip install 'pyiceberg[hive]'")
+
+    if name:
+        env = _env_config.get_catalog_config(name)
+        conf = merge_config(env or {}, properties)
+    else:
+        conf = properties
+
+    catalog: Catalog | None = None
+    for scheme, catalog_type in supported_catalogs.items():
+        if uri.startswith(scheme):
+            catalog = catalog_type(name, **conf)
+
+    if not catalog:
+        raise ValueError(f"Could not initialize a catalog for URI: {uri}")
+
+    return catalog
 
 
 @dataclass
@@ -49,20 +84,19 @@ class Catalog(ABC):
         properties (Properties): Catalog properties
     """
 
-    name: str | None
+    name: str
     properties: Properties
 
-    def __init__(self, name: str | None, **properties: str):
+    def __init__(self, name: str, **properties: str):
         self.name = name
+        self.properties = properties
 
-        if name is not None:
-            configuration = Config().get_catalog_config(name)
-            if configuration:
-                self.properties = merge_config(configuration, properties)
-            else:
-                self.properties = properties
-        else:
-            self.properties = properties
+    def property(self, key: str) -> str:
+        if key not in self.properties:
+            raise ValueError(
+                f"{type(self).__name__} expects an {key} property. Please set in config or using environment variable PYICEBERG_CATALOG__{self.name.upper()}__{key.upper()}"
+            )
+        return self.properties[key]
 
     @abstractmethod
     def create_table(

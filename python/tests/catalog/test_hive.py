@@ -159,6 +159,16 @@ def hive_database(tmp_path_factory) -> HiveDatabase:
     )
 
 
+def test_no_uri_supplied():
+    with pytest.raises(ValueError) as exc_info:
+        HiveCatalog("production")
+
+    assert (
+        "HiveCatalog expects an uri property. Please set in config or using environment variable PYICEBERG_CATALOG__PRODUCTION__URI"
+        in str(exc_info.value)
+    )
+
+
 def test_check_number_of_namespaces(table_schema_simple: Schema):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
@@ -465,13 +475,6 @@ def test_list_namespaces():
     assert catalog.list_namespaces() == [("namespace1",), ("namespace2",)]
 
     catalog._client.__enter__().get_all_databases.assert_called()
-
-
-def test_list_namespaces_with_parent():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
-
-    # Hive does not support hierarchical namespaces
-    assert catalog.list_namespaces(("accounting",)) == []
 
 
 def test_drop_table():

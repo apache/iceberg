@@ -288,7 +288,7 @@ def example_table_metadata_v2() -> Dict[str, Any]:
 
 @pytest.fixture
 def catalog() -> InMemoryCatalog:
-    return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})
+    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
 
 
 manifest_entry_records = [
