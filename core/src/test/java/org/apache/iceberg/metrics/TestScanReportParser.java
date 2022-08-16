@@ -43,12 +43,12 @@ public class TestScanReportParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> ScanReportParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string table-name");
+        .hasMessage("Cannot parse missing string: table-name");
 
     Assertions.assertThatThrownBy(
             () -> ScanReportParser.fromJson("{\"table-name\":\"roundTripTableName\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing long snapshot-id");
+        .hasMessage("Cannot parse missing long: snapshot-id");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -114,7 +114,7 @@ public class TestScanReportParser {
   public void invalidTableName() {
     Assertions.assertThatThrownBy(() -> ScanReportParser.fromJson("{\"table-name\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse table-name to a string value: 23");
+        .hasMessage("Cannot parse to a string value: table-name: 23");
   }
 
   @Test
@@ -124,7 +124,7 @@ public class TestScanReportParser {
                 ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":\"invalid\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse snapshot-id to a long value: \"invalid\"");
+        .hasMessage("Cannot parse to a long value: snapshot-id: \"invalid\"");
   }
 
   @Test

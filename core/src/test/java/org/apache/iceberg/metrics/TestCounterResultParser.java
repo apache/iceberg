@@ -41,16 +41,16 @@ public class TestCounterResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string name");
+        .hasMessage("Cannot parse missing string: name");
 
     Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{\"name\": \"some-name\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string unit");
+        .hasMessage("Cannot parse missing string: unit");
 
     Assertions.assertThatThrownBy(
             () -> CounterResultParser.fromJson("{\"name\": \"some-name\", \"unit\":\"bytes\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing long value");
+        .hasMessage("Cannot parse missing long: value");
   }
 
   @Test
@@ -78,7 +78,7 @@ public class TestCounterResultParser {
                 CounterResultParser.fromJson(
                     "{\"name\":\"example\",\"unit\":\"count\",\"value\":\"illegal\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse value to a long value: \"illegal\"");
+        .hasMessage("Cannot parse to a long value: value: \"illegal\"");
   }
 
   @Test
@@ -86,7 +86,7 @@ public class TestCounterResultParser {
     Assertions.assertThatThrownBy(
             () -> CounterResultParser.fromJson("{\"name\":23,\"unit\":\"count\",\"value\":45}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse name to a string value: 23");
+        .hasMessage("Cannot parse to a string value: name: 23");
   }
 
   @Test
