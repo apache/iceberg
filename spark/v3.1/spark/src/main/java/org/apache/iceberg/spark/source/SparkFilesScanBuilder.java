@@ -30,19 +30,15 @@ class SparkFilesScanBuilder implements ScanBuilder {
   private final SparkSession spark;
   private final Table table;
   private final SparkReadConf readConf;
-  private final boolean caseSensitive;
-  private final CaseInsensitiveStringMap options;
 
   SparkFilesScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.readConf = new SparkReadConf(spark, table, options);
-    this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
-    this.options = options;
   }
 
   @Override
   public Scan build() {
-    return new SparkFilesScan(spark, table, readConf, caseSensitive, options);
+    return new SparkFilesScan(spark, table, readConf);
   }
 }
