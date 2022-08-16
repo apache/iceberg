@@ -21,6 +21,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from pyiceberg.exceptions import NotInstalledError
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -30,32 +31,36 @@ from pyiceberg.utils.config import Config, merge_config
 
 logger = logging.getLogger(__name__)
 
-_env_config = Config()
+_ENV_CONFIG = Config()
 
 
-def load_catalog(name: str, uri: str, **properties: str | None) -> Catalog:
+def load_catalog(name: str, **properties: str | None) -> Catalog:
     from pyiceberg.catalog.rest import RestCatalog
 
-    supported_catalogs: dict[str, type[Catalog]] = {"http": RestCatalog}
+    catalogs: dict[str, type[Catalog] | str] = {"http": RestCatalog}
 
     try:
         # In case Thrift isn't installed
         from pyiceberg.catalog.hive import HiveCatalog
 
-        supported_catalogs["thrift"] = HiveCatalog
+        catalogs["thrift"] = HiveCatalog
     except ImportError:
-        logger.warning("Apache Hive not supported, to enable: pip install 'pyiceberg[hive]'")
+        catalogs["thrift"] = "Apache Hive support not installed: pip install 'pyiceberg[hive]'"
 
-    if name:
-        env = _env_config.get_catalog_config(name)
-        conf = merge_config(env or {}, properties)
-    else:
-        conf = properties
+    env = _ENV_CONFIG.get_catalog_config(name)
+    conf = merge_config(env or {}, properties)
 
     catalog: Catalog | None = None
-    for scheme, catalog_type in supported_catalogs.items():
-        if uri.startswith(scheme):
-            catalog = catalog_type(name, **conf)
+    if uri := properties.get("uri"):
+        for scheme, catalog_type in catalogs.items():
+            if uri.startswith(scheme):
+                if isinstance(catalog_type, str):
+                    raise NotInstalledError(catalog_type)
+                catalog = catalog_type(name, **conf)
+    else:
+        raise ValueError(
+            f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{name.upper()}__URI"
+        )
 
     if not catalog:
         raise ValueError(f"Could not initialize a catalog for URI: {uri}")
@@ -92,6 +97,16 @@ class Catalog(ABC):
         self.properties = properties
 
     def property(self, key: str) -> str:
+        """Returns a property from the properties variable. If it doesn't exist, it will raise an error.
+
+        Args:
+            key: The key of the property
+
+        Returns: The value of the property
+
+        Raises:
+            ValueError: When the property cannot be found, with a pointer on how to set the property.
+        """
         if key not in self.properties:
             raise ValueError(
                 f"{type(self).__name__} expects an {key} property. Please set in config or using environment variable PYICEBERG_CATALOG__{self.name.upper()}__{key.upper()}"

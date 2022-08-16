@@ -116,14 +116,17 @@ class MockCatalog(Catalog):
 
 
 MOCK_CATALOG = MockCatalog("production", uri="http://somewhere")
-MOCK_ENVIRONMENT = {"PYICEBERG_URI": "test://doesnotexist"}
+MOCK_ENVIRONMENT = {"PYICEBERG_CATALOG__PRODUCTION__URI": "test://doesnotexist"}
 
 
 def test_missing_uri():
     runner = CliRunner()
     result = runner.invoke(run, ["list"])
     assert result.exit_code == 1
-    assert result.output == "Missing uri. Please provide using --uri or using environment variable \nPYICEBERG_URI\n"
+    assert (
+        result.output
+        == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
+    )
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)

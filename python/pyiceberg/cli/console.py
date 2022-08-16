@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
-import os
 from typing import (
     Dict,
     Literal,
@@ -43,12 +42,7 @@ SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": R
 @click.option("--credential")
 @click.pass_context
 def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
-
     properties = {}
-    for environment_key in {"URI", "CREDENTIAL"}:
-        if prop := os.environ.get(f"PYICEBERG_{environment_key}"):
-            properties[environment_key.lower()] = prop
-
     if uri:
         properties["uri"] = uri
     if credential:
@@ -60,13 +54,11 @@ def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential:
     else:
         ctx.obj["output"] = JsonOutput()
 
-    if "uri" not in properties:
-        ctx.obj["output"].exception(
-            ValueError("Missing uri. Please provide using --uri or using environment variable PYICEBERG_URI")
-        )
+    try:
+        ctx.obj["catalog"] = load_catalog(catalog, **properties)
+    except Exception as e:
+        ctx.obj["output"].exception(e)
         ctx.exit(1)
-
-    ctx.obj["catalog"] = load_catalog(catalog, **properties)
 
     if not isinstance(ctx.obj["catalog"], Catalog):
         ctx.obj["output"].exception(
