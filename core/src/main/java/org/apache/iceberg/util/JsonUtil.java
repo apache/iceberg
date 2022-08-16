@@ -105,11 +105,11 @@ public class JsonUtil {
   }
 
   public static int getInt(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing int %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing int: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isNumber(),
-        "Cannot parse %s to an integer value: %s",
+        "Cannot parse to an integer value: %s: %s",
         property,
         pNode);
     return pNode.asInt();
@@ -122,7 +122,7 @@ public class JsonUtil {
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
-        "Cannot parse %s to an integer value: %s",
+        "Cannot parse to an integer value: %s: %s",
         property,
         pNode);
     return pNode.asInt();
@@ -135,40 +135,40 @@ public class JsonUtil {
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToLong(),
-        "Cannot parse %s to a long value: %s",
+        "Cannot parse to a long value: %s: %s",
         property,
         pNode);
     return pNode.asLong();
   }
 
   public static long getLong(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing long %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing long: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isNumber(),
-        "Cannot parse %s to a long value: %s",
+        "Cannot parse to a long value: %s: %s",
         property,
         pNode);
     return pNode.asLong();
   }
 
   public static boolean getBool(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isBoolean(),
-        "Cannot parse %s to a boolean value: %s",
+        "Cannot parse to a boolean value: %s: %s",
         property,
         pNode);
     return pNode.asBoolean();
   }
 
   public static String getString(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing string %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing string: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isTextual(),
-        "Cannot parse %s to a string value: %s",
+        "Cannot parse to a string value: %s: %s",
         property,
         pNode);
     return pNode.asText();
@@ -184,18 +184,18 @@ public class JsonUtil {
     }
     Preconditions.checkArgument(
         pNode != null && pNode.isTextual(),
-        "Cannot parse %s from non-string value: %s",
+        "Cannot parse from non-string value: %s: %s",
         property,
         pNode);
     return pNode.asText();
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing map %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing map: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isObject(),
-        "Cannot parse %s from non-object value: %s",
+        "Cannot parse from non-object value: %s: %s",
         property,
         pNode);
 
@@ -222,14 +222,15 @@ public class JsonUtil {
   }
 
   public static List<String> getStringList(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing list %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing list: %s", property);
     return ImmutableList.<String>builder()
         .addAll(new JsonStringArrayIterator(property, node))
         .build();
   }
 
   public static Set<String> getStringSet(String property, JsonNode node) {
-    Preconditions.checkArgument(node.hasNonNull(property), "Cannot parse missing set %s", property);
+    Preconditions.checkArgument(
+        node.hasNonNull(property), "Cannot parse missing set: %s", property);
 
     return ImmutableSet.<String>builder()
         .addAll(new JsonStringArrayIterator(property, node))
@@ -296,7 +297,7 @@ public class JsonUtil {
       JsonNode pNode = node.get(property);
       Preconditions.checkArgument(
           pNode != null && !pNode.isNull() && pNode.isArray(),
-          "Cannot parse %s from non-array value: %s",
+          "Cannot parse from non-array value: %s: %s",
           property,
           pNode);
       this.elements = pNode.elements();
@@ -370,7 +371,7 @@ public class JsonUtil {
     void validate(JsonNode element) {
       Preconditions.checkArgument(
           element.isIntegralNumber() && element.canConvertToLong(),
-          "Cannot parse long from  non-long value: %s",
+          "Cannot parse long from non-long value: %s",
           element);
     }
   }
