@@ -65,6 +65,7 @@ import scala.jdk.CollectionConverters._
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
 
   private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] = list.asScala
+
   private def toSeq[T](list: java.util.List[T]): Seq[T] = toBuffer(list).toSeq
 
   /**
@@ -86,33 +87,38 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       Option(ctx.name).map(_.getText))
   }
 
-
   /**
    * Create an ADD BRANCH logical command.
    */
   override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
+    val snapshotRetention = Option(ctx.snapshotRetentionClause())
+
     CreateBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       ctx.identifier().getText,
       Option(ctx.snapshotId()).map(_.getText.toLong),
-      Option(ctx.numSnapshots()).map(_.getText.toLong),
-      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
-      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
-    )
+      snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(
+        _.getText.toLong * timeUnit(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong *
+        timeUnit(ctx.snapshotRefRetainTimeUnit().getText)))
   }
 
   /**
    * Create an REPLACE BRANCH logical command.
    */
   override def visitReplaceBranch(ctx: ReplaceBranchContext): ReplaceBranch = withOrigin(ctx) {
+    val snapshotRetention = Option(ctx.snapshotRetentionClause())
+
     ReplaceBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       ctx.identifier().getText,
       Option(ctx.snapshotId()).map(_.getText.toLong),
-      Option(ctx.numSnapshots()).map(_.getText.toLong),
-      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
-      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
-    )
+      snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(
+        _.getText.toLong * timeUnit(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong *
+        timeUnit(ctx.snapshotRefRetainTimeUnit().getText)))
   }
 
   /**
@@ -128,7 +134,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create an RENAME BRANCH logical command.
    */
-  override def visitRenameBranch(ctx: RenameBranchContext): RenameBranch =  withOrigin(ctx) {
+  override def visitRenameBranch(ctx: RenameBranchContext): RenameBranch = withOrigin(ctx) {
     RenameBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier()),
       ctx.identifier().getText,
@@ -142,7 +148,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     AlterBranchRefRetention(
       typedVisit[Seq[String]](ctx.multipartIdentifier()),
       ctx.identifier().getText,
-      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+      Option(ctx.snapshotRefRetain())
+        .map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
     )
   }
 
@@ -253,11 +260,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   override def visitOrderField(ctx: OrderFieldContext): (Term, SortDirection, NullOrder) = {
     val term = Spark3Util.toIcebergTerm(typedVisit[Transform](ctx.transform))
     val direction = Option(ctx.ASC).map(_ => SortDirection.ASC)
-        .orElse(Option(ctx.DESC).map(_ => SortDirection.DESC))
-        .getOrElse(SortDirection.ASC)
+      .orElse(Option(ctx.DESC).map(_ => SortDirection.DESC))
+      .getOrElse(SortDirection.ASC)
     val nullOrder = Option(ctx.FIRST).map(_ => NullOrder.NULLS_FIRST)
-        .orElse(Option(ctx.LAST).map(_ => NullOrder.NULLS_LAST))
-        .getOrElse(if (direction == SortDirection.ASC) NullOrder.NULLS_FIRST else NullOrder.NULLS_LAST)
+      .orElse(Option(ctx.LAST).map(_ => NullOrder.NULLS_LAST))
+      .getOrElse(if (direction == SortDirection.ASC) NullOrder.NULLS_FIRST else NullOrder.NULLS_LAST)
     (term, direction, nullOrder)
   }
 
@@ -281,13 +288,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitTransformArgument(ctx: TransformArgumentContext): expressions.Expression = withOrigin(ctx) {
     val reference = Option(ctx.multipartIdentifier())
-        .map(typedVisit[Seq[String]])
-        .map(FieldReference(_))
+      .map(typedVisit[Seq[String]])
+      .map(FieldReference(_))
     val literal = Option(ctx.constant)
-        .map(visitConstant)
-        .map(lit => LiteralValue(lit.value, lit.dataType))
+      .map(visitConstant)
+      .map(lit => LiteralValue(lit.value, lit.dataType))
     reference.orElse(literal)
-        .getOrElse(throw new IcebergParseException(s"Invalid transform argument", ctx))
+      .getOrElse(throw new IcebergParseException(s"Invalid transform argument", ctx))
   }
 
   /**

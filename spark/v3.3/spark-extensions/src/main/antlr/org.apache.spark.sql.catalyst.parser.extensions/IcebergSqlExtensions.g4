@@ -73,12 +73,18 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
-    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #createBranch
-    | ALTER TABLE multipartIdentifier REPLACE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #replaceBranch
+    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)?  (snapshotRetentionClause)? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #createBranch
+    | ALTER TABLE multipartIdentifier REPLACE BRANCH identifier (AS OF VERSION snapshotId)?  (snapshotRetentionClause)? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #replaceBranch
     | ALTER TABLE multipartIdentifier DROP BRANCH identifier #removeBranch
     | ALTER TABLE multipartIdentifier ALTER BRANCH identifier SET SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)) #alterBranchSnapshotRetention
     | ALTER TABLE multipartIdentifier ALTER BRANCH identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterBranchRetention
     | ALTER TABLE multipartIdentifier RENAME BRANCH identifier TO newIdentifier #renameBranch
+    ;
+
+snapshotRetentionClause
+    : WITH SNAPSHOT RETENTION numSnapshots SNAPSHOTS
+    | WITH SNAPSHOT RETENTION snapshotRetain snapshotRetainTimeUnit
+    | WITH SNAPSHOT RETENTION numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit
     ;
 
 writeSpec
