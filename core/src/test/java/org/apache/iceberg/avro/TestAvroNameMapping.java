@@ -44,6 +44,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
+@SuppressWarnings("unchecked")
 public class TestAvroNameMapping extends TestAvroReadProjection {
   @Test
   public void testMapProjections() throws IOException {
