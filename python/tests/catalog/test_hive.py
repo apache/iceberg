@@ -468,7 +468,7 @@ def test_list_namespaces():
 
 
 def test_list_namespaces_with_parent():
-    catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
     # Hive does not support hierarchical namespaces
     assert catalog.list_namespaces(("accounting",)) == []
