@@ -196,4 +196,8 @@ public abstract class IcebergSourceBenchmark {
       restoreProperties.commit();
     }
   }
+
+  protected FileFormat fileFormat() {
+    throw new UnsupportedOperationException("Unsupported file format");
+  }
 }
