@@ -43,6 +43,9 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.StandardEncryptionManagerFactory;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -76,6 +79,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private String name;
   private Configuration conf;
   private FileIO fileIO;
+  private EncryptionManagerFactory encryptionManagerFactory;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
@@ -109,6 +113,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         fileIOImpl == null
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+
+    this.encryptionManagerFactory = new StandardEncryptionManagerFactory();
+    this.encryptionManagerFactory.initialize(properties);
 
     this.clients = new CachedClientPool(conf, properties);
   }
@@ -512,7 +519,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    return new HiveTableOperations(
+        conf, clients, fileIO, encryptionManagerFactory, name, dbName, tableName);
   }
 
   @Override
