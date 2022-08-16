@@ -33,12 +33,12 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -90,7 +90,7 @@ public class SparkV2Filters {
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static Expression convert(Predicate predicate) {
-    if (checkIfPredicateValid(predicate) == null) {
+    if (!valid(predicate)) {
       return null;
     }
 
@@ -154,8 +154,8 @@ public class SparkV2Filters {
           }
 
         case EQ: // used for both eq and null-safe-eq
-          Object value = null;
-          String attributeName = "";
+          Object value;
+          String attributeName;
           if (predicate.children()[1] instanceof LiteralValue) {
             attributeName = predicate.children()[0].toString();
             value = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value());
@@ -179,14 +179,13 @@ public class SparkV2Filters {
           break;
 
         case IN:
-          Object[] inValues = new Object[predicate.children().length - 1];
-          for (int i = 1; i < predicate.children().length; i++) {
-            inValues[i - 1] =
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[i]).value());
-          }
           return in(
               unquote(predicate.children()[0].toString()),
-              Stream.of(inValues).filter(Objects::nonNull).collect(Collectors.toList()));
+              Arrays.stream(predicate.children())
+                  .skip(1)
+                  .map(val -> convertUTF8StringIfNecessary(((LiteralValue) val).value()))
+                  .filter(Objects::nonNull)
+                  .collect(Collectors.toList()));
 
         case NOT:
           Not notFilter = (Not) predicate;
@@ -196,15 +195,14 @@ public class SparkV2Filters {
             // as Iceberg expressions don't follow the 3-value SQL boolean logic
             // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in
             // Iceberg
-            Object[] notInValues = new Object[childFilter.children().length - 1];
-            for (int i = 1; i < childFilter.children().length; i++) {
-              notInValues[i - 1] =
-                  convertUTF8StringIfNecessary(((LiteralValue) childFilter.children()[i]).value());
-            }
             Expression notIn =
                 notIn(
                     unquote(childFilter.children()[0].toString()),
-                    Stream.of(notInValues).collect(Collectors.toList()));
+                    Arrays.stream(childFilter.children())
+                        .skip(1)
+                        .map(val -> convertUTF8StringIfNecessary(((LiteralValue) val).value()))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()));
             return and(notNull(unquote(childFilter.children()[0].toString())), notIn);
           } else if (hasNoInFilter(childFilter)) {
             Expression child = convert(childFilter);
@@ -294,82 +292,62 @@ public class SparkV2Filters {
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private static Predicate checkIfPredicateValid(Predicate predicate) {
+  private static boolean valid(Predicate predicate) {
     Expression.Operation op = FILTERS.get(predicate.name());
     if (op != null) {
       switch (op) {
         case IS_NULL:
         case NOT_NULL:
-          if (!(predicate.children()[0] instanceof NamedReference)) {
-            return null;
-          }
-          return predicate;
+          return predicate.children()[0] instanceof NamedReference;
 
         case LT:
         case LT_EQ:
         case GT:
         case GT_EQ:
         case EQ:
-          if (predicate.children().length != 2
-              || !(((predicate.children()[1] instanceof LiteralValue
-                      && predicate.children()[0] instanceof NamedReference))
-                  || ((predicate.children()[0] instanceof LiteralValue
-                      && predicate.children()[1] instanceof NamedReference)))) {
-            return null;
+          if (predicate.children().length != 2) {
+            return false;
           }
-          return predicate;
+          return (predicate.children()[0] instanceof NamedReference
+                  && predicate.children()[1] instanceof LiteralValue)
+              || predicate.children()[0] instanceof LiteralValue
+                  && predicate.children()[1] instanceof NamedReference;
 
         case IN:
           if (!(predicate.children()[0] instanceof NamedReference)) {
-            return null;
+            return false;
           } else {
-            for (int i = 1; i < predicate.children().length; i++) {
-              if (!(predicate.children()[i] instanceof LiteralValue)) {
-                return null;
-              }
-            }
-            return predicate;
+            return Arrays.stream(predicate.children())
+                .skip(1)
+                .allMatch(val -> val instanceof LiteralValue);
           }
 
         case NOT:
           Not notFilter = (Not) predicate;
-          return checkIfPredicateValid(notFilter.child());
+          return valid(notFilter.child());
 
         case AND:
           And andFilter = (And) predicate;
-          if (checkIfPredicateValid(andFilter.left()) == null
-              || checkIfPredicateValid(andFilter.right()) == null) {
-            return null;
-          } else {
-            return predicate;
-          }
+          return valid(andFilter.left()) && valid(andFilter.right());
 
         case OR:
           Or orFilter = (Or) predicate;
-          if (checkIfPredicateValid(orFilter.left()) == null
-              || checkIfPredicateValid(orFilter.right()) == null) {
-            return null;
-          } else {
-            return predicate;
-          }
+          return valid(orFilter.left()) && valid(orFilter.right());
 
         case STARTS_WITH:
-          {
-            if (predicate.children().length != 2
-                || !((predicate.children()[1] instanceof LiteralValue
-                    && predicate.children()[0] instanceof NamedReference))
-                || !(((LiteralValue<?>) predicate.children()[1]).value() instanceof String)) {
-              return null;
-            }
-            return predicate;
+          if (predicate.children().length != 2) {
+            return false;
           }
+          return predicate.children()[0] instanceof NamedReference
+              && predicate.children()[1] instanceof LiteralValue
+              && ((LiteralValue<?>) predicate.children()[1]).value() instanceof String;
 
         case TRUE:
         case FALSE:
-          return predicate;
+          return true;
       }
     }
 
-    return null;
+    return false;
   }
 }
