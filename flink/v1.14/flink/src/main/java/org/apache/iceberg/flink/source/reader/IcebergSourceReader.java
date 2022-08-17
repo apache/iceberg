@@ -34,9 +34,11 @@ public class IcebergSourceReader<T>
         RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
 
   public IcebergSourceReader(
-      String fullTableName, ReaderFunction<T> readerFunction, SourceReaderContext context) {
+      IcebergSourceReaderMetrics metrics,
+      ReaderFunction<T> readerFunction,
+      SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(fullTableName, readerFunction, context),
+        () -> new IcebergSourceSplitReader<>(metrics, readerFunction, context),
         new IcebergSourceRecordEmitter<>(),
         context.getConfiguration(),
         context);

@@ -29,8 +29,6 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
@@ -40,38 +38,28 @@ import org.slf4j.LoggerFactory;
 class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, IcebergSourceSplit> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceSplitReader.class);
 
+  private final IcebergSourceReaderMetrics metrics;
   private final ReaderFunction<T> openSplitFunction;
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
-
-  private final Counter assignedSplits;
-  private final Counter assignedBytes;
-  private final Counter finishedSplits;
-  private final Counter finishedBytes;
-  private final Counter splitReaderFetchCalls;
 
   private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> currentReader;
   private IcebergSourceSplit currentSplit;
   private String currentSplitId;
 
   IcebergSourceSplitReader(
-      String fullTableName, ReaderFunction<T> openSplitFunction, SourceReaderContext context) {
+      IcebergSourceReaderMetrics metrics,
+      ReaderFunction<T> openSplitFunction,
+      SourceReaderContext context) {
+    this.metrics = metrics;
     this.openSplitFunction = openSplitFunction;
     this.indexOfSubtask = context.getIndexOfSubtask();
     this.splits = new ArrayDeque<>();
-
-    MetricGroup metrics =
-        context.metricGroup().addGroup("IcebergSourceReader").addGroup("table", fullTableName);
-    this.assignedSplits = metrics.counter("assignedSplits");
-    this.assignedBytes = metrics.counter("assignedBytes");
-    this.finishedSplits = metrics.counter("finishedSplits");
-    this.finishedBytes = metrics.counter("finishedBytes");
-    this.splitReaderFetchCalls = metrics.counter("splitReaderFetchCalls");
   }
 
   @Override
   public RecordsWithSplitIds<RecordAndPosition<T>> fetch() throws IOException {
-    splitReaderFetchCalls.inc();
+    metrics.incrementSplitReaderFetchCalls(1);
     if (currentReader == null) {
       IcebergSourceSplit nextSplit = splits.poll();
       if (nextSplit != null) {
@@ -107,8 +95,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
     LOG.info("Add {} splits to reader", splitsChange.splits().size());
     splits.addAll(splitsChange.splits());
-    assignedSplits.inc(Long.valueOf(splitsChange.splits().size()));
-    assignedBytes.inc(calculateBytes(splitsChange));
+    metrics.incrementAssignedSplits(splitsChange.splits().size());
+    metrics.incrementAssignedBytes(calculateBytes(splitsChange));
   }
 
   @Override
@@ -138,8 +126,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
     ArrayBatchRecords<T> finishRecords = ArrayBatchRecords.finishedSplit(currentSplitId);
     LOG.info("Split reader {} finished split: {}", indexOfSubtask, currentSplitId);
-    finishedSplits.inc(1L);
-    finishedBytes.inc(calculateBytes(currentSplit));
+    metrics.incrementFinishedSplits(1);
+    metrics.incrementFinishedBytes(calculateBytes(currentSplit));
     currentSplitId = null;
     return finishRecords;
   }
