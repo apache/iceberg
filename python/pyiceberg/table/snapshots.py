@@ -39,6 +39,9 @@ class Operation(Enum):
     OVERWRITE = "overwrite"
     DELETE = "delete"
 
+    def __repr__(self) -> str:
+        return f"Operation.{self.name}"
+
 
 class Summary(IcebergBaseModel):
     """
@@ -78,6 +81,10 @@ class Summary(IcebergBaseModel):
     @property
     def additional_properties(self) -> Dict[str, str]:
         return self._additional_properties
+
+    def __repr__(self) -> str:
+        repr_properties = f", **{repr(self._additional_properties)}" if self._additional_properties else ""
+        return f"Summary({repr(self.operation)}{repr_properties})"
 
 
 class Snapshot(IcebergBaseModel):
