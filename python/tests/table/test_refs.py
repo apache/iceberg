@@ -14,27 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from enum import Enum
-from typing import Optional
-
-from pydantic import Field
-
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
-
-MAIN_BRANCH = "main"
+# pylint:disable=eval-used
+from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 
 
-class SnapshotRefType(str, Enum):
-    BRANCH = "branch"
-    TAG = "tag"
+def test_snapshot_with_properties_repr():
+    snapshot_ref = SnapshotRef(
+        snapshot_id=3051729675574597004,
+        snapshot_ref_type=SnapshotRefType.TAG,
+        min_snapshots_to_keep=None,
+        max_snapshot_age_ms=None,
+        max_ref_age_ms=10000000,
+    )
 
-    def __repr__(self) -> str:
-        return f"SnapshotRefType.{self.name}"
-
-
-class SnapshotRef(IcebergBaseModel):
-    snapshot_id: int = Field(alias="snapshot-id")
-    snapshot_ref_type: SnapshotRefType = Field(alias="type")
-    min_snapshots_to_keep: Optional[int] = Field(alias="min-snapshots-to-keep", default=None)
-    max_snapshot_age_ms: Optional[int] = Field(alias="max-snapshot-age-ms", default=None)
-    max_ref_age_ms: Optional[int] = Field(alias="max-ref-age-ms", default=None)
+    assert (
+        repr(snapshot_ref)
+        == """SnapshotRef(snapshot_id=3051729675574597004, snapshot_ref_type=SnapshotRefType.TAG, min_snapshots_to_keep=None, max_snapshot_age_ms=None, max_ref_age_ms=10000000)"""
+    )
+    assert snapshot_ref == eval(repr(snapshot_ref))
