@@ -41,14 +41,9 @@ public class TestCounterResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: name");
-
-    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{\"name\": \"some-name\"}"))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: unit");
 
-    Assertions.assertThatThrownBy(
-            () -> CounterResultParser.fromJson("{\"name\": \"some-name\", \"unit\":\"bytes\"}"))
+    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{\"unit\":\"bytes\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: value");
   }
@@ -56,17 +51,14 @@ public class TestCounterResultParser {
   @Test
   public void extraFields() {
     Assertions.assertThat(
-            CounterResultParser.fromJson(
-                "{\"name\":\"example\",\"unit\":\"bytes\",\"value\":23,\"extra\": \"value\"}"))
-        .isEqualTo(new CounterResult("example", Unit.BYTES, 23L));
+            CounterResultParser.fromJson("{\"unit\":\"bytes\",\"value\":23,\"extra\": \"value\"}"))
+        .isEqualTo(new CounterResult(Unit.BYTES, 23L));
   }
 
   @Test
   public void unsupportedUnit() {
     Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"name\":\"example\",\"unit\":\"unknown\",\"value\":23}"))
+            () -> CounterResultParser.fromJson("{\"unit\":\"unknown\",\"value\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("No enum constant org.apache.iceberg.metrics.MetricsContext.Unit.UNKNOWN");
   }
@@ -74,34 +66,17 @@ public class TestCounterResultParser {
   @Test
   public void invalidValue() {
     Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"name\":\"example\",\"unit\":\"count\",\"value\":\"illegal\"}"))
+            () -> CounterResultParser.fromJson("{\"unit\":\"count\",\"value\":\"illegal\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: value: \"illegal\"");
   }
 
   @Test
-  public void invalidName() {
-    Assertions.assertThatThrownBy(
-            () -> CounterResultParser.fromJson("{\"name\":23,\"unit\":\"count\",\"value\":45}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a string value: name: 23");
-  }
-
-  @Test
   public void roundTripSerde() {
-    CounterResult counter = new CounterResult("counter-example", Unit.BYTES, Long.MAX_VALUE);
+    CounterResult counter = new CounterResult(Unit.BYTES, Long.MAX_VALUE);
 
-    String expectedJson =
-        "{\n"
-            + "  \"name\" : \"counter-example\",\n"
-            + "  \"unit\" : \"bytes\",\n"
-            + "  \"value\" : 9223372036854775807\n"
-            + "}";
-
-    String json = CounterResultParser.toJson(counter, true);
+    String json = CounterResultParser.toJson(counter);
     Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    Assertions.assertThat(json).isEqualTo("{\"unit\":\"bytes\",\"value\":9223372036854775807}");
   }
 }

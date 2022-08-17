@@ -38,24 +38,20 @@ public class TestDefaultTimer {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> new DefaultTimer(null, TimeUnit.NANOSECONDS))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid timer name: null");
-    Assertions.assertThatThrownBy(() -> new DefaultTimer("name", null))
+    Assertions.assertThatThrownBy(() -> new DefaultTimer(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid time unit: null");
   }
 
   @Test
   public void nameAndUnit() {
-    DefaultTimer timer = new DefaultTimer("timerName", TimeUnit.MINUTES);
-    Assertions.assertThat(timer.name()).isEqualTo("timerName");
+    DefaultTimer timer = new DefaultTimer(TimeUnit.MINUTES);
     Assertions.assertThat(timer.unit()).isEqualTo(TimeUnit.MINUTES);
   }
 
   @Test
   public void recordNegativeAmount() {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThatThrownBy(() -> timer.record(-1, TimeUnit.NANOSECONDS))
         .isInstanceOf(IllegalArgumentException.class)
@@ -66,7 +62,7 @@ public class TestDefaultTimer {
 
   @Test
   public void multipleStops() {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Timer.Timed timed = timer.start();
     timed.stop();
     // we didn't start the timer again
@@ -77,7 +73,7 @@ public class TestDefaultTimer {
 
   @Test
   public void closeableTimer() throws InterruptedException {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
     try (Timer.Timed sample = timer.start()) {
@@ -89,7 +85,7 @@ public class TestDefaultTimer {
 
   @Test
   public void measureRunnable() {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Runnable runnable =
         () -> {
           try {
@@ -114,7 +110,7 @@ public class TestDefaultTimer {
 
   @Test
   public void measureCallable() throws Exception {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Callable<Boolean> callable =
         () -> {
           try {
@@ -140,7 +136,7 @@ public class TestDefaultTimer {
 
   @Test
   public void measureSupplier() {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Supplier<Boolean> supplier =
         () -> {
           try {
@@ -166,8 +162,8 @@ public class TestDefaultTimer {
 
   @Test
   public void measureNestedRunnables() {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
-    Timer innerTimer = new DefaultTimer("inner", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
+    Timer innerTimer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Runnable inner =
         () -> {
           try {
@@ -204,7 +200,7 @@ public class TestDefaultTimer {
 
   @Test
   public void multiThreadedStarts() throws InterruptedException {
-    Timer timer = new DefaultTimer("timer", TimeUnit.NANOSECONDS);
+    Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
 
     int threads = 10;
     CyclicBarrier barrier = new CyclicBarrier(threads);

@@ -92,15 +92,6 @@ public interface MetricsContext extends Serializable {
     default Unit unit() {
       return Unit.UNDEFINED;
     }
-
-    /**
-     * The name of the counter.
-     *
-     * @return The name of the counter.
-     */
-    default String name() {
-      return "undefined";
-    }
   }
 
   /**

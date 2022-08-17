@@ -34,7 +34,6 @@ class TimerResultParser {
   private static final String MISSING_FIELD_ERROR_MSG =
       "Cannot parse timer from '%s': Missing field '%s'";
 
-  private static final String NAME = "name";
   private static final String TIME_UNIT = "time-unit";
   private static final String COUNT = "count";
   private static final String TOTAL_DURATION = "total-duration";
@@ -50,18 +49,9 @@ class TimerResultParser {
   }
 
   static void toJson(TimerResult timer, JsonGenerator gen) throws IOException {
-    toJson(timer, gen, true);
-  }
-
-  static void toJson(TimerResult timer, JsonGenerator gen, boolean includeName) throws IOException {
     Preconditions.checkArgument(null != timer, "Invalid timer: null");
 
     gen.writeStartObject();
-    // ScanMetricsResultParser mainly uses this with includeName=false, since it includes the name
-    // in a parent structure
-    if (includeName) {
-      gen.writeStringField(NAME, timer.name());
-    }
     gen.writeNumberField(COUNT, timer.count());
     gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ROOT));
     gen.writeNumberField(TOTAL_DURATION, fromDuration(timer.totalDuration(), timer.timeUnit()));
@@ -76,11 +66,10 @@ class TimerResultParser {
     Preconditions.checkArgument(null != json, "Cannot parse timer from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse timer from non-object: %s", json);
 
-    String name = JsonUtil.getString(NAME, json);
     long count = JsonUtil.getLong(COUNT, json);
     TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, json).toUpperCase(Locale.ROOT));
     long duration = JsonUtil.getLong(TOTAL_DURATION, json);
-    return new TimerResult(name, unit, toDuration(duration, unit), count);
+    return new TimerResult(unit, toDuration(duration, unit), count);
   }
 
   /**
@@ -109,7 +98,7 @@ class TimerResultParser {
     long count = JsonUtil.getLong(COUNT, timer);
     TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, timer).toUpperCase(Locale.ROOT));
     long duration = JsonUtil.getLong(TOTAL_DURATION, timer);
-    return new TimerResult(timerName, unit, toDuration(duration, unit), count);
+    return new TimerResult(unit, toDuration(duration, unit), count);
   }
 
   @VisibleForTesting

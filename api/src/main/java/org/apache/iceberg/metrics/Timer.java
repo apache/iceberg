@@ -52,15 +52,6 @@ public interface Timer {
   Timed start();
 
   /**
-   * The name of the timer.
-   *
-   * @return The name of the timer.
-   */
-  default String name() {
-    return "undefined";
-  }
-
-  /**
    * The {@link TimeUnit} of the timer.
    *
    * @return The {@link TimeUnit} of the timer.

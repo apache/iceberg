@@ -26,17 +26,13 @@ public class TestDefaultCounter {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> new DefaultCounter(null, MetricsContext.Unit.BYTES))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid counter name: null");
-    Assertions.assertThatThrownBy(() -> new DefaultMetricsContext().counter("name", null))
+    Assertions.assertThatThrownBy(() -> new DefaultMetricsContext().counter("test", null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
   }
 
   @Test
   public void noop() {
-    Assertions.assertThat(DefaultCounter.NOOP.name()).isEqualTo("undefined");
     Assertions.assertThat(DefaultCounter.NOOP.unit()).isEqualTo(Unit.UNDEFINED);
     Assertions.assertThat(DefaultCounter.NOOP.isNoop()).isTrue();
     Assertions.assertThatThrownBy(DefaultCounter.NOOP::value)
@@ -46,18 +42,17 @@ public class TestDefaultCounter {
 
   @Test
   public void count() {
-    Counter counter = new DefaultCounter("test", Unit.BYTES);
+    Counter counter = new DefaultCounter(Unit.BYTES);
     counter.increment();
     counter.increment(5L);
     Assertions.assertThat(counter.value()).isEqualTo(6L);
-    Assertions.assertThat(counter.name()).isEqualTo("test");
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
     Assertions.assertThat(counter.isNoop()).isFalse();
   }
 
   @Test
   public void counterOverflow() {
-    Counter counter = new DefaultCounter("test", MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultCounter(MetricsContext.Unit.COUNT);
     counter.increment(Long.MAX_VALUE);
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)
