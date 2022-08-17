@@ -69,21 +69,29 @@ class Config:
 
     @staticmethod
     def _from_configuration_files() -> Optional[RecursiveDict]:
-        """Looks up configuration files
+        """Loads the first configuration file that its finds
 
-        Takes preference over RecursiveDict that's close to the user
+        Will first look in the PYICEBERG_HOME env variable,
+        and then in the home directory.
         """
-        for directory in [os.environ.get(HOME), os.environ.get(PYICEBERG_HOME)]:
+
+        def _load_yaml(directory: Optional[str]) -> Optional[RecursiveDict]:
             if directory:
                 path = f"{directory.rstrip('/')}/{PYICEBERG_YML}"
                 if os.path.isfile(path):
                     with open(path, encoding="utf-8") as f:
-                        try:
-                            file_config = yaml.safe_load(f)
-                            file_config_lowercase = _lowercase_dictionary_keys(file_config)
-                            return file_config_lowercase
-                        except yaml.YAMLError:
-                            logger.exception("Not valid config yaml: %s", path)
+                        file_config = yaml.safe_load(f)
+                        file_config_lowercase = _lowercase_dictionary_keys(file_config)
+                        return file_config_lowercase
+            return None
+
+        # Give priority to the PYICEBERG_HOME directory
+        if pyiceberg_home_config := _load_yaml(os.environ.get(PYICEBERG_HOME)):
+            return pyiceberg_home_config
+        # Look into the home directory
+        if pyiceberg_home_config := _load_yaml(os.environ.get(HOME)):
+            return pyiceberg_home_config
+        # Didn't find a config
         return None
 
     @staticmethod
