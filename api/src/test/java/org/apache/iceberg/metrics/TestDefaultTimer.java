@@ -47,6 +47,21 @@ public class TestDefaultTimer {
   public void nameAndUnit() {
     DefaultTimer timer = new DefaultTimer(TimeUnit.MINUTES);
     Assertions.assertThat(timer.unit()).isEqualTo(TimeUnit.MINUTES);
+    Assertions.assertThat(timer.isNoop()).isFalse();
+  }
+
+  @Test
+  public void noop() {
+    Assertions.assertThat(Timer.NOOP.isNoop()).isTrue();
+    Assertions.assertThatThrownBy(Timer.NOOP::count)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("NOOP timer has no count");
+    Assertions.assertThatThrownBy(Timer.NOOP::totalDuration)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("NOOP timer has no duration");
+    Assertions.assertThatThrownBy(Timer.NOOP::unit)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("NOOP timer has no unit");
   }
 
   @Test

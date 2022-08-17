@@ -104,6 +104,15 @@ public interface Timer {
   <T> T time(Supplier<T> supplier);
 
   /**
+   * Determines whether this timer is a NOOP timer.
+   *
+   * @return Whether this timer is a NOOP timer.
+   */
+  default boolean isNoop() {
+    return NOOP.equals(this);
+  }
+
+  /**
    * A timing sample that carries internal state about the Timer's start position. The timing can be
    * completed by calling {@link Timed#stop()}.
    */
@@ -128,12 +137,17 @@ public interface Timer {
 
         @Override
         public long count() {
-          return 0;
+          throw new UnsupportedOperationException("NOOP timer has no count");
         }
 
         @Override
         public Duration totalDuration() {
-          return Duration.ZERO;
+          throw new UnsupportedOperationException("NOOP timer has no duration");
+        }
+
+        @Override
+        public TimeUnit unit() {
+          throw new UnsupportedOperationException("NOOP timer has no unit");
         }
 
         @Override
