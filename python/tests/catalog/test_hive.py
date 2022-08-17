@@ -47,7 +47,13 @@ from pyiceberg.serializers import ToOutputFile
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
-from pyiceberg.table.snapshots import Operation, Snapshot, Summary
+from pyiceberg.table.snapshots import (
+    MetadataLogEntry,
+    Operation,
+    Snapshot,
+    SnapshotLogEntry,
+    Summary,
+)
 from pyiceberg.table.sorting import (
     NullOrder,
     SortDirection,
@@ -336,7 +342,7 @@ def test_load_table(hive_table: HiveTable):
                 sequence_number=0,
                 timestamp_ms=1515100955770,
                 manifest_list="s3://a/b/1.avro",
-                summary=Summary(Operation.APPEND),
+                summary=Summary(operation=Operation.APPEND),
                 schema_id=None,
             ),
             Snapshot(
@@ -345,15 +351,15 @@ def test_load_table(hive_table: HiveTable):
                 sequence_number=1,
                 timestamp_ms=1555100955770,
                 manifest_list="s3://a/b/2.avro",
-                summary=Summary(Operation.APPEND),
+                summary=Summary(operation=Operation.APPEND),
                 schema_id=1,
             ),
         ],
         snapshot_log=[
-            {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
-            {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
+            SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
+            SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
         ],
-        metadata_log=[],
+        metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
         sort_orders=[
             SortOrder(
                 3,
@@ -370,13 +376,20 @@ def test_load_table(hive_table: HiveTable):
         ],
         default_sort_order_id=3,
         refs={
+            "test": SnapshotRef(
+                snapshot_id=3051729675574597004,
+                snapshot_ref_type=SnapshotRefType.TAG,
+                min_snapshots_to_keep=None,
+                max_snapshot_age_ms=None,
+                max_ref_age_ms=10000000,
+            ),
             "main": SnapshotRef(
                 snapshot_id=3055729675574597004,
                 snapshot_ref_type=SnapshotRefType.BRANCH,
                 min_snapshots_to_keep=None,
                 max_snapshot_age_ms=None,
                 max_ref_age_ms=None,
-            )
+            ),
         },
         format_version=2,
         last_sequence_number=34,

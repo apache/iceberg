@@ -88,3 +88,13 @@ class Snapshot(IcebergBaseModel):
     manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
+
+
+class MetadataLogEntry(IcebergBaseModel):
+    metadata_file: str = Field(alias="metadata-file")
+    timestamp_ms: int = Field(alias="timestamp-ms")
+
+
+class SnapshotLogEntry(IcebergBaseModel):
+    snapshot_id: str = Field(alias="snapshot-id")
+    timestamp_ms: int = Field(alias="timestamp-ms")

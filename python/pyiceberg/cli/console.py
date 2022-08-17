@@ -146,9 +146,8 @@ def schema(ctx: Context, identifier: str):
     catalog, output = _catalog_and_output(ctx)
 
     try:
-        metadata = catalog.load_table(identifier).metadata
-        assert metadata
-        output.schema(metadata.current_schema())
+        table = catalog.load_table(identifier)
+        output.schema(table.schema())
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)
@@ -161,9 +160,8 @@ def spec(ctx: Context, identifier: str):
     """Returns the partition spec of the table"""
     catalog, output = _catalog_and_output(ctx)
     try:
-        metadata = catalog.load_table(identifier).metadata
-        assert metadata
-        output.spec(metadata.current_partition_spec())
+        table = catalog.load_table(identifier)
+        output.spec(table.spec())
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)
@@ -177,7 +175,6 @@ def uuid(ctx: Context, identifier: str):
     catalog, output = _catalog_and_output(ctx)
     try:
         metadata = catalog.load_table(identifier).metadata
-        assert metadata
         output.uuid(metadata.table_uuid)
     except Exception as exc:
         output.exception(exc)
@@ -191,9 +188,8 @@ def location(ctx: Context, identifier: str):
     """Returns the location of the table"""
     catalog, output = _catalog_and_output(ctx)
     try:
-        metadata = catalog.load_table(identifier).metadata
-        assert metadata
-        output.text(metadata.location)
+        table = catalog.load_table(identifier)
+        output.text(table.location())
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)
@@ -389,7 +385,6 @@ def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
     catalog, output = _catalog_and_output(ctx)
     try:
         table = catalog.load_table(identifier)
-        assert table.metadata
         if property_name in table.metadata.properties:
             # We should think of the process here
             # Do we want something similar as in Java:
