@@ -55,7 +55,12 @@ def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential:
         ctx.obj["output"] = JsonOutput()
 
     try:
-        ctx.obj["catalog"] = load_catalog(catalog, **properties)
+        try:
+            ctx.obj["catalog"] = load_catalog(catalog, **properties)
+        except ValueError as exc:
+            raise ValueError(
+                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
+            ) from exc
     except Exception as e:
         ctx.obj["output"].exception(e)
         ctx.exit(1)

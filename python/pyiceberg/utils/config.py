@@ -28,7 +28,6 @@ HOME = "HOME"
 PYICEBERG_HOME = "PYICEBERG_HOME"
 PYICEBERG_YML = ".pyiceberg.yaml"
 
-
 logger = logging.getLogger(__name__)
 
 

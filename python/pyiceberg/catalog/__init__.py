@@ -20,52 +20,89 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
+from typing import Callable
 
 from pyiceberg.exceptions import NotInstalledError
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
+from pyiceberg.typedef import (
+    EMPTY_DICT,
+    Identifier,
+    Properties,
+    RecursiveDict,
+)
 from pyiceberg.utils.config import Config, merge_config
 
 logger = logging.getLogger(__name__)
 
 _ENV_CONFIG = Config()
 
+TYPE = "type"
 
-def load_catalog(name: str, **properties: str | None) -> Catalog:
+
+class CatalogType(Enum):
+    REST = "rest"
+    HIVE = "hive"
+
+
+def load_rest(name: str, conf: Properties) -> Catalog:
     from pyiceberg.catalog.rest import RestCatalog
 
-    catalogs: dict[str, type[Catalog] | str] = {"http": RestCatalog}
+    return RestCatalog(name, **conf)
 
+
+def load_hive(name: str, conf: Properties) -> Catalog:
     try:
-        # In case Thrift isn't installed
         from pyiceberg.catalog.hive import HiveCatalog
 
-        catalogs["thrift"] = HiveCatalog
-    except ImportError:
-        catalogs["thrift"] = "Apache Hive support not installed: pip install 'pyiceberg[hive]'"
+        return HiveCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("Apache Hive support not installed: pip install 'pyiceberg[hive]'") from exc
 
+
+AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
+    CatalogType.REST: load_rest,
+    CatalogType.HIVE: load_hive,
+}
+
+
+def infer_catalog_type(catalog_properties: RecursiveDict) -> CatalogType | None:
+    """Tries to infer the type based on the dict
+
+    Args:
+        catalog_properties: Catalog properties
+
+    Returns:
+        The inferred type based on the provided properties
+    """
+    if uri := catalog_properties.get("uri"):
+        if isinstance(uri, str):
+            if uri.startswith("http"):
+                return CatalogType.REST
+            elif uri.startswith("thrift"):
+                return CatalogType.HIVE
+    return None
+
+
+def load_catalog(name: str, **properties: str | None) -> Catalog:
     env = _ENV_CONFIG.get_catalog_config(name)
     conf = merge_config(env or {}, properties)
 
-    catalog: Catalog | None = None
-    if uri := properties.get("uri"):
-        for scheme, catalog_type in catalogs.items():
-            if uri.startswith(scheme):
-                if isinstance(catalog_type, str):
-                    raise NotInstalledError(catalog_type)
-                catalog = catalog_type(name, **conf)
+    if provided_catalog_type := conf.get(TYPE):
+        catalog_type = CatalogType[provided_catalog_type.upper()]
     else:
-        raise ValueError(
-            f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{name.upper()}__URI"
-        )
+        if inferred_catalog_type := infer_catalog_type(conf):
+            catalog_type = inferred_catalog_type
+        else:
+            raise ValueError(f"Invalid configuration. Could not determine the catalog type: {properties}")
 
-    if not catalog:
-        raise ValueError(f"Could not initialize a catalog for URI: {uri}")
+    if catalog_type:
+        return AVAILABLE_CATALOGS[catalog_type](name, conf)
 
-    return catalog
+    raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
 
 
 @dataclass
