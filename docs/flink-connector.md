@@ -147,10 +147,4 @@ SELECT * FROM flink_table;
 3 rows in set
 ```
 
-{{< hint info >}}
-Flink 1.12 and previous versions, use SET execution.result-mode=tableau;
-since Flink 1.13,SET sql-client.execution.result-mode=tableau;
-For more details, please refer to the [Apache Flink document](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/dev/table/sqlclient)
-{{< /hint >}}
-
 For more details, please refer to the Iceberg [Flink document](../flink).
