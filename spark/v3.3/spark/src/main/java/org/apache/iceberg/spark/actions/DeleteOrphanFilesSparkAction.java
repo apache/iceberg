@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -259,7 +258,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   private Dataset<FileURI> validFileIdentDS() {
     // transform before union to avoid extra serialization/deserialization
-    ToFileURI<FileInfo> toFileURI = ToFileURI.fromFileInfo(equalSchemes, equalAuthorities);
+    FileInfoToFileURI toFileURI = new FileInfoToFileURI(equalSchemes, equalAuthorities);
 
     Dataset<FileURI> contentFileIdentDS = toFileURI.apply(contentFileDS(table));
     Dataset<FileURI> manifestFileIdentDS = toFileURI.apply(manifestDS(table));
@@ -273,7 +272,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private Dataset<FileURI> actualFileIdentDS() {
-    ToFileURI<String> toFileURI = ToFileURI.fromString(equalSchemes, equalAuthorities);
+    StringToFileURI toFileURI = new StringToFileURI(equalSchemes, equalAuthorities);
     if (compareToFileList == null) {
       return toFileURI.apply(listedFileDS());
     } else {
@@ -509,31 +508,40 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  static class ToFileURI<I> implements MapPartitionsFunction<I, FileURI> {
+  static class StringToFileURI extends ToFileURI<String> {
+    StringToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
+      super(equalSchemes, equalAuthorities);
+    }
+
+    @Override
+    protected String uriAsString(String input) {
+      return input;
+    }
+  }
+
+  @VisibleForTesting
+  static class FileInfoToFileURI extends ToFileURI<FileInfo> {
+    FileInfoToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
+      super(equalSchemes, equalAuthorities);
+    }
+
+    @Override
+    protected String uriAsString(FileInfo fileInfo) {
+      return fileInfo.getPath();
+    }
+  }
+
+  private abstract static class ToFileURI<I> implements MapPartitionsFunction<I, FileURI> {
 
     private final Map<String, String> equalSchemes;
     private final Map<String, String> equalAuthorities;
-    private final Function<I, String> toUriAsString;
 
-    private ToFileURI(
-        Map<String, String> equalSchemes,
-        Map<String, String> equalAuthorities,
-        Function<I, String> toUriAsString) {
-
+    ToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
       this.equalSchemes = equalSchemes;
       this.equalAuthorities = equalAuthorities;
-      this.toUriAsString = toUriAsString;
     }
 
-    static ToFileURI<String> fromString(
-        Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-      return new ToFileURI<>(equalSchemes, equalAuthorities, Function.identity());
-    }
-
-    static ToFileURI<FileInfo> fromFileInfo(
-        Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-      return new ToFileURI<>(equalSchemes, equalAuthorities, FileInfo::getPath);
-    }
+    protected abstract String uriAsString(I input);
 
     Dataset<FileURI> apply(Dataset<I> ds) {
       return ds.mapPartitions(this, FileURI.ENCODER);
@@ -545,7 +553,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
 
     private FileURI toFileURI(I input) {
-      String uriAsString = toUriAsString.apply(input);
+      String uriAsString = uriAsString(input);
       URI uri = new Path(uriAsString).toUri();
       String scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
       String authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());

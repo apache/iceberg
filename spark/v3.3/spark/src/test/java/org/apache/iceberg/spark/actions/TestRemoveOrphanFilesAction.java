@@ -56,7 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.ToFileURI;
+import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
@@ -988,7 +988,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
       Map<String, String> equalAuthorities,
       DeleteOrphanFiles.PrefixMismatchMode mode) {
 
-    ToFileURI<String> toFileUri = ToFileURI.fromString(equalSchemes, equalAuthorities);
+    StringToFileURI toFileUri = new StringToFileURI(equalSchemes, equalAuthorities);
 
     Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
