@@ -43,7 +43,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.shaded.com.google.common.base.Functions;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
@@ -528,7 +527,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     static ToFileURI<String> fromString(
         Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-      return new ToFileURI<>(equalSchemes, equalAuthorities, Functions.identity());
+      return new ToFileURI<>(equalSchemes, equalAuthorities, Function.identity());
     }
 
     static ToFileURI<FileInfo> fromFileInfo(
