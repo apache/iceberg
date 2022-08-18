@@ -348,8 +348,9 @@ public class TruncateFunction implements UnboundFunction {
       if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
         return null;
       } else {
-        return invoke(
-            input.getInt(WIDTH_ORDINAL), input.getDecimal(VALUE_ORDINAL, precision, scale));
+        int width = input.getInt(WIDTH_ORDINAL);
+        Decimal value = input.getDecimal(VALUE_ORDINAL, precision, scale);
+        return invoke(width, value);
       }
     }
   }
