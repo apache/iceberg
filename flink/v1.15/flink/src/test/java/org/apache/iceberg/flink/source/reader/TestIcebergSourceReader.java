@@ -20,18 +20,11 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.testutils.source.reader.TestingReaderContext;
 import org.apache.flink.connector.testutils.source.reader.TestingReaderOutput;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.metrics.SimpleCounter;
-import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
-import org.apache.flink.metrics.groups.SourceReaderMetricGroup;
-import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -42,7 +35,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -94,13 +86,13 @@ public class TestIcebergSourceReader {
         TestFixtures.SCHEMA,
         recordBatchList.get(0).get(0),
         readerOutput.getEmittedRecords().get(expectedCount - 1));
-    Assert.assertEquals(expectedCount, metricGroup.counters.get("assignedSplits").getCount());
+    Assert.assertEquals(expectedCount, metricGroup.counters().get("assignedSplits").getCount());
 
     // One more poll will get null record batch.
     // That will finish the split and cause split fetcher to be closed due to idleness.
     // Then next split will create a new split reader.
     reader.pollNext(readerOutput);
-    Assert.assertEquals(expectedCount, metricGroup.counters.get("finishedSplits").getCount());
+    Assert.assertEquals(expectedCount, metricGroup.counters().get("finishedSplits").getCount());
   }
 
   private IcebergSourceReader createReader(
@@ -117,75 +109,5 @@ public class TestIcebergSourceReader {
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
             new PlaintextEncryptionManager());
     return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
-  }
-
-  private static class TestingMetricGroup extends UnregisteredMetricsGroup
-      implements SourceReaderMetricGroup {
-    private final Map<String, Counter> counters;
-
-    private TestingMetricGroup() {
-      this.counters = Maps.newHashMap();
-    }
-
-    /** Pass along the reference to share the map for child metric groups. */
-    private TestingMetricGroup(Map<String, Counter> counters) {
-      this.counters = counters;
-    }
-
-    @Override
-    public Counter counter(String name) {
-      Counter counter = new SimpleCounter();
-      counters.put(name, counter);
-      return counter;
-    }
-
-    @Override
-    public MetricGroup addGroup(String name) {
-      return new TestingMetricGroup(counters);
-    }
-
-    @Override
-    public MetricGroup addGroup(String key, String value) {
-      return new TestingMetricGroup(counters);
-    }
-
-    @Override
-    public OperatorIOMetricGroup getIOMetricGroup() {
-      return new TestingOperatorIOMetricGroup();
-    }
-
-    @Override
-    public Counter getNumRecordsInErrorsCounter() {
-      return new SimpleCounter();
-    }
-
-    @Override
-    public void setPendingBytesGauge(Gauge<Long> pendingBytesGauge) {}
-
-    @Override
-    public void setPendingRecordsGauge(Gauge<Long> pendingRecordsGauge) {}
-  }
-
-  private static class TestingOperatorIOMetricGroup extends UnregisteredMetricsGroup
-      implements OperatorIOMetricGroup {
-    @Override
-    public Counter getNumRecordsInCounter() {
-      return new SimpleCounter();
-    }
-
-    @Override
-    public Counter getNumRecordsOutCounter() {
-      return new SimpleCounter();
-    }
-
-    @Override
-    public Counter getNumBytesInCounter() {
-      return new SimpleCounter();
-    }
-
-    @Override
-    public Counter getNumBytesOutCounter() {
-      return new SimpleCounter();
-    }
   }
 }
