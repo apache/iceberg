@@ -375,6 +375,16 @@ public class AwsProperties implements Serializable {
   public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
 
   /**
+   * Determines if S3 client will use the Acceleration Mode, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html
+   */
+  public static final String S3_ACCELERATION_ENABLED = "s3.acceleration-enabled";
+
+  public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
    * pass a catalog property.
    *
