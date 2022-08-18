@@ -58,24 +58,43 @@ public class SparkV2Filters {
 
   private SparkV2Filters() {}
 
+  private static final String TRUE = "ALWAYS_TRUE";
+  private static final String FALSE = "ALWAYS_FALSE";
+  private static final String EQ = "=";
+  private static final String EQ_NULL_SAFE = "<=>";
+  private static final String GT = ">";
+  private static final String GT_EQ = ">=";
+  private static final String LT = "<";
+  private static final String LT_EQ = "<=";
+  private static final String IN = "IN";
+  private static final String IS_NULL = "IS_NULL";
+  private static final String NOT_NULL = "IS_NOT_NULL";
+  private static final String AND = "AND";
+  private static final String OR = "OR";
+  private static final String NOT = "NOT";
+  private static final String STARTS_WITH = "STARTS_WITH";
+
   private static final Map<String, Expression.Operation> FILTERS =
       ImmutableMap.<String, Expression.Operation>builder()
-          .put("ALWAYS_TRUE", Expression.Operation.TRUE)
-          .put("ALWAYS_FALSE", Expression.Operation.FALSE)
-          .put("=", Expression.Operation.EQ)
-          .put("<=>", Expression.Operation.EQ)
-          .put(">", Expression.Operation.GT)
-          .put(">=", Expression.Operation.GT_EQ)
-          .put("<", Expression.Operation.LT)
-          .put("<=", Expression.Operation.LT_EQ)
-          .put("IN", Expression.Operation.IN)
-          .put("IS_NULL", Expression.Operation.IS_NULL)
-          .put("IS_NOT_NULL", Expression.Operation.NOT_NULL)
-          .put("AND", Expression.Operation.AND)
-          .put("OR", Expression.Operation.OR)
-          .put("NOT", Expression.Operation.NOT)
-          .put("STARTS_WITH", Expression.Operation.STARTS_WITH)
+          .put(TRUE, Expression.Operation.TRUE)
+          .put(FALSE, Expression.Operation.FALSE)
+          .put(EQ, Expression.Operation.EQ)
+          .put(EQ_NULL_SAFE, Expression.Operation.EQ)
+          .put(GT, Expression.Operation.GT)
+          .put(GT_EQ, Expression.Operation.GT_EQ)
+          .put(LT, Expression.Operation.LT)
+          .put(LT_EQ, Expression.Operation.LT_EQ)
+          .put(IN, Expression.Operation.IN)
+          .put(IS_NULL, Expression.Operation.IS_NULL)
+          .put(NOT_NULL, Expression.Operation.NOT_NULL)
+          .put(AND, Expression.Operation.AND)
+          .put(OR, Expression.Operation.OR)
+          .put(NOT, Expression.Operation.NOT)
+          .put(STARTS_WITH, Expression.Operation.STARTS_WITH)
           .build();
+
+  private static final int FIRST_ORDINAL = 0;
+  private static final int SECOND_ORDINAL = 1;
 
   public static Expression convert(Predicate[] predicates) {
     Expression expression = Expressions.alwaysTrue();
@@ -104,64 +123,71 @@ public class SparkV2Filters {
           return Expressions.alwaysFalse();
 
         case IS_NULL:
-          return isNull(unquote(predicate.children()[0].toString()));
+          return isNull(unquote(predicate.children()[FIRST_ORDINAL].toString()));
 
         case NOT_NULL:
-          return notNull(unquote(predicate.children()[0].toString()));
+          return notNull(unquote(predicate.children()[FIRST_ORDINAL].toString()));
 
         case LT:
-          if (predicate.children()[1] instanceof LiteralValue) {
+          if (predicate.children()[SECOND_ORDINAL] instanceof LiteralValue) {
             return lessThan(
-                unquote(predicate.children()[0].toString()),
+                unquote(predicate.children()[FIRST_ORDINAL].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
             return greaterThan(
-                unquote(predicate.children()[1].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
+                unquote(predicate.children()[SECOND_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[FIRST_ORDINAL]).value()));
           }
 
         case LT_EQ:
-          if (predicate.children()[1] instanceof LiteralValue) {
+          if (predicate.children()[SECOND_ORDINAL] instanceof LiteralValue) {
             return lessThanOrEqual(
-                unquote(predicate.children()[0].toString()),
+                unquote(predicate.children()[FIRST_ORDINAL].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
             return greaterThanOrEqual(
-                unquote(predicate.children()[1].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
+                unquote(predicate.children()[SECOND_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[FIRST_ORDINAL]).value()));
           }
 
         case GT:
-          if (predicate.children()[1] instanceof LiteralValue) {
+          if (predicate.children()[SECOND_ORDINAL] instanceof LiteralValue) {
             return greaterThan(
-                unquote(predicate.children()[0].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
+                unquote(predicate.children()[FIRST_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[SECOND_ORDINAL]).value()));
           } else {
             return lessThan(
-                unquote(predicate.children()[1].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
+                unquote(predicate.children()[SECOND_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[FIRST_ORDINAL]).value()));
           }
 
         case GT_EQ:
-          if (predicate.children()[1] instanceof LiteralValue) {
+          if (predicate.children()[SECOND_ORDINAL] instanceof LiteralValue) {
             return greaterThanOrEqual(
-                unquote(predicate.children()[0].toString()),
+                unquote(predicate.children()[FIRST_ORDINAL].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
             return lessThanOrEqual(
-                unquote(predicate.children()[1].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
+                unquote(predicate.children()[SECOND_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[FIRST_ORDINAL]).value()));
           }
 
         case EQ: // used for both eq and null-safe-eq
           Object value;
           String attributeName;
-          if (predicate.children()[1] instanceof LiteralValue) {
-            attributeName = predicate.children()[0].toString();
+          if (predicate.children()[SECOND_ORDINAL] instanceof LiteralValue) {
+            attributeName = predicate.children()[FIRST_ORDINAL].toString();
             value = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value());
           } else {
-            attributeName = predicate.children()[1].toString();
-            value = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value());
+            attributeName = predicate.children()[SECOND_ORDINAL].toString();
+            value =
+                convertUTF8StringIfNecessary(
+                    ((LiteralValue) predicate.children()[FIRST_ORDINAL]).value());
           }
 
           if (predicate.name().equals("=")) {
@@ -179,7 +205,7 @@ public class SparkV2Filters {
 
         case IN:
           return in(
-              unquote(predicate.children()[0].toString()),
+              unquote(predicate.children()[FIRST_ORDINAL].toString()),
               Arrays.stream(predicate.children())
                   .skip(1)
                   .map(val -> convertUTF8StringIfNecessary(((LiteralValue) val).value()))
@@ -196,13 +222,13 @@ public class SparkV2Filters {
             // Iceberg
             Expression notIn =
                 notIn(
-                    unquote(childFilter.children()[0].toString()),
+                    unquote(childFilter.children()[FIRST_ORDINAL].toString()),
                     Arrays.stream(childFilter.children())
                         .skip(1)
                         .map(val -> convertUTF8StringIfNecessary(((LiteralValue) val).value()))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
-            return and(notNull(unquote(childFilter.children()[0].toString())), notIn);
+            return and(notNull(unquote(childFilter.children()[FIRST_ORDINAL].toString())), notIn);
           } else if (hasNoInFilter(childFilter)) {
             Expression child = convert(childFilter);
             if (child != null) {
@@ -236,8 +262,9 @@ public class SparkV2Filters {
         case STARTS_WITH:
           {
             return startsWith(
-                unquote(predicate.children()[0].toString()),
-                convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value())
+                unquote(predicate.children()[FIRST_ORDINAL].toString()),
+                convertUTF8StringIfNecessary(
+                        ((LiteralValue) predicate.children()[SECOND_ORDINAL]).value())
                     .toString());
           }
       }
@@ -297,7 +324,7 @@ public class SparkV2Filters {
       switch (op) {
         case IS_NULL:
         case NOT_NULL:
-          return predicate.children()[0] instanceof NamedReference;
+          return predicate.children()[FIRST_ORDINAL] instanceof NamedReference;
 
         case LT:
         case LT_EQ:
@@ -307,13 +334,10 @@ public class SparkV2Filters {
           if (predicate.children().length != 2) {
             return false;
           }
-          return (predicate.children()[0] instanceof NamedReference
-                  && predicate.children()[1] instanceof LiteralValue)
-              || predicate.children()[0] instanceof LiteralValue
-                  && predicate.children()[1] instanceof NamedReference;
+          return namedRefCompLit(predicate) || litCompNamedRef(predicate);
 
         case IN:
-          if (!(predicate.children()[0] instanceof NamedReference)) {
+          if (!(predicate.children()[FIRST_ORDINAL] instanceof NamedReference)) {
             return false;
           } else {
             return Arrays.stream(predicate.children())
@@ -337,9 +361,8 @@ public class SparkV2Filters {
           if (predicate.children().length != 2) {
             return false;
           }
-          return predicate.children()[0] instanceof NamedReference
-              && predicate.children()[1] instanceof LiteralValue
-              && ((LiteralValue<?>) predicate.children()[1]).value() instanceof String;
+          return namedRefCompLit(predicate)
+              && ((LiteralValue<?>) predicate.children()[SECOND_ORDINAL]).value() instanceof String;
 
         case TRUE:
         case FALSE:
@@ -348,5 +371,15 @@ public class SparkV2Filters {
     }
 
     return false;
+  }
+
+  private static boolean namedRefCompLit(Predicate predicate) {
+    return predicate.children()[FIRST_ORDINAL] instanceof NamedReference
+        && predicate.children()[SECOND_ORDINAL] instanceof LiteralValue;
+  }
+
+  private static boolean litCompNamedRef(Predicate predicate) {
+    return predicate.children()[FIRST_ORDINAL] instanceof LiteralValue
+        && predicate.children()[SECOND_ORDINAL] instanceof NamedReference;
   }
 }

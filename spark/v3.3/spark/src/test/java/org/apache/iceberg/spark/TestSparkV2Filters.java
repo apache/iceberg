@@ -32,9 +32,7 @@ import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
-import org.apache.spark.sql.types.DateType$;
-import org.apache.spark.sql.types.IntegerType$;
-import org.apache.spark.sql.types.TimestampType$;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -55,7 +53,7 @@ public class TestSparkV2Filters {
           org.apache.spark.sql.connector.expressions.Expression[] attrOnly =
               new org.apache.spark.sql.connector.expressions.Expression[] {namedReference};
 
-          LiteralValue value = new LiteralValue(1, IntegerType$.MODULE$);
+          LiteralValue value = new LiteralValue(1, DataTypes.IntegerType);
           org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
               new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, value};
           org.apache.spark.sql.connector.expressions.Expression[] valueAndAttr =
@@ -182,7 +180,7 @@ public class TestSparkV2Filters {
     long epochMicros = ChronoUnit.MICROS.between(Instant.EPOCH, instant);
 
     NamedReference namedReference = FieldReference.apply("x");
-    LiteralValue ts = new LiteralValue(epochMicros, TimestampType$.MODULE$);
+    LiteralValue ts = new LiteralValue(epochMicros, DataTypes.TimestampType);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
         new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, ts};
 
@@ -202,7 +200,7 @@ public class TestSparkV2Filters {
     long epochDay = localDate.toEpochDay();
 
     NamedReference namedReference = FieldReference.apply("x");
-    LiteralValue ts = new LiteralValue(epochDay, DateType$.MODULE$);
+    LiteralValue ts = new LiteralValue(epochDay, DataTypes.DateType);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
         new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, ts};
 
@@ -219,8 +217,8 @@ public class TestSparkV2Filters {
   @Test
   public void testNestedInInsideNot() {
     NamedReference namedReference1 = FieldReference.apply("col1");
-    LiteralValue v1 = new LiteralValue(1, IntegerType$.MODULE$);
-    LiteralValue v2 = new LiteralValue(2, IntegerType$.MODULE$);
+    LiteralValue v1 = new LiteralValue(1, DataTypes.IntegerType);
+    LiteralValue v2 = new LiteralValue(2, DataTypes.IntegerType);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue1 =
         new org.apache.spark.sql.connector.expressions.Expression[] {namedReference1, v1};
     Predicate equal = new Predicate("=", attrAndValue1);
@@ -238,8 +236,8 @@ public class TestSparkV2Filters {
   @Test
   public void testNotIn() {
     NamedReference namedReference = FieldReference.apply("col");
-    LiteralValue v1 = new LiteralValue(1, IntegerType$.MODULE$);
-    LiteralValue v2 = new LiteralValue(2, IntegerType$.MODULE$);
+    LiteralValue v1 = new LiteralValue(1, DataTypes.IntegerType);
+    LiteralValue v2 = new LiteralValue(2, DataTypes.IntegerType);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
         new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, v1, v2};
 
