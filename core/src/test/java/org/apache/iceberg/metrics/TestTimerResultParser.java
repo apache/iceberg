@@ -43,21 +43,14 @@ public class TestTimerResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: name");
-
-    Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{\"name\":\"timer-example\"}"))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: count");
 
-    Assertions.assertThatThrownBy(
-            () -> TimerResultParser.fromJson("{\"name\":\"timer-example\",\"count\":44}"))
+    Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{\"count\":44}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: time-unit");
 
     Assertions.assertThatThrownBy(
-            () ->
-                TimerResultParser.fromJson(
-                    "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"hours\"}"))
+            () -> TimerResultParser.fromJson("{\"count\":44,\"time-unit\":\"hours\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: total-duration");
   }
@@ -66,8 +59,8 @@ public class TestTimerResultParser {
   public void extraFields() {
     Assertions.assertThat(
             TimerResultParser.fromJson(
-                "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"hours\",\"total-duration\":24,\"extra\": \"value\"}"))
-        .isEqualTo(new TimerResult("timer-example", TimeUnit.HOURS, Duration.ofHours(24), 44));
+                "{\"count\":44,\"time-unit\":\"hours\",\"total-duration\":24,\"extra\": \"value\"}"))
+        .isEqualTo(new TimerResult(TimeUnit.HOURS, Duration.ofHours(24), 44));
   }
 
   @Test
@@ -75,7 +68,7 @@ public class TestTimerResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 TimerResultParser.fromJson(
-                    "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"hours\",\"total-duration\":\"xx\"}"))
+                    "{\"count\":44,\"time-unit\":\"hours\",\"total-duration\":\"xx\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: total-duration: \"xx\"");
   }
@@ -85,7 +78,7 @@ public class TestTimerResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 TimerResultParser.fromJson(
-                    "{\"name\":\"timer-example\",\"count\":44,\"time-unit\":\"unknown\",\"total-duration\":24}"))
+                    "{\"count\":44,\"time-unit\":\"unknown\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("No enum constant java.util.concurrent.TimeUnit.UNKNOWN");
   }
@@ -95,35 +88,19 @@ public class TestTimerResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 TimerResultParser.fromJson(
-                    "{\"name\":\"timer-example\",\"count\":\"illegal\",\"time-unit\":\"hours\",\"total-duration\":24}"))
+                    "{\"count\":\"illegal\",\"time-unit\":\"hours\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: count: \"illegal\"");
   }
 
   @Test
-  public void invalidName() {
-    Assertions.assertThatThrownBy(
-            () ->
-                TimerResultParser.fromJson(
-                    "{\"name\":23,\"count\":44,\"time-unit\":\"hours\",\"total-duration\":24}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a string value: name: 23");
-  }
-
-  @Test
   public void roundTripSerde() {
-    TimerResult timer = new TimerResult("timer-example", TimeUnit.HOURS, Duration.ofHours(23), 44);
-    String expectedJson =
-        "{\n"
-            + "  \"name\" : \"timer-example\",\n"
-            + "  \"count\" : 44,\n"
-            + "  \"time-unit\" : \"hours\",\n"
-            + "  \"total-duration\" : 23\n"
-            + "}";
+    TimerResult timer = new TimerResult(TimeUnit.HOURS, Duration.ofHours(23), 44);
 
-    String json = TimerResultParser.toJson(timer, true);
+    String json = TimerResultParser.toJson(timer);
     Assertions.assertThat(TimerResultParser.fromJson(json)).isEqualTo(timer);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    Assertions.assertThat(json)
+        .isEqualTo("{\"count\":44,\"time-unit\":\"hours\",\"total-duration\":23}");
   }
 
   @Test

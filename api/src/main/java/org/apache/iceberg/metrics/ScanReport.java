@@ -137,7 +137,6 @@ public class ScanReport {
 
   /** A serializable version of a {@link Timer} that carries its result. */
   public static class TimerResult {
-    private final String name;
     private final TimeUnit timeUnit;
     private final Duration totalDuration;
     private final long count;
@@ -147,21 +146,15 @@ public class ScanReport {
       if (Timer.NOOP.equals(timer)) {
         return null;
       }
-      return new TimerResult(timer.name(), timer.unit(), timer.totalDuration(), timer.count());
+      return new TimerResult(timer.unit(), timer.totalDuration(), timer.count());
     }
 
-    TimerResult(String name, TimeUnit timeUnit, Duration totalDuration, long count) {
-      Preconditions.checkArgument(null != name, "Invalid timer name: null");
+    TimerResult(TimeUnit timeUnit, Duration totalDuration, long count) {
       Preconditions.checkArgument(null != timeUnit, "Invalid time unit: null");
       Preconditions.checkArgument(null != totalDuration, "Invalid duration: null");
-      this.name = name;
       this.timeUnit = timeUnit;
       this.totalDuration = totalDuration;
       this.count = count;
-    }
-
-    public String name() {
-      return name;
     }
 
     public TimeUnit timeUnit() {
@@ -178,7 +171,7 @@ public class ScanReport {
 
     @Override
     public String toString() {
-      return MoreObjects.toStringHelper(name())
+      return MoreObjects.toStringHelper(TimerResult.class)
           .add("duration", totalDuration())
           .add("count", count)
           .add("timeUnit", timeUnit)
@@ -197,20 +190,18 @@ public class ScanReport {
 
       TimerResult that = (TimerResult) o;
       return count == that.count
-          && Objects.equal(name, that.name)
           && timeUnit == that.timeUnit
           && Objects.equal(totalDuration, that.totalDuration);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(name, timeUnit, totalDuration, count);
+      return Objects.hashCode(timeUnit, totalDuration, count);
     }
   }
 
   /** A serializable version of a {@link Counter} that carries its result. */
   public static class CounterResult {
-    private final String name;
     private final MetricsContext.Unit unit;
     private final long value;
 
@@ -219,19 +210,13 @@ public class ScanReport {
       if (counter.isNoop()) {
         return null;
       }
-      return new CounterResult(counter.name(), counter.unit(), counter.value());
+      return new CounterResult(counter.unit(), counter.value());
     }
 
-    CounterResult(String name, Unit unit, long value) {
-      Preconditions.checkArgument(null != name, "Invalid counter name: null");
+    CounterResult(Unit unit, long value) {
       Preconditions.checkArgument(null != unit, "Invalid counter unit: null");
-      this.name = name;
       this.unit = unit;
       this.value = value;
-    }
-
-    public String name() {
-      return name;
     }
 
     public Unit unit() {
@@ -244,7 +229,7 @@ public class ScanReport {
 
     @Override
     public String toString() {
-      return String.format("%s{%s=%s}", name(), unit().displayName(), value());
+      return String.format("{%s=%s}", unit().displayName(), value());
     }
 
     @Override
@@ -258,14 +243,12 @@ public class ScanReport {
       }
 
       CounterResult that = (CounterResult) o;
-      return Objects.equal(name, that.name)
-          && unit == that.unit
-          && Objects.equal(value, that.value);
+      return unit == that.unit && Objects.equal(value, that.value);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(name, unit, value);
+      return Objects.hashCode(unit, value);
     }
   }
 
@@ -355,15 +338,15 @@ public class ScanReport {
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
-          .addValue(totalPlanningDuration)
-          .addValue(resultDataFiles)
-          .addValue(resultDeleteFiles)
-          .addValue(scannedDataManifests)
-          .addValue(skippedDataManifests)
-          .addValue(totalDataManifests)
-          .addValue(totalDeleteManifests)
-          .addValue(totalFileSizeInBytes)
-          .addValue(totalDeleteFileSizeInBytes)
+          .add("totalPlanningDuration", totalPlanningDuration)
+          .add("resultDataFiles", resultDataFiles)
+          .add("resultDeleteFiles", resultDeleteFiles)
+          .add("totalDataManifests", totalDataManifests)
+          .add("totalDeleteManifests", totalDeleteManifests)
+          .add("scannedDataManifests", scannedDataManifests)
+          .add("skippedDataManifests", skippedDataManifests)
+          .add("totalFileSizeInBytes", totalFileSizeInBytes)
+          .add("totalDeleteFileSizeInBytes", totalDeleteFileSizeInBytes)
           .toString();
     }
 
@@ -486,15 +469,15 @@ public class ScanReport {
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
-          .addValue(totalPlanningDuration)
-          .addValue(resultDataFiles)
-          .addValue(resultDeleteFiles)
-          .addValue(scannedDataManifests)
-          .addValue(skippedDataManifests)
-          .addValue(totalDataManifests)
-          .addValue(totalDeleteManifests)
-          .addValue(totalFileSizeInBytes)
-          .addValue(totalDeleteFileSizeInBytes)
+          .add("totalPlanningDuration", totalPlanningDuration)
+          .add("resultDataFiles", resultDataFiles)
+          .add("resultDeleteFiles", resultDeleteFiles)
+          .add("totalDataManifests", totalDataManifests)
+          .add("totalDeleteManifests", totalDeleteManifests)
+          .add("scannedDataManifests", scannedDataManifests)
+          .add("skippedDataManifests", skippedDataManifests)
+          .add("totalFileSizeInBytes", totalFileSizeInBytes)
+          .add("totalDeleteFileSizeInBytes", totalDeleteFileSizeInBytes)
           .toString();
     }
   }

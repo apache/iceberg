@@ -28,11 +28,11 @@ public class DefaultMetricsContext implements MetricsContext {
   @SuppressWarnings("unchecked")
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     if (Integer.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(name, unit).asIntCounter();
+      return (Counter<T>) new DefaultCounter(unit).asIntCounter();
     }
 
     if (Long.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(name, unit).asLongCounter();
+      return (Counter<T>) new DefaultCounter(unit).asLongCounter();
     }
     throw new IllegalArgumentException(
         String.format("Counter for type %s is not supported", type.getName()));
@@ -40,11 +40,11 @@ public class DefaultMetricsContext implements MetricsContext {
 
   @Override
   public Timer timer(String name, TimeUnit unit) {
-    return new DefaultTimer(name, unit);
+    return new DefaultTimer(unit);
   }
 
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-    return new DefaultCounter(name, unit);
+    return new DefaultCounter(unit);
   }
 }

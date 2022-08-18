@@ -155,11 +155,6 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
       public long value() {
         return supplier.getAsLong();
       }
-
-      @Override
-      public String name() {
-        return "ignored";
-      }
     };
   }
 
