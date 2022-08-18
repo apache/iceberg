@@ -339,10 +339,6 @@ public class CatalogHandlers {
                 request.updates().forEach(update -> update.applyTo(metadataBuilder));
 
                 TableMetadata updated = metadataBuilder.build();
-                if (updated.changes().isEmpty()) {
-                  // do not commit if the metadata has not changed
-                  return;
-                }
 
                 // commit
                 taskOps.commit(base, updated);
