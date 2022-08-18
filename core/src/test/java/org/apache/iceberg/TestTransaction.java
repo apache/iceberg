@@ -88,19 +88,22 @@ public class TestTransaction extends TableTestBase {
   public void testMultipleOperationTransaction() {
     Assert.assertEquals("Table should be on version 0", 0, (int) version());
 
+    table.newAppend().appendFile(FILE_C).commit();
+    List<HistoryEntry> initialHistory = table.history();
+
     TableMetadata base = readMetadata();
 
     Transaction txn = table.newTransaction();
 
     Assert.assertSame(
         "Base metadata should not change when commit is created", base, readMetadata());
-    Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
+    Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Assert.assertSame(
         "Base metadata should not change when commit is created", base, readMetadata());
-    Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
+    Assert.assertEquals("Table should be on version 1 after txn create", 1, (int) version());
 
     Snapshot appendSnapshot = txn.table().currentSnapshot();
 
@@ -110,14 +113,14 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertSame(
         "Base metadata should not change when an append is committed", base, readMetadata());
-    Assert.assertEquals("Table should be on version 0 after append", 0, (int) version());
+    Assert.assertEquals("Table should be on version 1 after append", 1, (int) version());
 
     txn.commitTransaction();
 
-    Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
+    Assert.assertEquals("Table should be on version 2 after commit", 2, (int) version());
     Assert.assertEquals(
-        "Table should have one manifest after commit",
-        1,
+        "Table should have two manifest after commit",
+        2,
         readMetadata().currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals(
         "Table snapshot should be the delete snapshot",
@@ -130,12 +133,14 @@ public class TestTransaction extends TableTestBase {
         statuses(Status.DELETED, Status.EXISTING));
 
     Assert.assertEquals(
-        "Table should have a snapshot for each operation", 2, readMetadata().snapshots().size());
+        "Table should have a snapshot for each operation", 3, readMetadata().snapshots().size());
     validateManifestEntries(
-        readMetadata().snapshots().get(0).allManifests(table.io()).get(0),
+        readMetadata().snapshots().get(1).allManifests(table.io()).get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+
+    org.assertj.core.api.Assertions.assertThat(table.history()).containsAll(initialHistory);
   }
 
   @Test
