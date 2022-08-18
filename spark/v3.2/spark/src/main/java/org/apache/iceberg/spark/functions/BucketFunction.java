@@ -53,8 +53,10 @@ import org.apache.spark.unsafe.types.UTF8String;
  * results.
  */
 public class BucketFunction implements UnboundFunction {
+
   private static final int NUM_BUCKETS_ORDINAL = 0;
   private static final int VALUE_ORDINAL = 1;
+
   private static final Set<DataType> SUPPORTED_NUM_BUCKETS_TYPES =
       ImmutableSet.of(DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType);
 
@@ -156,9 +158,11 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public Integer produceResult(InternalRow input) {
       // return null for null input to match what Spark does in the code-generated versions.
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getInt(VALUE_ORDINAL));
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getInt(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -192,9 +196,11 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getLong(VALUE_ORDINAL));
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getLong(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -205,7 +211,6 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      // TODO - We can probably hash the bytes directly given they're already UTF-8 input.
       return apply(numBuckets, hash(value.toString()));
     }
 
@@ -226,9 +231,11 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getUTF8String(VALUE_ORDINAL));
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getInt(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -253,9 +260,11 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getBinary(VALUE_ORDINAL));
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getBinary(VALUE_ORDINAL));
+      }
     }
 
     @Override
@@ -296,10 +305,13 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(
-              input.getInt(NUM_BUCKETS_ORDINAL), input.getDecimal(VALUE_ORDINAL, precision, scale));
+      if (input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        int numBuckets = input.getInt(NUM_BUCKETS_ORDINAL);
+        Decimal value = input.getDecimal(VALUE_ORDINAL, precision, scale);
+        return invoke(numBuckets, value);
+      }
     }
 
     @Override
