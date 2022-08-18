@@ -22,7 +22,7 @@ package org.apache.iceberg.io;
  * This interface is intended as an extension for FileIO implementations to provide additional
  * prefix based operations that may be useful in performing supporting operations.
  */
-public interface SupportsPrefixOperations {
+public interface SupportsPrefixOperations extends FileIO {
 
   /**
    * Return an iterable of all files under a prefix.
