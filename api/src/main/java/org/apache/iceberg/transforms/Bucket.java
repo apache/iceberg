@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Type.TypeID;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -38,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BucketUtil;
 
 abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
@@ -166,7 +166,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Integer value) {
-      return MURMUR3.hashLong(value.longValue()).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -182,7 +182,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Long value) {
-      return MURMUR3.hashLong(value).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -202,7 +202,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Float value) {
-      return MURMUR3.hashLong(Double.doubleToLongBits((double) value)).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -220,7 +220,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Double value) {
-      return MURMUR3.hashLong(Double.doubleToLongBits(value)).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -236,7 +236,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(CharSequence value) {
-      return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -254,24 +254,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(ByteBuffer value) {
-      if (value.hasArray()) {
-        return MURMUR3
-            .hashBytes(
-                value.array(),
-                value.arrayOffset() + value.position(),
-                value.arrayOffset() + value.remaining())
-            .asInt();
-      } else {
-        int position = value.position();
-        byte[] copy = new byte[value.remaining()];
-        try {
-          value.get(copy);
-        } finally {
-          // make sure the buffer position is unchanged
-          value.position(position);
-        }
-        return MURMUR3.hashBytes(copy).asInt();
-      }
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -287,12 +270,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(UUID value) {
-      return MURMUR3
-          .newHasher(16)
-          .putLong(Long.reverseBytes(value.getMostSignificantBits()))
-          .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
-          .hash()
-          .asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
@@ -308,7 +286,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(BigDecimal value) {
-      return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
+      return BucketUtil.hash(value);
     }
 
     @Override
