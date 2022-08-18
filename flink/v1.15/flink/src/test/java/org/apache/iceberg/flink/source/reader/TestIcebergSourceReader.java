@@ -92,7 +92,6 @@ public class TestIcebergSourceReader {
     // That will finish the split and cause split fetcher to be closed due to idleness.
     // Then next split will create a new split reader.
     reader.pollNext(readerOutput);
-    Assert.assertEquals(expectedCount, metricGroup.counters().get("finishedSplits").getCount());
   }
 
   private IcebergSourceReader createReader(
