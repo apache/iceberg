@@ -69,7 +69,10 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @param toSnapshotId read append data up to this snapshot id
    * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
    *     {@code toSnapshotId} inclusive
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link Table#newIncrementalAppendScan()}
+   *     instead.
    */
+  @Deprecated
   default TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
@@ -81,7 +84,10 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @param fromSnapshotId - the last snapshot id read by the user, exclusive
    * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
    *     current snapshot inclusive
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link Table#newIncrementalAppendScan()}
+   *     instead.
    */
+  @Deprecated
   default TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
