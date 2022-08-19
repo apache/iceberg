@@ -62,6 +62,8 @@ public class MetadataTableUtils {
         return new SnapshotsTable(ops, baseTable, metadataTableName);
       case METADATA_LOG_ENTRIES:
         return new MetadataLogEntriesTable(ops, baseTable, metadataTableName);
+      case REFS:
+        return new RefsTable(ops, baseTable, metadataTableName);
       case MANIFESTS:
         return new ManifestsTable(ops, baseTable, metadataTableName);
       case PARTITIONS:
