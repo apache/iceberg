@@ -22,11 +22,22 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+import importlib
+import logging
 from abc import ABC, abstractmethod
 from io import SEEK_SET
-from typing import Protocol, Union, runtime_checkable
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
 
-from pyiceberg.typedef import Properties
+from pyiceberg.typedef import EMPTY_DICT, Properties
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -188,6 +199,11 @@ class OutputFile(ABC):
 class FileIO(ABC):
     """A base class for FileIO implementations"""
 
+    properties: Properties
+
+    def __init__(self, properties: Properties = EMPTY_DICT):
+        self.properties = properties
+
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
         """Get an InputFile instance to read bytes from the file at the given location
@@ -218,11 +234,53 @@ class FileIO(ABC):
         """
 
 
-def load_file_io(_: Properties) -> FileIO:
-    # To be implemented in a different PR.
-    # - If py-file-io is present, load the right Python class
-    #   - When the property is missing, map from Java's filo-io to an appropriate FileIO
-    # - Extend the FileIO structure with a initialize that pass in properties (could also be the constructor?)
+ARROW_FILE_IO = "pyiceberg.io.pyarrow.PyArrowFileIO"
+
+# Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
+# If a implementation isn't installed, it will fall back to the next one.
+JAVA_FILE_IO_MAPPINGS: Dict[str, List[str]] = {
+    "org.apache.iceberg.dell.ecs.EcsFileIO": [ARROW_FILE_IO],
+    "org.apache.iceberg.gcp.gcs.GCSFileIO": [ARROW_FILE_IO],
+    "org.apache.iceberg.hadoop.HadoopFileIO": [ARROW_FILE_IO],
+    "org.apache.iceberg.aliyun.oss.OSSFileIO": [ARROW_FILE_IO],
+    "org.apache.iceberg.io.ResolvingFileIO": [ARROW_FILE_IO],
+    "org.apache.iceberg.aws.s3.S3FileIO": [ARROW_FILE_IO],
+}
+
+
+def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
+    try:
+        path_parts = io_impl.split(".")
+        if len(path_parts) < 2:
+            raise ValueError(f"py-io-impl should be full path (module.CustomFileIO), got: {io_impl}")
+        module_name, class_name = ".".join(path_parts[:-1]), path_parts[-1]
+        module = importlib.import_module(module_name)
+        class_ = getattr(module, class_name)
+        return class_(properties)
+    except ImportError:
+        logger.exception("Could not initialize FileIO: %s", io_impl)
+        return None
+
+
+PY_IO_IMPL = "py-io-impl"
+IO_IMPL = "io-impl"
+
+
+def load_file_io(properties: Properties) -> FileIO:
+    if io_impl := properties.get(PY_IO_IMPL):
+        if file_io := _import_file_io(io_impl, properties):
+            return file_io
+        else:
+            raise ValueError(f"Could not initialize FileIO: {io_impl}")
+    if java_io_impl := properties.get(IO_IMPL):
+        if mapped_impls := JAVA_FILE_IO_MAPPINGS.get(java_io_impl):
+            for impl in mapped_impls:
+                if file_io := _import_file_io(impl, properties):
+                    return file_io
+        else:
+            logger.warning("Could not convert Java mapping to Python: %s", java_io_impl)
+
+    # Default to PyArrow
     from pyiceberg.io.pyarrow import PyArrowFileIO
 
-    return PyArrowFileIO()
+    return PyArrowFileIO(properties)

@@ -23,11 +23,16 @@ from urllib.parse import ParseResult, urlparse
 import pytest
 
 from pyiceberg.io import (
+    ARROW_FILE_IO,
+    IO_IMPL,
+    PY_IO_IMPL,
     FileIO,
     InputFile,
     InputStream,
     OutputFile,
     OutputStream,
+    _import_file_io,
+    load_file_io,
 )
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
@@ -376,3 +381,34 @@ def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutpu
 
         # Confirm that the file no longer exists
         assert not os.path.exists(file_location)
+
+
+def test_import_file_io():
+    assert isinstance(_import_file_io(ARROW_FILE_IO, {}), PyArrowFileIO)
+
+
+def test_import_file_io_does_not_exist():
+    assert _import_file_io("pyiceberg.does.not.exist.FileIO", {}) is None
+
+
+def test_load_file():
+    assert isinstance(load_file_io({PY_IO_IMPL: ARROW_FILE_IO}), PyArrowFileIO)
+
+
+def test_load_file_io_no_arguments():
+    assert isinstance(load_file_io({}), PyArrowFileIO)
+
+
+def test_load_file_io_does_not_exist():
+    with pytest.raises(ValueError) as exc_info:
+        load_file_io({PY_IO_IMPL: "pyiceberg.does.not.exist.FileIO"})
+
+    assert "Could not initialize FileIO: pyiceberg.does.not.exist.FileIO" in str(exc_info.value)
+
+
+def test_load_file_io_valid_java_mapping():
+    assert isinstance(load_file_io({IO_IMPL: "org.apache.iceberg.aws.s3.S3FileIO"}), PyArrowFileIO)
+
+
+def test_load_file_io_non_existent_java_mapping():
+    assert isinstance(load_file_io({IO_IMPL: "org.apache.iceberg.does.not.exist.FileIO"}), PyArrowFileIO)

@@ -459,9 +459,7 @@ class RestCatalog(Catalog):
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
-        print(f"{payload}")
         response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload, headers=self.headers)
-        print(f"{response.json()}")
         try:
             response.raise_for_status()
         except HTTPError as exc:
