@@ -49,7 +49,7 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
 
 
 def test_schema(table):
-    assert table.schema == Schema(
+    assert table.schema() == Schema(
         fields=(
             NestedField(field_id=1, name="x", field_type=LongType(), required=True),
             NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
@@ -61,7 +61,7 @@ def test_schema(table):
 
 
 def test_schemas(table):
-    assert table.schemas == {
+    assert table.schemas() == {
         0: Schema(
             fields=(NestedField(field_id=1, name="x", field_type=LongType(), required=True),),
             schema_id=0,
@@ -80,19 +80,19 @@ def test_schemas(table):
 
 
 def test_spec(table):
-    assert table.spec == PartitionSpec(
+    assert table.spec() == PartitionSpec(
         spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),)
     )
 
 
 def test_specs(table):
-    assert table.specs == {
+    assert table.specs() == {
         0: PartitionSpec(spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),))
     }
 
 
 def test_sort_order(table):
-    assert table.sort_order == SortOrder(
+    assert table.sort_order() == SortOrder(
         order_id=3,
         fields=[
             SortField(source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
@@ -107,7 +107,7 @@ def test_sort_order(table):
 
 
 def test_sort_orders(table):
-    assert table.sort_orders == {
+    assert table.sort_orders() == {
         3: SortOrder(
             order_id=3,
             fields=[
@@ -126,11 +126,11 @@ def test_sort_orders(table):
 
 
 def test_location(table):
-    assert table.location == "s3://bucket/test/location"
+    assert table.location() == "s3://bucket/test/location"
 
 
 def test_current_snapshot(table):
-    assert table.current_snapshot == Snapshot(
+    assert table.current_snapshot() == Snapshot(
         snapshot_id=3055729675574597004,
         parent_snapshot_id=3051729675574597004,
         sequence_number=1,
@@ -174,7 +174,7 @@ def test_snapshot_by_name_does_not_exist(table):
 
 
 def test_history(table):
-    assert table.history == [
+    assert table.history() == [
         SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
         SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
     ]
