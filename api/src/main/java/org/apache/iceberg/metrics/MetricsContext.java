@@ -92,15 +92,6 @@ public interface MetricsContext extends Serializable {
     default Unit unit() {
       return Unit.UNDEFINED;
     }
-
-    /**
-     * The name of the counter.
-     *
-     * @return The name of the counter.
-     */
-    default String name() {
-      return "undefined";
-    }
   }
 
   /**
@@ -138,6 +129,10 @@ public interface MetricsContext extends Serializable {
    */
   default Timer timer(String name, TimeUnit unit) {
     throw new UnsupportedOperationException("Timer is not supported.");
+  }
+
+  default Histogram histogram(String name) {
+    throw new UnsupportedOperationException("Histogram is not supported.");
   }
 
   /**

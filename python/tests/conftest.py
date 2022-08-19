@@ -277,7 +277,8 @@ EXAMPLE_TABLE_METADATA_V2 = {
         {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
         {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
     ],
-    "metadata-log": [],
+    "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}],
+    "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}},
 }
 
 

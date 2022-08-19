@@ -47,19 +47,14 @@ public class TestScanMetricsResultParser {
     Assertions.assertThat(ScanMetricsResultParser.fromJson("{}"))
         .isEqualTo(new ScanMetricsResult(null, null, null, null, null, null, null, null, null));
 
-    TimerResult totalPlanningDuration =
-        new TimerResult("total-planning-duration", TimeUnit.HOURS, Duration.ofHours(10), 3L);
-    CounterResult resultDataFiles = new CounterResult("result-data-files", Unit.COUNT, 5L);
-    CounterResult resultDeleteFiles = new CounterResult("result-delete-files", Unit.COUNT, 5L);
-    CounterResult totalDataManifests = new CounterResult("total-data-manifests", Unit.COUNT, 5L);
-    CounterResult totalDeleteManifests =
-        new CounterResult("total-delete-manifests", Unit.COUNT, 0L);
-    CounterResult scannedDataManifests =
-        new CounterResult("scanned-data-manifests", Unit.COUNT, 5L);
-    CounterResult skippedDataManifests =
-        new CounterResult("skipped-data-manifests", Unit.COUNT, 5L);
-    CounterResult totalFileSizeInBytes =
-        new CounterResult("total-file-size-in-bytes", Unit.BYTES, 1069L);
+    TimerResult totalPlanningDuration = new TimerResult(TimeUnit.HOURS, Duration.ofHours(10), 3L);
+    CounterResult resultDataFiles = new CounterResult(Unit.COUNT, 5L);
+    CounterResult resultDeleteFiles = new CounterResult(Unit.COUNT, 5L);
+    CounterResult totalDataManifests = new CounterResult(Unit.COUNT, 5L);
+    CounterResult totalDeleteManifests = new CounterResult(Unit.COUNT, 0L);
+    CounterResult scannedDataManifests = new CounterResult(Unit.COUNT, 5L);
+    CounterResult skippedDataManifests = new CounterResult(Unit.COUNT, 5L);
+    CounterResult totalFileSizeInBytes = new CounterResult(Unit.BYTES, 1069L);
 
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(

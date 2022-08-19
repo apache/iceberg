@@ -50,14 +50,20 @@ public class SparkReadConf {
 
   private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
+  private final SparkSession spark;
   private final Table table;
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
+    this.spark = spark;
     this.table = table;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+  }
+
+  public boolean caseSensitive() {
+    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 
   public boolean localityEnabled() {
@@ -86,6 +92,10 @@ public class SparkReadConf {
 
   public Long endSnapshotId() {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
+  }
+
+  public String fileScanTaskSetId() {
+    return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
   }
 
   public boolean streamingSkipDeleteSnapshots() {
@@ -140,6 +150,18 @@ public class SparkReadConf {
         .tableProperty(TableProperties.ORC_BATCH_SIZE)
         .defaultValue(TableProperties.ORC_BATCH_SIZE_DEFAULT)
         .parse();
+  }
+
+  public Long splitSizeOption() {
+    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+  }
+
+  public Integer splitLookbackOption() {
+    return confParser.intConf().option(SparkReadOptions.LOOKBACK).parseOptional();
+  }
+
+  public Long splitOpenFileCostOption() {
+    return confParser.longConf().option(SparkReadOptions.FILE_OPEN_COST).parseOptional();
   }
 
   public long splitSize() {

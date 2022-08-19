@@ -22,17 +22,18 @@ import java.util.concurrent.TimeUnit;
 
 /** A default {@link MetricsContext} implementation that uses native Java counters/timers. */
 public class DefaultMetricsContext implements MetricsContext {
+  private static final int DEFAULT_HISTOGRAM_RESERVOIR_SIZE = 10_000;
 
   @Override
   @Deprecated
   @SuppressWarnings("unchecked")
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     if (Integer.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(name, unit).asIntCounter();
+      return (Counter<T>) new DefaultCounter(unit).asIntCounter();
     }
 
     if (Long.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(name, unit).asLongCounter();
+      return (Counter<T>) new DefaultCounter(unit).asLongCounter();
     }
     throw new IllegalArgumentException(
         String.format("Counter for type %s is not supported", type.getName()));
@@ -40,11 +41,16 @@ public class DefaultMetricsContext implements MetricsContext {
 
   @Override
   public Timer timer(String name, TimeUnit unit) {
-    return new DefaultTimer(name, unit);
+    return new DefaultTimer(unit);
   }
 
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-    return new DefaultCounter(name, unit);
+    return new DefaultCounter(unit);
+  }
+
+  @Override
+  public Histogram histogram(String name) {
+    return new FixedReservoirHistogram(DEFAULT_HISTOGRAM_RESERVOIR_SIZE);
   }
 }

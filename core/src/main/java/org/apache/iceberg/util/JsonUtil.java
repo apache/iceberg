@@ -108,7 +108,7 @@ public class JsonUtil {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing int: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
-        pNode != null && !pNode.isNull() && pNode.isNumber(),
+        pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
         "Cannot parse to an integer value: %s: %s",
         property,
         pNode);
@@ -119,33 +119,21 @@ public class JsonUtil {
     if (!node.hasNonNull(property)) {
       return null;
     }
-    JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(
-        pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
-        "Cannot parse to an integer value: %s: %s",
-        property,
-        pNode);
-    return pNode.asInt();
+    return getInt(property, node);
   }
 
   public static Long getLongOrNull(String property, JsonNode node) {
     if (!node.hasNonNull(property)) {
       return null;
     }
-    JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(
-        pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToLong(),
-        "Cannot parse to a long value: %s: %s",
-        property,
-        pNode);
-    return pNode.asLong();
+    return getLong(property, node);
   }
 
   public static long getLong(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing long: %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
-        pNode != null && !pNode.isNull() && pNode.isNumber(),
+        pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToLong(),
         "Cannot parse to a long value: %s: %s",
         property,
         pNode);
@@ -182,12 +170,7 @@ public class JsonUtil {
     if (pNode != null && pNode.isNull()) {
       return null;
     }
-    Preconditions.checkArgument(
-        pNode != null && pNode.isTextual(),
-        "Cannot parse from non-string value: %s: %s",
-        property,
-        pNode);
-    return pNode.asText();
+    return getString(property, node);
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {

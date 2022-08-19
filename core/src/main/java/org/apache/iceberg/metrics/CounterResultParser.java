@@ -31,7 +31,6 @@ class CounterResultParser {
   private static final String MISSING_FIELD_ERROR_MSG =
       "Cannot parse counter from '%s': Missing field '%s'";
 
-  private static final String NAME = "name";
   private static final String UNIT = "unit";
   private static final String VALUE = "value";
 
@@ -46,19 +45,9 @@ class CounterResultParser {
   }
 
   static void toJson(CounterResult counter, JsonGenerator gen) throws IOException {
-    toJson(counter, gen, true);
-  }
-
-  static void toJson(CounterResult counter, JsonGenerator gen, boolean includeName)
-      throws IOException {
     Preconditions.checkArgument(null != counter, "Invalid counter: null");
 
     gen.writeStartObject();
-    // ScanMetricsResultParser mainly uses this with includeName=false, since it includes the name
-    // in a parent structure
-    if (includeName) {
-      gen.writeStringField(NAME, counter.name());
-    }
     gen.writeStringField(UNIT, counter.unit().displayName());
     gen.writeNumberField(VALUE, counter.value());
     gen.writeEndObject();
@@ -72,10 +61,9 @@ class CounterResultParser {
     Preconditions.checkArgument(null != json, "Cannot parse counter from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
 
-    String name = JsonUtil.getString(NAME, json);
     String unit = JsonUtil.getString(UNIT, json);
     long value = JsonUtil.getLong(VALUE, json);
-    return new CounterResult(name, Unit.fromDisplayName(unit), value);
+    return new CounterResult(Unit.fromDisplayName(unit), value);
   }
 
   /**
@@ -100,6 +88,6 @@ class CounterResultParser {
 
     String unit = JsonUtil.getString(UNIT, counter);
     long value = JsonUtil.getLong(VALUE, counter);
-    return new CounterResult(counterName, Unit.fromDisplayName(unit), value);
+    return new CounterResult(Unit.fromDisplayName(unit), value);
   }
 }

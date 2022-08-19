@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /** A default {@link Counter} implementation that uses an {@link AtomicLong} to count events. */
 public class DefaultCounter implements Counter {
   public static final Counter NOOP =
-      new DefaultCounter("undefined", Unit.UNDEFINED) {
+      new DefaultCounter(Unit.UNDEFINED) {
         @Override
         public void increment() {}
 
@@ -41,15 +41,12 @@ public class DefaultCounter implements Counter {
       };
 
   private final LongAdder counter;
-  private final String name;
   private final MetricsContext.Unit unit;
   private AsIntCounter asIntCounter = null;
   private AsLongCounter asLongCounter = null;
 
-  DefaultCounter(String name, MetricsContext.Unit unit) {
-    Preconditions.checkArgument(null != name, "Invalid counter name: null");
+  DefaultCounter(MetricsContext.Unit unit) {
     Preconditions.checkArgument(null != unit, "Invalid count unit: null");
-    this.name = name;
     this.unit = unit;
     this.counter = new LongAdder();
   }
@@ -72,17 +69,12 @@ public class DefaultCounter implements Counter {
 
   @Override
   public String toString() {
-    return String.format("%s{%s=%s}", name(), unit().displayName(), value());
+    return String.format("{%s=%s}", unit().displayName(), value());
   }
 
   @Override
   public MetricsContext.Unit unit() {
     return unit;
-  }
-
-  @Override
-  public String name() {
-    return name;
   }
 
   MetricsContext.Counter<Integer> asIntCounter() {
@@ -128,11 +120,6 @@ public class DefaultCounter implements Counter {
     public MetricsContext.Unit unit() {
       return unit;
     }
-
-    @Override
-    public String name() {
-      return name;
-    }
   }
 
   private class AsLongCounter implements MetricsContext.Counter<Long> {
@@ -160,11 +147,6 @@ public class DefaultCounter implements Counter {
     @Override
     public MetricsContext.Unit unit() {
       return unit;
-    }
-
-    @Override
-    public String name() {
-      return name;
     }
   }
 }

@@ -59,13 +59,6 @@ public interface Counter {
   }
 
   /**
-   * The name of the counter.
-   *
-   * @return The name of the counter.
-   */
-  String name();
-
-  /**
    * Determines whether this counter is a NOOP counter.
    *
    * @return Whether this counter is a NOOP counter.

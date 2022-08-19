@@ -95,6 +95,10 @@ class SparkConfParser {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Integer::parseInt, defaultValue);
     }
+
+    public Integer parseOptional() {
+      return parse(Integer::parseInt, null);
+    }
   }
 
   class LongConfParser extends ConfParser<LongConfParser, Long> {
@@ -136,6 +140,10 @@ class SparkConfParser {
     public String parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Function.identity(), defaultValue);
+    }
+
+    public String parseOptional() {
+      return parse(Function.identity(), null);
     }
   }
 

@@ -32,6 +32,7 @@ public class SparkFunctions {
   private static final Map<String, UnboundFunction> FUNCTIONS =
       ImmutableMap.of(
           "iceberg_version", new IcebergVersionFunction(),
+          "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());

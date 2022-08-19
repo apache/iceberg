@@ -95,14 +95,18 @@ class MockCatalog(Catalog):
         ]
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        return [("default",), ("personal",)]
+        # No hierarchical namespaces for now
+        if namespace == ():
+            return [("default",), ("personal",)]
+        else:
+            return []
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         identifier = Catalog.identifier_to_tuple(namespace)
         if identifier == ("default",):
             return {"location": "s3://warehouse/database/location"}
         else:
-            raise NoSuchNamespaceError(f"Namespace does not exists: {namespace}")
+            raise NoSuchNamespaceError(f"Namespace does not exist: {'.'.join(namespace)}")
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
@@ -112,7 +116,7 @@ class MockCatalog(Catalog):
         if identifier == ("default",):
             return PropertiesUpdateSummary(removed=["location"], updated=[], missing=[])
         else:
-            raise NoSuchNamespaceError(f"Namespace does not exists: {namespace}")
+            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
 
 
 MOCK_CATALOG = MockCatalog("production", uri="http://somewhere")
@@ -160,9 +164,9 @@ def test_describe_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_describe_namespace_does_not_exists(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["describe", "doesnotexists"])
+    result = runner.invoke(run, ["describe", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table or namespace does not exist: doesnotexists\n"
+    assert result.output == "Namespace does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -203,7 +207,7 @@ def test_describe_table_does_not_exists(_):
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "default.doesnotexit"])
     assert result.exit_code == 1
-    assert result.output == "Table does not exist: default.doesnotexit\n"
+    assert result.output == "Table or namespace does not exist: default.doesnotexit\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -213,9 +217,9 @@ def test_schema(_):
     result = runner.invoke(run, ["schema", "default.foo"])
     assert result.exit_code == 0
     assert (
-        result.output
+        "\n".join([line.rstrip() for line in result.output.split("\n")])
         == """x  long
-y  long
+y  long  comment
 z  long
 """
     )
@@ -225,7 +229,7 @@ z  long
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_schema_does_not_exists(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["describe", "default.doesnotexit"])
+    result = runner.invoke(run, ["schema", "default.doesnotexit"])
     assert result.exit_code == 1
     assert result.output == "Table does not exist: default.doesnotexit\n"
 
@@ -366,9 +370,9 @@ def test_properties_get_table_specific_property(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_table_specific_property_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default.fokko", "doesnotexist"])
+    result = runner.invoke(run, ["properties", "get", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table or namespace does not exist: default.fokko with property doesnotexist\n"
+    assert result.output == "Could not find property doesnotexist on table default.foo\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -377,7 +381,7 @@ def test_properties_get_table_does_not_exist(_):
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Table or namespace does not exist: doesnotexist\n"
+    assert result.output == "Namespace does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -411,9 +415,9 @@ def test_properties_set_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_set_namespace_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "set", "namespace", "doesnotexists", "location", "s3://new_location"])
+    result = runner.invoke(run, ["properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exists: doesnotexists\n"
+    assert result.output == "Namespace does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -447,9 +451,9 @@ def test_properties_remove_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_remove_namespace_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "remove", "namespace", "doesnotexists", "location"])
+    result = runner.invoke(run, ["properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exists: doesnotexists\n"
+    assert result.output == "Namespace does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -467,7 +471,7 @@ def test_properties_remove_table_property_does_not_exists(_):
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Property doesnotexist does not exists on default.foo\n"
+    assert result.output == "Property doesnotexist does not exist on default.foo\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -510,9 +514,9 @@ def test_json_describe_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_describe_namespace_does_not_exists(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "describe", "doesnotexists"])
+    result = runner.invoke(run, ["--output=json", "describe", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table or namespace does not exist: doesnotexists"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -523,7 +527,7 @@ def test_json_describe_table(_):
     assert result.exit_code == 0
     assert (
         result.output
-        == """{"identifier": ["default", "foo"], "metadata_location": "s3://tmp/", "metadata": {"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}}\n"""
+        == """{"identifier": ["default", "foo"], "metadata_location": "s3://tmp/", "metadata": {"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": "3051729675574597004", "timestamp-ms": 1515100955770}, {"snapshot-id": "3055729675574597004", "timestamp-ms": 1555100955770}], "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}, "main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}}\n"""
     )
 
 
@@ -533,7 +537,9 @@ def test_json_describe_table_does_not_exists(_):
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "default.doesnotexit"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
+    assert (
+        result.output == """{"type": "NoSuchTableError", "message": "Table or namespace does not exist: default.doesnotexit"}\n"""
+    )
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -552,7 +558,7 @@ def test_json_schema(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_schema_does_not_exists(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "describe", "default.doesnotexit"])
+    result = runner.invoke(run, ["--output=json", "schema", "default.doesnotexit"])
     assert result.exit_code == 1
     assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexit"}\n"""
 
@@ -690,11 +696,11 @@ def test_json_properties_get_table_specific_property(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_table_specific_property_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default.fokko", "doesnotexist"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
     assert (
         result.output
-        == """{"type": "NoSuchNamespaceError", "message": "Table or namespace does not exist: default.fokko with property doesnotexist"}\n"""
+        == """{"type": "NoSuchPropertyException", "message": "Could not find property doesnotexist on table default.foo"}\n"""
     )
 
 
@@ -704,7 +710,7 @@ def test_json_properties_get_table_does_not_exist(_):
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Table or namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -739,10 +745,10 @@ def test_json_properties_set_namespace(_):
 def test_json_properties_set_namespace_that_doesnt_exist(_):
     runner = CliRunner()
     result = runner.invoke(
-        run, ["--output=json", "properties", "set", "namespace", "doesnotexists", "location", "s3://new_location"]
+        run, ["--output=json", "properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"]
     )
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exists: doesnotexists"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -780,7 +786,7 @@ def test_json_properties_remove_namespace_that_doesnt_exist(_):
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exists: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -800,7 +806,7 @@ def test_json_properties_remove_table_property_does_not_exists(_):
     assert result.exit_code == 1
     assert (
         result.output
-        == """{"type": "NoSuchPropertyException", "message": "Property doesnotexist does not exists on default.foo"}\n"""
+        == """{"type": "NoSuchPropertyException", "message": "Property doesnotexist does not exist on default.foo"}\n"""
     )
 
 
