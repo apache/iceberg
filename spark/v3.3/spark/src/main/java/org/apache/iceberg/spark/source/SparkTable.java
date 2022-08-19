@@ -50,6 +50,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -111,17 +112,23 @@ public class SparkTable
   private final Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
+  private final String toBranch;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, refreshEagerly);
+    this(icebergTable, null, null, refreshEagerly);
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
+    this(icebergTable, snapshotId, null, refreshEagerly);
+  }
+
+  public SparkTable(Table icebergTable, Long snapshotId, String toBranch, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
+    this.toBranch = toBranch;
 
     boolean acceptAnySchema =
         PropertyUtil.propertyAsBoolean(
@@ -241,6 +248,8 @@ public class SparkTable
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+
+    info.options().put(SparkWriteOptions.BRANCH, toBranch);
 
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }

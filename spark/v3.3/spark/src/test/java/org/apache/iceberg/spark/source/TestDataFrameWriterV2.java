@@ -20,10 +20,12 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -191,6 +193,47 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         ImmutableList.of(
             row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
         sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testToBranchProperty() throws Exception {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("b1", snapshotId);
+
+    Dataset<Row> twoColDF2 =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 3, \"data\": \"c\" }",
+            "{ \"id\": 4, \"data\": \"d\" }");
+
+    twoColDF2.writeTo(tableName).append();
+
+    Dataset<Row> twoColDF3 =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 5, \"data\": \"e\" }",
+            "{ \"id\": 6, \"data\": \"f\" }");
+
+    twoColDF3.writeTo(tableName).option(SparkWriteOptions.BRANCH, "b1").append();
+
+    table.refresh();
+    long branchSnapshotId = table.refs().get("b1").snapshotId();
+
+    assertEquals(
+        "Should have 4 rows",
+        ImmutableList.of(
+            row(1L, "a"), row(2L, "b"), row(5L, "e"), row(6L, "f")),
+        sql("select * from %s.snapshot_id_%d order by id", tableName, branchSnapshotId));
   }
 
   @Test
