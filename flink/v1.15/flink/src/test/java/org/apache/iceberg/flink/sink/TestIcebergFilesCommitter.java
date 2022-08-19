@@ -41,6 +41,7 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
@@ -161,6 +162,29 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         harness.notifyOfCompletedCheckpoint(checkpointId);
 
         assertSnapshotSize(i / 3);
+      }
+    }
+  }
+
+  @Test
+  public void testNoneEmptyCommits() throws Exception {
+    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "0").commit();
+
+    JobID jobId = new JobID();
+    long checkpointId = 0;
+    long timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+
+      for (int i = 1; i <= 9; i++) {
+        harness.processElement(new StreamRecord<>(WriteResult.builder().build()));
+        harness.snapshot(++checkpointId, ++timestamp);
+        harness.notifyOfCompletedCheckpoint(checkpointId);
+
+        assertSnapshotSize(0);
       }
     }
   }
