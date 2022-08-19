@@ -147,7 +147,7 @@ def schema(ctx: Context, identifier: str):
 
     try:
         table = catalog.load_table(identifier)
-        output.schema(table.schema())
+        output.schema(table.schema)
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)
@@ -161,7 +161,7 @@ def spec(ctx: Context, identifier: str):
     catalog, output = _catalog_and_output(ctx)
     try:
         table = catalog.load_table(identifier)
-        output.spec(table.spec())
+        output.spec(table.spec)
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)
@@ -189,7 +189,7 @@ def location(ctx: Context, identifier: str):
     catalog, output = _catalog_and_output(ctx)
     try:
         table = catalog.load_table(identifier)
-        output.text(table.location())
+        output.text(table.location)
     except Exception as exc:
         output.exception(exc)
         ctx.exit(1)

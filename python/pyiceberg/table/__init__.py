@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
+from functools import cached_property
 from typing import (
     Dict,
     List,
@@ -39,40 +38,58 @@ class Table(IcebergBaseModel):
     metadata_location: str = Field()
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
 
-    def refresh(self):
+    def refresh(self, catalog) -> "Table":
         """Refresh the current table metadata"""
-        raise NotImplementedError("To be implemented")
+        table_catalog_name = self.identifier[0]
+        if catalog.name != table_catalog_name:
+            raise ValueError(f"Catalog mismatch: Table catalog={table_catalog_name}, catalog={catalog.name}")
 
+        fresh_table = catalog.load_table(self.identifier[1:])
+
+        # If the metadata has changed, we can assume that the table has been updated
+        if fresh_table.metadata_location != self.metadata_location:
+            return fresh_table
+        else:
+            return self
+
+    @cached_property
     def schema(self) -> Schema:
         """Return the schema for this table"""
         return next(schema for schema in self.metadata.schemas if schema.schema_id == self.metadata.current_schema_id)
 
+    @property
     def schemas(self) -> Dict[int, Schema]:
         """Return a dict of the schema of this table"""
         return {schema.schema_id: schema for schema in self.metadata.schemas}
 
+    @cached_property
     def spec(self) -> PartitionSpec:
         """Return the partition spec of this table"""
         return next(spec for spec in self.metadata.partition_specs if spec.spec_id == self.metadata.default_spec_id)
 
+    @property
     def specs(self) -> Dict[int, PartitionSpec]:
         """Return a dict the partition specs this table"""
         return {spec.spec_id: spec for spec in self.metadata.partition_specs}
 
+    @cached_property
     def sort_order(self) -> SortOrder:
         """Return the sort order of this table"""
         return next(
             sort_order for sort_order in self.metadata.sort_orders if sort_order.order_id == self.metadata.default_sort_order_id
         )
 
+    @property
     def sort_orders(self) -> Dict[int, SortOrder]:
         """Return a dict of the sort orders of this table"""
         return {sort_order.order_id: sort_order for sort_order in self.metadata.sort_orders}
 
+    @property
     def location(self) -> str:
         """Return the table's base location."""
         return self.metadata.location
 
+    @cached_property
     def current_snapshot(self) -> Optional[Snapshot]:
         """Get the current snapshot for this table, or None if there is no current snapshot."""
         if snapshot_id := self.metadata.current_snapshot_id:
@@ -92,6 +109,7 @@ class Table(IcebergBaseModel):
             return self.snapshot_by_id(ref.snapshot_id)
         return None
 
+    @property
     def history(self) -> List[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
