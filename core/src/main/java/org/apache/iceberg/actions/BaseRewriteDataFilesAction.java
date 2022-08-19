@@ -39,17 +39,13 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.TableScanUtil;
-import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -293,11 +289,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       throw e;
     } catch (Exception e) {
       LOG.warn("Failed to commit rewrite, cleaning up rewritten files", e);
-      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-          .run(fileIO::deleteFile);
+      FileIOUtil.bulkDeleteFiles(fileIO, addedDataFiles).execute();
       throw e;
     }
   }

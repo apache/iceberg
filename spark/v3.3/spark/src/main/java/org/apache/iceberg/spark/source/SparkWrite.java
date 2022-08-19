@@ -68,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -674,11 +675,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   }
 
   private static <T extends ContentFile<T>> void deleteFiles(FileIO io, List<T> files) {
-    Tasks.foreach(files)
-        .executeWith(ThreadPools.getWorkerPool())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
+    FileIOUtil.bulkDeleteFiles(io, files).executeWith(ThreadPools.getWorkerPool()).execute();
   }
 
   private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {

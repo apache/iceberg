@@ -41,8 +41,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -62,12 +64,12 @@ public class BaseTransaction implements Transaction {
   private final TableOperations ops;
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
-  private final List<PendingUpdate> updates;
+  private final List<PendingUpdate<?>> updates;
   private final Set<Long> intermediateSnapshotIds;
   private final Set<String> deletedFiles =
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
-  private TransactionType type;
+  private final TransactionType type;
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
@@ -287,7 +289,7 @@ public class BaseTransaction implements Transaction {
           .run(
               update -> {
                 if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
+                  ((SnapshotProducer<?>) update).cleanAll();
                 }
               });
 
@@ -295,12 +297,8 @@ public class BaseTransaction implements Transaction {
 
     } finally {
       // create table never needs to retry because the table has no previous state. because retries
-      // are not a
-      // concern, it is safe to delete all of the deleted files from individual operations
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+      // are not a concern, it is safe to delete all the deleted files from individual operations
+      FileIOUtil.bulkDelete(ops().io(), deletedFiles).name("uncommitted file").execute();
     }
   }
 
@@ -329,7 +327,7 @@ public class BaseTransaction implements Transaction {
                   }
                 }
 
-                // because this is a replace table, it will always completely replace the table
+                // because this is a replacement table, it will always completely replace the table
                 // metadata. even if it was just updated.
                 if (base != underlyingOps.current()) {
                   this.base = underlyingOps.current(); // just refreshed
@@ -348,7 +346,7 @@ public class BaseTransaction implements Transaction {
           .run(
               update -> {
                 if (update instanceof SnapshotProducer) {
-                  ((SnapshotProducer) update).cleanAll();
+                  ((SnapshotProducer<?>) update).cleanAll();
                 }
               });
 
@@ -356,12 +354,9 @@ public class BaseTransaction implements Transaction {
 
     } finally {
       // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all of the deleted files from individual operations
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+      // retries are not a concern, it is safe to delete all the deleted files from individual
+      // operations
+      FileIOUtil.bulkDelete(ops().io(), deletedFiles).name("uncommitted file").execute();
     }
   }
 
@@ -421,16 +416,10 @@ public class BaseTransaction implements Transaction {
       // is retried.
       Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
       if (committedFiles != null) {
-        // delete all of the files that were deleted in the most recent set of operation commits
-        Tasks.foreach(deletedFiles)
-            .suppressFailureWhenFinished()
-            .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-            .run(
-                path -> {
-                  if (!committedFiles.contains(path)) {
-                    ops.io().deleteFile(path);
-                  }
-                });
+        // delete all the files that were deleted in the most recent set of operation commits
+        Iterable<String> uncommittedFiles =
+            Iterables.filter(deletedFiles, path -> !committedFiles.contains(path));
+        FileIOUtil.bulkDelete(ops().io(), uncommittedFiles).name("uncommitted file").execute();
       } else {
         LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
       }
@@ -447,15 +436,12 @@ public class BaseTransaction implements Transaction {
         .run(
             update -> {
               if (update instanceof SnapshotProducer) {
-                ((SnapshotProducer) update).cleanAll();
+                ((SnapshotProducer<?>) update).cleanAll();
               }
             });
 
     // delete all files that were cleaned up
-    Tasks.foreach(deletedFiles)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-        .run(ops.io()::deleteFile);
+    FileIOUtil.bulkDelete(ops().io(), deletedFiles).name("uncommitted file").execute();
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
@@ -463,7 +449,7 @@ public class BaseTransaction implements Transaction {
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
-      for (PendingUpdate update : updates) {
+      for (PendingUpdate<?> update : updates) {
         // re-commit each update in the chain to apply it and update current
         try {
           update.commit();

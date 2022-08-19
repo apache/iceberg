@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.FileIOUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,12 +97,7 @@ public class RewriteDataFilesCommitManager {
   public void abortFileGroup(RewriteFileGroup fileGroup) {
     Preconditions.checkState(
         fileGroup.addedFiles() != null, "Cannot abort a fileGroup that was not rewritten");
-
-    Tasks.foreach(fileGroup.addedFiles())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((dataFile, exc) -> LOG.warn("Failed to delete: {}", dataFile.path(), exc))
-        .run(dataFile -> table.io().deleteFile(dataFile.path().toString()));
+    FileIOUtil.bulkDeleteFiles(table.io(), fileGroup.addedFiles()).execute();
   }
 
   public void commitOrClean(Set<RewriteFileGroup> rewriteGroups) {

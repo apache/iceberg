@@ -32,16 +32,17 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.*;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -411,17 +412,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     if (deleteAfterCommit) {
-      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
-          Sets.newHashSet(base.previousFiles());
+      Set<MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (previousMetadataFile, exc) ->
-                  LOG.warn(
-                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      Iterable<String> deletedFiles =
+          Iterables.transform(removedPreviousMetadataFiles, MetadataLogEntry::file);
+
+      FileIOUtil.bulkDelete(io(), deletedFiles).name("previous metadata file").execute();
     }
   }
 }

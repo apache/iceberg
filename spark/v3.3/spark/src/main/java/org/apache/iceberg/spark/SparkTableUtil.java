@@ -59,8 +59,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
@@ -678,11 +678,9 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    Tasks.foreach(manifests)
+    FileIOUtil.bulkDeleteManifests(io, manifests)
         .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .run(item -> io.deleteFile(item.path()));
+        .execute();
   }
 
   /**
