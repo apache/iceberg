@@ -459,7 +459,7 @@ def test_properties_remove_table():
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 1
-    assert result.output == "Writing is WIP\n"
+    assert result.output == "Writing is WIP\n1\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)

@@ -367,4 +367,4 @@ def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
         output.exception(NotImplementedError("Writing is WIP"))
         ctx.exit(1)
     else:
-        raise NoSuchPropertyException(f"Property {property_name} does not exists on {identifier}")
+        raise NoSuchPropertyException(f"Property {property_name} does not exist on {identifier}")
