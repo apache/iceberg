@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
 import os
-from functools import partial, wraps
+from functools import wraps
 from typing import (
     Dict,
     Literal,
@@ -37,21 +37,19 @@ from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, 
 SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": RestCatalog}
 
 
-def catch_exception(func=None):
-    if not func:
-        return partial(catch_exception)
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            ctx: Context = click.get_current_context(silent=True)
-            _, output = _catalog_and_output(ctx)
-            output.exception(e)
-            ctx.exit(1)
-
-    return wrapper
+def catch_exception():
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                ctx: Context = click.get_current_context(silent=True)
+                _, output = _catalog_and_output(ctx)
+                output.exception(e)
+                ctx.exit(1)
+        return wrapper
+    return decorator
 
 
 @click.group()
