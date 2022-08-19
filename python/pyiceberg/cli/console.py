@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
-import os
 from functools import wraps
 from typing import (
     Dict,
@@ -28,7 +27,7 @@ from typing import (
 import click
 from click import Context
 
-from pyiceberg.catalog import Catalog
+from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.catalog.hive import HiveCatalog
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
@@ -55,19 +54,17 @@ def catch_exception():
 
 
 @click.group()
-@click.option("--catalog", default=None)
+@click.option("--catalog", default="default")
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: Optional[str], output: str, uri: Optional[str], credential: Optional[str]):
-    uri_env_var = "PYICEBERG_URI"
-    credential_env_var = "PYICEBERG_CREDENTIAL"
-
-    if not uri:
-        uri = os.environ.get(uri_env_var)
-    if not credential:
-        credential = os.environ.get(credential_env_var)
+def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
+    properties = {}
+    if uri:
+        properties["uri"] = uri
+    if credential:
+        properties["credential"] = credential
 
     ctx.ensure_object(dict)
     if output == "text":
@@ -75,21 +72,18 @@ def run(ctx: Context, catalog: Optional[str], output: str, uri: Optional[str], c
     else:
         ctx.obj["output"] = JsonOutput()
 
-    if not uri:
-        ctx.obj["output"].exception(
-            ValueError(f"Missing uri. Please provide using --uri or using environment variable {uri_env_var}")
-        )
+    try:
+        try:
+            ctx.obj["catalog"] = load_catalog(catalog, **properties)
+        except ValueError as exc:
+            raise ValueError(
+                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
+            ) from exc
+    except Exception as e:
+        ctx.obj["output"].exception(e)
         ctx.exit(1)
 
-    assert uri  # for mypy
-
-    for scheme, catalog_type in SUPPORTED_CATALOGS.items():
-        if uri.startswith(scheme):
-            ctx.obj["catalog"] = catalog_type(catalog, uri=uri, credential=credential)  # type: ignore
-            break
-
     if not isinstance(ctx.obj["catalog"], Catalog):
-
         ctx.obj["output"].exception(
             ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
         )
