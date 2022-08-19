@@ -122,7 +122,7 @@ class SortOrder(IcebergBaseModel):
             data["fields"] = fields
         super().__init__(**data)
 
-    order_id: Optional[int] = Field(alias="order-id")
+    order_id: int = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
 
     def __str__(self) -> str:
