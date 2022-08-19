@@ -60,13 +60,13 @@ public class FixedReservoirHistogram implements Histogram {
     }
 
     long[] values = new long[size];
+    synchronized (this) {
+      System.arraycopy(measurements, 0, values, 0, size);
+    }
+
     double sum = 0.0d;
     double sumSquares = 0.0d;
     for (int i = 0; i < values.length; ++i) {
-      synchronized (this) {
-        values[i] = measurements[i];
-      }
-
       sum += values[i];
       // Convert to double value to avoid potential overflow of square
       double value = (double) values[i];
