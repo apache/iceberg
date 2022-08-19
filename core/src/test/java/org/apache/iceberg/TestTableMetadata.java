@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
@@ -1069,8 +1070,8 @@ public class TestTableMetadata {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .withSpecId(5)
-            .add(3, 1005, "x_partition", "bucket[4]")
-            .add(5, 1003, "z_partition", "bucket[8]")
+            .add(3, 1005, "x_partition", Transforms.bucket(4))
+            .add(5, 1003, "z_partition", Transforms.bucket(8))
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
@@ -1080,8 +1081,8 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(metadata.schema())
             .withSpecId(0)
-            .add(1, 1000, "x_partition", "bucket[4]")
-            .add(3, 1001, "z_partition", "bucket[8]")
+            .add(1, 1000, "x_partition", Transforms.bucket(4))
+            .add(3, 1001, "z_partition", Transforms.bucket(8))
             .build();
 
     Assert.assertEquals(expected, metadata.spec());
@@ -1094,7 +1095,7 @@ public class TestTableMetadata {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .withSpecId(5)
-            .add(1, 1005, "x_partition", "bucket[4]")
+            .add(1, 1005, "x_partition", Transforms.bucket(4))
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
@@ -1135,9 +1136,9 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(updated.schema())
             .withSpecId(1)
-            .add(1, 1000, "x", "identity")
-            .add(2, 1001, "y", "void")
-            .add(3, 1002, "z_bucket", "bucket[8]")
+            .add(1, 1000, "x", Transforms.identity())
+            .add(2, 1001, "y", Transforms.alwaysNull())
+            .add(3, 1002, "z_bucket", Transforms.bucket(8))
             .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
@@ -1171,8 +1172,8 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(updated.schema())
             .withSpecId(1)
-            .add(3, 1002, "z_bucket", "bucket[8]")
-            .add(1, 1000, "x", "identity")
+            .add(3, 1002, "z_bucket", Transforms.bucket(8))
+            .add(1, 1000, "x", Transforms.identity())
             .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",

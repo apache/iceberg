@@ -22,8 +22,8 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transform;
 
 /**
  * A struct of partition values.
@@ -36,7 +36,7 @@ public class PartitionKey implements StructLike, Serializable {
   private final PartitionSpec spec;
   private final int size;
   private final Object[] partitionTuple;
-  private final Transform[] transforms;
+  private final Function[] transforms;
   private final Accessor<StructLike>[] accessors;
 
   @SuppressWarnings("unchecked")
@@ -46,7 +46,7 @@ public class PartitionKey implements StructLike, Serializable {
     List<PartitionField> fields = spec.fields();
     this.size = fields.size();
     this.partitionTuple = new Object[size];
-    this.transforms = new Transform[size];
+    this.transforms = new Function[size];
     this.accessors = (Accessor<StructLike>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();
@@ -57,7 +57,7 @@ public class PartitionKey implements StructLike, Serializable {
           accessor != null,
           "Cannot build accessor for field: " + schema.findField(field.sourceId()));
       this.accessors[i] = accessor;
-      this.transforms[i] = field.transform();
+      this.transforms[i] = field.transform().bind(accessor.type());
     }
   }
 
@@ -101,7 +101,7 @@ public class PartitionKey implements StructLike, Serializable {
   @SuppressWarnings("unchecked")
   public void partition(StructLike row) {
     for (int i = 0; i < partitionTuple.length; i += 1) {
-      Transform<Object, Object> transform = transforms[i];
+      Function<Object, Object> transform = transforms[i];
       partitionTuple[i] = transform.apply(accessors[i].get(row));
     }
   }

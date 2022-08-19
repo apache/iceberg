@@ -23,6 +23,7 @@ import static org.apache.iceberg.expressions.Expressions.predicate;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
@@ -39,7 +40,7 @@ class ProjectionUtil {
   private ProjectionUtil() {}
 
   static <T> UnboundPredicate<T> truncateInteger(
-      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -60,7 +61,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateIntegerStrict(
-      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -83,7 +84,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLongStrict(
-      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -106,7 +107,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLong(
-      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -127,7 +128,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimal(
-      String name, BoundLiteralPredicate<BigDecimal> pred, Transform<BigDecimal, T> transform) {
+      String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -152,7 +153,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimalStrict(
-      String name, BoundLiteralPredicate<BigDecimal> pred, Transform<BigDecimal, T> transform) {
+      String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
 
     BigDecimal minusOne =
@@ -182,7 +183,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> truncateArray(
-      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -203,7 +204,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> truncateArrayStrict(
-      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -228,7 +229,7 @@ class ProjectionUtil {
    */
   @SuppressWarnings("unchecked")
   static <T> UnboundPredicate<T> projectTransformPredicate(
-      Transform<?, T> transform, String partitionName, BoundPredicate<?> pred) {
+      Function<?, T> transform, String partitionName, BoundPredicate<?> pred) {
     if (pred.term() instanceof BoundTransform
         && transform.equals(((BoundTransform<?, ?>) pred.term()).transform())) {
       // the bound value must be a T because the transform matches
@@ -251,7 +252,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> transformSet(
-      String fieldName, BoundSetPredicate<S> predicate, Transform<S, T> transform) {
+      String fieldName, BoundSetPredicate<S> predicate, Function<S, T> transform) {
     return predicate(
         predicate.op(),
         fieldName,

@@ -59,6 +59,7 @@ public class PartitionSpec implements Serializable {
   private final PartitionField[] fields;
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
+  private transient volatile StructType lazyPartitionType = null;
   private transient volatile List<PartitionField> fieldList = null;
   private final int lastAssignedFieldId;
 
@@ -123,16 +124,23 @@ public class PartitionSpec implements Serializable {
 
   /** Returns a {@link StructType} for partition data defined by this spec. */
   public StructType partitionType() {
-    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
+    if (lazyPartitionType == null) {
+      synchronized (this) {
+        if (lazyPartitionType == null) {
+          List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
-    for (int i = 0; i < fields.length; i += 1) {
-      PartitionField field = fields[i];
-      Type sourceType = schema.findType(field.sourceId());
-      Type resultType = field.transform().getResultType(sourceType);
-      structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+          for (PartitionField field : fields) {
+            Type sourceType = schema.findType(field.sourceId());
+            Type resultType = field.transform().getResultType(sourceType);
+            structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+          }
+
+          this.lazyPartitionType = Types.StructType.of(structFields);
+        }
+      }
     }
 
-    return Types.StructType.of(structFields);
+    return lazyPartitionType;
   }
 
   public Class<?>[] javaClasses() {
@@ -175,9 +183,10 @@ public class PartitionSpec implements Serializable {
   public String partitionToPath(StructLike data) {
     StringBuilder sb = new StringBuilder();
     Class<?>[] javaClasses = javaClasses();
+    List<Types.NestedField> outputFields = partitionType().fields();
     for (int i = 0; i < javaClasses.length; i += 1) {
       PartitionField field = fields[i];
-      String valueString = field.transform().toHumanString(get(data, i, javaClasses[i]));
+      String valueString = field.transform().toHumanString(outputFields.get(i).type(), get(data, i, javaClasses[i]));
 
       if (i > 0) {
         sb.append("/");
@@ -415,7 +424,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.identity(sourceColumn.type()));
+              Transforms.identity());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -433,7 +442,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.year(sourceColumn.type()));
+              Transforms.year());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -451,7 +460,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.month(sourceColumn.type()));
+              Transforms.month());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -469,7 +478,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.day(sourceColumn.type()));
+              Transforms.day());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -487,7 +496,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.hour(sourceColumn.type()));
+              Transforms.hour());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -505,7 +514,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.bucket(sourceColumn.type(), numBuckets)));
+              Transforms.bucket(numBuckets)));
       return this;
     }
 
@@ -521,7 +530,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.truncate(sourceColumn.type(), width)));
+              Transforms.truncate(width)));
       return this;
     }
 
@@ -545,14 +554,8 @@ public class PartitionSpec implements Serializable {
 
     // add a partition field with an auto-increment partition field id starting from
     // PARTITION_DATA_ID_START
-    Builder add(int sourceId, String name, String transform) {
+    Builder add(int sourceId, String name, Transform<?, ?> transform) {
       return add(sourceId, nextFieldId(), name, transform);
-    }
-
-    Builder add(int sourceId, int fieldId, String name, String transform) {
-      Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
-      return add(sourceId, fieldId, name, Transforms.fromString(column.type(), transform));
     }
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {

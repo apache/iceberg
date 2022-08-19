@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -47,7 +48,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaRDD;
@@ -96,12 +96,12 @@ public class TestPartitionPruning {
   private static SparkSession spark = null;
   private static JavaSparkContext sparkContext = null;
 
-  private static Transform<Object, Integer> bucketTransform =
-      Transforms.bucket(Types.IntegerType.get(), 3);
-  private static Transform<Object, Object> truncateTransform =
-      Transforms.truncate(Types.StringType.get(), 5);
-  private static Transform<Object, Integer> hourTransform =
-      Transforms.hour(Types.TimestampType.withoutZone());
+  private static final Function<Object, Integer> BUCKET_FUNC =
+      Transforms.bucket(3).bind(Types.IntegerType.get());
+  private static final Function<Object, Object> TRUNCATE_FUNC =
+      Transforms.truncate(5).bind(Types.StringType.get());
+  private static final Function<Object, Integer> HOUR_FUNC =
+      Transforms.hour().bind(Types.TimestampType.withoutZone());
 
   @BeforeClass
   public static void startSpark() {
@@ -114,17 +114,17 @@ public class TestPartitionPruning {
     spark.conf().set("spark.sql.session.timeZone", "UTC");
     spark
         .udf()
-        .register("bucket3", (Integer num) -> bucketTransform.apply(num), DataTypes.IntegerType);
+        .register("bucket3", (Integer num) -> BUCKET_FUNC.apply(num), DataTypes.IntegerType);
     spark
         .udf()
-        .register("truncate5", (String str) -> truncateTransform.apply(str), DataTypes.StringType);
+        .register("truncate5", (String str) -> TRUNCATE_FUNC.apply(str), DataTypes.StringType);
     // NOTE: date transforms take the type long, not Timestamp
     spark
         .udf()
         .register(
             "hour",
             (Timestamp ts) ->
-                hourTransform.apply(
+                HOUR_FUNC.apply(
                     org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts)),
             DataTypes.IntegerType);
   }
@@ -197,7 +197,7 @@ public class TestPartitionPruning {
         (Row r) -> {
           int bucketId = r.getInt(2);
           Set<Integer> buckets =
-              Arrays.stream(ids).map(bucketTransform::apply).boxed().collect(Collectors.toSet());
+              Arrays.stream(ids).map(BUCKET_FUNC::apply).boxed().collect(Collectors.toSet());
           return buckets.contains(bucketId);
         };
 
@@ -243,7 +243,7 @@ public class TestPartitionPruning {
           int hourValue = r.getInt(4);
           Instant instant = getInstant("2020-02-03T01:00:00");
           Integer hourValueToFilter =
-              hourTransform.apply(TimeUnit.MILLISECONDS.toMicros(instant.toEpochMilli()));
+              HOUR_FUNC.apply(TimeUnit.MILLISECONDS.toMicros(instant.toEpochMilli()));
           return hourValue >= hourValueToFilter;
         };
 

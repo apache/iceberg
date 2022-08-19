@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 
+import org.apache.iceberg.transforms.Transforms;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -83,7 +84,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should hard delete id and data buckets",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
-            .add(2, 1002, "data_trunc_8", "truncate[8]")
+            .add(2, 1002, "data_trunc_8", Transforms.truncate(8))
             .build(),
         table.spec());
 
@@ -179,7 +180,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should hard delete data bucket",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(1)
-            .add(1, 1001, "id_bucket_8", "bucket[8]")
+            .add(1, 1001, "id_bucket_8", Transforms.bucket(8))
             .build(),
         table.spec());
 
@@ -202,7 +203,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should remove and then add a bucket field",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(1)
-            .add(2, 1001, "data_bucket_6", "bucket[6]")
+            .add(2, 1001, "data_bucket_6", Transforms.bucket(6))
             .build(),
         table.spec());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
@@ -243,7 +244,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should add a new id bucket",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
-            .add(1, 1001, "id_bucket_8", "bucket[8]")
+            .add(1, 1001, "id_bucket_8", Transforms.bucket(8))
             .build(),
         table.spec());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());

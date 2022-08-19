@@ -16,65 +16,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.transforms;
 
-import java.io.ObjectStreamException;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-class VoidTransform<S> implements Transform<S, Void> {
-  private static final VoidTransform<Object> INSTANCE = new VoidTransform<>();
-
-  @SuppressWarnings("unchecked")
-  static <T> VoidTransform<T> get() {
-    return (VoidTransform<T>) INSTANCE;
-  }
-
-  private VoidTransform() {}
+abstract class TimeTransform<S> implements Transform<S, Integer> {
+  protected abstract Transform<S, Integer> toEnum(Type type);
 
   @Override
-  public Void apply(Object value) {
-    return null;
+  public Function<S, Integer> bind(Type type) {
+    return toEnum(type).bind(type);
   }
 
   @Override
-  public Function<S, Void> bind(Type type) {
-    return any -> null;
-  }
-
-  @Override
-  public boolean canTransform(Type type) {
+  public boolean preservesOrder() {
     return true;
   }
 
   @Override
-  public Type getResultType(Type sourceType) {
-    return sourceType;
+  public boolean canTransform(Type type) {
+    return type.typeId() == Type.TypeID.DATE || type.typeId() == Type.TypeID.TIMESTAMP;
   }
 
   @Override
-  public UnboundPredicate<Void> projectStrict(String name, BoundPredicate<S> predicate) {
-    return null;
+  public UnboundPredicate<Integer> project(String name, BoundPredicate<S> predicate) {
+    return toEnum(predicate.term().type()).project(name, predicate);
   }
 
   @Override
-  public UnboundPredicate<Void> project(String name, BoundPredicate<S> predicate) {
-    return null;
+  public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<S> predicate) {
+    return toEnum(predicate.term().type()).projectStrict(name, predicate);
   }
 
   @Override
-  public String toHumanString(Void value) {
-    return "null";
+  public String toHumanString(Type type, Integer value) {
+    // the incoming type doesn't matter, so always use timestamp without time zone
+    return toEnum(Types.TimestampType.withoutZone()).toHumanString(type, value);
   }
 
   @Override
-  public String toString() {
-    return "void";
-  }
-
-  Object writeReplace() throws ObjectStreamException {
-    return SerializationProxies.VoidTransformProxy.get();
+  public String dedupName() {
+    return "time";
   }
 }

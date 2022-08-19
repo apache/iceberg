@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,17 +34,16 @@ public class TestPartitionPaths {
           Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testPartitionPath() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("ts").bucket("id", 10).build();
 
-    Transform hour = spec.getFieldsBySourceId(3).get(0).transform();
-    Transform bucket = spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<Long, Integer> hour = Transforms.hour();
+    Transform<Integer, Integer> bucket = Transforms.bucket(10);
 
     Literal<Long> ts =
         Literal.of("2017-12-01T10:12:55.038194").to(Types.TimestampType.withoutZone());
-    Object tsHour = hour.apply(ts.value());
-    Object idBucket = bucket.apply(1);
+    Object tsHour = hour.bind(Types.TimestampType.withoutZone()).apply(ts.value());
+    Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
 
     Row partition = Row.of(tsHour, idBucket);
 

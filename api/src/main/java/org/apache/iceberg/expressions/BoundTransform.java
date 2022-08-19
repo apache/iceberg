@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
@@ -31,15 +32,17 @@ import org.apache.iceberg.types.Type;
 public class BoundTransform<S, T> implements BoundTerm<T> {
   private final BoundReference<S> ref;
   private final Transform<S, T> transform;
+  private final Function<S, T> func;
 
   BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
     this.ref = ref;
     this.transform = transform;
+    this.func = transform.bind(ref.type());
   }
 
   @Override
   public T eval(StructLike struct) {
-    return transform.apply(ref.eval(struct));
+    return func.apply(ref.eval(struct));
   }
 
   @Override

@@ -213,9 +213,9 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     Assert.assertEquals(
         "Should have a day and an hour time field",
         ImmutableList.of(
-            new PartitionField(2, 1000, "ts_day", Transforms.day(Types.TimestampType.withZone())),
+            new PartitionField(2, 1000, "ts_day", Transforms.day()),
             new PartitionField(
-                2, 1001, "ts_hour", Transforms.hour(Types.TimestampType.withZone()))),
+                2, 1001, "ts_hour", Transforms.hour())),
         byHour.fields());
   }
 
@@ -254,8 +254,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
-            .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
+            .add(id("ts"), 1001, "ts_day", Transforms.day())
+            .add(id("id"), 1002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -277,8 +277,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
-            .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
+            .add(id("category"), 1000, "category", Transforms.identity())
+            .add(id("ts"), 1001, "ts_day", Transforms.day())
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -302,8 +302,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
-            .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
+            .add(id("ts"), 1001, "ts_day", Transforms.day())
+            .add(id("id"), 1002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -325,8 +325,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
-            .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
+            .add(id("category"), 1000, "category", Transforms.identity())
+            .add(id("id"), 1002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -388,9 +388,9 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
-            .add(id("id"), 1002, "id_bucket", Transforms.bucket(Types.LongType.get(), 16))
-            .add(id("data"), 1003, "prefix", Transforms.truncate(Types.StringType.get(), 4))
+            .add(id("category"), 1000, "category", Transforms.identity())
+            .add(id("id"), 1002, "id_bucket", Transforms.bucket(16))
+            .add(id("data"), 1003, "prefix", Transforms.truncate(4))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);

@@ -110,7 +110,7 @@ public class TableMetadata implements Serializable {
       String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
       specBuilder.add(
-          freshSchema.findField(sourceName).fieldId(), field.name(), field.transform().toString());
+          freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
     }
     PartitionSpec freshSpec = specBuilder.build();
 
@@ -685,8 +685,7 @@ public class TableMetadata implements Serializable {
 
     // add all the fields to the builder. IDs should not change.
     for (SortField field : sortOrder.fields()) {
-      builder.addSortField(
-          field.transform(), field.sourceId(), field.direction(), field.nullOrder());
+      builder.addSortField(field.transform(), field.sourceId(), field.direction(), field.nullOrder());
     }
 
     // build without validation because the schema may have changed in a way that makes this order

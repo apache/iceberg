@@ -223,6 +223,7 @@ public class TestNotStartsWith {
     assertProjection(spec, expectedLiteral, projection, expectedOp);
   }
 
+  @SuppressWarnings("unchecked")
   private void assertProjection(
       PartitionSpec spec,
       String expectedLiteral,
@@ -232,7 +233,7 @@ public class TestNotStartsWith {
     Literal<?> literal = predicate.literal();
     Truncate<CharSequence> transform =
         (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString((String) literal.value());
+    String output = transform.toHumanString(Types.StringType.get(), (String) literal.value());
 
     Assert.assertEquals(expectedOp, predicate.op());
     Assert.assertEquals(expectedLiteral, output);

@@ -18,29 +18,32 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.nio.ByteBuffer;
+import java.io.ObjectStreamException;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 class Identity<T> implements Transform<T, T> {
+  private static final Identity<?> INSTANCE = new Identity<>();
+
   @SuppressWarnings("unchecked")
-  public static <I> Identity<I> get(Type type) {
-    return new Identity<>(type);
+  public static <I> Identity<I> get() {
+    return (Identity<I>) INSTANCE;
   }
 
-  private final Type type;
-
-  private Identity(Type type) {
-    this.type = type;
+  private Identity() {
   }
 
   @Override
   public T apply(T value) {
     return value;
+  }
+
+  @Override
+  public Function<T, T> bind(Type type) {
+    return Function.identity();
   }
 
   @Override
@@ -88,55 +91,11 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public String toHumanString(T value) {
-    if (value == null) {
-      return "null";
-    }
-
-    switch (type.typeId()) {
-      case DATE:
-        return TransformUtil.humanDay((Integer) value);
-      case TIME:
-        return TransformUtil.humanTime((Long) value);
-      case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return TransformUtil.humanTimestampWithZone((Long) value);
-        } else {
-          return TransformUtil.humanTimestampWithoutZone((Long) value);
-        }
-      case FIXED:
-      case BINARY:
-        if (value instanceof ByteBuffer) {
-          return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
-        } else if (value instanceof byte[]) {
-          return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
-        } else {
-          throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
-        }
-      default:
-        return value.toString();
-    }
-  }
-
-  @Override
   public String toString() {
     return "identity";
   }
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    } else if (!(o instanceof Identity)) {
-      return false;
-    }
-
-    Identity<?> that = (Identity<?>) o;
-    return type.equals(that.type);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(type);
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.IdentityTransformProxy.get();
   }
 }

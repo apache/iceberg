@@ -16,65 +16,61 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
-import java.util.function.Function;
-import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-class VoidTransform<S> implements Transform<S, Void> {
-  private static final VoidTransform<Object> INSTANCE = new VoidTransform<>();
+class Years<T> extends TimeTransform<T> {
+  private static final Years<?> INSTANCE = new Years<>();
 
   @SuppressWarnings("unchecked")
-  static <T> VoidTransform<T> get() {
-    return (VoidTransform<T>) INSTANCE;
-  }
-
-  private VoidTransform() {}
-
-  @Override
-  public Void apply(Object value) {
-    return null;
+  static <T> Years<T> get() {
+    return (Years<T>) INSTANCE;
   }
 
   @Override
-  public Function<S, Void> bind(Type type) {
-    return any -> null;
-  }
-
-  @Override
-  public boolean canTransform(Type type) {
-    return true;
+  @SuppressWarnings("unchecked")
+  protected Transform<T, Integer> toEnum(Type type) {
+    switch (type.typeId()) {
+      case DATE:
+        return (Transform<T, Integer>) Dates.YEAR;
+      case TIMESTAMP:
+        return (Transform<T, Integer>) Timestamps.YEAR;
+    }
+    throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
   @Override
   public Type getResultType(Type sourceType) {
-    return sourceType;
+    return Types.IntegerType.get();
   }
 
   @Override
-  public UnboundPredicate<Void> projectStrict(String name, BoundPredicate<S> predicate) {
-    return null;
-  }
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    if (this == other) {
+      return true;
+    }
 
-  @Override
-  public UnboundPredicate<Void> project(String name, BoundPredicate<S> predicate) {
-    return null;
-  }
+    if (other instanceof Timestamps) {
+      return Timestamps.YEAR.satisfiesOrderOf(other);
+    } else if (other instanceof Dates) {
+      return Dates.YEAR.satisfiesOrderOf(other);
+    } else if (other instanceof Years) {
+      return true;
+    }
 
-  @Override
-  public String toHumanString(Void value) {
-    return "null";
+    return false;
   }
 
   @Override
   public String toString() {
-    return "void";
+    return "year";
   }
 
   Object writeReplace() throws ObjectStreamException {
-    return SerializationProxies.VoidTransformProxy.get();
+    return SerializationProxies.YearsTransformProxy.get();
   }
 }

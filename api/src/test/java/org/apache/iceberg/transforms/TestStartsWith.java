@@ -61,6 +61,7 @@ public class TestStartsWith {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testTruncateString() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
     Expression expr = startsWith(COLUMN, "abcde");
@@ -93,16 +94,17 @@ public class TestStartsWith {
     assertProjection(spec, expectedLiteral, projection, expectedOp);
   }
 
+  @SuppressWarnings("unchecked")
   private void assertProjection(
       PartitionSpec spec,
       String expectedLiteral,
       Expression projection,
       Expression.Operation expectedOp) {
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
-    Literal literal = predicate.literal();
+    Literal<?> literal = predicate.literal();
     Truncate<CharSequence> transform =
         (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
-    String output = transform.toHumanString((String) literal.value());
+    String output = transform.toHumanString(Types.StringType.get(), (String) literal.value());
 
     Assert.assertEquals(expectedOp, predicate.op());
     Assert.assertEquals(expectedLiteral, output);

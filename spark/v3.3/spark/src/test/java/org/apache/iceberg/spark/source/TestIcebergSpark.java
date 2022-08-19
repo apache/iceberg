@@ -61,7 +61,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_int_16(1)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.IntegerType.get(), 16).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
   }
 
   @Test
@@ -70,7 +70,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_short_16(1S)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.IntegerType.get(), 16).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
   }
 
   @Test
@@ -79,7 +79,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_byte_16(1Y)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.IntegerType.get(), 16).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
   }
 
   @Test
@@ -88,7 +88,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_long_16(1L)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.LongType.get(), 16).apply(1L), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.LongType.get()).apply(1L), results.get(0).getInt(0));
   }
 
   @Test
@@ -97,7 +97,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_string_16('hello')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.StringType.get(), 16).apply("hello"),
+        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
         results.get(0).getInt(0));
   }
 
@@ -107,7 +107,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_char_16('hello')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.StringType.get(), 16).apply("hello"),
+        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
         results.get(0).getInt(0));
   }
 
@@ -117,7 +117,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_varchar_16('hello')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.StringType.get(), 16).apply("hello"),
+        (int) Transforms.bucket(16).bind(Types.StringType.get()).apply("hello"),
         results.get(0).getInt(0));
   }
 
@@ -129,7 +129,7 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(Types.DateType.get(), 16)
+            Transforms.bucket(16).bind(Types.DateType.get())
                 .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))),
         results.get(0).getInt(0));
   }
@@ -145,7 +145,7 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(Types.TimestampType.withZone(), 16)
+            Transforms.bucket(16).bind(Types.TimestampType.withZone())
                 .apply(
                     DateTimeUtils.fromJavaTimestamp(Timestamp.valueOf("2021-06-30 00:00:00.000"))),
         results.get(0).getInt(0));
@@ -158,7 +158,7 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(Types.BinaryType.get(), 16)
+            Transforms.bucket(16).bind(Types.BinaryType.get())
                 .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})),
         results.get(0).getInt(0));
   }
@@ -169,7 +169,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_decimal_16(11.11)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(Types.DecimalType.of(4, 2), 16).apply(new BigDecimal("11.11")),
+        (int) Transforms.bucket(16).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")),
         results.get(0).getInt(0));
   }
 
@@ -209,7 +209,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_truncate_int_4(1)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        Transforms.truncate(Types.IntegerType.get(), 4).apply(1), results.get(0).getInt(0));
+        Transforms.truncate(4).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
   }
 
   @Test
@@ -218,7 +218,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_truncate_long_4(1L)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        Transforms.truncate(Types.LongType.get(), 4).apply(1L), results.get(0).getLong(0));
+        Transforms.truncate(4).bind(Types.LongType.get()).apply(1L), results.get(0).getLong(0));
   }
 
   @Test
@@ -227,7 +227,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_truncate_decimal_4(11.11)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        Transforms.truncate(Types.DecimalType.of(4, 2), 4).apply(new BigDecimal("11.11")),
+        Transforms.truncate(4).bind(Types.DecimalType.of(4, 2)).apply(new BigDecimal("11.11")),
         results.get(0).getDecimal(0));
   }
 
@@ -237,6 +237,6 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_truncate_string_4('hello')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        Transforms.truncate(Types.StringType.get(), 4).apply("hello"), results.get(0).getString(0));
+        Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"), results.get(0).getString(0));
   }
 }

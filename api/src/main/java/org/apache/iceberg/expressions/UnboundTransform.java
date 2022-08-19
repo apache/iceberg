@@ -20,7 +20,6 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
 public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
@@ -41,18 +40,13 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
     return transform;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public BoundTransform<S, T> bind(Types.StructType struct, boolean caseSensitive) {
     BoundReference<S> boundRef = ref.bind(struct, caseSensitive);
 
-    Transform<S, T> typeTransform;
     try {
-      // TODO: Avoid using toString/fromString
-      typeTransform =
-          (Transform<S, T>) Transforms.fromString(boundRef.type(), transform.toString());
       ValidationException.check(
-          typeTransform.canTransform(boundRef.type()),
+          transform.canTransform(boundRef.type()),
           "Cannot bind: %s cannot transform %s values from '%s'",
           transform,
           boundRef.type(),
@@ -63,7 +57,7 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
           transform, boundRef.type(), ref.name());
     }
 
-    return new BoundTransform<>(boundRef, typeTransform);
+    return new BoundTransform<>(boundRef, transform);
   }
 
   @Override

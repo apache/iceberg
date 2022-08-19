@@ -25,6 +25,30 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestDates {
+//  @Test
+//  @SuppressWarnings("deprecation")
+//  public void testDeprecatedDateTransform() {
+//    Types.DateType type = Types.DateType.get();
+//    Literal<Integer> date = Literal.of("2017-12-01").to(type);
+//    Literal<Integer> pd = Literal.of("1970-01-01").to(type);
+//    Literal<Integer> nd = Literal.of("1969-12-31").to(type);
+//
+//    Transform<Integer, Integer> years = Transforms.year(type);
+//    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(date.value()));
+//    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pd.value()));
+//    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nd.value()));
+//
+//    Transform<Integer, Integer> months = Transforms.month(type);
+//    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int) months.apply(date.value()));
+//    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pd.value()));
+//    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nd.value()));
+//
+//    Transform<Integer, Integer> days = Transforms.day(type);
+//    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(date.value()));
+//    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pd.value()));
+//    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nd.value()));
+//  }
+
   @Test
   public void testDateTransform() {
     Types.DateType type = Types.DateType.get();
@@ -32,20 +56,26 @@ public class TestDates {
     Literal<Integer> pd = Literal.of("1970-01-01").to(type);
     Literal<Integer> nd = Literal.of("1969-12-31").to(type);
 
-    Transform<Integer, Integer> years = Transforms.year(type);
-    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(date.value()));
-    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pd.value()));
-    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nd.value()));
+    Transform<Integer, Integer> years = Transforms.year();
+    Assert.assertEquals(
+        "Should produce 2017 - 1970 = 47", 47, (int) years.bind(type).apply(date.value()));
+    Assert.assertEquals(
+        "Should produce 1970 - 1970 = 0", 0, (int) years.bind(type).apply(pd.value()));
+    Assert.assertEquals(
+        "Should produce 1969 - 1970 = -1", -1, (int) years.bind(type).apply(nd.value()));
 
-    Transform<Integer, Integer> months = Transforms.month(type);
-    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int) months.apply(date.value()));
-    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pd.value()));
-    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nd.value()));
+    Transform<Integer, Integer> months = Transforms.month();
+    Assert.assertEquals(
+        "Should produce 47 * 12 + 11 = 575", 575, (int) months.bind(type).apply(date.value()));
+    Assert.assertEquals(
+        "Should produce 0 * 12 + 0 = 0", 0, (int) months.bind(type).apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) months.bind(type).apply(nd.value()));
 
-    Transform<Integer, Integer> days = Transforms.day(type);
-    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(date.value()));
-    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pd.value()));
-    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nd.value()));
+    Transform<Integer, Integer> days = Transforms.day();
+    Assert.assertEquals("Should produce 17501", 17501, (int) days.bind(type).apply(date.value()));
+    Assert.assertEquals(
+        "Should produce 0 * 365 + 0 = 0", 0, (int) days.bind(type).apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) days.bind(type).apply(nd.value()));
   }
 
   @Test
@@ -53,23 +83,23 @@ public class TestDates {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("2017-12-01").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "2017",
-        year.toHumanString(year.apply(date.value())));
+        year.toHumanString(type, year.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "2017-12",
-        month.toHumanString(month.apply(date.value())));
+        month.toHumanString(type, month.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "2017-12-01",
-        day.toHumanString(day.apply(date.value())));
+        day.toHumanString(type, day.bind(type).apply(date.value())));
   }
 
   @Test
@@ -77,23 +107,23 @@ public class TestDates {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("1969-12-30").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969",
-        year.toHumanString(year.apply(date.value())));
+        year.toHumanString(type, year.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-12",
-        month.toHumanString(month.apply(date.value())));
+        month.toHumanString(type, month.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-12-30",
-        day.toHumanString(day.apply(date.value())));
+        day.toHumanString(type, day.bind(type).apply(date.value())));
   }
 
   @Test
@@ -101,23 +131,23 @@ public class TestDates {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("1970-01-01").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1970",
-        year.toHumanString(year.apply(date.value())));
+        year.toHumanString(type, year.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1970-01",
-        month.toHumanString(month.apply(date.value())));
+        month.toHumanString(type, month.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1970-01-01",
-        day.toHumanString(day.apply(date.value())));
+        day.toHumanString(type, day.bind(type).apply(date.value())));
   }
 
   @Test
@@ -125,23 +155,23 @@ public class TestDates {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("1969-01-01").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969",
-        year.toHumanString(year.apply(date.value())));
+        year.toHumanString(type, year.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-01",
-        month.toHumanString(month.apply(date.value())));
+        month.toHumanString(type, month.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-01-01",
-        day.toHumanString(day.apply(date.value())));
+        day.toHumanString(type, day.bind(type).apply(date.value())));
   }
 
   @Test
@@ -149,49 +179,49 @@ public class TestDates {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("1969-12-31").to(type);
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969",
-        year.toHumanString(year.apply(date.value())));
+        year.toHumanString(type, year.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-12",
-        month.toHumanString(month.apply(date.value())));
+        month.toHumanString(type, month.bind(type).apply(date.value())));
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Assert.assertEquals(
         "Should produce the correct Human string",
         "1969-12-31",
-        day.toHumanString(day.apply(date.value())));
+        day.toHumanString(type, day.bind(type).apply(date.value())));
   }
 
   @Test
   public void testNullHumanString() {
     Types.DateType type = Types.DateType.get();
     Assert.assertEquals(
-        "Should produce \"null\" for null", "null", Transforms.year(type).toHumanString(null));
+        "Should produce \"null\" for null", "null", Transforms.year().toHumanString(type, null));
     Assert.assertEquals(
-        "Should produce \"null\" for null", "null", Transforms.month(type).toHumanString(null));
+        "Should produce \"null\" for null", "null", Transforms.month().toHumanString(type, null));
     Assert.assertEquals(
-        "Should produce \"null\" for null", "null", Transforms.day(type).toHumanString(null));
+        "Should produce \"null\" for null", "null", Transforms.day().toHumanString(type, null));
   }
 
   @Test
   public void testDatesReturnType() {
     Types.DateType type = Types.DateType.get();
 
-    Transform<Integer, Integer> year = Transforms.year(type);
+    Transform<Integer, Integer> year = Transforms.year();
     Type yearResultType = year.getResultType(type);
     Assert.assertEquals(Types.IntegerType.get(), yearResultType);
 
-    Transform<Integer, Integer> month = Transforms.month(type);
+    Transform<Integer, Integer> month = Transforms.month();
     Type monthResultType = month.getResultType(type);
     Assert.assertEquals(Types.IntegerType.get(), monthResultType);
 
-    Transform<Integer, Integer> day = Transforms.day(type);
+    Transform<Integer, Integer> day = Transforms.day();
     Type dayResultType = day.getResultType(type);
     Assert.assertEquals(Types.DateType.get(), dayResultType);
   }
