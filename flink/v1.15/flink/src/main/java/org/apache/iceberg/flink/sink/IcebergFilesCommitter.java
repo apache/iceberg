@@ -150,7 +150,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     maxContinuousEmptyCommits =
         PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(
-        maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must not be negative");
+        maxContinuousEmptyCommits >= 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must not be negative");
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
