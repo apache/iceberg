@@ -492,6 +492,23 @@ access-point for all S3 operations.
 
 For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html).
 
+### S3 Acceleration
+
+[S3 Acceleration](https://aws.amazon.com/s3/transfer-acceleration/) can be used to speed up transfers to and from Amazon S3 by as much as 50-500% for long-distance transfer of larger objects.
+
+To use S3 Acceleration, we need to set `s3.acceleration-enabled` catalog property to `true` to enable `S3FileIO` to make accelerated S3 calls.
+
+For example, to use S3 Acceleration with Spark 3.0, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.acceleration-enabled=true
+```
+
+For more details on using S3 Acceleration, please refer to [Configuring fast, secure file transfers using Amazon S3 Transfer Acceleration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html).
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.

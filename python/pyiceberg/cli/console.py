@@ -48,7 +48,9 @@ def catch_exception():
                 _, output = _catalog_and_output(ctx)
                 output.exception(e)
                 ctx.exit(1)
+
         return wrapper
+
     return decorator
 
 
@@ -156,10 +158,8 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 def schema(ctx: Context, identifier: str):
     """Gets the schema of the table"""
     catalog, output = _catalog_and_output(ctx)
-
-    metadata = catalog.load_table(identifier).metadata
-    assert metadata
-    output.schema(metadata.current_schema())
+    table = catalog.load_table(identifier)
+    output.schema(table.schema())
 
 
 @run.command()
@@ -169,10 +169,8 @@ def schema(ctx: Context, identifier: str):
 def spec(ctx: Context, identifier: str):
     """Returns the partition spec of the table"""
     catalog, output = _catalog_and_output(ctx)
-
-    metadata = catalog.load_table(identifier).metadata
-    assert metadata
-    output.spec(metadata.current_partition_spec())
+    table = catalog.load_table(identifier)
+    output.spec(table.spec())
 
 
 @run.command()
@@ -182,9 +180,7 @@ def spec(ctx: Context, identifier: str):
 def uuid(ctx: Context, identifier: str):
     """Returns the UUID of the table"""
     catalog, output = _catalog_and_output(ctx)
-
     metadata = catalog.load_table(identifier).metadata
-    assert metadata
     output.uuid(metadata.table_uuid)
 
 
@@ -195,10 +191,8 @@ def uuid(ctx: Context, identifier: str):
 def location(ctx: Context, identifier: str):
     """Returns the location of the table"""
     catalog, output = _catalog_and_output(ctx)
-
-    metadata = catalog.load_table(identifier).metadata
-    assert metadata
-    output.text(metadata.location)
+    table = catalog.load_table(identifier)
+    output.text(table.location())
 
 
 @run.group()
@@ -363,14 +357,14 @@ def namespace(ctx: Context, identifier: str, property_name: str):  # noqa: F811
 @catch_exception()
 def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
     """Removes a property from a table"""
-    catalog, _ = _catalog_and_output(ctx)
+    catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
-    assert table.metadata
     if property_name in table.metadata.properties:
         # We should think of the process here
         # Do we want something similar as in Java:
         # https://github.com/apache/iceberg/blob/master/api/src/main/java/org/apache/iceberg/Table.java#L178
         del table.metadata.properties
-        raise NotImplementedError("Writing is WIP")
+        output.exception(NotImplementedError("Writing is WIP"))
+        ctx.exit(1)
     else:
-        raise NoSuchPropertyException(f"Property {property_name} does not exist on {identifier}")
+        raise NoSuchPropertyException(f"Property {property_name} does not exists on {identifier}")

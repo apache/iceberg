@@ -90,7 +90,6 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
@@ -506,48 +505,6 @@ public class Spark3Util {
 
   public static String describe(org.apache.iceberg.SortOrder order) {
     return Joiner.on(", ").join(SortOrderVisitor.visit(order, DescribeSortOrderVisitor.INSTANCE));
-  }
-
-  public static Long propertyAsLong(
-      CaseInsensitiveStringMap options, String property, Long defaultValue) {
-    if (defaultValue != null) {
-      return options.getLong(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Long.parseLong(value);
-    }
-
-    return null;
-  }
-
-  public static Integer propertyAsInt(
-      CaseInsensitiveStringMap options, String property, Integer defaultValue) {
-    if (defaultValue != null) {
-      return options.getInt(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Integer.parseInt(value);
-    }
-
-    return null;
-  }
-
-  public static Boolean propertyAsBoolean(
-      CaseInsensitiveStringMap options, String property, Boolean defaultValue) {
-    if (defaultValue != null) {
-      return options.getBoolean(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Boolean.parseBoolean(value);
-    }
-
-    return null;
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {

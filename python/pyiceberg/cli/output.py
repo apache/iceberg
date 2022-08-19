@@ -83,7 +83,6 @@ class ConsoleOutput(Output):
         Console().print(table)
 
     def describe_table(self, table: Table):
-        assert table.metadata
         metadata = table.metadata
         table_properties = self._table
 
@@ -91,7 +90,7 @@ class ConsoleOutput(Output):
             table_properties.add_row(key, value)
 
         schema_tree = Tree("Schema")
-        for field in metadata.current_schema().fields:
+        for field in table.schema().fields:
             schema_tree.add(str(field))
 
         snapshot_tree = Tree("Snapshots")
@@ -103,8 +102,8 @@ class ConsoleOutput(Output):
         output_table.add_row("Metadata location", table.metadata_location)
         output_table.add_row("Table UUID", str(table.metadata.table_uuid))
         output_table.add_row("Last Updated", str(metadata.last_updated_ms))
-        output_table.add_row("Partition spec", str(metadata.current_partition_spec()))
-        output_table.add_row("Sort order", str(metadata.current_sort_order()))
+        output_table.add_row("Partition spec", str(table.spec()))
+        output_table.add_row("Sort order", str(table.sort_order()))
         output_table.add_row("Schema", schema_tree)
         output_table.add_row("Snapshots", snapshot_tree)
         output_table.add_row("Properties", table_properties)
@@ -122,7 +121,7 @@ class ConsoleOutput(Output):
     def schema(self, schema: Schema):
         output_table = self._table
         for field in schema.fields:
-            output_table.add_row(field.name, str(field.field_type))
+            output_table.add_row(field.name, str(field.field_type), field.doc or "")
         Console().print(output_table)
 
     def spec(self, spec: PartitionSpec):

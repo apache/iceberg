@@ -114,25 +114,25 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
     AssertHelpers.assertThrows(
         "Token should be required",
         IllegalArgumentException.class,
-        "missing string access_token",
+        "missing string: access_token",
         () -> deserialize("{\"token_type\":\"bearer\"}"));
 
     AssertHelpers.assertThrows(
         "Token should be string",
         IllegalArgumentException.class,
-        "Cannot parse access_token to a string value: 34",
+        "Cannot parse to a string value: access_token: 34",
         () -> deserialize("{\"access_token\":34,\"token_type\":\"bearer\"}"));
 
     AssertHelpers.assertThrows(
         "Token type should be required",
         IllegalArgumentException.class,
-        "missing string token_type",
+        "missing string: token_type",
         () -> deserialize("{\"access_token\":\"bearer-token\"}"));
 
     AssertHelpers.assertThrows(
         "Token type should be string",
         IllegalArgumentException.class,
-        "Cannot parse token_type to a string value: 34",
+        "Cannot parse to a string value: token_type: 34",
         () -> deserialize("{\"access_token\":\"bearer-token\",\"token_type\":34}"));
   }
 }

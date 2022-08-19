@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
-import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
@@ -79,8 +79,7 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     };
   }
 
-  static <T> CloseableIterator<T> count(
-      MetricsContext.Counter<?> counter, CloseableIterator<T> iterator) {
+  static <T> CloseableIterator<T> count(Counter counter, CloseableIterator<T> iterator) {
     return new CloseableIterator<T>() {
       @Override
       public void close() throws IOException {

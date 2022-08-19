@@ -33,7 +33,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -222,8 +221,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       }
     }
 
-    return String.format(
-        "Expiring snapshots (%s) in %s", Joiner.on(',').join(options), table.name());
+    return String.format("Expiring snapshots (%s) in %s", COMMA_JOINER.join(options), table.name());
   }
 
   private ExpireSnapshots.Result doExecute() {
