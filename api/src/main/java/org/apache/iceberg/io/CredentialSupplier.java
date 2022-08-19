@@ -26,7 +26,7 @@ package org.apache.iceberg.io;
  * the configured credential as a string, and use the credential for file access via other IO
  * libraries.
  */
-public interface CredentialSupplier extends FileIO {
+public interface CredentialSupplier {
   /** Returns the credential string */
   String getCredential();
 }
