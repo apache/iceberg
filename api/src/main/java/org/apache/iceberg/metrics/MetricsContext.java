@@ -131,6 +131,10 @@ public interface MetricsContext extends Serializable {
     throw new UnsupportedOperationException("Timer is not supported.");
   }
 
+  default Histogram histogram(String name) {
+    throw new UnsupportedOperationException("Histogram is not supported.");
+  }
+
   /**
    * Utility method for producing no metrics.
    *

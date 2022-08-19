@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 /** A default {@link MetricsContext} implementation that uses native Java counters/timers. */
 public class DefaultMetricsContext implements MetricsContext {
+  private static final int DEFAULT_HISTOGRAM_RESERVOIR_SIZE = 10_000;
 
   @Override
   @Deprecated
@@ -46,5 +47,10 @@ public class DefaultMetricsContext implements MetricsContext {
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
     return new DefaultCounter(unit);
+  }
+
+  @Override
+  public Histogram histogram(String name) {
+    return new FixedReservoirHistogram(DEFAULT_HISTOGRAM_RESERVOIR_SIZE);
   }
 }
