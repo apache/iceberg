@@ -73,7 +73,7 @@ class ConsoleOutput(Output):
         return RichTable.grid(padding=(0, 2))
 
     def exception(self, ex: Exception):
-        Console(stderr=True).print(ex)
+        Console(stderr=True).print_exception()
 
     def identifiers(self, identifiers: List[Identifier]):
         table = self._table

@@ -133,23 +133,6 @@ class Catalog(ABC):
         self.name = name
         self.properties = properties
 
-    def property(self, key: str) -> str:
-        """Returns a property from the properties variable. If it doesn't exist, it will raise an error.
-
-        Args:
-            key: The key of the property
-
-        Returns: The value of the property
-
-        Raises:
-            ValueError: When the property cannot be found, with a pointer on how to set the property.
-        """
-        if key not in self.properties:
-            raise ValueError(
-                f"{type(self).__name__} expects an {key} property. Please set in config or using environment variable PYICEBERG_CATALOG__{self.name.upper()}__{key.upper()}"
-            )
-        return self.properties[key]
-
     @abstractmethod
     def create_table(
         self,
