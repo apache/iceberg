@@ -96,7 +96,7 @@ public class SparkV2Filters {
   @SuppressWarnings("unchecked")
   private static <T> T child(Predicate predicate) {
     org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    Preconditions.checkArgument(children.length == 1, "%s should have one child", predicate);
+    Preconditions.checkArgument(children.length == 1, "Predicate should have one child: %s", predicate);
     return (T) children[0];
   }
 
@@ -109,7 +109,7 @@ public class SparkV2Filters {
   @SuppressWarnings("unchecked")
   private static <T> T rightChild(Predicate predicate) {
     org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    Preconditions.checkArgument(children.length == 2, "%s should have two children", predicate);
+    Preconditions.checkArgument(children.length == 2, "Predicate should have two children: %s", predicate);
     return (T) children[1];
   }
 
