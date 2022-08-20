@@ -68,7 +68,7 @@ class Output(ABC):
 class ConsoleOutput(Output):
     """Writes to the console"""
 
-    def __init__(self, **properties: str):
+    def __init__(self, **properties: Any):
         self.verbose = properties.get("verbose", False)
 
     @property
@@ -139,6 +139,9 @@ class ConsoleOutput(Output):
 
 class JsonOutput(Output):
     """Writes json to stdout"""
+
+    def __init__(self, **properties: Any):
+        self.verbose = properties.get("verbose", False)
 
     def _out(self, d: Any) -> None:
         print(json.dumps(d))

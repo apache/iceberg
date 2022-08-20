@@ -55,11 +55,12 @@ def catch_exception():
 
 @click.group()
 @click.option("--catalog", default="default")
+@click.option("--verbose", type=click.BOOL)
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
+def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[str], credential: Optional[str]):
     properties = {}
     if uri:
         properties["uri"] = uri
@@ -68,9 +69,9 @@ def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential:
 
     ctx.ensure_object(dict)
     if output == "text":
-        ctx.obj["output"] = ConsoleOutput()
+        ctx.obj["output"] = ConsoleOutput(verbose=verbose)
     else:
-        ctx.obj["output"] = JsonOutput()
+        ctx.obj["output"] = JsonOutput(verbose=verbose)
 
     try:
         try:
