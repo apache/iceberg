@@ -68,12 +68,18 @@ class Output(ABC):
 class ConsoleOutput(Output):
     """Writes to the console"""
 
+    def __init__(self, **properties: str):
+        self.verbose = properties.get("verbose", False)
+
     @property
     def _table(self) -> RichTable:
         return RichTable.grid(padding=(0, 2))
 
     def exception(self, ex: Exception):
-        Console(stderr=True).print_exception()
+        if self.verbose:
+            Console(stderr=True).print_exception()
+        else:
+            Console(stderr=True).print(ex)
 
     def identifiers(self, identifiers: List[Identifier]):
         table = self._table
