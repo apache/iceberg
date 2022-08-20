@@ -103,7 +103,6 @@ public class SparkV2Filters {
   @SuppressWarnings("unchecked")
   private static <T> T leftChild(Predicate predicate) {
     org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    Preconditions.checkArgument(children.length == 2, "%s should have two children", predicate);
     return (T) children[0];
   }
 
