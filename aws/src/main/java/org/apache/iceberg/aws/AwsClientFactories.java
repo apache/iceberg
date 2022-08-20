@@ -193,6 +193,13 @@ public class AwsClientFactories {
     }
   }
 
+  /**
+   * Build an S3Configuration object
+   *
+   * @deprecated Not for public use. To build an S3Configuration object, use
+   *     S3Configuration.builder() directly. It will be removed in 2.0.0
+   */
+  @Deprecated
   public static S3Configuration s3Configuration(
       Boolean pathStyleAccess, Boolean s3UseArnRegionEnabled) {
     return S3Configuration.builder()
