@@ -25,30 +25,29 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestDates {
-  //  @Test
-  //  @SuppressWarnings("deprecation")
-  //  public void testDeprecatedDateTransform() {
-  //    Types.DateType type = Types.DateType.get();
-  //    Literal<Integer> date = Literal.of("2017-12-01").to(type);
-  //    Literal<Integer> pd = Literal.of("1970-01-01").to(type);
-  //    Literal<Integer> nd = Literal.of("1969-12-31").to(type);
-  //
-  //    Transform<Integer, Integer> years = Transforms.year(type);
-  //    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(date.value()));
-  //    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pd.value()));
-  //    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nd.value()));
-  //
-  //    Transform<Integer, Integer> months = Transforms.month(type);
-  //    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int)
-  // months.apply(date.value()));
-  //    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pd.value()));
-  //    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nd.value()));
-  //
-  //    Transform<Integer, Integer> days = Transforms.day(type);
-  //    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(date.value()));
-  //    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pd.value()));
-  //    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nd.value()));
-  //  }
+  @Test
+  @SuppressWarnings("deprecation")
+  public void testDeprecatedDateTransform() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("2017-12-01").to(type);
+    Literal<Integer> pd = Literal.of("1970-01-01").to(type);
+    Literal<Integer> nd = Literal.of("1969-12-31").to(type);
+
+    Transform<Integer, Integer> years = Transforms.year(type);
+    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(date.value()));
+    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pd.value()));
+    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nd.value()));
+
+    Transform<Integer, Integer> months = Transforms.month(type);
+    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int) months.apply(date.value()));
+    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nd.value()));
+
+    Transform<Integer, Integer> days = Transforms.day(type);
+    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(date.value()));
+    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nd.value()));
+  }
 
   @Test
   public void testDateTransform() {
