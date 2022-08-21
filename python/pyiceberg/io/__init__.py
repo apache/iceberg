@@ -34,6 +34,7 @@ from typing import (
     Union,
     runtime_checkable,
 )
+from urllib.parse import urlparse
 
 from pyiceberg.typedef import EMPTY_DICT, Properties
 
@@ -234,17 +235,18 @@ class FileIO(ABC):
         """
 
 
+LOCATION = "location"
+WAREHOUSE = "warehouse"
+
 ARROW_FILE_IO = "pyiceberg.io.pyarrow.PyArrowFileIO"
 
 # Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
-# If a implementation isn't installed, it will fall back to the next one.
-JAVA_FILE_IO_MAPPINGS: Dict[str, List[str]] = {
-    "org.apache.iceberg.dell.ecs.EcsFileIO": [ARROW_FILE_IO],
-    "org.apache.iceberg.gcp.gcs.GCSFileIO": [ARROW_FILE_IO],
-    "org.apache.iceberg.hadoop.HadoopFileIO": [ARROW_FILE_IO],
-    "org.apache.iceberg.aliyun.oss.OSSFileIO": [ARROW_FILE_IO],
-    "org.apache.iceberg.io.ResolvingFileIO": [ARROW_FILE_IO],
-    "org.apache.iceberg.aws.s3.S3FileIO": [ARROW_FILE_IO],
+# If an implementation isn't installed, it will fall back to the next one.
+SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
+    "s3": [ARROW_FILE_IO],
+    "gcs": [ARROW_FILE_IO],
+    "file": [ARROW_FILE_IO],
+    "hdfs": [ARROW_FILE_IO],
 }
 
 
@@ -263,22 +265,26 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
 
 
 PY_IO_IMPL = "py-io-impl"
-IO_IMPL = "io-impl"
 
 
 def load_file_io(properties: Properties) -> FileIO:
+    # First look for the py-io-impl property to directly load the class
     if io_impl := properties.get(PY_IO_IMPL):
         if file_io := _import_file_io(io_impl, properties):
             return file_io
         else:
             raise ValueError(f"Could not initialize FileIO: {io_impl}")
-    if java_io_impl := properties.get(IO_IMPL):
-        if mapped_impls := JAVA_FILE_IO_MAPPINGS.get(java_io_impl):
-            for impl in mapped_impls:
-                if file_io := _import_file_io(impl, properties):
-                    return file_io
-        else:
-            logger.warning("Could not convert Java mapping to Python: %s", java_io_impl)
+
+    # Look at the schema of the location and warehouse
+    for prop in [LOCATION, WAREHOUSE]:
+        if location := properties.get(prop):
+            parsed_url = urlparse(location)
+            if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+                for file_io_path in file_ios:
+                    if file_io := _import_file_io(file_io_path, properties):
+                        return file_io
+            else:
+                logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
 
     # Default to PyArrow
     from pyiceberg.io.pyarrow import PyArrowFileIO
