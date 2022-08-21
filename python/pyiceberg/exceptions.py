@@ -78,3 +78,7 @@ class OAuthError(RESTError):
 
 class NoSuchPropertyException(Exception):
     """When a property is missing"""
+
+
+class NotInstalledError(Exception):
+    """When an optional dependency is not installed"""

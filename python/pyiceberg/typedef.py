@@ -15,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, Dict, Tuple
+from typing import (
+    Any,
+    Dict,
+    Tuple,
+    Union,
+)
 
 
 class FrozenDict(Dict):
@@ -30,3 +35,4 @@ EMPTY_DICT = FrozenDict()
 
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]
+RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]  # type: ignore

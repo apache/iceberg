@@ -164,16 +164,11 @@ class OAuthErrorResponse(IcebergBaseModel):
 
 class RestCatalog(Catalog):
     token: Optional[str]
-    config: Properties
-
     uri: str
 
     def __init__(
         self,
-        name: Optional[str],
-        uri: str,
-        credential: Optional[str] = None,
-        token: Optional[str] = None,
+        name: str,
         **properties: str,
     ):
         """Rest Catalog
@@ -182,20 +177,14 @@ class RestCatalog(Catalog):
 
         Args:
             name: Name to identify the catalog
-            uri: The base-url of the REST Catalog endpoint
-            credential: The credentials for authentication against the client
-            token: The bearer token
             properties: Properties that are passed along to the configuration
         """
-        self.uri = uri
-        if credential:
-            self.token = self._fetch_access_token(credential)
-        elif token:
-            self.token = token
-        else:
-            self.token = None
-        self.config = self._fetch_config(properties)
         super().__init__(name, **properties)
+
+        self.uri = self.property("uri")
+        if credential := self.properties.get("credential"):
+            properties["token"] = self._fetch_access_token(credential)
+        super().__init__(name, **self._fetch_config(properties))
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
@@ -210,8 +199,8 @@ class RestCatalog(Catalog):
             "Content-type": "application/json",
             "X-Client-Version": __version__,
         }
-        if self.token:
-            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {self.token}"
+        if token := self.properties.get("token"):
+            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
         return headers
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
@@ -229,7 +218,7 @@ class RestCatalog(Catalog):
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
 
         if prefixed:
-            url += self.config.get(PREFIX, "")
+            url += self.properties.get(PREFIX, "")
             url = url if url.endswith("/") else url + "/"
 
         return url + endpoint.format(**kwargs)

@@ -32,6 +32,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
+
+    // for dropwizard histogram metrics implementation
+    compileOnly "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}:tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge:${flinkVersion}"
@@ -141,6 +144,9 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+
+    // for dropwizard histogram metrics implementation
+    implementation "org.apache.flink:flink-metrics-dropwizard:${flinkMajorVersion}"
   }
 
   shadowJar {

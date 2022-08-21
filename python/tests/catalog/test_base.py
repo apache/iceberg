@@ -53,7 +53,7 @@ class InMemoryCatalog(Catalog):
     __tables: Dict[Identifier, Table]
     __namespaces: Dict[Identifier, Properties]
 
-    def __init__(self, name: str, properties: Properties):
+    def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self.__tables = {}
         self.__namespaces = {}
