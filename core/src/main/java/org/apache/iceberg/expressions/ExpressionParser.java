@@ -29,7 +29,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.iceberg.DefaultValueParser;
+import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -59,6 +59,7 @@ public class ExpressionParser {
   }
 
   public static String toJson(Expression expression, boolean pretty) {
+    Preconditions.checkArgument(expression != null, "Invalid expression: null");
     return JsonUtil.generate(
         gen ->
             ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen)),
@@ -150,11 +151,11 @@ public class ExpressionParser {
 
         if (pred.isLiteralPredicate()) {
           gen.writeFieldName(VALUE);
-          DefaultValueParser.toJson(pred.term().type(), pred.asLiteralPredicate().literal().value(), gen);
+          SingleValueParser.toJson(pred.term().type(), pred.asLiteralPredicate().literal().value(), gen);
         } else if (pred.isSetPredicate()) {
           gen.writeArrayFieldStart(VALUES);
           for (T value : pred.asSetPredicate().literalSet()) {
-            DefaultValueParser.toJson(pred.term().type(), value, gen);
+            SingleValueParser.toJson(pred.term().type(), value, gen);
           }
           gen.writeEndArray();
         }
@@ -193,26 +194,26 @@ public class ExpressionParser {
     private void unboundLiteral(Object object) throws IOException {
       // this handles each type supported in Literals.from
       if (object instanceof Integer) {
-        DefaultValueParser.toJson(Types.IntegerType.get(), object, gen);
+        SingleValueParser.toJson(Types.IntegerType.get(), object, gen);
       } else if (object instanceof Long) {
-        DefaultValueParser.toJson(Types.LongType.get(), object, gen);
+        SingleValueParser.toJson(Types.LongType.get(), object, gen);
       } else if (object instanceof String) {
-        DefaultValueParser.toJson(Types.StringType.get(), object, gen);
+        SingleValueParser.toJson(Types.StringType.get(), object, gen);
       } else if (object instanceof Float) {
-        DefaultValueParser.toJson(Types.FloatType.get(), object, gen);
+        SingleValueParser.toJson(Types.FloatType.get(), object, gen);
       } else if (object instanceof Double) {
-        DefaultValueParser.toJson(Types.DoubleType.get(), object, gen);
+        SingleValueParser.toJson(Types.DoubleType.get(), object, gen);
       } else if (object instanceof Boolean) {
-        DefaultValueParser.toJson(Types.BooleanType.get(), object, gen);
+        SingleValueParser.toJson(Types.BooleanType.get(), object, gen);
       } else if (object instanceof ByteBuffer) {
-        DefaultValueParser.toJson(Types.BinaryType.get(), object, gen);
+        SingleValueParser.toJson(Types.BinaryType.get(), object, gen);
       } else if (object instanceof byte[]) {
-        DefaultValueParser.toJson(Types.BinaryType.get(), ByteBuffer.wrap((byte[]) object), gen);
+        SingleValueParser.toJson(Types.BinaryType.get(), ByteBuffer.wrap((byte[]) object), gen);
       } else if (object instanceof UUID) {
-        DefaultValueParser.toJson(Types.UUIDType.get(), object, gen);
+        SingleValueParser.toJson(Types.UUIDType.get(), object, gen);
       } else if (object instanceof BigDecimal) {
         BigDecimal decimal = (BigDecimal) object;
-        DefaultValueParser.toJson(Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
+        SingleValueParser.toJson(Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
       }
     }
 
@@ -305,27 +306,45 @@ public class ExpressionParser {
     Function<JsonNode, T> convertValue;
     if (schema != null) {
       BoundTerm<?> bound = term.bind(schema.asStruct(), false);
-      convertValue = valueNode -> (T) DefaultValueParser.fromJson(bound.type(), valueNode);
+      convertValue = valueNode -> (T) SingleValueParser.fromJson(bound.type(), valueNode);
     } else {
       convertValue = valueNode -> (T) ExpressionParser.asObject(valueNode);
     }
 
-    if (node.has(VALUE)) {
-      // must be a literal predicate
-      Object value = literal(JsonUtil.get(VALUE, node), convertValue);
-      return Expressions.predicate(op, term, (Iterable<T>) ImmutableList.of(value));
-
-    } else if (node.has(VALUES)) {
-      // must be a set predicate
-      JsonNode valuesNode = JsonUtil.get(VALUES, node);
-      Preconditions.checkArgument(valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
-      return Expressions.predicate(
-          op, term,
-          Iterables.transform(((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
-
-    } else {
-      // must be a unary predicate
-      return Expressions.predicate(op, term);
+    switch (op) {
+      case IS_NULL:
+      case NOT_NULL:
+      case IS_NAN:
+      case NOT_NAN:
+        // unary predicates
+        Preconditions.checkArgument(!node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
+        Preconditions.checkArgument(!node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
+        return Expressions.predicate(op, term);
+      case LT:
+      case LT_EQ:
+      case GT:
+      case GT_EQ:
+      case EQ:
+      case NOT_EQ:
+      case STARTS_WITH:
+      case NOT_STARTS_WITH:
+        // literal predicates
+        Preconditions.checkArgument(node.has(VALUE), "Cannot parse %s predicate: missing value", op);
+        Preconditions.checkArgument(!node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
+        Object value = literal(JsonUtil.get(VALUE, node), convertValue);
+        return Expressions.predicate(op, term, (Iterable<T>) ImmutableList.of(value));
+      case IN:
+      case NOT_IN:
+        // literal set predicates
+        Preconditions.checkArgument(node.has(VALUES), "Cannot parse %s predicate: missing values", op);
+        Preconditions.checkArgument(!node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
+        JsonNode valuesNode = JsonUtil.get(VALUES, node);
+        Preconditions.checkArgument(valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
+        return Expressions.predicate(
+            op, term,
+            Iterables.transform(((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
+      default:
+        throw new UnsupportedOperationException("Unsupported operation: " + op);
     }
   }
 
