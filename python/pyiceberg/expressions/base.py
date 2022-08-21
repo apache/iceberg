@@ -19,7 +19,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import ClassVar, Generic, TypeVar
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    TypeVar,
+)
 
 from pyiceberg.expressions.literals import Literal
 from pyiceberg.files import StructProtocol
@@ -628,8 +633,14 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 @visit.register(UnboundPredicate)
 def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
+
+
+@visit.register(BoundPredicate)
+def _(obj: BoundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit a bound boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_bound_predicate(predicate=obj)
 
 
 @visit.register(Or)
@@ -672,3 +683,55 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
 
     def visit_bound_predicate(self, predicate) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
+
+
+class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
+    @abstractmethod
+    def visit_in(self, ref: BoundReference[T], literals: set[Literal[Any]]) -> T:
+        """Visit the ref and literals from an In boolean expression
+        Args:
+            ref (BoundReference[T]): The ref used in the In boolean expression
+            literals (Tuple[Literal[T], ...]): The literals used in the In boolean expression
+        Raises:
+            NotImplementedError: If the concrete bound boolean expression visitor does not override this method
+        Returns:
+            R: The return type defined by the concrete bound boolean expression visitor
+        """
+
+    def handle_non_reference(self, term: BoundTerm) -> T:
+        """Handle a non-reference value in this visitor
+        Visitors that specificially require references can use this method to return a default value for expressions with non-references.
+        The default implementation will throw a TypeError because the non-reference is not supported.
+        Args:
+            term (BoundTerm): a non-reference term such as a transform
+        Raises:
+            TypeError: when handle_non_reference is not implemented in the concrete visitor
+        Returns:
+            R: The return type defined by the concrete bound boolean expression visitor
+        """
+        raise TypeError(f"{type(self).__name__} does not support non-reference: {term}")
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[T]):
+        """Visit an unbound predicate
+        Args:
+            predicate (UnboundPredicate[T]): An unbound predicate
+        Raises:
+            TypeError: This always raises since an unbound predicate is not expected in a bound boolean expression
+        """
+        raise TypeError(f"Not a bound predicate: {predicate}")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> T:
+        """Visit a bound predicate
+        Args:
+            predicate (BoundPredicate[T]): A bound predicate
+        Raises:
+            TypeError: When an unsupported predicate is found
+        Returns:
+            R: The return type defined by the concrete bound boolean expression visitor
+        """
+        if not isinstance(predicate.term, BoundReference):
+            return self.handle_non_reference(term=predicate.term)
+        elif isinstance(predicate, BoundIn):
+            return self.visit_in(ref=predicate.term, literals=predicate.literals)
+
+        raise TypeError(f"Unsupported predicate type: {predicate}")

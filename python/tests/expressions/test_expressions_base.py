@@ -17,7 +17,7 @@
 
 import uuid
 from decimal import Decimal
-from typing import List
+from typing import List, Set
 
 import pytest
 
@@ -56,10 +56,10 @@ class ExpressionB(base.BooleanExpression, Singleton):
         return "testexprb"
 
 
-class BooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
-    """A test implementation of a BooleanExpressionVisit
+class FooBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
+    """A test implementation of a BooleanExpressionVisitor
 
-    As this visitor visits each node, it appends an element to a `visit_histor` list. This enables testing that a given expression is
+    As this visitor visits each node, it appends an element to a `visit_history` list. This enables testing that a given expression is
     visited in an expected order by the `visit` method.
     """
 
@@ -104,15 +104,44 @@ class BooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
 
 
 @base.visit.register(ExpressionA)
-def _(obj: ExpressionA, visitor: BooleanExpressionVisitor) -> List:
+def _(obj: ExpressionA, visitor: FooBooleanExpressionVisitor) -> List:
     """Visit a ExpressionA with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_a()
 
 
 @base.visit.register(ExpressionB)
-def _(obj: ExpressionB, visitor: BooleanExpressionVisitor) -> List:
+def _(obj: ExpressionB, visitor: FooBooleanExpressionVisitor) -> List:
     """Visit a ExpressionB with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_b()
+
+
+class FooBoundBooleanExpressionVisitor(base.BoundBooleanExpressionVisitor[List]):
+    """A test implementation of a BoundBooleanExpressionVisitor
+    As this visitor visits each node, it appends an element to a `visit_history` list. This enables testing that a given bound expression is
+    visited in an expected order by the `visit` method.
+    """
+
+    def __init__(self):
+        self.visit_history: List = []
+
+    def visit_true(self) -> List:
+        return []
+
+    def visit_false(self) -> List:
+        return []
+
+    def visit_not(self, child_result: List) -> List:
+        return []
+
+    def visit_and(self, left_result: List, right_result: List) -> List:
+        return []
+
+    def visit_or(self, left_result: List, right_result: List) -> List:
+        return []
+
+    def visit_in(self, ref: base.BoundReference, literals: Set) -> List:
+        self.visit_history.append("IN")
+        return self.visit_history
 
 
 @pytest.mark.parametrize(
@@ -530,7 +559,7 @@ def test_boolean_expression_visitor():
         base.Not(ExpressionA()),
         ExpressionB(),
     )
-    visitor = BooleanExpressionVisitor()
+    visitor = FooBooleanExpressionVisitor()
     result = base.visit(expr, visitor=visitor)
     assert result == [
         "ExpressionA",
@@ -552,7 +581,7 @@ def test_boolean_expression_visitor():
 
 def test_boolean_expression_visit_raise_not_implemented_error():
     """Test raise NotImplementedError when visiting an unsupported object type"""
-    visitor = BooleanExpressionVisitor()
+    visitor = FooBooleanExpressionVisitor()
     with pytest.raises(NotImplementedError) as exc_info:
         base.visit("foo", visitor=visitor)
 
@@ -841,3 +870,16 @@ def test_not_expression_binding(unbound_not_expression, expected_bound_expressio
     """Test that visiting an unbound NOT expression with a bind-visitor returns the expected bound expression"""
     bound_expression = base.visit(unbound_not_expression, visitor=base.BindVisitor(schema=table_schema_simple))
     assert bound_expression == expected_bound_expression
+
+
+def test_bound_boolean_expression_visitor():
+    bound_expression = base.BoundIn[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals=(StringLiteral("foo"), StringLiteral("bar")),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IN"]
