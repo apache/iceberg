@@ -267,7 +267,18 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
 PY_IO_IMPL = "py-io-impl"
 
 
-def load_file_io(properties: Properties) -> FileIO:
+def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[FileIO]:
+    parsed_url = urlparse(path)
+    if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+        for file_io_path in file_ios:
+            if file_io := _import_file_io(file_io_path, properties):
+                return file_io
+    else:
+        logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
+    return None
+
+
+def load_file_io(properties: Properties, location: Optional[str] = None) -> FileIO:
     # First look for the py-io-impl property to directly load the class
     if io_impl := properties.get(PY_IO_IMPL):
         if file_io := _import_file_io(io_impl, properties):
@@ -275,16 +286,15 @@ def load_file_io(properties: Properties) -> FileIO:
         else:
             raise ValueError(f"Could not initialize FileIO: {io_impl}")
 
-    # Look at the schema of the location and warehouse
-    for prop in [LOCATION, WAREHOUSE]:
-        if location := properties.get(prop):
-            parsed_url = urlparse(location)
-            if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
-                for file_io_path in file_ios:
-                    if file_io := _import_file_io(file_io_path, properties):
-                        return file_io
-            else:
-                logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
+    # Check the table location
+    if location:
+        if file_io := _infer_file_io_from_schema(location, properties):
+            return file_io
+
+    # Look at the schema of the warehouse
+    if warehouse_location := properties.get(WAREHOUSE):
+        if file_io := _infer_file_io_from_schema(warehouse_location, properties):
+            return file_io
 
     # Default to PyArrow
     from pyiceberg.io.pyarrow import PyArrowFileIO

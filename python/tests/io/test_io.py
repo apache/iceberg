@@ -430,6 +430,17 @@ def test_load_file_io_location_no_schema():
 
 
 @patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
-def test_mock_file_io():
+def test_mock_warehouse_location_file_io():
     # For testing the selection logic
-    assert isinstance(load_file_io({"location": "test://some-path/"}), MockFileIO)
+    assert isinstance(load_file_io({"warehouse": "test://some-path/"}), MockFileIO)
+
+
+@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
+def test_mock_table_location_file_io():
+    # For testing the selection logic
+    assert isinstance(load_file_io({}, "test://some-path/"), MockFileIO)
+
+
+def test_gibberish_table_location_file_io():
+    # For testing the selection logic
+    assert isinstance(load_file_io({}, "gibberish"), PyArrowFileIO)

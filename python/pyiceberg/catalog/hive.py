@@ -320,7 +320,7 @@ class HiveCatalog(Catalog):
             if partition_spec.fields
             else DEFAULT_LAST_PARTITION_ID,
         )
-        io = load_file_io({**self.properties, **properties})
+        io = load_file_io({**self.properties, **properties}, location=location)
         self._write_metadata(metadata, io, metadata_location)
 
         tbl = HiveTable(
