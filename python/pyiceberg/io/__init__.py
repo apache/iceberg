@@ -22,11 +22,23 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+import importlib
+import logging
 from abc import ABC, abstractmethod
 from io import SEEK_SET
-from typing import Protocol, Union, runtime_checkable
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
+from urllib.parse import urlparse
 
-from pyiceberg.typedef import Properties
+from pyiceberg.typedef import EMPTY_DICT, Properties
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -188,6 +200,11 @@ class OutputFile(ABC):
 class FileIO(ABC):
     """A base class for FileIO implementations"""
 
+    properties: Properties
+
+    def __init__(self, properties: Properties = EMPTY_DICT):
+        self.properties = properties
+
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
         """Get an InputFile instance to read bytes from the file at the given location
@@ -218,11 +235,68 @@ class FileIO(ABC):
         """
 
 
-def load_file_io(_: Properties) -> FileIO:
-    # To be implemented in a different PR.
-    # - If py-file-io is present, load the right Python class
-    #   - When the property is missing, map from Java's filo-io to an appropriate FileIO
-    # - Extend the FileIO structure with a initialize that pass in properties (could also be the constructor?)
+LOCATION = "location"
+WAREHOUSE = "warehouse"
+
+ARROW_FILE_IO = "pyiceberg.io.pyarrow.PyArrowFileIO"
+
+# Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
+# If an implementation isn't installed, it will fall back to the next one.
+SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
+    "s3": [ARROW_FILE_IO],
+    "gcs": [ARROW_FILE_IO],
+    "file": [ARROW_FILE_IO],
+    "hdfs": [ARROW_FILE_IO],
+}
+
+
+def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
+    try:
+        path_parts = io_impl.split(".")
+        if len(path_parts) < 2:
+            raise ValueError(f"py-io-impl should be full path (module.CustomFileIO), got: {io_impl}")
+        module_name, class_name = ".".join(path_parts[:-1]), path_parts[-1]
+        module = importlib.import_module(module_name)
+        class_ = getattr(module, class_name)
+        return class_(properties)
+    except ImportError:
+        logger.exception("Could not initialize FileIO: %s", io_impl)
+        return None
+
+
+PY_IO_IMPL = "py-io-impl"
+
+
+def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[FileIO]:
+    parsed_url = urlparse(path)
+    if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+        for file_io_path in file_ios:
+            if file_io := _import_file_io(file_io_path, properties):
+                return file_io
+    else:
+        logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
+    return None
+
+
+def load_file_io(properties: Properties, location: Optional[str] = None) -> FileIO:
+    # First look for the py-io-impl property to directly load the class
+    if io_impl := properties.get(PY_IO_IMPL):
+        if file_io := _import_file_io(io_impl, properties):
+            return file_io
+        else:
+            raise ValueError(f"Could not initialize FileIO: {io_impl}")
+
+    # Check the table location
+    if location:
+        if file_io := _infer_file_io_from_schema(location, properties):
+            return file_io
+
+    # Look at the schema of the warehouse
+    if warehouse_location := properties.get(WAREHOUSE):
+        if file_io := _infer_file_io_from_schema(warehouse_location, properties):
+            return file_io
+
+    # Default to PyArrow
     from pyiceberg.io.pyarrow import PyArrowFileIO
 
-    return PyArrowFileIO()
+    return PyArrowFileIO(properties)
