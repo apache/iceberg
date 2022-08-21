@@ -424,12 +424,12 @@ class RestCatalog(Catalog):
             ),
             headers=self.headers,
         )
-        namespaces = ListNamespaceResponse(**response.json())
         try:
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {})
 
+        namespaces = ListNamespaceResponse(**response.json())
         return [namespace_tuple + child_namespace for child_namespace in namespaces.namespaces]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:

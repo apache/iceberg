@@ -68,6 +68,8 @@ class Output(ABC):
 class ConsoleOutput(Output):
     """Writes to the console"""
 
+    verbose: bool
+
     def __init__(self, **properties: Any):
         self.verbose = properties.get("verbose", False)
 
@@ -139,6 +141,8 @@ class ConsoleOutput(Output):
 
 class JsonOutput(Output):
     """Writes json to stdout"""
+
+    verbose: bool
 
     def __init__(self, **properties: Any):
         self.verbose = properties.get("verbose", False)
