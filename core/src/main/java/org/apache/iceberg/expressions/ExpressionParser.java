@@ -29,8 +29,8 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -61,19 +61,21 @@ public class ExpressionParser {
   public static String toJson(Expression expression, boolean pretty) {
     Preconditions.checkArgument(expression != null, "Invalid expression: null");
     return JsonUtil.generate(
-        gen ->
-            ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen)),
-        pretty);
+        gen -> ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen)), pretty);
   }
 
-  private static class JsonGeneratorVisitor extends ExpressionVisitors.CustomOrderExpressionVisitor<Void> {
+  private static class JsonGeneratorVisitor
+      extends ExpressionVisitors.CustomOrderExpressionVisitor<Void> {
     private final JsonGenerator gen;
 
     private JsonGeneratorVisitor(JsonGenerator gen) {
       this.gen = gen;
     }
 
-    /** A convenience method to make code more readable by calling {@code toJson} instead of {@code get()} */
+    /**
+     * A convenience method to make code more readable by calling {@code toJson} instead of {@code
+     * get()}
+     */
     private void toJson(Supplier<Void> child) {
       child.get();
     }
@@ -105,90 +107,97 @@ public class ExpressionParser {
 
     @Override
     public Void not(Supplier<Void> child) {
-      return generate(() -> {
-        gen.writeStartObject();
-        gen.writeStringField(TYPE, "not");
-        gen.writeFieldName(CHILD);
-        toJson(child);
-        gen.writeEndObject();
-      });
+      return generate(
+          () -> {
+            gen.writeStartObject();
+            gen.writeStringField(TYPE, "not");
+            gen.writeFieldName(CHILD);
+            toJson(child);
+            gen.writeEndObject();
+          });
     }
 
     @Override
     public Void and(Supplier<Void> left, Supplier<Void> right) {
-      return generate(() -> {
-        gen.writeStartObject();
-        gen.writeStringField(TYPE, "and");
-        gen.writeFieldName(LEFT);
-        toJson(left);
-        gen.writeFieldName(RIGHT);
-        toJson(right);
-        gen.writeEndObject();
-      });
+      return generate(
+          () -> {
+            gen.writeStartObject();
+            gen.writeStringField(TYPE, "and");
+            gen.writeFieldName(LEFT);
+            toJson(left);
+            gen.writeFieldName(RIGHT);
+            toJson(right);
+            gen.writeEndObject();
+          });
     }
 
     @Override
     public Void or(Supplier<Void> left, Supplier<Void> right) {
-      return generate(() -> {
-        gen.writeStartObject();
-        gen.writeStringField(TYPE, "or");
-        gen.writeFieldName(LEFT);
-        toJson(left);
-        gen.writeFieldName(RIGHT);
-        toJson(right);
-        gen.writeEndObject();
-      });
+      return generate(
+          () -> {
+            gen.writeStartObject();
+            gen.writeStringField(TYPE, "or");
+            gen.writeFieldName(LEFT);
+            toJson(left);
+            gen.writeFieldName(RIGHT);
+            toJson(right);
+            gen.writeEndObject();
+          });
     }
 
     @Override
     public <T> Void predicate(BoundPredicate<T> pred) {
-      return generate(() -> {
-        gen.writeStartObject();
+      return generate(
+          () -> {
+            gen.writeStartObject();
 
-        gen.writeStringField(TYPE, operationType(pred.op()));
-        gen.writeFieldName(TERM);
-        term(pred.term());
+            gen.writeStringField(TYPE, operationType(pred.op()));
+            gen.writeFieldName(TERM);
+            term(pred.term());
 
-        if (pred.isLiteralPredicate()) {
-          gen.writeFieldName(VALUE);
-          SingleValueParser.toJson(pred.term().type(), pred.asLiteralPredicate().literal().value(), gen);
-        } else if (pred.isSetPredicate()) {
-          gen.writeArrayFieldStart(VALUES);
-          for (T value : pred.asSetPredicate().literalSet()) {
-            SingleValueParser.toJson(pred.term().type(), value, gen);
-          }
-          gen.writeEndArray();
-        }
+            if (pred.isLiteralPredicate()) {
+              gen.writeFieldName(VALUE);
+              SingleValueParser.toJson(
+                  pred.term().type(), pred.asLiteralPredicate().literal().value(), gen);
+            } else if (pred.isSetPredicate()) {
+              gen.writeArrayFieldStart(VALUES);
+              for (T value : pred.asSetPredicate().literalSet()) {
+                SingleValueParser.toJson(pred.term().type(), value, gen);
+              }
+              gen.writeEndArray();
+            }
 
-        gen.writeEndObject();
-      });
+            gen.writeEndObject();
+          });
     }
 
     @Override
     public <T> Void predicate(UnboundPredicate<T> pred) {
-      return generate(() -> {
-        gen.writeStartObject();
+      return generate(
+          () -> {
+            gen.writeStartObject();
 
-        gen.writeStringField(TYPE, operationType(pred.op()));
-        gen.writeFieldName(TERM);
-        term(pred.term());
+            gen.writeStringField(TYPE, operationType(pred.op()));
+            gen.writeFieldName(TERM);
+            term(pred.term());
 
-        if (pred.literals() != null) {
-          if (pred.op() == Expression.Operation.IN || pred.op() == Expression.Operation.NOT_IN) {
-            gen.writeArrayFieldStart(VALUES);
-            for (Literal<T> lit : pred.literals()) {
-              unboundLiteral(lit.value());
+            if (pred.literals() != null) {
+              if (pred.op() == Expression.Operation.IN
+                  || pred.op() == Expression.Operation.NOT_IN) {
+                gen.writeArrayFieldStart(VALUES);
+                for (Literal<T> lit : pred.literals()) {
+                  unboundLiteral(lit.value());
+                }
+                gen.writeEndArray();
+
+              } else {
+                gen.writeFieldName(VALUE);
+                unboundLiteral(pred.literal().value());
+              }
             }
-            gen.writeEndArray();
 
-          } else {
-            gen.writeFieldName(VALUE);
-            unboundLiteral(pred.literal().value());
-          }
-        }
-
-        gen.writeEndObject();
-      });
+            gen.writeEndObject();
+          });
     }
 
     private void unboundLiteral(Object object) throws IOException {
@@ -213,7 +222,8 @@ public class ExpressionParser {
         SingleValueParser.toJson(Types.UUIDType.get(), object, gen);
       } else if (object instanceof BigDecimal) {
         BigDecimal decimal = (BigDecimal) object;
-        SingleValueParser.toJson(Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
+        SingleValueParser.toJson(
+            Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
       }
     }
 
@@ -287,9 +297,13 @@ public class ExpressionParser {
       case NOT:
         return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
       case AND:
-        return Expressions.and(fromJson(JsonUtil.get(LEFT, json), schema), fromJson(JsonUtil.get(RIGHT, json), schema));
+        return Expressions.and(
+            fromJson(JsonUtil.get(LEFT, json), schema),
+            fromJson(JsonUtil.get(RIGHT, json), schema));
       case OR:
-        return Expressions.or(fromJson(JsonUtil.get(LEFT, json), schema), fromJson(JsonUtil.get(RIGHT, json), schema));
+        return Expressions.or(
+            fromJson(JsonUtil.get(LEFT, json), schema),
+            fromJson(JsonUtil.get(RIGHT, json), schema));
     }
 
     return predicateFromJson(op, json, schema);
@@ -300,7 +314,8 @@ public class ExpressionParser {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> UnboundPredicate<T> predicateFromJson(Expression.Operation op, JsonNode node, Schema schema) {
+  private static <T> UnboundPredicate<T> predicateFromJson(
+      Expression.Operation op, JsonNode node, Schema schema) {
     UnboundTerm<T> term = term(JsonUtil.get(TERM, node), schema);
 
     Function<JsonNode, T> convertValue;
@@ -317,8 +332,10 @@ public class ExpressionParser {
       case IS_NAN:
       case NOT_NAN:
         // unary predicates
-        Preconditions.checkArgument(!node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
-        Preconditions.checkArgument(!node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
+        Preconditions.checkArgument(
+            !node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
+        Preconditions.checkArgument(
+            !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
         return Expressions.predicate(op, term);
       case LT:
       case LT_EQ:
@@ -329,20 +346,27 @@ public class ExpressionParser {
       case STARTS_WITH:
       case NOT_STARTS_WITH:
         // literal predicates
-        Preconditions.checkArgument(node.has(VALUE), "Cannot parse %s predicate: missing value", op);
-        Preconditions.checkArgument(!node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
+        Preconditions.checkArgument(
+            node.has(VALUE), "Cannot parse %s predicate: missing value", op);
+        Preconditions.checkArgument(
+            !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
         Object value = literal(JsonUtil.get(VALUE, node), convertValue);
         return Expressions.predicate(op, term, (Iterable<T>) ImmutableList.of(value));
       case IN:
       case NOT_IN:
         // literal set predicates
-        Preconditions.checkArgument(node.has(VALUES), "Cannot parse %s predicate: missing values", op);
-        Preconditions.checkArgument(!node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
+        Preconditions.checkArgument(
+            node.has(VALUES), "Cannot parse %s predicate: missing values", op);
+        Preconditions.checkArgument(
+            !node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
         JsonNode valuesNode = JsonUtil.get(VALUES, node);
-        Preconditions.checkArgument(valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
+        Preconditions.checkArgument(
+            valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
         return Expressions.predicate(
-            op, term,
-            Iterables.transform(((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
+            op,
+            term,
+            Iterables.transform(
+                ((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
       default:
         throw new UnsupportedOperationException("Unsupported operation: " + op);
     }
@@ -351,7 +375,8 @@ public class ExpressionParser {
   private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {
     if (valueNode.isObject() && valueNode.has(TYPE)) {
       String type = JsonUtil.getString(TYPE, valueNode);
-      Preconditions.checkArgument(type.equalsIgnoreCase(LITERAL), "Cannot parse type as a literal: %s", type);
+      Preconditions.checkArgument(
+          type.equalsIgnoreCase(LITERAL), "Cannot parse type as a literal: %s", type);
       return toValue.apply(JsonUtil.get(VALUE, valueNode));
     }
 
@@ -386,12 +411,14 @@ public class ExpressionParser {
           UnboundTerm<T> child = term(JsonUtil.get(TERM, node), schema);
           Type termType = schema.findType(child.ref().name());
           String transform = JsonUtil.getString(TRANSFORM, node);
-          return (UnboundTerm<T>) Expressions.transform(child.ref().name(), Transforms.fromString(termType, transform));
+          return (UnboundTerm<T>)
+              Expressions.transform(child.ref().name(), Transforms.fromString(termType, transform));
         default:
           throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
       }
     }
 
-    throw new IllegalArgumentException("Cannot parse reference (requires string or object): " + node);
+    throw new IllegalArgumentException(
+        "Cannot parse reference (requires string or object): " + node);
   }
 }

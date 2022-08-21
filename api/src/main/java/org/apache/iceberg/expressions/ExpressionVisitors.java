@@ -544,11 +544,12 @@ public class ExpressionVisitors {
   }
 
   /**
-   * Traverses the given {@link Expression expression} with a {@link CustomOrderExpressionVisitor visitor}.
+   * Traverses the given {@link Expression expression} with a {@link CustomOrderExpressionVisitor
+   * visitor}.
    *
-   * <p>This passes a {@link Supplier<R>} to each non-leaf {@link CustomOrderExpressionVisitor visitor} method. The supplier
-   * returns the result of traversing child expressions. Getting the result of the supplier allows traversing the
-   * expression in the desired order.
+   * <p>This passes a {@link Supplier<R>} to each non-leaf {@link CustomOrderExpressionVisitor
+   * visitor} method. The supplier returns the result of traversing child expressions. Getting the
+   * result of the supplier allows traversing the expression in the desired order.
    *
    * @param expr an expression to traverse
    * @param visitor a visitor that will be called to handle each node in the expression tree
@@ -559,7 +560,8 @@ public class ExpressionVisitors {
     return visitExpr(expr, visitor).get();
   }
 
-  private static <R> Supplier<R> visitExpr(Expression expr, CustomOrderExpressionVisitor<R> visitor) {
+  private static <R> Supplier<R> visitExpr(
+      Expression expr, CustomOrderExpressionVisitor<R> visitor) {
     if (expr instanceof Predicate) {
       if (expr instanceof BoundPredicate) {
         return () -> visitor.predicate((BoundPredicate<?>) expr);

@@ -173,7 +173,8 @@ public class TestExpressionParser {
                 Expressions.lessThanOrEqual(Expressions.bucket("id", 100), 50), true))
         .isEqualTo(expected);
     // schema is required to parse transform expressions
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected, SCHEMA), true))
+    Assertions.assertThat(
+            ExpressionParser.toJson(ExpressionParser.fromJson(expected, SCHEMA), true))
         .isEqualTo(expected);
   }
 
