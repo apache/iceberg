@@ -237,7 +237,7 @@ class HiveCatalog(Catalog):
 
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
-        self._client = _HiveClient(self.property("uri"))
+        self._client = _HiveClient(properties["uri"])
 
     def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO) -> Table:
         properties: Dict[str, str] = table.parameters

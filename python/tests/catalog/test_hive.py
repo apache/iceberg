@@ -166,13 +166,8 @@ def hive_database(tmp_path_factory) -> HiveDatabase:
 
 
 def test_no_uri_supplied():
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(KeyError):
         HiveCatalog("production")
-
-    assert (
-        "HiveCatalog expects an uri property. Please set in config or using environment variable PYICEBERG_CATALOG__PRODUCTION__URI"
-        in str(exc_info.value)
-    )
 
 
 def test_check_number_of_namespaces(table_schema_simple: Schema):

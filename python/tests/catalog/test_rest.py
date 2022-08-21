@@ -64,13 +64,8 @@ def rest_mock(requests_mock: Mocker):
 
 
 def test_no_uri_supplied():
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(KeyError):
         RestCatalog("production")
-
-    assert (
-        "RestCatalog expects an uri property. Please set in config or using environment variable PYICEBERG_CATALOG__PRODUCTION__URI"
-        in str(exc_info.value)
-    )
 
 
 def test_token_200(rest_mock: Mocker):
@@ -84,7 +79,7 @@ def test_token_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    assert RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).property("token") == TEST_TOKEN
+    assert RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).properties["token"] == TEST_TOKEN
 
 
 def test_token_400(rest_mock: Mocker):

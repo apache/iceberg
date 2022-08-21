@@ -179,10 +179,9 @@ class RestCatalog(Catalog):
             name: Name to identify the catalog
             properties: Properties that are passed along to the configuration
         """
-        super().__init__(name, **properties)
-
-        self.uri = self.property("uri")
-        if credential := self.properties.get("credential"):
+        self.properties = properties
+        self.uri = properties["uri"]
+        if credential := properties.get("credential"):
             properties["token"] = self._fetch_access_token(credential)
         super().__init__(name, **self._fetch_config(properties))
 
@@ -238,7 +237,10 @@ class RestCatalog(Catalog):
 
     def _fetch_config(self, properties: Properties) -> Properties:
         response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            self._handle_non_200_response(exc, {})
         config_response = ConfigResponse(**response.json())
         config = config_response.defaults
         config.update(properties)
@@ -422,13 +424,12 @@ class RestCatalog(Catalog):
             ),
             headers=self.headers,
         )
-        response.raise_for_status()
-        namespaces = ListNamespaceResponse(**response.json())
         try:
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {})
 
+        namespaces = ListNamespaceResponse(**response.json())
         return [namespace_tuple + child_namespace for child_namespace in namespaces.namespaces]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
@@ -448,9 +449,7 @@ class RestCatalog(Catalog):
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
-        print(f"{payload}")
         response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload, headers=self.headers)
-        print(f"{response.json()}")
         try:
             response.raise_for_status()
         except HTTPError as exc:

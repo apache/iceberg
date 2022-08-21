@@ -68,12 +68,20 @@ class Output(ABC):
 class ConsoleOutput(Output):
     """Writes to the console"""
 
+    verbose: bool
+
+    def __init__(self, **properties: Any):
+        self.verbose = properties.get("verbose", False)
+
     @property
     def _table(self) -> RichTable:
         return RichTable.grid(padding=(0, 2))
 
     def exception(self, ex: Exception):
-        Console(stderr=True).print(ex)
+        if self.verbose:
+            Console(stderr=True).print_exception()
+        else:
+            Console(stderr=True).print(ex)
 
     def identifiers(self, identifiers: List[Identifier]):
         table = self._table
@@ -133,6 +141,11 @@ class ConsoleOutput(Output):
 
 class JsonOutput(Output):
     """Writes json to stdout"""
+
+    verbose: bool
+
+    def __init__(self, **properties: Any):
+        self.verbose = properties.get("verbose", False)
 
     def _out(self, d: Any) -> None:
         print(json.dumps(d))
