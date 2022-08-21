@@ -127,7 +127,7 @@ enum Dates implements Transform<Integer, Integer> {
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(apply, fieldName, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
@@ -158,7 +158,7 @@ enum Dates implements Transform<Integer, Integer> {
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Integer> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(apply, fieldName, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {

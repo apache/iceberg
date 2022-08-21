@@ -27,7 +27,6 @@ import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -84,7 +83,6 @@ class Bucket<T> implements Transform<T, Integer> {
     return (Function<T, Integer>) get(type, numBuckets);
   }
 
-  @VisibleForTesting
   protected int hash(T value) {
     throw new UnsupportedOperationException(
         "hash(value) is not supported on the base Bucket class");
@@ -129,7 +127,7 @@ class Bucket<T> implements Transform<T, Integer> {
   public UnboundPredicate<Integer> project(String name, BoundPredicate<T> predicate) {
     Function<T, Integer> apply = this.bind(predicate.term().type());
     if (predicate.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(apply, name, predicate);
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
     if (predicate.isUnaryPredicate()) {
@@ -152,7 +150,7 @@ class Bucket<T> implements Transform<T, Integer> {
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<T> predicate) {
     Function<T, Integer> apply = this.bind(predicate.term().type());
     if (predicate.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(apply, name, predicate);
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
 
     if (predicate.isUnaryPredicate()) {
@@ -180,7 +178,7 @@ class Bucket<T> implements Transform<T, Integer> {
     }
 
     @Override
-    public int hash(Integer value) {
+    protected int hash(Integer value) {
       return BucketUtil.hash(value);
     }
   }
@@ -191,7 +189,7 @@ class Bucket<T> implements Transform<T, Integer> {
     }
 
     @Override
-    public int hash(Long value) {
+    protected int hash(Long value) {
       return BucketUtil.hash(value);
     }
   }
@@ -203,7 +201,7 @@ class Bucket<T> implements Transform<T, Integer> {
     }
 
     @Override
-    public int hash(CharSequence value) {
+    protected int hash(CharSequence value) {
       return BucketUtil.hash(value);
     }
   }
@@ -215,7 +213,7 @@ class Bucket<T> implements Transform<T, Integer> {
     }
 
     @Override
-    public int hash(ByteBuffer value) {
+    protected int hash(ByteBuffer value) {
       return BucketUtil.hash(value);
     }
   }
@@ -238,7 +236,7 @@ class Bucket<T> implements Transform<T, Integer> {
     }
 
     @Override
-    public int hash(BigDecimal value) {
+    protected int hash(BigDecimal value) {
       return BucketUtil.hash(value);
     }
   }

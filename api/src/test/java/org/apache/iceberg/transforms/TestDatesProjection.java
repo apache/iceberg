@@ -55,7 +55,7 @@ public class TestDatesProjection {
       String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
+    UnboundPredicate<Integer> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
@@ -66,17 +66,17 @@ public class TestDatesProjection {
         (Transform<?, Integer>) spec.getFieldsBySourceId(1).get(0).transform();
     Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.NOT_IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      Iterable<Integer> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual =
           Lists.newArrayList(values).stream()
               .sorted()
-              .map(v -> transform.toHumanString(type, (Integer) v))
+              .map(v -> transform.toHumanString(type, v))
               .collect(Collectors.toList())
               .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal<?> literal = predicate.literal();
-      String output = transform.toHumanString(type, (int) literal.value());
+      Literal<Integer> literal = predicate.literal();
+      String output = transform.toHumanString(type, literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }

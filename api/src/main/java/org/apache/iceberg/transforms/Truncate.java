@@ -63,6 +63,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
   }
 
+  @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final int width;
 
   Truncate(int width) {

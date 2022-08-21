@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -44,11 +45,19 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<S> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     return toEnum(predicate.term().type()).project(name, predicate);
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<S> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     return toEnum(predicate.term().type()).projectStrict(name, predicate);
   }
 

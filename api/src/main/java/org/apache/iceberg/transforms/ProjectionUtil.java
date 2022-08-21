@@ -229,7 +229,7 @@ class ProjectionUtil {
    */
   @SuppressWarnings("unchecked")
   static <T> UnboundPredicate<T> projectTransformPredicate(
-      Function<?, T> transform, String partitionName, BoundPredicate<?> pred) {
+      Transform<?, T> transform, String partitionName, BoundPredicate<?> pred) {
     if (pred.term() instanceof BoundTransform
         && transform.equals(((BoundTransform<?, ?>) pred.term()).transform())) {
       // the bound value must be a T because the transform matches
