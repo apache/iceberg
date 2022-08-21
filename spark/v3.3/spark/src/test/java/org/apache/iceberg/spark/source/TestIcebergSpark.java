@@ -61,7 +61,8 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_int_16(1)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
+        results.get(0).getInt(0));
   }
 
   @Test
@@ -70,7 +71,8 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_short_16(1S)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
+        results.get(0).getInt(0));
   }
 
   @Test
@@ -79,7 +81,8 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_bucket_byte_16(1Y)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1), results.get(0).getInt(0));
+        (int) Transforms.bucket(16).bind(Types.IntegerType.get()).apply(1),
+        results.get(0).getInt(0));
   }
 
   @Test
@@ -129,7 +132,8 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(16).bind(Types.DateType.get())
+            Transforms.bucket(16)
+                .bind(Types.DateType.get())
                 .apply(DateTimeUtils.fromJavaDate(Date.valueOf("2021-06-30"))),
         results.get(0).getInt(0));
   }
@@ -145,7 +149,8 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(16).bind(Types.TimestampType.withZone())
+            Transforms.bucket(16)
+                .bind(Types.TimestampType.withZone())
                 .apply(
                     DateTimeUtils.fromJavaTimestamp(Timestamp.valueOf("2021-06-30 00:00:00.000"))),
         results.get(0).getInt(0));
@@ -158,7 +163,8 @@ public class TestIcebergSpark {
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
         (int)
-            Transforms.bucket(16).bind(Types.BinaryType.get())
+            Transforms.bucket(16)
+                .bind(Types.BinaryType.get())
                 .apply(ByteBuffer.wrap(new byte[] {0x00, 0x20, 0x00, 0x1F})),
         results.get(0).getInt(0));
   }
@@ -237,6 +243,7 @@ public class TestIcebergSpark {
     List<Row> results = spark.sql("SELECT iceberg_truncate_string_4('hello')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals(
-        Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"), results.get(0).getString(0));
+        Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"),
+        results.get(0).getString(0));
   }
 }

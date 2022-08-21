@@ -75,7 +75,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
   @Override
   public T apply(T value) {
-    throw new UnsupportedOperationException("apply(value) is deprecated, use bind(Type).apply(value)");
+    throw new UnsupportedOperationException(
+        "apply(value) is deprecated, use bind(Type).apply(value)");
   }
 
   @Override
@@ -154,7 +155,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     return "truncate[" + width + "]";
   }
 
-  private static class TruncateInteger extends Truncate<Integer> implements Function<Integer, Integer> {
+  private static class TruncateInteger extends Truncate<Integer>
+      implements Function<Integer, Integer> {
     private TruncateInteger(int width) {
       super(width);
     }
@@ -275,7 +277,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
   }
 
-  private static class TruncateString extends Truncate<CharSequence> implements Function<CharSequence, CharSequence> {
+  private static class TruncateString extends Truncate<CharSequence>
+      implements Function<CharSequence, CharSequence> {
     private TruncateString(int length) {
       super(length);
     }
@@ -390,7 +393,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
   }
 
-  private static class TruncateByteBuffer extends Truncate<ByteBuffer> implements Function<ByteBuffer, ByteBuffer> {
+  private static class TruncateByteBuffer extends Truncate<ByteBuffer>
+      implements Function<ByteBuffer, ByteBuffer> {
     private TruncateByteBuffer(int length) {
       super(length);
     }
@@ -448,7 +452,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
   }
 
-  private static class TruncateDecimal extends Truncate<BigDecimal> implements Function<BigDecimal, BigDecimal> {
+  private static class TruncateDecimal extends Truncate<BigDecimal>
+      implements Function<BigDecimal, BigDecimal> {
     private final BigInteger unscaledWidth;
 
     private TruncateDecimal(int unscaledWidth) {

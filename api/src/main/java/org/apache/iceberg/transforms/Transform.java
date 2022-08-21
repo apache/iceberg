@@ -45,7 +45,8 @@ public interface Transform<S, T> extends Serializable {
    */
   @Deprecated
   default T apply(S value) {
-    throw new UnsupportedOperationException("apply(value) is deprecated, use bind(Type).apply(value)");
+    throw new UnsupportedOperationException(
+        "apply(value) is deprecated, use bind(Type).apply(value)");
   }
 
   /**

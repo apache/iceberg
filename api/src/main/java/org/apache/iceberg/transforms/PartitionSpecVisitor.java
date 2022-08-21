@@ -121,9 +121,13 @@ public interface PartitionSpecVisitor<T> {
     } else if (transform instanceof Truncate) {
       int width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
-    } else if (transform == Dates.YEAR || transform == Timestamps.YEAR || transform instanceof Years) {
+    } else if (transform == Dates.YEAR
+        || transform == Timestamps.YEAR
+        || transform instanceof Years) {
       return visitor.year(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.MONTH || transform == Timestamps.MONTH || transform instanceof Months) {
+    } else if (transform == Dates.MONTH
+        || transform == Timestamps.MONTH
+        || transform instanceof Months) {
       return visitor.month(field.fieldId(), sourceName, field.sourceId());
     } else if (transform == Dates.DAY || transform == Timestamps.DAY || transform instanceof Days) {
       return visitor.day(field.fieldId(), sourceName, field.sourceId());

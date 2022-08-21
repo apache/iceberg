@@ -86,7 +86,8 @@ class Bucket<T> implements Transform<T, Integer> {
 
   @VisibleForTesting
   protected int hash(T value) {
-    throw new UnsupportedOperationException("hash(value) is not supported on the base Bucket class");
+    throw new UnsupportedOperationException(
+        "hash(value) is not supported on the base Bucket class");
   }
 
   @Override
@@ -195,7 +196,8 @@ class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketString extends Bucket<CharSequence> implements Function<CharSequence, Integer> {
+  private static class BucketString extends Bucket<CharSequence>
+      implements Function<CharSequence, Integer> {
     private BucketString(int numBuckets) {
       super(numBuckets);
     }
@@ -206,7 +208,8 @@ class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketByteBuffer extends Bucket<ByteBuffer> implements Function<ByteBuffer, Integer> {
+  private static class BucketByteBuffer extends Bucket<ByteBuffer>
+      implements Function<ByteBuffer, Integer> {
     private BucketByteBuffer(int numBuckets) {
       super(numBuckets);
     }
@@ -228,7 +231,8 @@ class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketDecimal extends Bucket<BigDecimal> implements Function<BigDecimal, Integer> {
+  private static class BucketDecimal extends Bucket<BigDecimal>
+      implements Function<BigDecimal, Integer> {
     private BucketDecimal(int numBuckets) {
       super(numBuckets);
     }

@@ -186,7 +186,8 @@ public class PartitionSpec implements Serializable {
     List<Types.NestedField> outputFields = partitionType().fields();
     for (int i = 0; i < javaClasses.length; i += 1) {
       PartitionField field = fields[i];
-      String valueString = field.transform().toHumanString(outputFields.get(i).type(), get(data, i, javaClasses[i]));
+      String valueString =
+          field.transform().toHumanString(outputFields.get(i).type(), get(data, i, javaClasses[i]));
 
       if (i > 0) {
         sb.append("/");
@@ -421,10 +422,7 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(targetName, sourceColumn.fieldId());
       PartitionField field =
           new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.identity());
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -438,11 +436,7 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field =
-          new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.year());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -456,11 +450,7 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field =
-          new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.month());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -474,11 +464,7 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field =
-          new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.day());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -492,11 +478,7 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field =
-          new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.hour());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -511,10 +493,7 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(
           new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.bucket(numBuckets)));
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(numBuckets)));
       return this;
     }
 
@@ -527,10 +506,7 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(
           new PartitionField(
-              sourceColumn.fieldId(),
-              nextFieldId(),
-              targetName,
-              Transforms.truncate(width)));
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(width)));
       return this;
     }
 

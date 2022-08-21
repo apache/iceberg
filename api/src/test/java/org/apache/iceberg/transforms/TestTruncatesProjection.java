@@ -62,7 +62,8 @@ public class TestTruncatesProjection {
     Assert.assertNotEquals(
         "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
-    Transform<Object, Object> transform = (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<Object, Object> transform =
+        (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
     Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
@@ -108,7 +109,8 @@ public class TestTruncatesProjection {
     Assert.assertNotEquals(
         "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
-    Transform<Object, Object> transform = (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<Object, Object> transform =
+        (Transform<Object, Object>) spec.getFieldsBySourceId(1).get(0).transform();
     Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);

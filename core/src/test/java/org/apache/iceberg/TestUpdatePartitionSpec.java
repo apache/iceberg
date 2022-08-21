@@ -214,8 +214,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         "Should have a day and an hour time field",
         ImmutableList.of(
             new PartitionField(2, 1000, "ts_day", Transforms.day()),
-            new PartitionField(
-                2, 1001, "ts_hour", Transforms.hour())),
+            new PartitionField(2, 1001, "ts_hour", Transforms.hour())),
         byHour.fields());
   }
 

@@ -62,26 +62,13 @@ public class TestBucketing {
 
   @Test
   public void testSpecValues() {
+    Assert.assertEquals("Spec example: hash(true) = 1392991556", 1392991556, BucketUtil.hash(1));
+    Assert.assertEquals("Spec example: hash(34) = 2017239379", 2017239379, BucketUtil.hash(34));
+    Assert.assertEquals("Spec example: hash(34L) = 2017239379", 2017239379, BucketUtil.hash(34L));
     Assert.assertEquals(
-        "Spec example: hash(true) = 1392991556",
-        1392991556,
-        BucketUtil.hash(1));
+        "Spec example: hash(17.11F) = -142385009", -142385009, BucketUtil.hash(1.0F));
     Assert.assertEquals(
-        "Spec example: hash(34) = 2017239379",
-        2017239379,
-        BucketUtil.hash(34));
-    Assert.assertEquals(
-        "Spec example: hash(34L) = 2017239379",
-        2017239379,
-        BucketUtil.hash(34L));
-    Assert.assertEquals(
-        "Spec example: hash(17.11F) = -142385009",
-        -142385009,
-        BucketUtil.hash(1.0F));
-    Assert.assertEquals(
-        "Spec example: hash(17.11D) = -142385009",
-        -142385009,
-        BucketUtil.hash(1.0D));
+        "Spec example: hash(17.11D) = -142385009", -142385009, BucketUtil.hash(1.0D));
     Assert.assertEquals(
         "Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
@@ -93,9 +80,7 @@ public class TestBucketing {
 
     Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
     Assert.assertEquals(
-        "Spec example: hash(2017-11-16) = -653330422",
-        -653330422,
-        BucketUtil.hash(date.value()));
+        "Spec example: hash(2017-11-16) = -653330422", -653330422, BucketUtil.hash(date.value()));
 
     Literal<Long> timeValue = Literal.of("22:31:08").to(Types.TimeType.get());
     Assert.assertEquals(
@@ -118,9 +103,7 @@ public class TestBucketing {
         BucketUtil.hash(timestamptzVal.value()));
 
     Assert.assertEquals(
-        "Spec example: hash(\"iceberg\") = 1210000089",
-        1210000089,
-        BucketUtil.hash("iceberg"));
+        "Spec example: hash(\"iceberg\") = 1210000089", 1210000089, BucketUtil.hash("iceberg"));
     Assert.assertEquals(
         "Spec example: hash(\"iceberg\") = 1210000089",
         1210000089,
@@ -135,13 +118,9 @@ public class TestBucketing {
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
     Assert.assertEquals(
-        "Spec example: hash([00 01 02 03]) = -188683207",
-        -188683207,
-        BucketUtil.hash(bytes));
+        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
     Assert.assertEquals(
-        "Spec example: hash([00 01 02 03]) = -188683207",
-        -188683207,
-        BucketUtil.hash(bytes));
+        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
   }
 
   @Test

@@ -31,7 +31,8 @@ public class TestIdentity {
     Types.LongType longType = Types.LongType.get();
     Transform<Long, Long> identity = Transforms.identity();
 
-    Assert.assertEquals("Should produce \"null\" for null", "null", identity.toHumanString(longType, null));
+    Assert.assertEquals(
+        "Should produce \"null\" for null", "null", identity.toHumanString(longType, null));
   }
 
   @Test
@@ -51,7 +52,9 @@ public class TestIdentity {
     Transform<byte[], byte[]> identity = Transforms.identity();
 
     Assert.assertEquals(
-        "Should base64-encode binary", "AQID", identity.toHumanString(fixed3, new byte[] {1, 2, 3}));
+        "Should base64-encode binary",
+        "AQID",
+        identity.toHumanString(fixed3, new byte[] {1, 2, 3}));
   }
 
   @Test
@@ -113,7 +116,9 @@ public class TestIdentity {
     Transform<Long, Long> identity = Transforms.identity();
 
     Assert.assertEquals(
-        "Should use Long toString", "-1234567890000", identity.toHumanString(longType, -1234567890000L));
+        "Should use Long toString",
+        "-1234567890000",
+        identity.toHumanString(longType, -1234567890000L));
   }
 
   @Test
@@ -122,7 +127,8 @@ public class TestIdentity {
     Transform<String, String> identity = Transforms.identity();
 
     String withSlash = "a/b/c=d";
-    Assert.assertEquals("Should not modify Strings", withSlash, identity.toHumanString(string, withSlash));
+    Assert.assertEquals(
+        "Should not modify Strings", withSlash, identity.toHumanString(string, withSlash));
   }
 
   @Test

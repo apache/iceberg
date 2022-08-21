@@ -79,26 +79,22 @@ public class Expressions {
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> year(String name) {
-    return new UnboundTransform<>(
-        ref(name), (Transform<?, T>) Transforms.year());
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.year());
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> month(String name) {
-    return new UnboundTransform<>(
-        ref(name), (Transform<?, T>) Transforms.month());
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.month());
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> day(String name) {
-    return new UnboundTransform<>(
-        ref(name), (Transform<?, T>) Transforms.day());
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.day());
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> hour(String name) {
-    return new UnboundTransform<>(
-        ref(name), (Transform<?, T>) Transforms.hour());
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.hour());
   }
 
   public static <T> UnboundTerm<T> truncate(String name, int width) {

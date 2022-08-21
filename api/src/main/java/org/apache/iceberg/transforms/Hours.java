@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
@@ -54,7 +53,10 @@ public class Hours<T> extends TimeTransform<T> {
 
     if (other instanceof Timestamps) {
       return other == Timestamps.HOUR;
-    } else if (other instanceof Hours || other instanceof Days || other instanceof Months || other instanceof Years) {
+    } else if (other instanceof Hours
+        || other instanceof Days
+        || other instanceof Months
+        || other instanceof Years) {
       return true;
     }
 

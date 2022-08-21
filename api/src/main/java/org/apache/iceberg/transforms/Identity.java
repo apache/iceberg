@@ -33,8 +33,7 @@ class Identity<T> implements Transform<T, T> {
     return (Identity<I>) INSTANCE;
   }
 
-  private Identity() {
-  }
+  private Identity() {}
 
   @Override
   public T apply(T value) {

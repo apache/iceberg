@@ -112,9 +112,7 @@ public class TestPartitionPruning {
     CONF.set(optionKey, CountOpenLocalFileSystem.class.getName());
     spark.conf().set(optionKey, CountOpenLocalFileSystem.class.getName());
     spark.conf().set("spark.sql.session.timeZone", "UTC");
-    spark
-        .udf()
-        .register("bucket3", (Integer num) -> BUCKET_FUNC.apply(num), DataTypes.IntegerType);
+    spark.udf().register("bucket3", (Integer num) -> BUCKET_FUNC.apply(num), DataTypes.IntegerType);
     spark
         .udf()
         .register("truncate5", (String str) -> TRUNCATE_FUNC.apply(str), DataTypes.StringType);
