@@ -296,7 +296,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Validates that no files matching a filter have been added to the table since a starting
+   * ToDo: Remove after branch writing implementations complete.
+   *
+   * <p>Validates that no files matching a filter have been added to the table since a starting
    * snapshot.
    *
    * @param base table metadata to validate
@@ -324,8 +326,41 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
+   * Validates that no files matching a filter have been added to the table from a starting snapshot
+   * to an ending snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param conflictDetectionFilter an expression used to find new conflicting data files
+   */
+  protected void validateAddedDataFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Long endingSnapshotId,
+      Expression conflictDetectionFilter) {
+    CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
+        addedDataFiles(base, startingSnapshotId, endingSnapshotId, conflictDetectionFilter, null);
+
+    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
+      if (conflicts.hasNext()) {
+        throw new ValidationException(
+            "Found conflicting files that can contain records matching %s: %s",
+            conflictDetectionFilter,
+            Iterators.toString(
+                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+      }
+
+    } catch (IOException e) {
+      throw new UncheckedIOException(
+          String.format("Failed to validate no appends matching %s", conflictDetectionFilter), e);
+    }
+  }
+
+  /**
    * Returns an iterable of files matching a filter have been added to the table since a starting
    * snapshot.
+   *
+   * <p>ToDo: Remove when branch writing operations are complete.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
@@ -345,6 +380,57 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Pair<List<ManifestFile>, Set<Long>> history =
         validationHistory(
             base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
+    List<ManifestFile> manifests = history.first();
+    Set<Long> newSnapshots = history.second();
+
+    ManifestGroup manifestGroup =
+        new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+            .caseSensitive(caseSensitive)
+            .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
+            .specsById(base.specsById())
+            .ignoreDeleted()
+            .ignoreExisting();
+
+    if (dataFilter != null) {
+      manifestGroup = manifestGroup.filterData(dataFilter);
+    }
+
+    if (partitionSet != null) {
+      manifestGroup =
+          manifestGroup.filterManifestEntries(
+              entry -> partitionSet.contains(entry.file().specId(), entry.file().partition()));
+    }
+
+    return manifestGroup.entries();
+  }
+
+  /**
+   * Returns an iterable of files matching a filter have been added to the table since a starting
+   * snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find new data files
+   * @param partitionSet a set of partitions to find new data files
+   */
+  private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Long endingSnapshotId,
+      Expression dataFilter,
+      PartitionSet partitionSet) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null) {
+      return CloseableIterable.empty();
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(
+            base,
+            startingSnapshotId,
+            endingSnapshotId,
+            VALIDATE_ADDED_FILES_OPERATIONS,
+            ManifestContent.DATA);
     List<ManifestFile> manifests = history.first();
     Set<Long> newSnapshots = history.second();
 
@@ -451,8 +537,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Validates that no delete files matching a filter have been added to the table since a starting
-   * snapshot.
+   * ToDo: Remove after branch writing implementation complete
+   *
+   * <p>Validates that no delete files matching a filter have been added to the table since a
+   * starting snapshot.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
@@ -461,6 +549,25 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter) {
     DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null);
+    ValidationException.check(
+        deletes.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        dataFilter,
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  /**
+   * Validates that no delete files matching a filter have been added to the table from a starting
+   * snapshot to the ending snapshot
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find new conflicting delete files
+   */
+  protected void validateNoNewDeleteFiles(
+      TableMetadata base, Long startingSnapshotId, Long endingSnapshotId, Expression dataFilter) {
+    DeleteFileIndex deletes =
+        addedDeleteFiles(base, startingSnapshotId, endingSnapshotId, dataFilter, null);
     ValidationException.check(
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
@@ -510,6 +617,40 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         validationHistory(
             base,
             startingSnapshotId,
+            VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
+            ManifestContent.DELETES);
+    List<ManifestFile> deleteManifests = history.first();
+
+    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
+    return buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet);
+  }
+
+  /**
+   * Returns matching delete files have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find delete files
+   * @param partitionSet a partition set used to find delete files
+   */
+  protected DeleteFileIndex addedDeleteFiles(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Long endingSnapshotId,
+      Expression dataFilter,
+      PartitionSet partitionSet) {
+    // if there is no current table state, return empty delete file index
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
+      return DeleteFileIndex.builderFor(ops.io(), ImmutableList.of())
+          .specsById(base.specsById())
+          .build();
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(
+            base,
+            startingSnapshotId,
+            endingSnapshotId,
             VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
             ManifestContent.DELETES);
     List<ManifestFile> deleteManifests = history.first();
@@ -659,6 +800,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateDataFilesExist(
       TableMetadata base,
       Long startingSnapshotId,
+      Long endingSnapshotId,
       CharSequenceSet requiredDataFiles,
       boolean skipDeletes,
       Expression conflictDetectionFilter) {
@@ -705,6 +847,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  // ToDo: Remove this after branch write implementations complete.
   private Pair<List<ManifestFile>, Set<Long>> validationHistory(
       TableMetadata base,
       Long startingSnapshotId,
@@ -717,6 +860,48 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Iterable<Snapshot> snapshots =
         SnapshotUtil.ancestorsBetween(
             base.currentSnapshot().snapshotId(), startingSnapshotId, base::snapshot);
+    for (Snapshot currentSnapshot : snapshots) {
+      lastSnapshot = currentSnapshot;
+
+      if (matchingOperations.contains(currentSnapshot.operation())) {
+        newSnapshots.add(currentSnapshot.snapshotId());
+        if (content == ManifestContent.DATA) {
+          for (ManifestFile manifest : currentSnapshot.dataManifests(ops.io())) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
+              manifests.add(manifest);
+            }
+          }
+        } else {
+          for (ManifestFile manifest : currentSnapshot.deleteManifests(ops.io())) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
+              manifests.add(manifest);
+            }
+          }
+        }
+      }
+    }
+
+    ValidationException.check(
+        lastSnapshot == null || Objects.equals(lastSnapshot.parentId(), startingSnapshotId),
+        "Cannot determine history between starting snapshot %s and the last known ancestor %s",
+        startingSnapshotId,
+        lastSnapshot != null ? lastSnapshot.snapshotId() : null);
+
+    return Pair.of(manifests, newSnapshots);
+  }
+
+  private Pair<List<ManifestFile>, Set<Long>> validationHistory(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Long endingSnapshotId,
+      Set<String> matchingOperations,
+      ManifestContent content) {
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots = Sets.newHashSet();
+
+    Snapshot lastSnapshot = null;
+    Iterable<Snapshot> snapshots =
+        SnapshotUtil.ancestorsBetween(endingSnapshotId, startingSnapshotId, base::snapshot);
     for (Snapshot currentSnapshot : snapshots) {
       lastSnapshot = currentSnapshot;
 

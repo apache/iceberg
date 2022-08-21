@@ -78,6 +78,64 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @Test
+  public void testAddDeleteFileBranch() {
+    table
+        .newRowDelta()
+        .addRows(FILE_A)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .toBranch("testBranch")
+        .commit();
+
+    SnapshotRef branch = table.refs().get("testBranch");
+    Assert.assertNotNull(branch);
+    Snapshot snap = table.snapshot(branch.snapshotId());
+    Assert.assertEquals("Commit should produce sequence number 1", 1, snap.sequenceNumber());
+    Assert.assertEquals(
+        "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
+    Assert.assertEquals(
+        "Delta commit should use operation 'overwrite'",
+        DataOperations.OVERWRITE,
+        snap.operation());
+
+    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        seqs(1),
+        ids(snap.snapshotId()),
+        files(FILE_A),
+        statuses(Status.ADDED));
+
+    Assert.assertEquals(
+        "Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
+    validateDeleteManifest(
+        snap.deleteManifests(table.io()).get(0),
+        seqs(1, 1),
+        ids(snap.snapshotId(), snap.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testValidateFailsWhenStartingSnapshotNotAncestorOfCommit() {
+    table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).toBranch("testBranch").commit();
+    long testSnapshot = table.refs().get("testBranch").snapshotId();
+    table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).toBranch("otherBranch").commit();
+
+    AssertHelpers.assertThrows(
+        "Should fail to commit when validating from non-ancestor snapshot",
+        ValidationException.class,
+        "Cannot commit, missing data files",
+        () ->
+            table
+                .newRowDelta()
+                .addDeletes(FILE_A_DELETES)
+                .toBranch("otherBranch")
+                .validateFromSnapshot(testSnapshot)
+                .commit());
+  }
+
+  @Test
   public void testValidateDataFilesExistDefaults() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -1410,22 +1468,6 @@ public class TestRowDelta extends V2TableTestBase {
                 .conflictDetectionFilter(conflictDetectionFilter)
                 .validateNoConflictingDataFiles()
                 .validateNoConflictingDeleteFiles()
-                .commit());
-  }
-
-  @Test
-  public void testRowDeltaToBranchUnsupported() {
-    AssertHelpers.assertThrows(
-        "Should reject committing row delta to branch",
-        UnsupportedOperationException.class,
-        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRowDelta does not support branch commits",
-        () ->
-            table
-                .newRowDelta()
-                .caseSensitive(false)
-                .addRows(FILE_B)
-                .addDeletes(FILE_A2_DELETES)
-                .toBranch("someBranch")
                 .commit());
   }
 }
