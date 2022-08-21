@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
@@ -33,6 +34,20 @@ class Identity<T> implements Transform<T, T> {
     return (Identity<I>) INSTANCE;
   }
 
+  private static class Apply<T> implements Function<T, T>, Serializable {
+    private static final Apply<?> APPLY_INSTANCE = new Apply<>();
+
+    @SuppressWarnings("unchecked")
+    private static <T> Apply<T> get() {
+      return (Apply<T>) APPLY_INSTANCE;
+    }
+
+    @Override
+    public T apply(T t) {
+      return t;
+    }
+  }
+
   private Identity() {}
 
   @Override
@@ -42,7 +57,7 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public Function<T, T> bind(Type type) {
-    return Function.identity();
+    return Apply.get();
   }
 
   @Override

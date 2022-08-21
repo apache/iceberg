@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -32,6 +33,20 @@ class VoidTransform<S> implements Transform<S, Void> {
     return (VoidTransform<T>) INSTANCE;
   }
 
+  private static class Apply<S> implements Function<S, Void>, Serializable {
+    private static final Apply<?> APPLY_INSTANCE = new Apply<>();
+
+    @SuppressWarnings("unchecked")
+    private static <S> Apply<S> get() {
+      return (Apply<S>) APPLY_INSTANCE;
+    }
+
+    @Override
+    public Void apply(S t) {
+      return null;
+    }
+  }
+
   private VoidTransform() {}
 
   @Override
@@ -41,7 +56,7 @@ class VoidTransform<S> implements Transform<S, Void> {
 
   @Override
   public Function<S, Void> bind(Type type) {
-    return any -> null;
+    return Apply.get();
   }
 
   @Override
