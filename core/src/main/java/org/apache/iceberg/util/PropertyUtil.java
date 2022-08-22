@@ -109,7 +109,7 @@ public class PropertyUtil {
       Map<String, String> renamedColumns) {
     if (!properties.keySet().stream()
         .anyMatch(
-            key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(prefix -> key.startsWith(prefix)))) {
+            key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(key::startsWith))) {
       return properties;
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
@@ -119,7 +119,7 @@ public class PropertyUtil {
               key -> {
                 String prefix =
                     COLUMN_PREFIX_PROPERTIES.stream()
-                        .filter(property -> key.startsWith(property))
+                        .filter(key::startsWith)
                         .findFirst()
                         .orElse(null);
 
