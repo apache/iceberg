@@ -96,6 +96,12 @@ class Snapshot(IcebergBaseModel):
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
 
+    def __str__(self) -> str:
+        parent_id = f", parent_id={self.parent_snapshot_id}" if self.parent_snapshot_id else ""
+        schema_id = f", schema_id={self.schema_id}" if self.schema_id is not None else ""
+        result_str = f"id={self.snapshot_id}{parent_id}{schema_id}"
+        return result_str
+
 
 class MetadataLogEntry(IcebergBaseModel):
     metadata_file: str = Field(alias="metadata-file")
