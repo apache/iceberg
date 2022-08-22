@@ -149,8 +149,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
               TableProperties.PARQUET_BATCH_SIZE,
               "4") // split 7 records to two batches to cover more code paths
           .commit();
-    } else {
+    } else if (format.equals("parquet")) { // in this case, non-vectorized
       table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false").commit();
+    } else if (format.equals("orc")) { // we only have non-vectorized for orc in our parameters
+      table.updateProperties().set(TableProperties.ORC_VECTORIZATION_ENABLED, "false").commit();
     }
     return table;
   }

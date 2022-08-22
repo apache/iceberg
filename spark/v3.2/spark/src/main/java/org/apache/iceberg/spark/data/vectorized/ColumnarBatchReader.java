@@ -35,8 +35,6 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized
@@ -44,7 +42,6 @@ import org.slf4j.LoggerFactory;
  * populated via delegated read calls to {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
-  private static final Logger LOG = LoggerFactory.getLogger(ColumnarBatchReader.class);
   private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
@@ -173,7 +170,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * @return the mapping array and the new num of rows in a batch, null if no row is deleted
      */
     Pair<int[], Integer> buildPosDelRowIdMapping(PositionDeleteIndex deletedRowPositions) {
-      LOG.debug("Building row id mapping from positional deletes");
       if (deletedRowPositions == null) {
         return null;
       }
@@ -223,7 +219,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * @param columnarBatch the {@link ColumnarBatch} to apply the equality delete
      */
     void applyEqDelete(ColumnarBatch columnarBatch) {
-      LOG.debug("Applying equality deletes to row id mapping");
       Iterator<InternalRow> it = columnarBatch.rowIterator();
       int rowId = 0;
       int currentRowId = 0;
