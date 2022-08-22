@@ -115,6 +115,11 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan appendsCurrent(long fromSnapshotId) {
+    throw new UnsupportedOperationException("StreamIncremental scan is not supported");
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(context.snapshotId() == null,
         "Cannot override snapshot, already set to id=%s", context.snapshotId());

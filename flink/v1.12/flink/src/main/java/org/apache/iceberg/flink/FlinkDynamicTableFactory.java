@@ -19,8 +19,14 @@
 
 package org.apache.iceberg.flink;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
@@ -43,6 +49,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+
 
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   static final String FACTORY_IDENTIFIER = "iceberg";
@@ -70,6 +77,14 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
           .stringType()
           .noDefaultValue()
           .withDescription("Table name managed in the underlying iceberg catalog and database.");
+
+  public static final ConfigOption<String> CUSTOM_CONF_ITEMS =
+          ConfigOptions.key("custom-conf-items")
+                  .stringType()
+                  .noDefaultValue()
+                  .withDescription("Custom configuration items passed to the Connector");
+
+
 
   // Flink 1.13.x change the return type from CatalogTable interface to ResolvedCatalogTable which extends the
   // CatalogTable. Here we use the dynamic method loading approach to avoid adding explicit CatalogTable or
@@ -150,6 +165,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     return FACTORY_IDENTIFIER;
   }
 
+  @SuppressWarnings("StringSplitter")
   private static TableLoader createTableLoader(CatalogBaseTable catalogBaseTable,
                                                Map<String, String> tableProps,
                                                String databaseName,
@@ -167,9 +183,21 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
+    String customConfItems = flinkConf.getString(CUSTOM_CONF_ITEMS);
+    Optional.ofNullable(customConfItems).ifPresent(nodes -> {
+      ObjectMapper objectMapper = new ObjectMapper();
+      try {
+        Map<String, String> kv = objectMapper.readValue(nodes, new TypeReference<HashMap<String, String>>() {});
+        kv.keySet().forEach(key -> hadoopConf.set(key, kv.get(key)));
+        hadoopConf.set("dfs.client.use.datanode.hostname", "true");
+      } catch (JsonProcessingException e) {
+        e.printStackTrace();
+      }
+    });
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog = (FlinkCatalog) factory.createCatalog(catalogName, tableProps, hadoopConf);
     ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
+
 
     // Create database if not exists in the external catalog.
     if (!flinkCatalog.databaseExists(catalogDatabase)) {

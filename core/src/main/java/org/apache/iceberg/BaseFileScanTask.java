@@ -19,10 +19,8 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
+
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -73,17 +71,17 @@ class BaseFileScanTask implements FileScanTask {
 
   @Override
   public long length() {
-    return file.fileSizeInBytes();
+    return Optional.ofNullable(file).isPresent() ? file.fileSizeInBytes() : deletes[0].fileSizeInBytes();
   }
 
   @Override
   public Expression residual() {
-    return residuals.residualFor(file.partition());
+    return Optional.ofNullable(file).isPresent() ? residuals.residualFor(file.partition()) : null;
   }
 
   @Override
   public Iterable<FileScanTask> split(long targetSplitSize) {
-    if (file.format().isSplittable()) {
+    if (Optional.ofNullable(file).isPresent() && file.format().isSplittable()) {
       if (file.splitOffsets() != null) {
         return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file.splitOffsets(), this);
       } else {
@@ -96,8 +94,8 @@ class BaseFileScanTask implements FileScanTask {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("file", file.path())
-        .add("partition_data", file.partition())
+        .add("file", file != null ? file.path() : "")
+        .add("partition_data",file != null ? file.partition() : "")
         .add("residual", residual())
         .toString();
   }
@@ -221,11 +219,12 @@ class BaseFileScanTask implements FileScanTask {
 
     public boolean isAdjacent(SplitScanTask other) {
       return (other != null) &&
-          (this.file().equals(other.file())) &&
+          this.file().equals(other.file()) &&
           (this.offset + this.len == other.offset);
     }
   }
 
+  @SuppressWarnings("MixedMutabilityReturnType")
   static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
     if (tasks.isEmpty()) {
       return Collections.emptyList();

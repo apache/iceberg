@@ -80,11 +80,15 @@ public class FlinkSplitPlanner {
       scan = scan.asOfTime(context.asOfTimestamp());
     }
 
-    if (context.startSnapshotId() != null) {
-      if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
-      } else {
-        scan = scan.appendsAfter(context.startSnapshotId());
+    if (context.isStreaming()) {
+      scan = scan.appendsCurrent(context.snapshotId());
+    } else {
+      if (context.startSnapshotId() != null) {
+        if (context.endSnapshotId() != null) {
+          scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
+        } else {
+          scan = scan.appendsAfter(context.startSnapshotId());
+        }
       }
     }
 
@@ -108,4 +112,5 @@ public class FlinkSplitPlanner {
 
     return scan.planTasks();
   }
+
 }

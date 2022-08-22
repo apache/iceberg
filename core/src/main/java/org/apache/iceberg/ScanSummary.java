@@ -292,6 +292,7 @@ public class ScanSummary {
       return this;
     }
 
+    @SuppressWarnings("JavaUtilDate")
     @Override
     public String toString() {
       String dataTimestamp = dataTimestampMillis != null ?

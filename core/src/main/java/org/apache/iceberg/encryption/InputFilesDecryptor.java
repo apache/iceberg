@@ -20,10 +20,12 @@
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -34,11 +36,13 @@ public class InputFilesDecryptor {
 
   private final Map<String, InputFile> decryptedInputFiles;
 
+  @SuppressWarnings("StreamToIterable")
   public InputFilesDecryptor(CombinedScanTask combinedTask, FileIO io, EncryptionManager encryption) {
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
     combinedTask.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+            .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
+            .filter(Objects::nonNull)
+            .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
         .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
 
@@ -53,6 +57,15 @@ public class InputFilesDecryptor {
   public InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return decryptedInputFiles.get(task.file().path().toString());
+  }
+
+  public List<InputFile> getEqDeleteInputFile(FileScanTask task) {
+    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
+    return task.deletes()
+            .stream()
+            .filter(file -> file.content().equals(FileContent.EQUALITY_DELETES))
+            .map(e -> decryptedInputFiles.get(e.path().toString()))
+            .collect(Collectors.toList());
   }
 
   public InputFile getInputFile(String location) {

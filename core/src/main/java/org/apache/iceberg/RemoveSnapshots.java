@@ -115,6 +115,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
+  @SuppressWarnings("JavaUtilDate")
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
     LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);

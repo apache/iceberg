@@ -86,6 +86,12 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     return iterable.iterator();
   }
 
+  @Override
+  public CloseableIterator<RowData> openDelete(FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
+    return CloseableIterator.empty();
+  }
+
+
   private CloseableIterable<RowData> newIterable(
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
     CloseableIterable<RowData> iter;
@@ -166,7 +172,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     return builder.build();
   }
 
-  private static class FlinkDeleteFilter extends DeleteFilter<RowData> {
+  public static class FlinkDeleteFilter extends DeleteFilter<RowData> {
     private final RowType requiredRowType;
     private final RowDataWrapper asStructLike;
     private final InputFilesDecryptor inputFilesDecryptor;

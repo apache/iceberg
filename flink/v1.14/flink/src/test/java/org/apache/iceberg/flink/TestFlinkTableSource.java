@@ -23,15 +23,22 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.configuration.GlobalConfiguration;
+import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.orc.Reader;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -613,4 +620,5 @@ public class TestFlinkTableSource extends FlinkTestBase {
     AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
         NumberFormatException.class, () -> sql(sqlParseErrorLTE));
   }
+
 }

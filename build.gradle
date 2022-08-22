@@ -23,6 +23,7 @@ import java.util.regex.Pattern
 
 buildscript {
   repositories {
+    maven{ url 'https://mirrors.huaweicloud.com/repository/maven/' }
     gradlePluginPortal()
   }
   dependencies {
@@ -63,6 +64,9 @@ allprojects {
   group = "org.apache.iceberg"
   version = getProjectVersion()
   repositories {
+    maven {
+      url 'https://mirrors.huaweicloud.com/repository/maven/'
+    }
     mavenCentral()
     mavenLocal()
   }

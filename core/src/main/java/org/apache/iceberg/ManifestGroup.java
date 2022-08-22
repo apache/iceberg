@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +47,7 @@ class ManifestGroup {
 
   private final FileIO io;
   private final Set<ManifestFile> dataManifests;
+  private final Set<ManifestFile> deleteManifests;
   private final DeleteFileIndex.Builder deleteIndexBuilder;
   private Predicate<ManifestFile> manifestPredicate;
   private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
@@ -69,6 +71,7 @@ class ManifestGroup {
   ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests) {
     this.io = io;
     this.dataManifests = Sets.newHashSet(dataManifests);
+    this.deleteManifests = Sets.newHashSet(deleteManifests);
     this.deleteIndexBuilder = DeleteFileIndex.builderFor(io, deleteManifests);
     this.dataFilter = Expressions.alwaysTrue();
     this.fileFilter = Expressions.alwaysTrue();
@@ -266,5 +269,51 @@ class ManifestGroup {
           entries = CloseableIterable.filter(entries, manifestEntryPredicate);
           return entryFn.apply(manifest, entries);
         });
+  }
+
+  /**
+   * Returns a iterable of scan tasks. It is safe to add entries of this iterable
+   * to a collection as {@link DataFile} in each {@link FileScanTask} is defensively
+   * copied.
+   * @return a {@link CloseableIterable} of {@link FileScanTask}
+   */
+  public CloseableIterable<FileScanTask> planStreamingFiles() {
+    LoadingCache<Integer, ResidualEvaluator> residualCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = specsById.get(specId);
+      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
+      return ResidualEvaluator.of(spec, filter, caseSensitive);
+    });
+
+    DeleteFileIndex deleteFiles = deleteIndexBuilder.build();
+
+    boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
+    if (!deleteFiles.isEmpty()) {
+      select(ManifestReader.withStatsColumns(columns));
+    }
+    Iterable<CloseableIterable<FileScanTask>> tasks;
+    if (dataManifests.isEmpty() && ! deleteManifests.isEmpty()) {
+      tasks = deleteIndexBuilder.deleteManifestReaders(residualCache);
+    } else {
+        tasks = entries((manifest, entries) -> {
+        int specId = manifest.partitionSpecId();
+        PartitionSpec spec = specsById.get(specId);
+        String schemaString = SchemaParser.toJson(spec.schema());
+        String specString = PartitionSpecParser.toJson(spec);
+        ResidualEvaluator residuals = residualCache.get(specId);
+        if (dropStats) {
+          return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+                  e.file().copyWithoutStats(), deleteFiles.forStreamingEntry(e), schemaString, specString, residuals));
+        } else {
+          return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+                  e.file().copy(), deleteFiles.forStreamingEntry(e), schemaString, specString, residuals));
+        }
+      });
+    }
+
+    if (executorService != null) {
+      return new ParallelIterable<>(tasks, executorService);
+    } else {
+      return CloseableIterable.concat(tasks);
+    }
   }
 }

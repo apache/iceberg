@@ -107,4 +107,13 @@ public class DataTableScan extends BaseTableScan {
         TableProperties.SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
+
+  @Override
+  public TableScan appendsCurrent(long snapshotId) {
+    final Snapshot currentSnapshot = table().currentSnapshot();
+    Preconditions.checkState(currentSnapshot != null,
+            "Cannot scan appends for %s, there is no snapshot", snapshotId);
+    return new StreamIncrementalDataTableScan(tableOps(), table(), schema(),
+            context().useSnapshotId(snapshotId));
+  }
 }

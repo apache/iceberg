@@ -22,9 +22,11 @@ package org.apache.iceberg.flink;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
@@ -126,10 +128,21 @@ public class FlinkCatalogFactory implements CatalogFactory {
     return createCatalog(name, properties, clusterHadoopConf());
   }
 
+  @SuppressWarnings("StringSplitter")
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
+    String customConfItems = properties.get(FlinkDynamicTableFactory.CUSTOM_CONF_ITEMS.key());
+    Optional.ofNullable(customConfItems).ifPresent(nodes -> {
+      ObjectMapper objectMapper = new ObjectMapper();
+      try {
+        Map<String, String> kv = objectMapper.readValue(nodes, new TypeReference<HashMap<String, String>>() {});
+        kv.keySet().forEach(key -> hadoopConf.set(key, kv.get(key)));
+        hadoopConf.set("dfs.client.use.datanode.hostname", "true");
+      } catch (JsonProcessingException e) {
+        e.printStackTrace();
+      }
+    });
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, DEFAULT_DATABASE_NAME);
-
     Namespace baseNamespace = Namespace.empty();
     if (properties.containsKey(BASE_NAMESPACE)) {
       baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));

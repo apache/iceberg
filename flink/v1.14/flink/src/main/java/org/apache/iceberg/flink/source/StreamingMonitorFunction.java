@@ -21,6 +21,9 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
+import java.util.List;
+
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
@@ -28,6 +31,7 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
@@ -132,20 +136,32 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     Snapshot snapshot = table.currentSnapshot();
     if (snapshot != null && snapshot.snapshotId() != lastSnapshotId) {
       long snapshotId = snapshot.snapshotId();
-
-      ScanContext newScanContext;
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
-        newScanContext = scanContext.copyWithSnapshotId(snapshotId);
+        Iterator<Snapshot> historySnapshots = table.snapshots().iterator();
+        Snapshot dealSnapshot = historySnapshots.next();
+        dealSnapshot(dealSnapshot);
+        lastSnapshotId = dealSnapshot.snapshotId();
+
       } else {
-        newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
+        List<Snapshot> snapshots = SnapshotUtil.snapshotsBetween(table, lastSnapshotId, snapshotId);
+        Snapshot dealSnapshot = snapshots.get(snapshots.size() - 1);
+        dealSnapshot(dealSnapshot);
+        lastSnapshotId = dealSnapshot.snapshotId();
       }
+    }
+  }
 
-      FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext);
-      for (FlinkInputSplit split : splits) {
-        sourceContext.collect(split);
-      }
-
-      lastSnapshotId = snapshotId;
+  private void dealSnapshot(Snapshot dealSnapshot) {
+    ScanContext newScanContext;
+    if (dealSnapshot.operation().equals(DataOperations.APPEND) ||
+            dealSnapshot.operation().equals(DataOperations.OVERWRITE)) {
+      newScanContext = scanContext.copyWithSnapshotId(dealSnapshot.snapshotId());
+    } else {
+      return;
+    }
+    FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext);
+    for (FlinkInputSplit split : splits) {
+      sourceContext.collect(split);
     }
   }
 

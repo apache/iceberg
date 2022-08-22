@@ -22,6 +22,8 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.Optional;
+
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -43,6 +45,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   private final InputFilesDecryptor inputFilesDecryptor;
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
+  private CloseableIterator<T> currentDeleteIterator;
 
   public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
@@ -51,18 +54,23 @@ public class DataIterator<T> implements CloseableIterator<T> {
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.tasks = task.files().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.currentDeleteIterator = CloseableIterator.empty();
   }
 
   @Override
   public boolean hasNext() {
     updateCurrentIterator();
-    return currentIterator.hasNext();
+    return currentIterator.hasNext() || currentDeleteIterator.hasNext();
   }
 
   @Override
   public T next() {
     updateCurrentIterator();
-    return currentIterator.next();
+    if (currentDeleteIterator.hasNext()) {
+      return currentDeleteIterator.next();
+    } else {
+      return currentIterator.next();
+    }
   }
 
   /**
@@ -71,9 +79,16 @@ public class DataIterator<T> implements CloseableIterator<T> {
    */
   private void updateCurrentIterator() {
     try {
-      while (!currentIterator.hasNext() && tasks.hasNext()) {
+      while (!currentDeleteIterator.hasNext() && !currentIterator.hasNext() && tasks.hasNext()) {
+        FileScanTask next = tasks.next();
+        if (!next.deletes().isEmpty()) {
+          currentDeleteIterator.close();
+          currentDeleteIterator = openDeleteTaskIterator(next);
+        }
+
         currentIterator.close();
-        currentIterator = openTaskIterator(tasks.next());
+        Optional.ofNullable(next.file()).ifPresent(f -> currentIterator = openTaskIterator(next));
+
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -82,6 +97,10 @@ public class DataIterator<T> implements CloseableIterator<T> {
 
   private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) {
     return fileScanTaskReader.open(scanTask, inputFilesDecryptor);
+  }
+
+  private CloseableIterator<T> openDeleteTaskIterator(FileScanTask scanTask) {
+    return fileScanTaskReader.openDelete(scanTask, inputFilesDecryptor);
   }
 
   @Override

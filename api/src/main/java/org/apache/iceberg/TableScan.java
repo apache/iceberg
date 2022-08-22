@@ -223,4 +223,14 @@ public interface TableScan {
    * Returns the split open file cost for this scan.
    */
   long splitOpenFileCost();
+
+  /**
+   * Create a new {@link TableScan} to read appended data for {@code snapshotId} exclusive to the current snapshot
+   * inclusive.
+   *
+   * @param snapshotId - the snapshot id read by the user, exclusive
+   * @return a table scan which can read append data for {@code snapshotId}
+   * exclusive and up to current snapshot inclusive
+   */
+  TableScan appendsCurrent(long snapshotId);
 }

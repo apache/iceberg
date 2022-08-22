@@ -91,8 +91,27 @@ public class SnapshotUtil {
     for (Snapshot snapshot : currentAncestors(table)) {
       lastSnapshot = snapshot;
     }
-
     return lastSnapshot;
+  }
+
+
+  public static List<Snapshot> snapshotsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    return Lists.newArrayList(ancestorSnapshots(table.snapshot(toSnapshotId),
+            snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+  }
+
+  public static List<Snapshot> ancestorSnapshots(Snapshot snapshot, Function<Long, Snapshot> lookup) {
+    List<Snapshot> ancestorIds = Lists.newArrayList();
+    Snapshot current = snapshot;
+    while (current != null) {
+      ancestorIds.add(current);
+      if (current.parentId() != null) {
+        current = lookup.apply(current.parentId());
+      } else {
+        current = null;
+      }
+    }
+    return ancestorIds;
   }
 
   public static Iterable<Snapshot> ancestorsOf(long snapshotId, Function<Long, Snapshot> lookup) {
