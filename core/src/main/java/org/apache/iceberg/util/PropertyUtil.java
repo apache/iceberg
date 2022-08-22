@@ -108,8 +108,7 @@ public class PropertyUtil {
       List<String> deletedColumns,
       Map<String, String> renamedColumns) {
     if (!properties.keySet().stream()
-        .anyMatch(
-            key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(key::startsWith))) {
+        .anyMatch(key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(key::startsWith))) {
       return properties;
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
