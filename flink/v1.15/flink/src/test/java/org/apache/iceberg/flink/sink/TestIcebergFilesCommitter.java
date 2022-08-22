@@ -171,17 +171,17 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "0").commit();
 
     JobID jobId = new JobID();
-    long checkpointId = 0;
-    long timestamp = 0;
+    long checkpointId = 1;
+    long timestamp = 1;
     try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
       assertSnapshotSize(0);
 
-      for (int i = 1; i <= 9; i++) {
+      for (int i = 1; i <= 9; i++, checkpointId++, timestamp++) {
         harness.processElement(new StreamRecord<>(WriteResult.builder().build()));
-        harness.snapshot(++checkpointId, ++timestamp);
+        harness.snapshot(checkpointId, timestamp);
         harness.notifyOfCompletedCheckpoint(checkpointId);
 
         assertSnapshotSize(0);
