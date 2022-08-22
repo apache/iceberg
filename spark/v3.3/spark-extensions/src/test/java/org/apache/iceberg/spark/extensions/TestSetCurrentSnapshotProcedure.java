@@ -253,4 +253,28 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName));
   }
+
+  @Test
+  public void testRollbackToSnapshotSchemaId() {
+    // Create a table with a single column, and a single row
+    sql("CREATE TABLE %s USING iceberg AS SELECT 1 c1;", tableName);
+
+    // Add a second column and an additional row
+    sql("ALTER TABLE %s ADD COLUMN c2 int;", tableName);
+    sql("INSERT INTO %s VALUES (1, 1);", tableName);
+
+    // Get the snapshotId of the version with one column and one row
+    Long snapshotId =
+        (Long)
+            sql("SELECT snapshot_id FROM %s.snapshots ORDER BY committed_at ASC LIMIT 1", tableName)
+                .get(0)[0];
+
+    // Do the rollback
+    sql("CALL %s.system.set_current_snapshot('%s', %dL)", catalogName, tableName, snapshotId);
+
+    // Compare
+    List<Object[]> actual = sql("SELECT * FROM %s", tableName);
+    assertEquals(
+        "Should have expected a single row and a single column", ImmutableList.of(row(1)), actual);
+  }
 }

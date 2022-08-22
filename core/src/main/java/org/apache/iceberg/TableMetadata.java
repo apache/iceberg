@@ -1101,6 +1101,7 @@ public class TableMetadata implements Serializable {
           snapshot != null, "Cannot set %s to unknown snapshot: %s", branch, snapshotId);
 
       setBranchSnapshotInternal(snapshot, branch);
+      setCurrentSchema(snapshot.schemaId());
 
       return this;
     }
