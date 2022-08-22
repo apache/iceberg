@@ -105,7 +105,7 @@ def to_human_year(year_ordinal: int) -> str:
 
 def to_human_month(month_ordinal: int) -> str:
     """Converts a DateType value to human string"""
-    return f"{EPOCH_TIMESTAMP.year + int(month_ordinal / 12):0=4d}-{1 + int(month_ordinal % 12):0=2d}"
+    return f"{EPOCH_TIMESTAMP.year + month_ordinal // 12:0=4d}-{1 + month_ordinal % 12:0=2d}"
 
 
 def to_human_day(day_ordinal: int) -> str:
@@ -135,29 +135,26 @@ def to_human_timestamp(timestamp_micros: int) -> str:
 
 def micros_to_hours(timestamp: int) -> int:
     """Converts a timestamp in microseconds to a date in hours"""
-    return int((datetime.utcfromtimestamp(timestamp / 1_000_000) - EPOCH_TIMESTAMP).total_seconds() / 3600)
+    return int((datetime.utcfromtimestamp(timestamp // 1_000_000) - EPOCH_TIMESTAMP).total_seconds() / 3600)
 
 
 def days_to_months(days: int) -> int:
     """Creates a date from the number of days from 1970-01-01"""
-    dt = datetime.utcfromtimestamp(days * 86400)
-    return (dt.year - EPOCH_TIMESTAMP.year) * 12 + (dt.month - EPOCH_TIMESTAMP.month) - (1 if dt.day < EPOCH_TIMESTAMP.day else 0)
+    d = days_to_date(days)
+    return (d.year - EPOCH_DATE.year) * 12 + (d.month - EPOCH_DATE.month)
 
 
 def micros_to_months(timestamp: int) -> int:
-    dt = datetime.utcfromtimestamp(timestamp / 1_000_000)
+    dt = micros_to_timestamp(timestamp)
     return (dt.year - EPOCH_TIMESTAMP.year) * 12 + (dt.month - EPOCH_TIMESTAMP.month) - (1 if dt.day < EPOCH_TIMESTAMP.day else 0)
 
 
 def days_to_years(days: int) -> int:
-    dt = datetime.utcfromtimestamp(days * 86400)
-    return (dt.year - EPOCH_TIMESTAMP.year) - (
-        1 if dt.month < EPOCH_TIMESTAMP.month or (dt.month == EPOCH_TIMESTAMP.month and dt.day < EPOCH_TIMESTAMP.day) else 0
-    )
+    return days_to_date(days).year - EPOCH_DATE.year
 
 
 def micros_to_years(timestamp: int) -> int:
-    dt = datetime.utcfromtimestamp(timestamp / 1000000)
+    dt = micros_to_timestamp(timestamp)
     return (dt.year - EPOCH_TIMESTAMP.year) - (
         1 if dt.month < EPOCH_TIMESTAMP.month or (dt.month == EPOCH_TIMESTAMP.month and dt.day < EPOCH_TIMESTAMP.day) else 0
     )

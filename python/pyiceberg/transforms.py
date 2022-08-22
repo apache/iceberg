@@ -18,6 +18,7 @@
 import base64
 import struct
 from abc import ABC, abstractmethod
+from enum import IntEnum
 from functools import singledispatch
 from typing import (
     Any,
@@ -227,7 +228,38 @@ class BucketTransform(Transform[S, int]):
         return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
-class YearTransform(Transform[S, int]):
+class TimeResolution(IntEnum):
+    YEAR = 6
+    MONTH = 5
+    WEEK = 4
+    DAY = 3
+    HOUR = 2
+    MINUTE = 1
+    SECOND = 0
+
+
+class TimeTransform(Transform[S, int]):
+    @property
+    @abstractmethod
+    def granularity(self) -> TimeResolution:
+        ...
+
+    def satisfies_order_of(self, other: Transform) -> bool:
+        return self.granularity <= other.granularity if hasattr(other, "granularity") else False
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return IntegerType()
+
+    @property
+    def dedup_name(self) -> str:
+        return "time"
+
+    @property
+    def preserves_order(self) -> bool:
+        return True
+
+
+class YearTransform(TimeTransform):
     """Transforms a datetime value into a year value.
 
     Example:
@@ -254,7 +286,7 @@ class YearTransform(Transform[S, int]):
         else:
             raise ValueError(f"Cannot apply year transform for type: {source}")
 
-        return lambda v: year_func(v) if v else None
+        return lambda v: year_func(v) if v is not None else None
 
     def can_transform(self, source: IcebergType) -> bool:
         return type(source) in {
@@ -263,32 +295,18 @@ class YearTransform(Transform[S, int]):
             TimestamptzType,
         }
 
-    def result_type(self, source: IcebergType) -> IcebergType:
-        return IntegerType()
-
     @property
-    def preserves_order(self) -> bool:
-        return True
-
-    @property
-    def time_order(self) -> int:
-        return 3
-
-    def satisfies_order_of(self, other: Transform) -> bool:
-        return self.time_order <= other.time_order if hasattr(other, "time_order") else False
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.YEAR
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return datetime.to_human_year(value) if isinstance(value, int) else "null"
-
-    @property
-    def dedup_name(self) -> str:
-        return "time"
 
     def __repr__(self) -> str:
         return "YearTransform()"
 
 
-class MonthTransform(Transform[S, int]):
+class MonthTransform(TimeTransform):
     """Transforms a datetime value into a month value.
 
     Example:
@@ -324,32 +342,18 @@ class MonthTransform(Transform[S, int]):
             TimestamptzType,
         }
 
-    def result_type(self, source: IcebergType) -> IcebergType:
-        return IntegerType()
-
     @property
-    def preserves_order(self) -> bool:
-        return True
-
-    @property
-    def time_order(self) -> int:
-        return 2
-
-    def satisfies_order_of(self, other: Transform) -> bool:
-        return self.time_order <= other.time_order if hasattr(other, "time_order") else False
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.MONTH
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return datetime.to_human_month(value) if isinstance(value, int) else "null"
-
-    @property
-    def dedup_name(self) -> str:
-        return "time"
 
     def __repr__(self) -> str:
         return "MonthTransform()"
 
 
-class DayTransform(Transform[S, int]):
+class DayTransform(TimeTransform):
     """Transforms a datetime value into a day value.
 
     Example:
@@ -389,28 +393,17 @@ class DayTransform(Transform[S, int]):
         return DateType()
 
     @property
-    def preserves_order(self) -> bool:
-        return True
-
-    @property
-    def time_order(self) -> int:
-        return 1
-
-    def satisfies_order_of(self, other: Transform) -> bool:
-        return self.time_order <= other.time_order if hasattr(other, "time_order") else False
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.DAY
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return datetime.to_human_day(value) if isinstance(value, int) else "null"
-
-    @property
-    def dedup_name(self) -> str:
-        return "time"
 
     def __repr__(self) -> str:
         return "DayTransform()"
 
 
-class HourTransform(Transform[S, int]):
+class HourTransform(TimeTransform):
     """Transforms a datetime value into a hour value.
 
     Example:
@@ -439,26 +432,12 @@ class HourTransform(Transform[S, int]):
             TimestamptzType,
         }
 
-    def result_type(self, source: IcebergType) -> IcebergType:
-        return IntegerType()
-
     @property
-    def preserves_order(self) -> bool:
-        return True
-
-    @property
-    def time_order(self) -> int:
-        return 0
-
-    def satisfies_order_of(self, other: Transform) -> bool:
-        return self.time_order <= other.time_order if hasattr(other, "time_order") else False
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.HOUR
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return datetime.to_human_hour(value) if isinstance(value, int) else "null"
-
-    @property
-    def dedup_name(self) -> str:
-        return "time"
 
     def __repr__(self) -> str:
         return "HourTransform()"

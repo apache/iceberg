@@ -152,22 +152,37 @@ def test_string_with_surrogate_pair():
     ],
 )
 def test_date_to_human_string(date, date_transform, expected):
-    assert date_transform.to_human_string(DateType(), None) == "null"
     assert date_transform.to_human_string(DateType(), date) == expected
 
 
 @pytest.mark.parametrize(
-    "timestamp,time_transform,expected",
+    "date_transform",
     [
-        (47, YearTransform(), "2017"),
-        (575, MonthTransform(), "2017-12"),
-        (17501, DayTransform(), "2017-12-01"),
-        (420042, HourTransform(), "2017-12-01-18"),
+        YearTransform(),
+        MonthTransform(),
+        DayTransform(),
     ],
 )
-def test_ts_to_human_string(timestamp, time_transform, expected):
-    assert time_transform.to_human_string(TimestampType(), None) == "null"
-    assert time_transform.to_human_string(TimestampType(), timestamp) == expected
+def test_none_date_to_human_string(date_transform):
+    assert date_transform.to_human_string(DateType(), None) == "null"
+
+
+def test_hour_to_human_string():
+    assert HourTransform().to_human_string(TimestampType(), None) == "null"
+    assert HourTransform().to_human_string(TimestampType(), 420042) == "2017-12-01-18"
+
+
+@pytest.mark.parametrize(
+    "negative_value,time_transform,expected",
+    [
+        (-1, YearTransform(), "1969"),
+        (-1, MonthTransform(), "1969-12"),
+        (-1, DayTransform(), "1969-12-31"),
+        (-1, HourTransform(), "1969-12-31-23"),
+    ],
+)
+def test_negative_value_to_human_string(negative_value, time_transform, expected):
+    assert time_transform.to_human_string(TimestampType(), negative_value) == expected
 
 
 @pytest.mark.parametrize(
@@ -197,11 +212,17 @@ def test_time_methods(type_var):
     "transform,type_var,value,expected",
     [
         (DayTransform(), DateType(), 17501, 17501),
+        (DayTransform(), DateType(), -1, -1),
         (MonthTransform(), DateType(), 17501, 575),
+        (MonthTransform(), DateType(), -1, -1),
         (YearTransform(), DateType(), 17501, 47),
+        (YearTransform(), DateType(), -1, -1),
         (YearTransform(), TimestampType(), 1512151975038194, 47),
+        (YearTransform(), TimestampType(), -1, -1),
         (MonthTransform(), TimestamptzType(), 1512151975038194, 575),
+        (MonthTransform(), TimestamptzType(), -1, -1),
         (DayTransform(), TimestampType(), 1512151975038194, 17501),
+        (DayTransform(), TimestampType(), -1, -1),
     ],
 )
 def test_time_apply_method(transform, type_var, value, expected):
@@ -437,14 +458,26 @@ def test_datetime_transform_serde(transform, json):
 
 
 @pytest.mark.parametrize(
-    "transform,transform_str,transform_repr",
+    "transform,transform_str",
     [
-        (YearTransform(), "year", "YearTransform()"),
-        (MonthTransform(), "month", "MonthTransform()"),
-        (DayTransform(), "day", "DayTransform()"),
-        (HourTransform(), "hour", "HourTransform()"),
+        (YearTransform(), "year"),
+        (MonthTransform(), "month"),
+        (DayTransform(), "day"),
+        (HourTransform(), "hour"),
     ],
 )
-def test_datetime_transform_str_repr(transform, transform_str, transform_repr):
+def test_datetime_transform_str(transform, transform_str):
     assert str(transform) == transform_str
+
+
+@pytest.mark.parametrize(
+    "transform,transform_repr",
+    [
+        (YearTransform(), "YearTransform()"),
+        (MonthTransform(), "MonthTransform()"),
+        (DayTransform(), "DayTransform()"),
+        (HourTransform(), "HourTransform()"),
+    ],
+)
+def test_datetime_transform_repr(transform, transform_repr):
     assert repr(transform) == transform_repr
