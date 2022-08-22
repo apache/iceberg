@@ -41,8 +41,8 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.JsonUtil;
 
-public class DefaultValueParser {
-  private DefaultValueParser() {}
+public class SingleValueParser {
+  private SingleValueParser() {}
 
   private static final String KEYS = "keys";
   private static final String VALUES = "values";
