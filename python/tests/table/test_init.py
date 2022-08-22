@@ -20,7 +20,8 @@ from typing import Any, Dict
 import pytest
 
 from pyiceberg.schema import Schema
-from pyiceberg.table import PartitionSpec, Table, TableMetadataV2
+from pyiceberg.table import PartitionSpec, Table
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField
 from pyiceberg.table.snapshots import (
     Operation,

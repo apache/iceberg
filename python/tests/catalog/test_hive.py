@@ -44,7 +44,7 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table.metadata import TableMetadata, TableMetadataV2
+from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import (
@@ -187,7 +187,6 @@ def test_check_number_of_namespaces(table_schema_simple: Schema):
 
 
 @patch("time.time", MagicMock(return_value=12345))
-@patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, hive_table: HiveTable):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
 
@@ -264,28 +263,26 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
     with open(metadata_location, encoding="utf-8") as f:
         payload = json.load(f)
 
-    metadata = TableMetadata.parse_obj(payload)
+    metadata = TableMetadataUtil.parse_obj(payload)
 
     assert "database/table" in metadata.location
 
-    assert metadata
     assert metadata == TableMetadataV2(
-        # The following two ones are dynamic
         location=metadata.location,
         table_uuid=metadata.table_uuid,
         last_updated_ms=12345000,
-        last_column_id=3,
+        last_column_id=2,
         schemas=[
             Schema(
-                NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-                NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-                schema_id=1,
-                identifier_field_ids=[2],
+                NestedField(field_id=0, name="foo", field_type=StringType(), required=False),
+                NestedField(field_id=1, name="bar", field_type=IntegerType(), required=True),
+                NestedField(field_id=2, name="baz", field_type=BooleanType(), required=False),
+                schema_id=0,
+                identifier_field_ids=[1],
             )
         ],
-        current_schema_id=1,
-        partition_specs=[PartitionSpec(spec_id=0, fields=())],
+        current_schema_id=0,
+        partition_specs=[PartitionSpec(spec_id=0)],
         default_spec_id=0,
         last_partition_id=1000,
         properties={"owner": "javaberg"},

@@ -46,6 +46,8 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 T = TypeVar("T")
 
+INITIAL_SCHEMA_ID = 0
+
 
 class Schema(IcebergBaseModel):
     """A table Schema
@@ -57,7 +59,7 @@ class Schema(IcebergBaseModel):
 
     type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
-    schema_id: int = Field(alias="schema-id")
+    schema_id: int = Field(alias="schema-id", default=INITIAL_SCHEMA_ID)
     identifier_field_ids: List[int] = Field(alias="identifier-field-ids", default_factory=list)
 
     _name_to_id: Dict[str, int] = PrivateAttr()
@@ -149,7 +151,7 @@ class Schema(IcebergBaseModel):
         else:
             field_id = self._lazy_name_to_id_lower.get(name_or_id.lower())
 
-        if not field_id:
+        if field_id is None:
             raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
 
         return self._lazy_id_to_field.get(field_id)
@@ -638,3 +640,61 @@ class _FindLastFieldId(SchemaVisitor[int]):
 
     def primitive(self, primitive: PrimitiveType) -> int:
         return 0
+
+
+def assign_fresh_schema_ids(schema: Schema) -> Schema:
+    """Traverses the schema, and sets new IDs"""
+    schema_struct = visit(schema.as_struct(), _SetFreshIDs())
+
+    fresh_identifier_field_ids = []
+    new_schema = Schema(*schema_struct.fields)
+    for field_id in schema.identifier_field_ids:
+        original_field = schema.find_field(field_id)
+        if original_field is None:
+            raise ValueError(f"Could not find field: {field_id}")
+        fresh_field = new_schema.find_field(original_field.name)
+        if fresh_field is None:
+            raise ValueError(f"Could not lookup field in new schema: {original_field}")
+        fresh_identifier_field_ids.append(fresh_field.field_id)
+
+    return new_schema.copy(update={"identifier_field_ids": fresh_identifier_field_ids})
+
+
+class _SetFreshIDs(SchemaVisitor[IcebergType]):
+    """Traverses the schema to get the highest field-id"""
+
+    counter: int
+
+    def __init__(self) -> None:
+        self.counter = 0
+
+    def _get_and_increment(self) -> int:
+        pos = self.counter
+        self.counter += 1
+        return pos
+
+    def schema(self, schema: Schema, struct_result: StructType) -> Schema:
+        return Schema(*struct_result.fields, schema_id=INITIAL_SCHEMA_ID, identifier_field_ids=schema.identifier_field_ids)
+
+    def struct(self, struct: StructType, field_results: List[IcebergType]) -> StructType:
+        return StructType(*field_results)
+
+    def field(self, field: NestedField, field_result: IcebergType) -> IcebergType:
+        return NestedField(
+            field_id=self._get_and_increment(), name=field.name, field_type=field_result, required=field.required, doc=field.doc
+        )
+
+    def list(self, list_type: ListType, element_result: IcebergType) -> ListType:
+        return ListType(element_id=self._get_and_increment(), element=element_result, element_required=list_type.element_required)
+
+    def map(self, map_type: MapType, key_result: IcebergType, value_result: IcebergType) -> MapType:
+        return MapType(
+            key_id=self._get_and_increment(),
+            key_type=key_result,
+            value_id=self._get_and_increment(),
+            value_type=value_result,
+            value_required=map_type.value_required,
+        )
+
+    def primitive(self, primitive: PrimitiveType) -> PrimitiveType:
+        return primitive

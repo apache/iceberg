@@ -25,9 +25,11 @@ from typing import (
 
 from pydantic import Field
 
+from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
+INITIAL_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000
 
 
@@ -157,3 +159,20 @@ class PartitionSpec(IcebergBaseModel):
 
 
 UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)
+
+
+def assign_fresh_partition_spec_ids(spec: PartitionSpec, schema: Schema) -> PartitionSpec:
+    partition_fields = []
+    for pos, field in enumerate(spec.fields):
+        schema_field = schema.find_field(field.name)
+        if schema_field is None:
+            raise ValueError(f"Could not find field in schema: {field.name}")
+        partition_fields.append(
+            PartitionField(
+                name=field.name,
+                source_id=schema_field.field_id,
+                field_id=_PARTITION_DATA_ID_START + pos,
+                transform=field.transform,
+            )
+        )
+    return PartitionSpec(INITIAL_SPEC_ID, fields=tuple(partition_fields))
