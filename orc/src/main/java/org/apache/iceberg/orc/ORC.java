@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.apache.iceberg.TableProperties.BLOOM_FILTER_FPP_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
@@ -223,9 +224,7 @@ public class ORC {
       private final int vectorizedRowBatchSize;
       private final CompressionKind compressionKind;
       private final CompressionStrategy compressionStrategy;
-
       private final String bloomFilterColumns;
-
       private final double bloomFilterFpp;
 
       public long stripeSize() {
@@ -305,13 +304,15 @@ public class ORC {
         strategyAsString =
             PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
         CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
+
         String bloomFilterColumns =
             PropertyUtil.propertyAsString(config, OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(), "");
         bloomFilterColumns =
             PropertyUtil.propertyAsString(config, ORC_BLOOM_FILTER_COLUMNS, bloomFilterColumns);
 
         double bloomFilterFpp =
-            PropertyUtil.propertyAsDouble(config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), 0.05);
+            PropertyUtil.propertyAsDouble(
+                config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), BLOOM_FILTER_FPP_DEFAULT);
         bloomFilterFpp =
             PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
 
@@ -351,12 +352,6 @@ public class ORC {
             strategyAsString != null
                 ? toCompressionStrategy(strategyAsString)
                 : dataContext.compressionStrategy();
-        String bloomFilterColumns =
-            PropertyUtil.propertyAsString(config, OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(), "");
-        double bloomFilterFpp =
-            PropertyUtil.propertyAsDouble(config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), 0.05);
-        bloomFilterFpp =
-            PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
 
         return new Context(
             stripeSize,
@@ -364,8 +359,8 @@ public class ORC {
             vectorizedRowBatchSize,
             compressionKind,
             compressionStrategy,
-            bloomFilterColumns,
-            bloomFilterFpp);
+            dataContext.bloomFilterColumns(),
+            dataContext.bloomFilterFpp());
       }
 
       private static CompressionKind toCompressionKind(String codecAsString) {
