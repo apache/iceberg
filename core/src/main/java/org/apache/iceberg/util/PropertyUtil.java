@@ -18,12 +18,22 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
+
+  private static final Set<String> COLUMN_PREFIX_PROPERTIES =
+      ImmutableSet.of(
+          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
   private PropertyUtil() {}
 
@@ -91,5 +101,44 @@ public class PropertyUtil {
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
         .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
+  }
+
+  public static Map<String, String> applySchemaChanges(
+      Map<String, String> properties,
+      List<String> deletedColumns,
+      Map<String, String> renamedColumns) {
+    if (!properties.keySet().stream()
+        .anyMatch(
+            key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(prefix -> key.startsWith(prefix)))) {
+      return properties;
+    } else {
+      Map<String, String> updatedProperties = Maps.newHashMap();
+      properties
+          .keySet()
+          .forEach(
+              key -> {
+                String prefix =
+                    COLUMN_PREFIX_PROPERTIES.stream()
+                        .filter(property -> key.startsWith(property))
+                        .findFirst()
+                        .orElse(null);
+
+                if (prefix != null) {
+                  String columnAlias = key.replaceFirst(prefix, "");
+                  if (renamedColumns.get(columnAlias) != null) {
+                    // The name has changed.
+                    String newKey = prefix + renamedColumns.get(columnAlias);
+                    updatedProperties.put(newKey, properties.get(key));
+                  } else if (!deletedColumns.contains(columnAlias)) {
+                    // Copy over the original.
+                    updatedProperties.put(key, properties.get(key));
+                  }
+                } else {
+                  updatedProperties.put(key, properties.get(key));
+                }
+              });
+
+      return updatedProperties;
+    }
   }
 }

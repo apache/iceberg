@@ -39,6 +39,7 @@ import org.apache.iceberg.schema.UnionByNameVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -472,7 +473,7 @@ class SchemaUpdate implements UpdateSchema {
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
         Map<String, String> updatedProperties =
-            PropertiesTransform.applySchemaChanges(
+            PropertyUtil.applySchemaChanges(
                 newMetadata.properties(), deletedColumns, renamedColumns);
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
