@@ -85,7 +85,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(
-        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+        snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
     Preconditions.checkArgument(
         tableOps().current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s",
@@ -95,9 +95,19 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   }
 
   @Override
+  public TableScan useRef(String name) {
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
+    Snapshot snapshot = table().snapshot(name);
+    Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
+    return newRefinedScan(
+        tableOps(), table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+  }
+
+  @Override
   public TableScan asOfTime(long timestampMillis) {
     Preconditions.checkArgument(
-        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+        snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
 
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }

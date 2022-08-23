@@ -22,6 +22,9 @@ acceptedBreaks:
       old: "class org.apache.iceberg.PartitionKey"
       new: "class org.apache.iceberg.PartitionKey"
       justification: "Serialization across versions is not supported"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.TableScan org.apache.iceberg.TableScan::useRef(java.lang.String)"
+      justification: "Adding table scan APIs to support scanning from refs"
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
