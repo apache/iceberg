@@ -14,10 +14,43 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    Optional,
+)
+
+
+class Bin:
+    def __init__(self, target_weight: int) -> None:
+        self.bin_weight = 0
+        self.target_weight = target_weight
+        self.items: List[int] = []
+
+    def weight(self) -> int:
+        return self.bin_weight
+
+    def can_add(self, weight: int) -> bool:
+        return self.bin_weight + weight <= self.target_weight
+
+    def add(self, item: int, weight: int) -> None:
+        self.bin_weight += weight
+        self.items.append(item)
 
 
 class PackingIterator:
-    def __init__(self, items, target_weight, lookback, weight_func, largest_bin_first=False):
+
+    bins: List[Bin]
+
+    def __init__(
+        self,
+        items: Iterable[int],
+        target_weight: int,
+        lookback: int,
+        weight_func: Callable[[int], int],
+        largest_bin_first: bool = False,
+    ) -> None:
         self.items = iter(items)
         self.target_weight = target_weight
         self.lookback = lookback
@@ -25,10 +58,10 @@ class PackingIterator:
         self.largest_bin_first = largest_bin_first
         self.bins = []
 
-    def __iter__(self):
+    def __iter__(self) -> "PackingIterator":
         return self
 
-    def __next__(self):
+    def __next__(self) -> List[int]:
         while True:
             try:
                 item = next(self.items)
@@ -37,46 +70,30 @@ class PackingIterator:
                 if bin_ is not None:
                     bin_.add(item, weight)
                 else:
-                    bin_ = self.Bin(self.target_weight)
+                    bin_ = Bin(self.target_weight)
                     bin_.add(item, weight)
                     self.bins.append(bin_)
 
                     if len(self.bins) > self.lookback:
-                        return list(self.remove_bin().items)
+                        return self.remove_bin().items
             except StopIteration:
                 break
 
         if len(self.bins) == 0:
             raise StopIteration()
 
-        return list(self.remove_bin().items)
+        return self.remove_bin().items
 
-    def find_bin(self, weight):
+    def find_bin(self, weight: int) -> Optional[Bin]:
         for bin_ in self.bins:
             if bin_.can_add(weight):
                 return bin_
         return None
 
-    def remove_bin(self):
+    def remove_bin(self) -> Bin:
         if self.largest_bin_first:
             bin_ = max(self.bins, key=lambda b: b.weight())
             self.bins.remove(bin_)
             return bin_
         else:
             return self.bins.pop(0)
-
-    class Bin:
-        def __init__(self, target_weight: int):
-            self.bin_weight = 0
-            self.target_weight = target_weight
-            self.items: list = []
-
-        def weight(self) -> int:
-            return self.bin_weight
-
-        def can_add(self, weight) -> bool:
-            return self.bin_weight + weight <= self.target_weight
-
-        def add(self, item, weight):
-            self.bin_weight += weight
-            self.items.append(item)

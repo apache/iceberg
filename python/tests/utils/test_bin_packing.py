@@ -16,6 +16,7 @@
 # under the License.
 
 import random
+from typing import List
 
 import pytest
 
@@ -35,8 +36,8 @@ from pyiceberg.utils.bin_packing import PackingIterator
         ),  # sparse
     ],
 )
-def test_bin_packing(splits, lookback, split_size, open_cost):
-    def weight_func(x):
+def test_bin_packing(splits, lookback, split_size, open_cost) -> None:
+    def weight_func(x: int) -> int:
         return max(x, open_cost)
 
     item_list_sums = [sum(item) for item in PackingIterator(splits, split_size, lookback, weight_func)]
@@ -76,8 +77,10 @@ def test_bin_packing(splits, lookback, split_size, open_cost):
         ),
     ],
 )
-def test_bin_packing_lookback(splits, target_weight, lookback, largest_bin_first, expected_lists):
-    def weight_func(x):
+def test_bin_packing_lookback(
+    splits: List[int], target_weight: int, lookback: int, largest_bin_first: bool, expected_lists: List[List[int]]
+):
+    def weight_func(x: int) -> int:
         return x
 
     assert list(PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)) == expected_lists
