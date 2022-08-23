@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.ManifestContent.DATA;
+import static org.apache.iceberg.ManifestContent.DELETES;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
@@ -74,11 +79,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import static org.apache.iceberg.ManifestContent.DATA;
-import static org.apache.iceberg.ManifestContent.DELETES;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 

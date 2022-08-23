@@ -18,6 +18,15 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_POS_DELETES_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,15 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.ADDED_POS_DELETES_PROP;
-import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
-import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 
 public class TestRowDelta extends V2TableTestBase {
   @Test
