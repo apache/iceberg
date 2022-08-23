@@ -65,9 +65,7 @@ import static org.apache.spark.sql.functions.lit;
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
 public class DeleteOrphanFilesBenchmark {
 
-  private static final String[] NAMESPACE = new String[]{"default"};
   private static final String NAME = "delete_orphan_perf";
-  private static final Identifier IDENT = Identifier.of(NAMESPACE, NAME);
 
   private final Configuration hadoopConf = initHadoopConf();
   private SparkSession spark;
@@ -90,7 +88,7 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   @TearDown(Level.Iteration)
-  public void cleanUpIteration() throws IOException {
+  public void cleanUpIteration() {
     cleanupFiles();
   }
 
@@ -116,8 +114,7 @@ public class DeleteOrphanFilesBenchmark {
         String.format("CREATE TABLE %s(id INT, name STRING)" +
             " USING ICEBERG" +
             " TBLPROPERTIES ( 'format-version' = '2'," +
-            " 'compatibility.snapshot-id-inheritance.enabled' = 'true')" +
-            " LOCATION 'file:///tmp/data'", NAME));
+            " 'compatibility.snapshot-id-inheritance.enabled' = 'true')", NAME));
   }
 
   private void appendData() throws NoSuchTableException, ParseException {
@@ -156,11 +153,10 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   protected String getCatalogWarehouse() {
-    String location = Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
-    return location;
+    return Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
   }
 
-  protected void cleanupFiles() throws IOException {
+  protected void cleanupFiles() {
     spark.sql("DROP TABLE IF EXISTS " + NAME);
   }
 
