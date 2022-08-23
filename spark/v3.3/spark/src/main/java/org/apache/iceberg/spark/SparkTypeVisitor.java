@@ -27,8 +27,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.UserDefinedType;
 
-class SparkTypeVisitor<T> {
-  static <T> T visit(DataType type, SparkTypeVisitor<T> visitor) {
+public class SparkTypeVisitor<T> {
+  public static <T> T visit(DataType type, SparkTypeVisitor<T> visitor) {
     if (type instanceof StructType) {
       StructField[] fields = ((StructType) type).fields();
       List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.length);

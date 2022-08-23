@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.MigrateDeltaLakeTable;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -65,6 +66,17 @@ public class SparkActions implements ActionsProvider {
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
     return new MigrateTableSparkAction(
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+  }
+
+  @Override
+  public MigrateDeltaLakeTable migrateDeltaLakeTable(
+      String newTableIdentifier, String deltaTableLocation) {
+    String ctx = "migrate delta target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+    return new MigrateDeltaLakeTableSparkAction(
+        spark, catalogAndIdent.catalog(), deltaTableLocation, catalogAndIdent.identifier());
   }
 
   @Override

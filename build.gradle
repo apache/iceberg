@@ -98,6 +98,11 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    // TODO: remove once Delta Lake 2.1.0 is officially released
+    maven {
+      name = 'staging-repo'
+      url = 'https://oss.sonatype.org/content/repositories/iodelta-1087/'
+    }
   }
 }
 

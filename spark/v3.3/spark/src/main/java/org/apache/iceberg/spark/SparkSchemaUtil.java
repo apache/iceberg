@@ -338,7 +338,7 @@ public class SparkSchemaUtil {
     return identitySpec(schema, names);
   }
 
-  private static PartitionSpec identitySpec(Schema schema, List<String> partitionNames) {
+  public static PartitionSpec identitySpec(Schema schema, List<String> partitionNames) {
     if (partitionNames == null || partitionNames.isEmpty()) {
       return null;
     }
