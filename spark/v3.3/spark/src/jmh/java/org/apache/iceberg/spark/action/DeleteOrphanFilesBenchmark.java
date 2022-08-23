@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.action;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.lit;
+
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
@@ -50,9 +53,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.spark.sql.functions.lit;
 
 @Fork(1)
 @State(Scope.Benchmark)
@@ -92,12 +92,13 @@ public class DeleteOrphanFilesBenchmark {
   @Threads(1)
   public void testDeleteOrphanFiles() {
     Timestamp timestamp = new Timestamp(10000);
-    Dataset<Row> rowDataset = spark.createDataset(paths, Encoders.STRING()).withColumnRenamed("value", "file_path")
-        .withColumn("last_modified", lit(timestamp));
+    Dataset<Row> rowDataset =
+        spark
+            .createDataset(paths, Encoders.STRING())
+            .withColumnRenamed("value", "file_path")
+            .withColumn("last_modified", lit(timestamp));
 
-    SparkActions.get(spark).deleteOrphanFiles(table())
-        .compareToFileList(rowDataset)
-        .execute();
+    SparkActions.get(spark).deleteOrphanFiles(table()).compareToFileList(rowDataset).execute();
   }
 
   protected Configuration initHadoopConf() {
@@ -107,14 +108,19 @@ public class DeleteOrphanFilesBenchmark {
   protected final void initTable() {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", NAME));
     spark.sql(
-        String.format("CREATE TABLE %s(id INT, name STRING)" +
-            " USING ICEBERG" +
-            " TBLPROPERTIES ( 'format-version' = '2'," +
-            " 'compatibility.snapshot-id-inheritance.enabled' = 'true')", NAME));
+        String.format(
+            "CREATE TABLE %s(id INT, name STRING)"
+                + " USING ICEBERG"
+                + " TBLPROPERTIES ( 'format-version' = '2',"
+                + " 'compatibility.snapshot-id-inheritance.enabled' = 'true')",
+            NAME));
   }
 
   private void appendData() {
-    Schema schema = new Schema(required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
+    Schema schema =
+        new Schema(
+            required(3, "id", Types.IntegerType.get()),
+            required(4, "data", Types.StringType.get()));
 
     String location = table().location();
     // Partition spec used to create tables
@@ -123,12 +129,13 @@ public class DeleteOrphanFilesBenchmark {
     for (int i = 0; i < 1000; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < 10000; j++) {
-        String path = String.format("%s/path/to/data-%d-%d.parquet",location, i, j);
-        DataFile dataFile = DataFiles.builder(partitionSpec)
-            .withPath(path)
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
+        String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        DataFile dataFile =
+            DataFiles.builder(partitionSpec)
+                .withPath(path)
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .build();
         appendFiles.appendFile(dataFile);
       }
       appendFiles.commit();
