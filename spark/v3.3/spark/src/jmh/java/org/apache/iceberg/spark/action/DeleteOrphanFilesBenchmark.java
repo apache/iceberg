@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.action;
 
-import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
@@ -39,9 +38,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.connector.catalog.Identifier;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -67,8 +63,8 @@ public class DeleteOrphanFilesBenchmark {
 
   private static final String NAME = "delete_orphan_perf";
 
-  private final Configuration hadoopConf = initHadoopConf();
   private SparkSession spark;
+  private final Configuration hadoopConf = initHadoopConf();
   private final List<String> paths = Lists.newArrayList();
 
   @Setup
@@ -82,7 +78,7 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   @Setup(Level.Iteration)
-  public void setupIteration() throws NoSuchTableException, ParseException {
+  public void setupIteration() {
     initTable();
     appendData();
   }
@@ -117,19 +113,18 @@ public class DeleteOrphanFilesBenchmark {
             " 'compatibility.snapshot-id-inheritance.enabled' = 'true')", NAME));
   }
 
-  private void appendData() throws NoSuchTableException, ParseException {
-    Schema schema =
-        new Schema(
-            required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
+  private void appendData() {
+    Schema schema = new Schema(required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
 
-// Partition spec used to create tables
-    PartitionSpec SPEC = PartitionSpec.builderFor(schema).build();
+    String location = table().location();
+    // Partition spec used to create tables
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
 
     for (int i = 0; i < 1000; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < 10000; j++) {
-        String path = String.format("$location/path/to/data-%d-%d.parquet", i, j);
-        DataFile dataFile = DataFiles.builder(SPEC)
+        String path = String.format("%s/path/to/data-%d-%d.parquet",location, i, j);
+        DataFile dataFile = DataFiles.builder(partitionSpec)
             .withPath(path)
             .withFileSizeInBytes(10)
             .withRecordCount(1)
