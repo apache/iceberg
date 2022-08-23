@@ -15,14 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, Dict, Tuple
+from typing import (
+    Any,
+    Dict,
+    Tuple,
+    Union,
+)
 
 
 class FrozenDict(Dict):
     def __setitem__(self, instance, value):
         raise AttributeError("FrozenDict does not support assignment")
 
-    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore
+    def update(self, *args: Any, **kwargs: Any) -> None:
         raise AttributeError("FrozenDict does not support .update()")
 
 
@@ -30,3 +35,4 @@ EMPTY_DICT = FrozenDict()
 
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]
+RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]  # type: ignore

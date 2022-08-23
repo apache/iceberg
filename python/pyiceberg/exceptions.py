@@ -74,3 +74,11 @@ class AuthorizationExpiredError(RESTError):
 
 class OAuthError(RESTError):
     """Raises when there is an error with the OAuth call"""
+
+
+class NoSuchPropertyException(Exception):
+    """When a property is missing"""
+
+
+class NotInstalledError(Exception):
+    """When an optional dependency is not installed"""

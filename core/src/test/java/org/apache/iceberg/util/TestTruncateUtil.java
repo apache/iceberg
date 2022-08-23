@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.util;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
-/**
- * An action to rewrite manifests.
- *
- * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
- *     RewriteManifestsSparkAction} instead.
- */
-@Deprecated
-public class BaseRewriteManifestsSparkAction extends RewriteManifestsSparkAction {
-  public BaseRewriteManifestsSparkAction(SparkSession spark, Table table) {
-    super(spark, table);
+class TestTruncateUtil {
+  @Test
+  public void testInvalidInputWidthBehavior() {
+    Assertions.assertThatNoException()
+        .as("Invalid width input shouldn't necessarily throw an exception as it's not validated")
+        .isThrownBy(() -> TruncateUtil.truncateInt(-1, 100));
+
+    Assertions.assertThatException()
+        .as("Invalid width input can possibly throw an exception")
+        .isThrownBy(() -> TruncateUtil.truncateInt(0, 100));
   }
 }

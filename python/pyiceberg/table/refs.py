@@ -28,6 +28,9 @@ class SnapshotRefType(str, Enum):
     BRANCH = "branch"
     TAG = "tag"
 
+    def __repr__(self) -> str:
+        return f"SnapshotRefType.{self.name}"
+
 
 class SnapshotRef(IcebergBaseModel):
     snapshot_id: int = Field(alias="snapshot-id")

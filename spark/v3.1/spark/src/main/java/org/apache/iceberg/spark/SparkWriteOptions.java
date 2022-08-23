@@ -50,4 +50,6 @@ public class SparkWriteOptions {
   // Controls whether to allow writing timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";
+
+  public static final String OVERWRITE_MODE = "overwrite-mode";
 }

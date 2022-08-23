@@ -348,7 +348,7 @@ class ManifestGroup {
           }
           ctx.scanMetrics().totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
           ctx.scanMetrics().resultDataFiles().increment();
-          ctx.scanMetrics().resultDeleteFiles().increment(deleteFiles.length);
+          ctx.scanMetrics().resultDeleteFiles().increment((long) deleteFiles.length);
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });

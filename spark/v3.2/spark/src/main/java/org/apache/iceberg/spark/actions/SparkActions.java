@@ -53,7 +53,7 @@ public class SparkActions implements ActionsProvider {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new BaseSnapshotTableSparkAction(
+    return new SnapshotTableSparkAction(
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
@@ -63,32 +63,32 @@ public class SparkActions implements ActionsProvider {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new BaseMigrateTableSparkAction(
+    return new MigrateTableSparkAction(
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override
   public RewriteDataFilesSparkAction rewriteDataFiles(Table table) {
-    return new BaseRewriteDataFilesSparkAction(spark, table);
+    return new RewriteDataFilesSparkAction(spark, table);
   }
 
   @Override
   public DeleteOrphanFilesSparkAction deleteOrphanFiles(Table table) {
-    return new BaseDeleteOrphanFilesSparkAction(spark, table);
+    return new DeleteOrphanFilesSparkAction(spark, table);
   }
 
   @Override
   public RewriteManifestsSparkAction rewriteManifests(Table table) {
-    return new BaseRewriteManifestsSparkAction(spark, table);
+    return new RewriteManifestsSparkAction(spark, table);
   }
 
   @Override
   public ExpireSnapshotsSparkAction expireSnapshots(Table table) {
-    return new BaseExpireSnapshotsSparkAction(spark, table);
+    return new ExpireSnapshotsSparkAction(spark, table);
   }
 
   @Override
   public DeleteReachableFilesSparkAction deleteReachableFiles(String metadataLocation) {
-    return new BaseDeleteReachableFilesSparkAction(spark, metadataLocation);
+    return new DeleteReachableFilesSparkAction(spark, metadataLocation);
   }
 }

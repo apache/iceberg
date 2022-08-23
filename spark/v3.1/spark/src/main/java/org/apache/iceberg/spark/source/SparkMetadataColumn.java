@@ -16,23 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.spark.source;
 
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.MetadataColumn;
+import org.apache.spark.sql.types.DataType;
 
-/**
- * An action that deletes reachable files from a given metadata file.
- *
- * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
- *     DeleteReachableFilesSparkAction} instead.
- */
-@Deprecated
-public class BaseDeleteReachableFilesSparkAction extends DeleteReachableFilesSparkAction {
+public class SparkMetadataColumn implements MetadataColumn {
 
-  public static final String STREAM_RESULTS = "stream-results";
-  public static final boolean STREAM_RESULTS_DEFAULT = false;
+  private final String name;
+  private final DataType dataType;
+  private final boolean isNullable;
 
-  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
-    super(spark, metadataFileLocation);
+  public SparkMetadataColumn(String name, DataType dataType, boolean isNullable) {
+    this.name = name;
+    this.dataType = dataType;
+    this.isNullable = isNullable;
+  }
+
+  @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public DataType dataType() {
+    return dataType;
+  }
+
+  @Override
+  public boolean isNullable() {
+    return isNullable;
   }
 }

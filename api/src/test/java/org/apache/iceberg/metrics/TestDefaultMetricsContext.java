@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.withinPercentage;
+
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.assertj.core.api.Assertions;
@@ -37,11 +39,6 @@ public class TestDefaultMetricsContext {
   @Test
   public void intCounterNullCheck() {
     Assertions.assertThatThrownBy(
-            () ->
-                new DefaultMetricsContext().counter(null, Integer.class, MetricsContext.Unit.BYTES))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid counter name: null");
-    Assertions.assertThatThrownBy(
             () -> new DefaultMetricsContext().counter("name", Integer.class, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
@@ -54,7 +51,6 @@ public class TestDefaultMetricsContext {
         metricsContext.counter("intCounter", Integer.class, MetricsContext.Unit.BYTES);
     counter.increment(5);
     Assertions.assertThat(counter.value()).isEqualTo(5);
-    Assertions.assertThat(counter.name()).isEqualTo("intCounter");
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
   }
 
@@ -73,10 +69,6 @@ public class TestDefaultMetricsContext {
   @Test
   public void longCounterNullCheck() {
     Assertions.assertThatThrownBy(
-            () -> new DefaultMetricsContext().counter(null, Long.class, MetricsContext.Unit.BYTES))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid counter name: null");
-    Assertions.assertThatThrownBy(
             () -> new DefaultMetricsContext().counter("name", Long.class, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
@@ -89,7 +81,6 @@ public class TestDefaultMetricsContext {
         metricsContext.counter("longCounter", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(5L);
     Assertions.assertThat(counter.value()).isEqualTo(5L);
-    Assertions.assertThat(counter.name()).isEqualTo("longCounter");
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.COUNT);
   }
 
@@ -111,5 +102,29 @@ public class TestDefaultMetricsContext {
     Timer timer = metricsContext.timer("test", TimeUnit.MICROSECONDS);
     timer.record(10, TimeUnit.MINUTES);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ofMinutes(10L));
+  }
+
+  @Test
+  public void histogram() {
+    MetricsContext metricsContext = new DefaultMetricsContext();
+    int reservoirSize = 1000;
+    Histogram histogram = metricsContext.histogram("test");
+    for (int i = 1; i <= reservoirSize; ++i) {
+      histogram.update(i);
+    }
+
+    Assertions.assertThat(histogram.count()).isEqualTo(reservoirSize);
+    Histogram.Statistics statistics = histogram.statistics();
+    Assertions.assertThat(statistics.size()).isEqualTo(reservoirSize);
+    Assertions.assertThat(statistics.mean()).isEqualTo(500.5);
+    Assertions.assertThat(statistics.stdDev()).isCloseTo(288.67499, withinPercentage(0.001));
+    Assertions.assertThat(statistics.max()).isEqualTo(1000L);
+    Assertions.assertThat(statistics.min()).isEqualTo(1L);
+    Assertions.assertThat(statistics.percentile(0.50)).isEqualTo(500);
+    Assertions.assertThat(statistics.percentile(0.75)).isEqualTo(750);
+    Assertions.assertThat(statistics.percentile(0.90)).isEqualTo(900);
+    Assertions.assertThat(statistics.percentile(0.95)).isEqualTo(950);
+    Assertions.assertThat(statistics.percentile(0.99)).isEqualTo(990);
+    Assertions.assertThat(statistics.percentile(0.999)).isEqualTo(999);
   }
 }

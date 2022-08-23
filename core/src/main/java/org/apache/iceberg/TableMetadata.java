@@ -1578,10 +1578,11 @@ public class TableMetadata implements Serializable {
       List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
       for (HistoryEntry logEntry : snapshotLog) {
         long snapshotId = logEntry.snapshotId();
-        if (snapshotsById.containsKey(snapshotId)
-            && !intermediateSnapshotIds.contains(snapshotId)) {
-          // copy the log entries that are still valid
-          newSnapshotLog.add(logEntry);
+        if (snapshotsById.containsKey(snapshotId)) {
+          if (!intermediateSnapshotIds.contains(snapshotId)) {
+            // copy the log entries that are still valid
+            newSnapshotLog.add(logEntry);
+          }
         } else {
           // any invalid entry causes the history before it to be removed. otherwise, there could be
           // history gaps that cause time-travel queries to produce incorrect results. for example,

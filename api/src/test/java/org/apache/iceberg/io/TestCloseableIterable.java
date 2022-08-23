@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.TestableCloseableIterable.TestableCloseableIterator;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -203,8 +204,7 @@ public class TestCloseableIterable {
 
   @Test
   public void count() {
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x", MetricsContext.Unit.COUNT);
     CloseableIterable<Integer> items =
         CloseableIterable.count(
             counter, CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)));
@@ -215,8 +215,7 @@ public class TestCloseableIterable {
 
   @Test
   public void countSkipped() {
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x", MetricsContext.Unit.COUNT);
     CloseableIterable<Integer> items =
         CloseableIterable.filter(
             counter,
@@ -233,8 +232,7 @@ public class TestCloseableIterable {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x", MetricsContext.Unit.COUNT);
     Assertions.assertThatThrownBy(() -> CloseableIterable.count(counter, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid iterable: null");
@@ -248,8 +246,7 @@ public class TestCloseableIterable {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x", MetricsContext.Unit.COUNT);
     Assertions.assertThatThrownBy(
             () -> CloseableIterable.filter(counter, null, Predicate.isEqual(true)))
         .isInstanceOf(IllegalArgumentException.class)

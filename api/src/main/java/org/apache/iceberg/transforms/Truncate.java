@@ -31,6 +31,8 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
 abstract class Truncate<T> implements Transform<T, T> {
@@ -87,7 +89,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      return value - (((value % width) + width) % width);
+      return TruncateUtil.truncateInt(width, value);
     }
 
     @Override
@@ -171,7 +173,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      return value - (((value % width) + width) % width);
+      return TruncateUtil.truncateLong(width, value);
     }
 
     @Override
@@ -391,9 +393,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      ByteBuffer ret = value.duplicate();
-      ret.limit(Math.min(value.limit(), value.position() + length));
-      return ret;
+      return BinaryUtil.truncateBinaryUnsafe(value, length);
     }
 
     @Override
@@ -480,16 +480,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      BigDecimal remainder =
-          new BigDecimal(
-              value
-                  .unscaledValue()
-                  .remainder(unscaledWidth)
-                  .add(unscaledWidth)
-                  .remainder(unscaledWidth),
-              value.scale());
-
-      return value.subtract(remainder);
+      return TruncateUtil.truncateDecimal(unscaledWidth, value);
     }
 
     @Override

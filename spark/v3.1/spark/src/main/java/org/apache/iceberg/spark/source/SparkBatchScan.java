@@ -55,7 +55,6 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,7 +70,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
-  private final CaseInsensitiveStringMap options;
 
   // lazy variables
   private StructType readSchema = null;
@@ -80,19 +78,19 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
-      boolean caseSensitive,
       Schema expectedSchema,
-      List<Expression> filters,
-      CaseInsensitiveStringMap options) {
+      List<Expression> filters) {
+
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = readConf.localityEnabled();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
-    this.options = options;
   }
 
   protected Table table() {
@@ -191,13 +189,16 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+    boolean hasNoEqDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasEqDeletes);
+
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
-    boolean readUsingBatch =
-        batchReadsEnabled
-            && hasNoDeleteFiles
-            && (allOrcFileScanTasks
-                || (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+    boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
+
+    boolean batchReadParquet =
+        hasNoEqDeleteFiles && allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
+
+    boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
 
     int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
 

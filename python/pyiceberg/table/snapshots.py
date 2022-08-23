@@ -39,6 +39,9 @@ class Operation(Enum):
     OVERWRITE = "overwrite"
     DELETE = "delete"
 
+    def __repr__(self) -> str:
+        return f"Operation.{self.name}"
+
 
 class Summary(IcebergBaseModel):
     """
@@ -79,6 +82,10 @@ class Summary(IcebergBaseModel):
     def additional_properties(self) -> Dict[str, str]:
         return self._additional_properties
 
+    def __repr__(self) -> str:
+        repr_properties = f", **{repr(self._additional_properties)}" if self._additional_properties else ""
+        return f"Summary({repr(self.operation)}{repr_properties})"
+
 
 class Snapshot(IcebergBaseModel):
     snapshot_id: int = Field(alias="snapshot-id")
@@ -88,3 +95,13 @@ class Snapshot(IcebergBaseModel):
     manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
+
+
+class MetadataLogEntry(IcebergBaseModel):
+    metadata_file: str = Field(alias="metadata-file")
+    timestamp_ms: int = Field(alias="timestamp-ms")
+
+
+class SnapshotLogEntry(IcebergBaseModel):
+    snapshot_id: str = Field(alias="snapshot-id")
+    timestamp_ms: int = Field(alias="timestamp-ms")

@@ -53,8 +53,8 @@ class InMemoryCatalog(Catalog):
     __tables: Dict[Identifier, Table]
     __namespaces: Dict[Identifier, Properties]
 
-    def __init__(self, name: str, properties: Properties):
-        super().__init__(name, properties)
+    def __init__(self, name: str, **properties: str):
+        super().__init__(name, **properties)
         self.__tables = {}
         self.__namespaces = {}
 
@@ -77,7 +77,11 @@ class InMemoryCatalog(Catalog):
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
-            table = Table(identifier=identifier, metadata=EXAMPLE_TABLE_METADATA_V1)
+            table = Table(
+                identifier=identifier,
+                metadata=EXAMPLE_TABLE_METADATA_V1,
+                metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
+            )
             self.__tables[identifier] = table
             return table
 
@@ -110,7 +114,9 @@ class InMemoryCatalog(Catalog):
         if to_namespace not in self.__namespaces:
             self.__namespaces[to_namespace] = {}
 
-        self.__tables[to_identifier] = Table(identifier=to_identifier, metadata=table.metadata)
+        self.__tables[to_identifier] = Table(
+            identifier=to_identifier, metadata=table.metadata, metadata_location=table.metadata_location
+        )
         return self.__tables[to_identifier]
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
@@ -138,7 +144,7 @@ class InMemoryCatalog(Catalog):
 
         return list_tables
 
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         return list(self.__namespaces.keys())
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:

@@ -675,7 +675,7 @@ public class TestMetadataUpdateParser {
     AssertHelpers.assertThrows(
         "Parsing updates from SetProperties with a property set to null should throw",
         IllegalArgumentException.class,
-        "Cannot parse prop2 to a string value: null",
+        "Cannot parse to a string value: prop2: null",
         () -> MetadataUpdateParser.fromJson(json));
   }
 

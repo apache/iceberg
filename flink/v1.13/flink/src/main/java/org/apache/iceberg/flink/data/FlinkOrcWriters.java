@@ -144,6 +144,7 @@ class FlinkOrcWriters {
   private static class TimestampTzWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampTzWriter INSTANCE = new TimestampTzWriter();
 
+    @SuppressWarnings("JavaInstantGetSecondsGetNano")
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;

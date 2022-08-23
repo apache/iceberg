@@ -35,8 +35,8 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader
         """
         reader = codecs.getreader(encoding)
-        metadata = json.load(reader(byte_stream))  # type: ignore
-        return TableMetadata.parse_obj(metadata)  # type: ignore
+        metadata = json.load(reader(byte_stream))
+        return TableMetadata.parse_obj(metadata)
 
 
 class FromInputFile:
