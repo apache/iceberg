@@ -1439,64 +1439,45 @@ public class TestRowDelta extends V2TableTestBase {
 
   @Test
   public void testBranchValidationsNotValidAncestor() {
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
-    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+    // This commit will result in validation exception as we start validation from a snapshot which
+    // is not an ancestor of the branch
+    RowDelta rowDelta =
+            table
+                    .newRowDelta()
+                    .toBranch("branch")
+                    .addDeletes(FILE_A_DELETES)
+                    .validateFromSnapshot(table.currentSnapshot().snapshotId())
+                    .conflictDetectionFilter(Expressions.alwaysTrue())
+                    .validateNoConflictingDeleteFiles();
 
-    Long firstSnapshot = table.currentSnapshot().snapshotId();
-
-    table.manageSnapshots().createBranch("newBranch", firstSnapshot).commit();
-
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
-
-    // This commit will result in validation exception as we start validation from a snapshot which is
-    // not an ancestor of the branch
-    RowDelta rowDelta = table.newRowDelta()
-        .toBranch("newBranch")
-        .addDeletes(FILE_A_DELETES)
-        .validateFromSnapshot(table.currentSnapshot().snapshotId())
-        .conflictDetectionFilter(conflictDetectionFilter)
-        .validateNoConflictingDeleteFiles();
-
-    AssertHelpers.assertThrows("No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
+    AssertHelpers.assertThrows(
+            "No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
   }
 
   @Test
   public void testBranchValidationsValidAncestor() {
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
+    Long ancestorSnapshot = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch", ancestorSnapshot).commit();
 
-    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+    // This commit not result in validation exception as we start validation from a snapshot which
+    // is an actual ancestor of the branch
+    table
+            .newRowDelta()
+            .toBranch("branch")
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(ancestorSnapshot)
+            .conflictDetectionFilter(Expressions.alwaysTrue())
+            .validateNoConflictingDeleteFiles()
+            .commit();
 
-    Long firstSnapshot = table.currentSnapshot().snapshotId();
+    int branchSnapshot = 2;
 
-    table.manageSnapshots().createBranch("newBranch", firstSnapshot).commit();
-
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
-
-    // This commit not result in validation exception as we start validation from a snapshot which is
-    // not an ancestor of the branch
-    table.newRowDelta()
-        .toBranch("newBranch")
-        .addDeletes(FILE_A_DELETES)
-        .validateFromSnapshot(firstSnapshot)
-        .conflictDetectionFilter(conflictDetectionFilter)
-        .validateNoConflictingDeleteFiles().commit();
-
-    List<ManifestFile> dataManifests = table.ops().current().snapshot(table.ops().current()
-        .ref("newBranch").snapshotId()).dataManifests(table.io());
-    Assert.assertEquals("branch should have 1 data manifest", 1, Iterables.size(dataManifests));
-    List<ManifestFile> deleteManifests = table.ops().current().snapshot(table.ops().current()
-        .ref("newBranch").snapshotId()).deleteManifests(table.io());
-    Assert.assertEquals("branch should have 1 delete manifest", 1, Iterables.size(deleteManifests));
-    List<ManifestFile> mainBranchManifests = table.currentSnapshot().dataManifests(table.io());
-    Assert.assertEquals("main branch should have 2 data manifest", 2, Iterables.size(mainBranchManifests));
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), 1);
+    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
   }
 }
