@@ -142,6 +142,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
   private String tableLocation;
   private final String type;
   private final TableCatalog catalog;
+  private static final String BACKUP_SUFFIX = "_BACKUP_";
 
   public TestCreateActions(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -193,6 +194,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String dest = source;
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
   @Test
@@ -216,6 +218,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     sql("ALTER TABLE %s ADD PARTITION(id=0)", source);
 
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
   @Test
@@ -240,6 +243,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         "ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'",
         source, partitionDataLoc.toURI().toString());
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
   @Test
@@ -255,6 +259,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(source).execute();
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
 
@@ -293,6 +298,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(source).execute();
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
     List<Object[]> expected = sql("select id, null, data from %s order by id", source);
@@ -338,6 +344,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(source).execute();
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
 
@@ -383,6 +390,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(source).execute();
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
 
     // drop column
     sql("ALTER TABLE %s DROP COLUMN %s", dest, "col1");
@@ -404,6 +412,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
   @Test
@@ -461,6 +470,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String dest = source;
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
   @Test
@@ -619,6 +629,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // Migrate table
     SparkActions.get().migrateTable(tblName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tblName + BACKUP_SUFFIX));
 
     // check if iceberg and non-iceberg output
     List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
@@ -666,6 +677,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // Migrate table
     SparkActions.get().migrateTable(tblName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tblName + BACKUP_SUFFIX));
 
     // check if iceberg and non-iceberg output
     List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
@@ -800,6 +812,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(tableName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
@@ -822,6 +835,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(tableName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
@@ -847,6 +861,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(tableName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
@@ -874,6 +889,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(tableName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
@@ -898,6 +914,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // migrate table
     SparkActions.get().migrateTable(tableName).execute();
+    Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
     List<Object[]> results = sql("SELECT * FROM %s", tableName);
