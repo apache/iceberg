@@ -150,7 +150,7 @@ public class MetadataUpdateParser {
     // which is required
     Preconditions.checkArgument(
         updateAction != null,
-        "Cannot convert metadata update to json. Unrecognized metadata update type: {}",
+        "Cannot convert metadata update to json. Unrecognized metadata update type: %s",
         metadataUpdate.getClass().getName());
 
     generator.writeStartObject();
