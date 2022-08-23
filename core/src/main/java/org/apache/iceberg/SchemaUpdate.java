@@ -29,6 +29,7 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -472,9 +473,13 @@ class SchemaUpdate implements UpdateSchema {
               .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
+        Set<String> columnPrefixProps =
+            ImmutableSet.of(
+                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
-                newMetadata.properties(), deletedColumns, renamedColumns);
+                newMetadata.properties(), deletedColumns, renamedColumns, columnPrefixProps);
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
     }

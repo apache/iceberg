@@ -22,18 +22,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
-
-  private static final Set<String> COLUMN_PREFIX_PROPERTIES =
-      ImmutableSet.of(
-          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
   private PropertyUtil() {}
 
@@ -106,9 +99,10 @@ public class PropertyUtil {
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties,
       List<String> deletedColumns,
-      Map<String, String> renamedColumns) {
+      Map<String, String> renamedColumns,
+      Set<String> columnPrefixProperties) {
     if (!properties.keySet().stream()
-        .anyMatch(key -> COLUMN_PREFIX_PROPERTIES.stream().anyMatch(key::startsWith))) {
+        .anyMatch(key -> columnPrefixProperties.stream().anyMatch(key::startsWith))) {
       return properties;
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
@@ -117,7 +111,7 @@ public class PropertyUtil {
           .forEach(
               key -> {
                 String prefix =
-                    COLUMN_PREFIX_PROPERTIES.stream()
+                    columnPrefixProperties.stream()
                         .filter(key::startsWith)
                         .findFirst()
                         .orElse(null);
@@ -132,6 +126,7 @@ public class PropertyUtil {
                     // Copy over the original.
                     updatedProperties.put(key, properties.get(key));
                   }
+                  // Implicit drop if deleted.
                 } else {
                   updatedProperties.put(key, properties.get(key));
                 }
