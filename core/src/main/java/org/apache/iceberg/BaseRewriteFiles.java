@@ -114,7 +114,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     if (replacedDataFiles.size() > 0) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data
       // files
-      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);
+      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles, snapshot);
     }
   }
 }

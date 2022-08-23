@@ -133,19 +133,19 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     }
 
     if (validateNewDataFiles) {
-      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
+      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), snapshot);
     }
 
     if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter);
-        validateDeletedDataFiles(base, startingSnapshotId, filter);
+        validateNoNewDeleteFiles(base, startingSnapshotId, filter, snapshot);
+        validateDeletedDataFiles(base, startingSnapshotId, filter, snapshot);
       }
 
       if (deletedDataFiles.size() > 0) {
         validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
+            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, snapshot);
       }
     }
   }

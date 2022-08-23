@@ -83,19 +83,22 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
   public void validate(TableMetadata currentMetadata, Snapshot snapshot) {
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateAddedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), snapshot);
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, snapshot);
       }
     }
 
     if (validateConflictingDeletes) {
       if (dataSpec().isUnpartitioned()) {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateDeletedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), snapshot);
+        validateNoNewDeleteFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), snapshot);
       } else {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, snapshot);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, snapshot);
       }
     }
   }
