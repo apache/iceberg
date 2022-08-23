@@ -142,6 +142,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
             LOG.error("Cannot abort staged changes", abortException);
           }
         }
+      } else {
+        removeBackupTable();
       }
     }
 
@@ -219,5 +221,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
           backupIdent,
           e);
     }
+  }
+
+  private void removeBackupTable() {
+    destCatalog().dropTable(backupIdent);
   }
 }

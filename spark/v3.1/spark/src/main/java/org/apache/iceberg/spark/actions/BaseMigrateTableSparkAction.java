@@ -143,6 +143,8 @@ public class BaseMigrateTableSparkAction
             LOG.error("Cannot abort staged changes", abortException);
           }
         }
+      } else {
+        removeBackupTable();
       }
     }
 
@@ -220,5 +222,9 @@ public class BaseMigrateTableSparkAction
           backupIdent,
           e);
     }
+  }
+
+  private void removeBackupTable() {
+    destCatalog().dropTable(backupIdent);
   }
 }
