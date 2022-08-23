@@ -338,11 +338,6 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
-  public Rollback rollback() {
-    throw new UnsupportedOperationException(errorMsg("rollback"));
-  }
-
-  @Override
   public ManageSnapshots manageSnapshots() {
     throw new UnsupportedOperationException(errorMsg("manageSnapshots"));
   }

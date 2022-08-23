@@ -271,15 +271,6 @@ public interface Table {
   ExpireSnapshots expireSnapshots();
 
   /**
-   * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
-   *
-   * @return a new {@link Rollback}
-   * @deprecated Replaced by {@link #manageSnapshots()}
-   */
-  @Deprecated
-  Rollback rollback();
-
-  /**
    * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and
    * commit.
    *

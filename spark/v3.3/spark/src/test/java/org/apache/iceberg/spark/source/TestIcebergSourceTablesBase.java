@@ -18,11 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.ManifestContent.DATA;
-import static org.apache.iceberg.ManifestContent.DELETES;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
@@ -79,6 +74,11 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.ManifestContent.DATA;
+import static org.apache.iceberg.ManifestContent.DELETES;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
@@ -782,7 +782,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
 
     inputDf
@@ -869,7 +869,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     String secondManifestList = table.currentSnapshot().manifestListLocation();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     List<Row> actual =
         spark
@@ -942,7 +942,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     Dataset<Row> actualDf =
         spark

@@ -18,15 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.ADDED_POS_DELETES_PROP;
-import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
-import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
-import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +30,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_POS_DELETES_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 
 public class TestRowDelta extends V2TableTestBase {
   @Test
@@ -350,7 +350,8 @@ public class TestRowDelta extends V2TableTestBase {
                 .newRowDelta()
                 .addDeletes(FILE_A_DELETES)
                 .validateFromSnapshot(validateFromSnapshotId)
-                .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .validateNoConflictingDataFiles()
                 .commit());
 
     Assert.assertEquals(
@@ -383,7 +384,8 @@ public class TestRowDelta extends V2TableTestBase {
         .validateDeletedFiles()
         .validateFromSnapshot(validateFromSnapshotId)
         .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
-        .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .validateNoConflictingDataFiles()
         .commit();
 
     Snapshot snap = table.currentSnapshot();
@@ -741,7 +743,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition B
     table.newDelete().deleteFile(dataFile2).commit();
@@ -803,7 +806,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition A
     table.newDelete().deleteFile(dataFile1).commit();
@@ -1077,7 +1081,8 @@ public class TestRowDelta extends V2TableTestBase {
         .newRowDelta()
         .addDeletes(FILE_A_DELETES)
         .validateFromSnapshot(firstSnapshot.snapshotId())
-        .validateNoConflictingAppends(conflictDetectionFilter)
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
         .commit();
 
     AssertHelpers.assertThrows(
