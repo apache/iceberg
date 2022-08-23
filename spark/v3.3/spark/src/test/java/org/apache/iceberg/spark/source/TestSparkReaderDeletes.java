@@ -357,6 +357,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    long expectedDeletes = 4L;
+    checkDeleteCount(expectedDeletes);
   }
 
   @Test
@@ -386,6 +388,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    long expectedDeletes = 3L;
+    checkDeleteCount(expectedDeletes);
   }
 
   @Test
@@ -429,6 +433,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    long expectedDeletes = 4L;
+    checkDeleteCount(expectedDeletes);
   }
 
   @Test
@@ -501,6 +507,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual =
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    long expectedDeletes = 0L;
+    checkDeleteCount(expectedDeletes);
   }
 
   private static final Schema PROJECTION_SCHEMA =

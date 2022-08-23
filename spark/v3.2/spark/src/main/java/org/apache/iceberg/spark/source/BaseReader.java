@@ -268,7 +268,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected void markRowDeleted(InternalRow row) {
-      row.setBoolean(columnIsDeletedPosition(), true);
+      if (!row.getBoolean(columnIsDeletedPosition())) {
+        row.setBoolean(columnIsDeletedPosition(), true);
+        counter().increment();
+      }
     }
   }
 }
