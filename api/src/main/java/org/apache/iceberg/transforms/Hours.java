@@ -64,6 +64,11 @@ public class Hours<T> extends TimeTransform<T> {
   }
 
   @Override
+  public String toHumanString(Type alwaysInt, Integer value) {
+    return TransformUtil.humanHour(value);
+  }
+
+  @Override
   public String toString() {
     return "hour";
   }

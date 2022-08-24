@@ -65,6 +65,11 @@ public class Months<T> extends TimeTransform<T> {
   }
 
   @Override
+  public String toHumanString(Type alwaysInt, Integer value) {
+    return TransformUtil.humanMonth(value);
+  }
+
+  @Override
   public String toString() {
     return "month";
   }

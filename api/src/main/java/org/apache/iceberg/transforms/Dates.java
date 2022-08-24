@@ -18,26 +18,26 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.io.Serializable;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 enum Dates implements Transform<Integer, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
   MONTH(ChronoUnit.MONTHS, "month"),
   DAY(ChronoUnit.DAYS, "day");
 
-  static class Apply implements Function<Integer, Integer>, Serializable {
+  static class Apply implements SerializableFunction<Integer, Integer> {
     private final ChronoUnit granularity;
 
     Apply(ChronoUnit granularity) {
@@ -85,7 +85,8 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
-  public Function<Integer, Integer> bind(Type type) {
+  public SerializableFunction<Integer, Integer> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return apply;
   }
 
@@ -187,7 +188,7 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
-  public String toHumanString(Type alwaysDate, Integer value) {
+  public String toHumanString(Type outputType, Integer value) {
     if (value == null) {
       return "null";
     }

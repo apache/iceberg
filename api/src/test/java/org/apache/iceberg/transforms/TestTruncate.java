@@ -30,7 +30,7 @@ import org.junit.Test;
 public class TestTruncate {
   @Test
   public void testDeprecatedTruncateInteger() {
-    Truncate<Integer> trunc = Truncate.get(Types.IntegerType.get(), 10);
+    Truncate<Object> trunc = Truncate.get(Types.IntegerType.get(), 10);
     Assert.assertEquals(0, (int) trunc.apply(0));
     Assert.assertEquals(0, (int) trunc.apply(1));
     Assert.assertEquals(0, (int) trunc.apply(5));

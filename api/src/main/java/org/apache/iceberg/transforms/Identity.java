@@ -19,12 +19,12 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
-import java.io.Serializable;
-import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.SerializableFunction;
 
 class Identity<T> implements Transform<T, T> {
   private static final Identity<?> INSTANCE = new Identity<>();
@@ -34,7 +34,7 @@ class Identity<T> implements Transform<T, T> {
     return (Identity<I>) INSTANCE;
   }
 
-  private static class Apply<T> implements Function<T, T>, Serializable {
+  private static class Apply<T> implements SerializableFunction<T, T> {
     private static final Apply<?> APPLY_INSTANCE = new Apply<>();
 
     @SuppressWarnings("unchecked")
@@ -56,7 +56,8 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public Function<T, T> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return Apply.get();
   }
 

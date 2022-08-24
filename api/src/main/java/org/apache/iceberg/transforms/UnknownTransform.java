@@ -19,11 +19,11 @@
 package org.apache.iceberg.transforms;
 
 import java.util.Objects;
-import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 public class UnknownTransform<S, T> implements Transform<S, T> {
 
@@ -40,7 +40,7 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
   }
 
   @Override
-  public Function<S, T> bind(Type type) {
+  public SerializableFunction<S, T> bind(Type type) {
     throw new UnsupportedOperationException(
         String.format("Cannot bind unsupported transform: %s", transform));
   }

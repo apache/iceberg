@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A transform expression.
@@ -32,7 +32,7 @@ import org.apache.iceberg.types.Type;
 public class BoundTransform<S, T> implements BoundTerm<T> {
   private final BoundReference<S> ref;
   private final Transform<S, T> transform;
-  private final Function<S, T> func;
+  private final SerializableFunction<S, T> func;
 
   BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
     this.ref = ref;

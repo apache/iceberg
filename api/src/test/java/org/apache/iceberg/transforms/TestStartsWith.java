@@ -63,7 +63,7 @@ public class TestStartsWith {
   @Test
   @SuppressWarnings("unchecked")
   public void testTruncateString() {
-    Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
+    Truncate<String> trunc = Truncate.get(2);
     Expression expr = startsWith(COLUMN, "abcde");
     BoundPredicate<String> boundExpr =
         (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(), expr, false);

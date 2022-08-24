@@ -74,9 +74,9 @@ public class Transforms {
       String name = widthMatcher.group(1);
       int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
-        return Truncate.get(type, parsedWidth);
+        return (Transform<?, ?>) Truncate.get(type, parsedWidth);
       } else if (name.equals("bucket")) {
-        return Bucket.get(type, parsedWidth);
+        return (Transform<?, ?>) Bucket.get(type, parsedWidth);
       }
     }
 
@@ -218,7 +218,7 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> truncate(Type type, int width) {
-    return Truncate.get(type, width);
+    return (Transform<T, T>) Truncate.get(type, width);
   }
 
   /**

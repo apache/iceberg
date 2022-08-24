@@ -18,18 +18,17 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 abstract class TimeTransform<S> implements Transform<S, Integer> {
   protected abstract Transform<S, Integer> toEnum(Type type);
 
   @Override
-  public Function<S, Integer> bind(Type type) {
+  public SerializableFunction<S, Integer> bind(Type type) {
     return toEnum(type).bind(type);
   }
 
@@ -59,12 +58,6 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
     }
 
     return toEnum(predicate.term().type()).projectStrict(name, predicate);
-  }
-
-  @Override
-  public String toHumanString(Type type, Integer value) {
-    // the incoming type doesn't matter, so always use timestamp without time zone
-    return toEnum(Types.TimestampType.withoutZone()).toHumanString(type, value);
   }
 
   @Override

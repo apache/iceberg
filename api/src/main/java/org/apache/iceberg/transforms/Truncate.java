@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
@@ -44,20 +45,20 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
   @Deprecated
   @SuppressWarnings("unchecked")
-  static <T> Truncate<T> get(Type type, int width) {
+  static <T, R extends Truncate<T> & SerializableFunction<T, T>> R get(Type type, int width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
 
     switch (type.typeId()) {
       case INTEGER:
-        return (Truncate<T>) new TruncateInteger(width);
+        return (R) new TruncateInteger(width);
       case LONG:
-        return (Truncate<T>) new TruncateLong(width);
+        return (R) new TruncateLong(width);
       case DECIMAL:
-        return (Truncate<T>) new TruncateDecimal(width);
+        return (R) new TruncateDecimal(width);
       case STRING:
-        return (Truncate<T>) new TruncateString(width);
+        return (R) new TruncateString(width);
       case BINARY:
-        return (Truncate<T>) new TruncateByteBuffer(width);
+        return (R) new TruncateByteBuffer(width);
       default:
         throw new UnsupportedOperationException("Cannot truncate type: " + type);
     }
@@ -81,8 +82,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   @Override
-  public Function<T, T> bind(Type type) {
-    return get(type, width);
+  public SerializableFunction<T, T> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    return (SerializableFunction<T, T>) get(type, width);
   }
 
   @Override
@@ -100,13 +102,13 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
   @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
-    Truncate<T> bound = get(predicate.term().type(), width);
+    Truncate<T> bound = (Truncate<T>) get(predicate.term().type(), width);
     return bound.project(name, predicate);
   }
 
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
-    Truncate<T> bound = get(predicate.term().type(), width);
+    Truncate<T> bound = (Truncate<T>) get(predicate.term().type(), width);
     return bound.projectStrict(name, predicate);
   }
 
@@ -157,18 +159,19 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   private static class TruncateInteger extends Truncate<Integer>
-      implements Function<Integer, Integer> {
+      implements SerializableFunction<Integer, Integer> {
+
     private TruncateInteger(int width) {
       super(width);
     }
 
     @Override
-    public Function<Integer, Integer> bind(Type type) {
-      if (type.typeId() == Type.TypeID.INTEGER) {
-        return this;
-      } else {
-        return null;
-      }
+    public SerializableFunction<Integer, Integer> bind(Type type) {
+      Preconditions.checkArgument(
+          type.typeId() == Type.TypeID.INTEGER,
+          "Cannot bind truncate to a different type: %s",
+          type);
+      return this;
     }
 
     @Override
@@ -178,11 +181,6 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
 
       return TruncateUtil.truncateInt(width, value);
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return type.typeId() == Type.TypeID.INTEGER;
     }
 
     @Override
@@ -221,13 +219,17 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
   }
 
-  private static class TruncateLong extends Truncate<Long> implements Function<Long, Long> {
+  private static class TruncateLong extends Truncate<Long>
+      implements SerializableFunction<Long, Long> {
+
     private TruncateLong(int width) {
       super(width);
     }
 
     @Override
-    public Function<Long, Long> bind(Type type) {
+    public SerializableFunction<Long, Long> bind(Type type) {
+      Preconditions.checkArgument(
+          type.typeId() == Type.TypeID.LONG, "Cannot bind truncate to a different type: %s", type);
       return this;
     }
 
@@ -238,11 +240,6 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
 
       return TruncateUtil.truncateLong(width, value);
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return type.typeId() == Type.TypeID.LONG;
     }
 
     @Override
@@ -279,13 +276,18 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   private static class TruncateString extends Truncate<CharSequence>
-      implements Function<CharSequence, CharSequence> {
+      implements SerializableFunction<CharSequence, CharSequence> {
+
     private TruncateString(int length) {
       super(length);
     }
 
     @Override
-    public Function<CharSequence, CharSequence> bind(Type type) {
+    public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
+      Preconditions.checkArgument(
+          type.typeId() == Type.TypeID.STRING,
+          "Cannot bind truncate to a different type: %s",
+          type);
       return this;
     }
 
@@ -296,11 +298,6 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
 
       return UnicodeUtil.truncateString(value, width);
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return type.typeId() == Type.TypeID.STRING;
     }
 
     @Override
@@ -395,13 +392,18 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   private static class TruncateByteBuffer extends Truncate<ByteBuffer>
-      implements Function<ByteBuffer, ByteBuffer> {
+      implements SerializableFunction<ByteBuffer, ByteBuffer> {
+
     private TruncateByteBuffer(int length) {
       super(length);
     }
 
     @Override
-    public Function<ByteBuffer, ByteBuffer> bind(Type type) {
+    public SerializableFunction<ByteBuffer, ByteBuffer> bind(Type type) {
+      Preconditions.checkArgument(
+          type.typeId() == Type.TypeID.BINARY || type.typeId() == Type.TypeID.FIXED,
+          "Cannot bind truncate to a different type: %s",
+          type);
       return this;
     }
 
@@ -412,11 +414,6 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
 
       return BinaryUtil.truncateBinaryUnsafe(value, width);
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return type.typeId() == Type.TypeID.BINARY;
     }
 
     @Override
@@ -454,7 +451,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   private static class TruncateDecimal extends Truncate<BigDecimal>
-      implements Function<BigDecimal, BigDecimal> {
+      implements SerializableFunction<BigDecimal, BigDecimal> {
+
     private final BigInteger unscaledWidth;
 
     private TruncateDecimal(int unscaledWidth) {
@@ -463,7 +461,11 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
 
     @Override
-    public Function<BigDecimal, BigDecimal> bind(Type type) {
+    public SerializableFunction<BigDecimal, BigDecimal> bind(Type type) {
+      Preconditions.checkArgument(
+          type.typeId() == Type.TypeID.DECIMAL,
+          "Cannot bind truncate to a different type: %s",
+          type);
       return this;
     }
 
@@ -474,11 +476,6 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
 
       return TruncateUtil.truncateDecimal(unscaledWidth, value);
-    }
-
-    @Override
-    public boolean canTransform(Type type) {
-      return type.typeId() == Type.TypeID.DECIMAL;
     }
 
     @Override

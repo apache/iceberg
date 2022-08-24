@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A struct of partition values.
@@ -36,7 +37,7 @@ public class PartitionKey implements StructLike, Serializable {
   private final PartitionSpec spec;
   private final int size;
   private final Object[] partitionTuple;
-  private final Function[] transforms;
+  private final SerializableFunction[] transforms;
   private final Accessor<StructLike>[] accessors;
 
   @SuppressWarnings("unchecked")
@@ -46,7 +47,7 @@ public class PartitionKey implements StructLike, Serializable {
     List<PartitionField> fields = spec.fields();
     this.size = fields.size();
     this.partitionTuple = new Object[size];
-    this.transforms = new Function[size];
+    this.transforms = new SerializableFunction[size];
     this.accessors = (Accessor<StructLike>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();

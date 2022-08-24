@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A transform function used for partitioning.
@@ -55,7 +56,7 @@ public interface Transform<S, T> extends Serializable {
    * @param type an Iceberg {@link Type}
    * @return a {@link Function} that applies this transform to values of the given type.
    */
-  default Function<S, T> bind(Type type) {
+  default SerializableFunction<S, T> bind(Type type) {
     throw new UnsupportedOperationException("bind is not implemented");
   }
 

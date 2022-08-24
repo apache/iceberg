@@ -186,8 +186,8 @@ public class PartitionSpec implements Serializable {
     List<Types.NestedField> outputFields = partitionType().fields();
     for (int i = 0; i < javaClasses.length; i += 1) {
       PartitionField field = fields[i];
-      String valueString =
-          field.transform().toHumanString(outputFields.get(i).type(), get(data, i, javaClasses[i]));
+      Type type = outputFields.get(i).type();
+      String valueString = field.transform().toHumanString(type, get(data, i, javaClasses[i]));
 
       if (i > 0) {
         sb.append("/");

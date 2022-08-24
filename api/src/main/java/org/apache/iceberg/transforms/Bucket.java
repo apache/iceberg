@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -32,8 +33,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
+import org.apache.iceberg.util.SerializableFunction;
 
-class Bucket<T> implements Transform<T, Integer> {
+class Bucket<T> implements Transform<T, Integer>, Serializable {
   static <T> Bucket<T> get(int numBuckets) {
     Preconditions.checkArgument(
         numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
@@ -41,27 +43,28 @@ class Bucket<T> implements Transform<T, Integer> {
   }
 
   @SuppressWarnings("unchecked")
-  static <T> Bucket<T> get(Type type, int numBuckets) {
+  static <T, B extends Bucket<T> & SerializableFunction<T, Integer>> B get(
+      Type type, int numBuckets) {
     Preconditions.checkArgument(
         numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
 
     switch (type.typeId()) {
       case DATE:
       case INTEGER:
-        return (Bucket<T>) new BucketInteger(numBuckets);
+        return (B) new BucketInteger(numBuckets);
       case TIME:
       case TIMESTAMP:
       case LONG:
-        return (Bucket<T>) new BucketLong(numBuckets);
+        return (B) new BucketLong(numBuckets);
       case DECIMAL:
-        return (Bucket<T>) new BucketDecimal(numBuckets);
+        return (B) new BucketDecimal(numBuckets);
       case STRING:
-        return (Bucket<T>) new BucketString(numBuckets);
+        return (B) new BucketString(numBuckets);
       case FIXED:
       case BINARY:
-        return (Bucket<T>) new BucketByteBuffer(numBuckets);
+        return (B) new BucketByteBuffer(numBuckets);
       case UUID:
-        return (Bucket<T>) new BucketUUID(numBuckets);
+        return (B) new BucketUUID(numBuckets);
       default:
         throw new IllegalArgumentException("Cannot bucket by type: " + type);
     }
@@ -78,9 +81,9 @@ class Bucket<T> implements Transform<T, Integer> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public Function<T, Integer> bind(Type type) {
-    return (Function<T, Integer>) get(type, numBuckets);
+  public SerializableFunction<T, Integer> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    return get(type, numBuckets);
   }
 
   protected int hash(T value) {
@@ -125,7 +128,7 @@ class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> project(String name, BoundPredicate<T> predicate) {
-    Function<T, Integer> apply = this.bind(predicate.term().type());
+    Function<T, Integer> function = this.bind(predicate.term().type());
     if (predicate.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
@@ -134,10 +137,10 @@ class Bucket<T> implements Transform<T, Integer> {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.EQ) {
       return Expressions.predicate(
-          predicate.op(), name, apply.apply(predicate.asLiteralPredicate().literal().value()));
+          predicate.op(), name, function.apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate()
         && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
-      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), apply);
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), function);
     }
 
     // comparison predicates can't be projected, notEq can't be projected
@@ -148,7 +151,7 @@ class Bucket<T> implements Transform<T, Integer> {
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<T> predicate) {
-    Function<T, Integer> apply = this.bind(predicate.term().type());
+    Function<T, Integer> function = this.bind(predicate.term().type());
     if (predicate.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, predicate);
     }
@@ -158,9 +161,9 @@ class Bucket<T> implements Transform<T, Integer> {
     } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.NOT_EQ) {
       // TODO: need to translate not(eq(...)) into notEq in expressions
       return Expressions.predicate(
-          predicate.op(), name, apply.apply(predicate.asLiteralPredicate().literal().value()));
+          predicate.op(), name, function.apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
-      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), apply);
+      return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), function);
     }
 
     // no strict projection for comparison or equality
@@ -172,7 +175,9 @@ class Bucket<T> implements Transform<T, Integer> {
     return Types.IntegerType.get();
   }
 
-  private static class BucketInteger extends Bucket<Integer> implements Function<Integer, Integer> {
+  private static class BucketInteger extends Bucket<Integer>
+      implements SerializableFunction<Integer, Integer> {
+
     private BucketInteger(int numBuckets) {
       super(numBuckets);
     }
@@ -183,7 +188,9 @@ class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketLong extends Bucket<Long> implements Function<Long, Integer> {
+  private static class BucketLong extends Bucket<Long>
+      implements SerializableFunction<Long, Integer> {
+
     private BucketLong(int numBuckets) {
       super(numBuckets);
     }
@@ -195,7 +202,8 @@ class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketString extends Bucket<CharSequence>
-      implements Function<CharSequence, Integer> {
+      implements SerializableFunction<CharSequence, Integer> {
+
     private BucketString(int numBuckets) {
       super(numBuckets);
     }
@@ -207,7 +215,8 @@ class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketByteBuffer extends Bucket<ByteBuffer>
-      implements Function<ByteBuffer, Integer> {
+      implements SerializableFunction<ByteBuffer, Integer> {
+
     private BucketByteBuffer(int numBuckets) {
       super(numBuckets);
     }
@@ -218,7 +227,9 @@ class Bucket<T> implements Transform<T, Integer> {
     }
   }
 
-  private static class BucketUUID extends Bucket<UUID> implements Function<UUID, Integer> {
+  private static class BucketUUID extends Bucket<UUID>
+      implements SerializableFunction<UUID, Integer> {
+
     private BucketUUID(int numBuckets) {
       super(numBuckets);
     }
@@ -230,7 +241,8 @@ class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketDecimal extends Bucket<BigDecimal>
-      implements Function<BigDecimal, Integer> {
+      implements SerializableFunction<BigDecimal, Integer> {
+
     private BucketDecimal(int numBuckets) {
       super(numBuckets);
     }

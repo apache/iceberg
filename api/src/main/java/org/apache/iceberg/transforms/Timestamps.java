@@ -18,19 +18,19 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.io.Serializable;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -38,7 +38,7 @@ enum Timestamps implements Transform<Long, Integer> {
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
-  static class Apply implements Function<Long, Integer>, Serializable {
+  static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit granularity;
 
     Apply(ChronoUnit granularity) {
@@ -76,7 +76,7 @@ enum Timestamps implements Transform<Long, Integer> {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private final ChronoUnit granularity;
   private final String name;
-  private final Function<Long, Integer> apply;
+  private final SerializableFunction<Long, Integer> apply;
 
   Timestamps(ChronoUnit granularity, String name) {
     this.granularity = granularity;
@@ -90,7 +90,8 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public Function<Long, Integer> bind(Type type) {
+  public SerializableFunction<Long, Integer> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return apply;
   }
 
@@ -176,7 +177,7 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public String toHumanString(Type alwaysTimestamp, Integer value) {
+  public String toHumanString(Type outputType, Integer value) {
     if (value == null) {
       return "null";
     }
