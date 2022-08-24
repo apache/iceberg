@@ -50,10 +50,12 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -152,6 +154,7 @@ public class TestTableMetadata {
             snapshotLog,
             ImmutableList.of(),
             refs,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -272,6 +275,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -415,6 +419,7 @@ public class TestTableMetadata {
                 snapshotLog,
                 ImmutableList.of(),
                 refs,
+                ImmutableList.of(),
                 ImmutableList.of()));
   }
 
@@ -464,6 +469,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 refs,
+                ImmutableList.of(),
                 ImmutableList.of()));
   }
 
@@ -502,6 +508,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 refs,
+                ImmutableList.of(),
                 ImmutableList.of()));
   }
 
@@ -607,6 +614,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -686,6 +694,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -783,6 +792,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -886,6 +896,7 @@ public class TestTableMetadata {
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -935,6 +946,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 ImmutableMap.of(),
+                ImmutableList.of(),
                 ImmutableList.of()));
   }
 
@@ -967,6 +979,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 ImmutableMap.of(),
+                ImmutableList.of(),
                 ImmutableList.of()));
   }
 
@@ -1236,6 +1249,89 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertEquals(
+        "Should default to no statistics files", ImmutableList.of(), meta.statisticsFiles());
+  }
+
+  @Test
+  public void testSetStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    TableMetadata withStatistics =
+        TableMetadata.buildFrom(meta)
+            .setStatistics(
+                43,
+                new GenericStatisticsFile(
+                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+            .build();
+
+    Assertions.assertThat(withStatistics.statisticsFiles())
+        .as("There should be one statistics file registered")
+        .hasSize(1);
+    StatisticsFile statisticsFile = Iterables.getOnlyElement(withStatistics.statisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, statisticsFile.snapshotId());
+    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file", statisticsFile.path());
+
+    TableMetadata withStatisticsReplaced =
+        TableMetadata.buildFrom(withStatistics)
+            .setStatistics(
+                43,
+                new GenericStatisticsFile(
+                    43, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
+            .build();
+
+    Assertions.assertThat(withStatisticsReplaced.statisticsFiles())
+        .as("There should be one statistics file registered")
+        .hasSize(1);
+    statisticsFile = Iterables.getOnlyElement(withStatisticsReplaced.statisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 43L, statisticsFile.snapshotId());
+    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file2", statisticsFile.path());
+  }
+
+  @Test
+  public void testRemoveStatistics() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .setStatistics(
+                43,
+                new GenericStatisticsFile(
+                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+            .setStatistics(
+                44,
+                new GenericStatisticsFile(
+                    44, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
+            .build();
+
+    Assert.assertSame(
+        "Should detect no statistics to remove",
+        meta,
+        TableMetadata.buildFrom(meta).removeStatistics(42L).build());
+
+    TableMetadata withOneRemoved = TableMetadata.buildFrom(meta).removeStatistics(43).build();
+
+    Assertions.assertThat(withOneRemoved.statisticsFiles())
+        .as("There should be one statistics file retained")
+        .hasSize(1);
+    StatisticsFile statisticsFile = Iterables.getOnlyElement(withOneRemoved.statisticsFiles());
+    Assert.assertEquals("Statistics file snapshot", 44L, statisticsFile.snapshotId());
+    Assert.assertEquals("Statistics file path", "/some/path/to/stats/file2", statisticsFile.path());
+  }
+
+  @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(ops.io(), data);
@@ -1423,6 +1519,24 @@ public class TestTableMetadata {
         "should not contain format-version but should contain new properties",
         ImmutableMap.of("key2", "val2"),
         meta.properties());
+  }
+
+  @Test
+  public void testParseStatisticsFiles() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(ops.io(), data);
+    Assertions.assertThat(parsed.statisticsFiles()).as("parsed statistics files").hasSize(1);
+    Assert.assertEquals(
+        "parsed statistics file",
+        new GenericStatisticsFile(
+            3055729675574597004L,
+            "s3://a/b/stats.puffin",
+            413,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))),
+        Iterables.getOnlyElement(parsed.statisticsFiles()));
   }
 
   @Test
