@@ -270,15 +270,15 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
     assert metadata == TableMetadataV2(
         location=metadata.location,
         table_uuid=metadata.table_uuid,
-        last_updated_ms=12345000,
-        last_column_id=2,
+        last_updated_ms=metadata.last_updated_ms,
+        last_column_id=3,
         schemas=[
             Schema(
-                NestedField(field_id=0, name="foo", field_type=StringType(), required=False),
-                NestedField(field_id=1, name="bar", field_type=IntegerType(), required=True),
-                NestedField(field_id=2, name="baz", field_type=BooleanType(), required=False),
+                NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
                 schema_id=0,
-                identifier_field_ids=[1],
+                identifier_field_ids=[2],
             )
         ],
         current_schema_id=0,

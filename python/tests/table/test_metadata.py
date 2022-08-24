@@ -619,73 +619,77 @@ def test_make_metadata_fresh():
     expected = TableMetadataV2(
         location="s3://",
         table_uuid=actual.table_uuid,
-        last_updated_ms=12345000,
-        last_column_id=16,
+        last_updated_ms=actual.last_updated_ms,
+        last_column_id=17,
         schemas=[
             Schema(
-                NestedField(field_id=0, name="foo", field_type=StringType(), required=False),
-                NestedField(field_id=1, name="bar", field_type=IntegerType(), required=True),
-                NestedField(field_id=2, name="baz", field_type=BooleanType(), required=False),
-                NestedField(
-                    field_id=4,
-                    name="qux",
-                    field_type=ListType(type="list", element_id=3, element_type=StringType(), element_required=True),
-                    required=True,
-                ),
-                NestedField(
-                    field_id=9,
-                    name="quux",
-                    field_type=MapType(
-                        type="map",
-                        key_id=7,
-                        key_type=StringType(),
-                        value_id=8,
-                        value_type=MapType(
+                fields=(
+                    NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                    NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+                    NestedField(
+                        field_id=4,
+                        name="qux",
+                        field_type=ListType(type="list", element_id=5, element_type=StringType(), element_required=True),
+                        required=True,
+                    ),
+                    NestedField(
+                        field_id=6,
+                        name="quux",
+                        field_type=MapType(
                             type="map",
-                            key_id=5,
+                            key_id=7,
                             key_type=StringType(),
-                            value_id=6,
-                            value_type=IntegerType(),
+                            value_id=8,
+                            value_type=MapType(
+                                type="map",
+                                key_id=9,
+                                key_type=StringType(),
+                                value_id=10,
+                                value_type=IntegerType(),
+                                value_required=True,
+                            ),
                             value_required=True,
                         ),
-                        value_required=True,
+                        required=True,
                     ),
-                    required=True,
-                ),
-                NestedField(
-                    field_id=13,
-                    name="location",
-                    field_type=ListType(
-                        type="list",
-                        element_id=12,
-                        element_type=StructType(
+                    NestedField(
+                        field_id=11,
+                        name="location",
+                        field_type=ListType(
+                            type="list",
+                            element_id=12,
+                            element_type=StructType(
+                                fields=(
+                                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                                )
+                            ),
+                            element_required=True,
+                        ),
+                        required=True,
+                    ),
+                    NestedField(
+                        field_id=15,
+                        name="person",
+                        field_type=StructType(
                             fields=(
-                                NestedField(field_id=10, name="latitude", field_type=FloatType(), required=False),
-                                NestedField(field_id=11, name="longitude", field_type=FloatType(), required=False),
+                                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
                             )
                         ),
-                        element_required=True,
+                        required=False,
                     ),
-                    required=True,
-                ),
-                NestedField(
-                    field_id=16,
-                    name="person",
-                    field_type=StructType(
-                        fields=(
-                            NestedField(field_id=14, name="name", field_type=StringType(), required=False),
-                            NestedField(field_id=15, name="age", field_type=IntegerType(), required=True),
-                        )
-                    ),
-                    required=False,
                 ),
                 schema_id=0,
-                identifier_field_ids=[1],
+                identifier_field_ids=[2],
             )
         ],
         current_schema_id=0,
         partition_specs=[
-            PartitionSpec(0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="bar"),))
+            PartitionSpec(
+                spec_id=0, fields=(PartitionField(source_id=2, field_id=1000, transform=IdentityTransform(), name="bar"),)
+            )
         ],
         default_spec_id=0,
         last_partition_id=1000,
@@ -696,10 +700,12 @@ def test_make_metadata_fresh():
         metadata_log=[],
         sort_orders=[
             SortOrder(
-                1,
-                SortField(
-                    source_id=0, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST
-                ),
+                order_id=1,
+                fields=[
+                    SortField(
+                        source_id=1, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST
+                    )
+                ],
             )
         ],
         default_sort_order_id=1,

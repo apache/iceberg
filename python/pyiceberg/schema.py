@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0511
-
+import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import cached_property, singledispatch
+from functools import cached_property, partial, singledispatch
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
     List,
@@ -278,6 +279,32 @@ class SchemaVisitor(Generic[T], ABC):
         """Visit a PrimitiveType"""
 
 
+class PreOrderSchemaVisitor(Generic[T], ABC):
+    @abstractmethod
+    def schema(self, schema: Schema, struct_result: Callable[[], T]) -> T:
+        """Visit a Schema"""
+
+    @abstractmethod
+    def struct(self, struct: StructType, field_results: List[Callable[[], T]]) -> T:
+        """Visit a StructType"""
+
+    @abstractmethod
+    def field(self, field: NestedField, field_result: Callable[[], T]) -> T:
+        """Visit a NestedField"""
+
+    @abstractmethod
+    def list(self, list_type: ListType, element_result: Callable[[], T]) -> T:
+        """Visit a ListType"""
+
+    @abstractmethod
+    def map(self, map_type: MapType, key_result: Callable[[], T], value_result: Callable[[], T]) -> T:
+        """Visit a MapType"""
+
+    @abstractmethod
+    def primitive(self, primitive: PrimitiveType) -> T:
+        """Visit a PrimitiveType"""
+
+
 @dataclass(init=True, eq=True, frozen=True)
 class Accessor:
     """An accessor for a specific position in a container that implements the StructProtocol"""
@@ -373,6 +400,75 @@ def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
 
 @visit.register(PrimitiveType)
 def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
+    """Visit a PrimitiveType with a concrete SchemaVisitor"""
+    return visitor.primitive(obj)
+
+
+@singledispatch
+def pre_order_visit(obj, visitor: PreOrderSchemaVisitor[T]) -> T:
+    """A generic function for applying a schema visitor to any point within a schema
+
+    The function traverses the schema in pre-order fashion
+
+    Args:
+        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
+
+    Raises:
+        NotImplementedError: If attempting to visit an unrecognized object type
+    """
+    raise NotImplementedError("Cannot visit non-type: %s" % obj)
+
+
+@pre_order_visit.register(Schema)
+def _(obj: Schema, visitor: PreOrderSchemaVisitor[T]) -> T:
+    """Visit a Schema with a concrete SchemaVisitor"""
+    return visitor.schema(obj, lambda: pre_order_visit(obj.as_struct(), visitor))
+
+
+@visit.register(StructType)
+def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
+    """Visit a StructType with a concrete SchemaVisitor"""
+    results = []
+
+    for field in obj.fields:
+        visitor.before_field(field)
+        result = visit(field.field_type, visitor)
+        visitor.after_field(field)
+        results.append(visitor.field(field, result))
+
+    return visitor.struct(obj, results)
+
+
+@pre_order_visit.register(StructType)
+def _(obj: StructType, visitor: PreOrderSchemaVisitor[T]) -> T:
+    """Visit a StructType with a concrete SchemaVisitor"""
+    return visitor.struct(
+        obj,
+        [
+            partial(
+                lambda field: visitor.field(field, partial(lambda field: pre_order_visit(field.field_type, visitor), field)),
+                field,
+            )
+            for field in obj.fields
+        ],
+    )
+
+
+@pre_order_visit.register(ListType)
+def _(obj: ListType, visitor: PreOrderSchemaVisitor[T]) -> T:
+    """Visit a ListType with a concrete SchemaVisitor"""
+    return visitor.list(obj, lambda: pre_order_visit(obj.element_type, visitor))
+
+
+@pre_order_visit.register(MapType)
+def _(obj: MapType, visitor: PreOrderSchemaVisitor[T]) -> T:
+    """Visit a MapType with a concrete SchemaVisitor"""
+    return visitor.map(obj, lambda: pre_order_visit(obj.key_type, visitor), lambda: pre_order_visit(obj.value_type, visitor))
+
+
+@pre_order_visit.register(PrimitiveType)
+def _(obj: PrimitiveType, visitor: PreOrderSchemaVisitor[T]) -> T:
     """Visit a PrimitiveType with a concrete SchemaVisitor"""
     return visitor.primitive(obj)
 
@@ -644,55 +740,55 @@ class _FindLastFieldId(SchemaVisitor[int]):
 
 def assign_fresh_schema_ids(schema: Schema) -> Schema:
     """Traverses the schema, and sets new IDs"""
-    schema_struct = visit(schema.as_struct(), _SetFreshIDs())
+    schema_struct = pre_order_visit(schema.as_struct(), _SetFreshIDs())
 
     fresh_identifier_field_ids = []
     new_schema = Schema(*schema_struct.fields)
     for field_id in schema.identifier_field_ids:
-        original_field = schema.find_field(field_id)
-        if original_field is None:
+        original_field_name = schema.find_column_name(field_id)
+        if original_field_name is None:
             raise ValueError(f"Could not find field: {field_id}")
-        fresh_field = new_schema.find_field(original_field.name)
+        fresh_field = new_schema.find_field(original_field_name)
         if fresh_field is None:
-            raise ValueError(f"Could not lookup field in new schema: {original_field}")
+            raise ValueError(f"Could not lookup field in new schema: {original_field_name}")
         fresh_identifier_field_ids.append(fresh_field.field_id)
 
     return new_schema.copy(update={"identifier_field_ids": fresh_identifier_field_ids})
 
 
-class _SetFreshIDs(SchemaVisitor[IcebergType]):
-    """Traverses the schema to get the highest field-id"""
+class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
+    """Traverses the schema and assigns monotonically increasing ids"""
 
-    counter: int
+    counter: itertools.count
 
-    def __init__(self) -> None:
-        self.counter = 0
+    def __init__(self, start: int = 1) -> None:
+        self.counter = itertools.count(start)
 
     def _get_and_increment(self) -> int:
-        pos = self.counter
-        self.counter += 1
-        return pos
+        return next(self.counter)
 
-    def schema(self, schema: Schema, struct_result: StructType) -> Schema:
-        return Schema(*struct_result.fields, schema_id=INITIAL_SCHEMA_ID, identifier_field_ids=schema.identifier_field_ids)
+    def schema(self, schema: Schema, struct_result: Callable[[], StructType]) -> Schema:
+        return Schema(*struct_result().fields, identifier_field_ids=schema.identifier_field_ids)
 
-    def struct(self, struct: StructType, field_results: List[IcebergType]) -> StructType:
-        return StructType(*field_results)
+    def struct(self, struct: StructType, field_results: List[Callable[[], IcebergType]]) -> StructType:
+        return StructType(*[field() for field in field_results])
 
-    def field(self, field: NestedField, field_result: IcebergType) -> IcebergType:
+    def field(self, field: NestedField, field_result: Callable[[], IcebergType]) -> IcebergType:
         return NestedField(
-            field_id=self._get_and_increment(), name=field.name, field_type=field_result, required=field.required, doc=field.doc
+            field_id=self._get_and_increment(), name=field.name, field_type=field_result(), required=field.required, doc=field.doc
         )
 
-    def list(self, list_type: ListType, element_result: IcebergType) -> ListType:
-        return ListType(element_id=self._get_and_increment(), element=element_result, element_required=list_type.element_required)
+    def list(self, list_type: ListType, element_result: Callable[[], IcebergType]) -> ListType:
+        return ListType(
+            element_id=self._get_and_increment(), element=element_result(), element_required=list_type.element_required
+        )
 
-    def map(self, map_type: MapType, key_result: IcebergType, value_result: IcebergType) -> MapType:
+    def map(self, map_type: MapType, key_result: Callable[[], IcebergType], value_result: Callable[[], IcebergType]) -> MapType:
         return MapType(
             key_id=self._get_and_increment(),
-            key_type=key_result,
+            key_type=key_result(),
             value_id=self._get_and_increment(),
-            value_type=value_result,
+            value_type=value_result(),
             value_required=map_type.value_required,
         )
 

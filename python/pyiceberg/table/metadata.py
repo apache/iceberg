@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import time
+import datetime
 import uuid
 from copy import copy
 from typing import (
@@ -40,6 +40,7 @@ from pyiceberg.table.sorting import (
     assign_fresh_sort_order_ids,
 )
 from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.utils.datetime import datetime_to_micros
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 INITIAL_SEQUENCE_NUMBER = 0
@@ -114,7 +115,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_updated_ms: int = Field(alias="last-updated-ms", default_factory=lambda: int(time.time() * 1000))
+    last_updated_ms: int = Field(alias="last-updated-ms", default_factory=lambda: datetime_to_micros(datetime.datetime.now()))
     """Timestamp in milliseconds from the unix epoch when the table
     was last updated. Each table metadata file should update this
     field just before writing."""
@@ -351,16 +352,14 @@ def new_table_metadata(
     return TableMetadataV2(
         location=location,
         schemas=[fresh_schema],
+        last_column_id=fresh_schema.highest_field_id,
         current_schema_id=fresh_schema.schema_id,
         partition_specs=[fresh_partition_spec],
         default_spec_id=fresh_partition_spec.spec_id,
         sort_orders=[fresh_sort_order],
         default_sort_order_id=fresh_sort_order.order_id,
         properties=properties,
-        last_column_id=fresh_schema.highest_field_id,
-        last_partition_id=max(field.field_id for field in fresh_partition_spec.fields)
-        if fresh_partition_spec.fields
-        else DEFAULT_LAST_PARTITION_ID,
+        last_partition_id=fresh_partition_spec.last_assigned_field_id,
     )
 
 
