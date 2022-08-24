@@ -365,6 +365,16 @@ For example, if you partition by days and move to partitioning by hours, overwri
 Be careful when dropping a partition field because it will change the schema of metadata tables, like `files`, and may cause metadata queries to fail or produce different results.
 {{< /hint >}}
 
+### `ALTER TABLE ... REPLACE PARTITION FIELD`
+
+A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
+
+```sql
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(timestamp)
+-- use optional AS keyword to specify a custom name for the new partition field 
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(timestamp) AS day_of_ts
+```
+
 ### `ALTER TABLE ... WRITE ORDERED BY`
 
 Iceberg tables can be configured with a sort order that is used to automatically sort data that is written to the table in some engines. For example, `MERGE INTO` in Spark will use the table ordering.
