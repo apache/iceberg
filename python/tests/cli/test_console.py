@@ -189,13 +189,17 @@ Sort order            [
                         2 ASC NULLS FIRST
                         bucket[4](3) DESC NULLS LAST
                       ]
-Schema                Schema
+Current schema        Schema, id=1
                       ├── 1: x: required long
                       ├── 2: y: required long (comment)
                       └── 3: z: required long
+Current snapshot      Operation.APPEND: id=3055729675574597004,
+                      parent_id=3051729675574597004, schema_id=1
 Snapshots             Snapshots
-                      ├── Snapshot None: s3://a/b/1.avro
-                      └── Snapshot 1: s3://a/b/2.avro
+                      ├── Snapshot 3051729675574597004, schema None:
+                      │   s3://a/b/1.avro
+                      └── Snapshot 3055729675574597004, schema 1:
+                          s3://a/b/2.avro
 Properties            read.split.target.size  134217728
 """
     )
