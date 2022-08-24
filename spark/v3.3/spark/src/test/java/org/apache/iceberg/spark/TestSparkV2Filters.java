@@ -33,6 +33,7 @@ import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -143,6 +144,16 @@ public class TestSparkV2Filters {
               expectedEqNullSafe2.toString(),
               actualEqNullSafe2.toString());
 
+          LiteralValue str =
+              new LiteralValue(UTF8String.fromString("iceberg"), DataTypes.StringType);
+          org.apache.spark.sql.connector.expressions.Expression[] attrAndStr =
+              new org.apache.spark.sql.connector.expressions.Expression[] {namedReference, str};
+          Predicate startsWith = new Predicate("STARTS_WITH", attrAndStr);
+          Expression expectedStartsWith = Expressions.startsWith(unquoted, "iceberg");
+          Expression actualStartsWith = SparkV2Filters.convert(startsWith);
+          Assert.assertEquals(
+              "StartsWith must match", expectedStartsWith.toString(), actualStartsWith.toString());
+
           Predicate in = new Predicate("IN", attrAndValue);
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkV2Filters.convert(in);
@@ -153,7 +164,11 @@ public class TestSparkV2Filters {
           Expression actualAnd = SparkV2Filters.convert(and);
           Assert.assertEquals("And must match", expectedAnd.toString(), actualAnd.toString());
 
-          Predicate invalid = new Predicate("<", attrOnly);
+          org.apache.spark.sql.connector.expressions.Expression[] attrAndAttr =
+              new org.apache.spark.sql.connector.expressions.Expression[] {
+                namedReference, namedReference
+              };
+          Predicate invalid = new Predicate("<", attrAndAttr);
           Predicate andWithInvalidLeft = new And(invalid, eq1);
           Expression convertedAnd = SparkV2Filters.convert(andWithInvalidLeft);
           Assert.assertEquals("And must match", convertedAnd, null);

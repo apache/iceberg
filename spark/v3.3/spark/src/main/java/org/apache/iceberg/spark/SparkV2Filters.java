@@ -93,37 +93,8 @@ public class SparkV2Filters {
 
   private SparkV2Filters() {}
 
-  @SuppressWarnings("unchecked")
-  private static <T> T child(Predicate predicate) {
-    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    Preconditions.checkArgument(
-        children.length == 1, "Predicate should have one child: %s", predicate);
-    return (T) children[0];
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <T> T leftChild(Predicate predicate) {
-    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    return (T) children[0];
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <T> T rightChild(Predicate predicate) {
-    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
-    Preconditions.checkArgument(
-        children.length == 2, "Predicate should have two children: %s", predicate);
-    return (T) children[1];
-  }
-
-  private static String toColumnName(NamedReference ref) {
-    return DOT.join(ref.fieldNames());
-  }
-
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static Expression convert(Predicate predicate) {
-    if (!valid(predicate)) {
-      return null;
-    }
 
     Operation op = FILTERS.get(predicate.name());
     if (op != null) {
@@ -135,107 +106,112 @@ public class SparkV2Filters {
           return Expressions.alwaysFalse();
 
         case IS_NULL:
-          return isNull(toColumnName(child(predicate)));
+          return isRef(child(predicate)) ? isNull(toColumnName(child(predicate))) : null;
 
         case NOT_NULL:
-          return notNull(toColumnName(child(predicate)));
+          return isRef(child(predicate)) ? notNull(toColumnName(child(predicate))) : null;
 
         case LT:
-          if (rightChild(predicate) instanceof Literal) {
-            return lessThan(
-                toColumnName(leftChild(predicate)),
-                convertUTF8StringIfNecessary(rightChild(predicate)));
+          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+            String columnName = toColumnName(leftChild(predicate));
+            return lessThan(columnName, convertLiteral(rightChild(predicate)));
+          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+            String columnName = toColumnName(rightChild(predicate));
+            return greaterThan(columnName, convertLiteral(leftChild(predicate)));
           } else {
-            return greaterThan(
-                toColumnName(rightChild(predicate)),
-                convertUTF8StringIfNecessary(leftChild(predicate)));
+            return null;
           }
 
         case LT_EQ:
-          if (rightChild(predicate) instanceof Literal) {
-            return lessThanOrEqual(
-                toColumnName(leftChild(predicate)),
-                convertUTF8StringIfNecessary(rightChild(predicate)));
+          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+            String columnName = toColumnName(leftChild(predicate));
+            return lessThanOrEqual(columnName, convertLiteral(rightChild(predicate)));
+          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+            String columnName = toColumnName(rightChild(predicate));
+            return greaterThanOrEqual(columnName, convertLiteral(leftChild(predicate)));
           } else {
-            return greaterThanOrEqual(
-                toColumnName(rightChild(predicate)),
-                convertUTF8StringIfNecessary(leftChild(predicate)));
+            return null;
           }
 
         case GT:
-          if (rightChild(predicate) instanceof Literal) {
-            return greaterThan(
-                toColumnName(leftChild(predicate)),
-                convertUTF8StringIfNecessary(rightChild(predicate)));
+          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+            String columnName = toColumnName(leftChild(predicate));
+            return greaterThan(columnName, convertLiteral(rightChild(predicate)));
+          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+            String columnName = toColumnName(rightChild(predicate));
+            return lessThan(columnName, convertLiteral(leftChild(predicate)));
           } else {
-            return lessThan(
-                toColumnName(rightChild(predicate)),
-                convertUTF8StringIfNecessary(leftChild(predicate)));
+            return null;
           }
 
         case GT_EQ:
-          if (rightChild(predicate) instanceof Literal) {
-            return greaterThanOrEqual(
-                toColumnName(leftChild(predicate)),
-                convertUTF8StringIfNecessary(rightChild(predicate)));
+          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+            String columnName = toColumnName(leftChild(predicate));
+            return greaterThanOrEqual(columnName, convertLiteral(rightChild(predicate)));
+          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+            String columnName = toColumnName(rightChild(predicate));
+            return lessThanOrEqual(columnName, convertLiteral(leftChild(predicate)));
           } else {
-            return lessThanOrEqual(
-                toColumnName(rightChild(predicate)),
-                convertUTF8StringIfNecessary(leftChild(predicate)));
+            return null;
           }
 
         case EQ: // used for both eq and null-safe-eq
           Object value;
-          String attributeName;
-          if (rightChild(predicate) instanceof Literal) {
-            attributeName = toColumnName(leftChild(predicate));
-            value = convertUTF8StringIfNecessary(rightChild(predicate));
+          String columnName;
+          if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
+            columnName = toColumnName(leftChild(predicate));
+            value = convertLiteral(rightChild(predicate));
+          } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
+            columnName = toColumnName(rightChild(predicate));
+            value = convertLiteral(leftChild(predicate));
           } else {
-            attributeName = toColumnName(rightChild(predicate));
-            value = convertUTF8StringIfNecessary(leftChild(predicate));
+            return null;
           }
 
-          if (predicate.name().equals("=")) {
+          if (predicate.name().equals(EQ)) {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(
                 value, "Expression is always false (eq is not null-safe): %s", predicate);
-            return handleEqual(attributeName, value);
+            return handleEqual(columnName, value);
           } else { // "<=>"
             if (value == null) {
-              return isNull(attributeName);
+              return isNull(columnName);
             } else {
-              return handleEqual(attributeName, value);
+              return handleEqual(columnName, value);
             }
           }
 
         case IN:
-          return in(
-              toColumnName(leftChild(predicate)),
-              Arrays.stream(predicate.children())
-                  .skip(1)
-                  .map(val -> convertUTF8StringIfNecessary(((Literal) val)))
-                  .filter(Objects::nonNull)
-                  .collect(Collectors.toList()));
+          if (isSupportedInPredicate(predicate)) {
+            return in(
+                toColumnName(childAtIndex(predicate, 0)),
+                Arrays.stream(predicate.children())
+                    .skip(1)
+                    .map(val -> convertLiteral(((Literal<?>) val)))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList()));
+          } else {
+            return null;
+          }
 
         case NOT:
-          Not notFilter = (Not) predicate;
-          Predicate childFilter = notFilter.child();
-          if (childFilter.name().equals("IN")) {
+          Not notPredicate = (Not) predicate;
+          Predicate childPredicate = notPredicate.child();
+          if (childPredicate.name().equals(IN)) {
             // infer an extra notNull predicate for Spark NOT IN filters
             // as Iceberg expressions don't follow the 3-value SQL boolean logic
-            // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in
-            // Iceberg
+            // col NOT IN (1, 2) in Spark is equal to notNull(col) && notIn(col, 1, 2) in Iceberg
             Expression notIn =
                 notIn(
-                    toColumnName(leftChild(childFilter)),
-                    Arrays.stream(childFilter.children())
+                    toColumnName(childAtIndex(childPredicate, 0)),
+                    Arrays.stream(childPredicate.children())
                         .skip(1)
-                        .map(val -> convertUTF8StringIfNecessary(((Literal) val)))
+                        .map(val -> convertLiteral(((Literal<?>) val)))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
-            return and(notNull(toColumnName(leftChild(childFilter))), notIn);
-          } else if (hasNoInFilter(childFilter)) {
-            Expression child = convert(childFilter);
+            return and(notNull(toColumnName(childAtIndex(childPredicate, 0))), notIn);
+          } else if (hasNoInFilter(childPredicate)) {
+            Expression child = convert(childPredicate);
             if (child != null) {
               return not(child);
             }
@@ -265,16 +241,62 @@ public class SparkV2Filters {
           }
 
         case STARTS_WITH:
-          return startsWith(
-              toColumnName(leftChild(predicate)),
-              convertUTF8StringIfNecessary(rightChild(predicate)).toString());
+          if (isRef(leftChild(predicate))
+              && isLiteral(rightChild(predicate))
+              && ((Literal<?>) rightChild(predicate)).value() instanceof UTF8String) {
+            String colName = toColumnName(leftChild(predicate));
+            return startsWith(colName, convertLiteral(rightChild(predicate)).toString());
+          } else {
+            return null;
+          }
       }
     }
 
     return null;
   }
 
-  private static Object convertUTF8StringIfNecessary(Literal literal) {
+  private static String toColumnName(NamedReference ref) {
+    return DOT.join(ref.fieldNames());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T child(Predicate predicate) {
+    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
+    Preconditions.checkArgument(
+        children.length == 1, "Predicate should have one child: %s", predicate);
+    return (T) children[0];
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T leftChild(Predicate predicate) {
+    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
+    Preconditions.checkArgument(
+        children.length == 2, "Predicate should have two children: %s", predicate);
+    return (T) children[0];
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T rightChild(Predicate predicate) {
+    org.apache.spark.sql.connector.expressions.Expression[] children = predicate.children();
+    Preconditions.checkArgument(
+        children.length == 2, "Predicate should have two children: %s", predicate);
+    return (T) children[1];
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T childAtIndex(Predicate predicate, int index) {
+    return (T) predicate.children()[index];
+  }
+
+  private static boolean isRef(org.apache.spark.sql.connector.expressions.Expression expr) {
+    return expr instanceof NamedReference;
+  }
+
+  private static boolean isLiteral(org.apache.spark.sql.connector.expressions.Expression expr) {
+    return expr instanceof Literal;
+  }
+
+  private static Object convertLiteral(Literal<?> literal) {
     if (literal.value() instanceof UTF8String) {
       return ((UTF8String) literal.value()).toString();
     }
@@ -313,69 +335,11 @@ public class SparkV2Filters {
     return false;
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private static boolean valid(Predicate predicate) {
-    Operation op = FILTERS.get(predicate.name());
-    if (op != null) {
-      switch (op) {
-        case IS_NULL:
-        case NOT_NULL:
-          return child(predicate) instanceof NamedReference;
-
-        case LT:
-        case LT_EQ:
-        case GT:
-        case GT_EQ:
-        case EQ:
-          if (predicate.children().length != 2) {
-            return false;
-          }
-          return namedRefCompLit(predicate) || litCompNamedRef(predicate);
-
-        case IN:
-          if (!(leftChild(predicate) instanceof NamedReference)) {
-            return false;
-          } else {
-            return Arrays.stream(predicate.children())
-                .skip(1)
-                .allMatch(val -> val instanceof Literal);
-          }
-
-        case NOT:
-          Not notFilter = (Not) predicate;
-          return valid(notFilter.child());
-
-        case AND:
-          And andFilter = (And) predicate;
-          return valid(andFilter.left()) && valid(andFilter.right());
-
-        case OR:
-          Or orFilter = (Or) predicate;
-          return valid(orFilter.left()) && valid(orFilter.right());
-
-        case STARTS_WITH:
-          if (predicate.children().length != 2) {
-            return false;
-          }
-          return namedRefCompLit(predicate)
-              && ((Literal<?>) rightChild(predicate)).value() instanceof String;
-
-        case TRUE:
-        case FALSE:
-          return true;
-      }
+  private static boolean isSupportedInPredicate(Predicate predicate) {
+    if (!isRef(childAtIndex(predicate, 0))) {
+      return false;
+    } else {
+      return Arrays.stream(predicate.children()).skip(1).allMatch(val -> isLiteral(val));
     }
-
-    return false;
-  }
-
-  private static boolean namedRefCompLit(Predicate predicate) {
-    return leftChild(predicate) instanceof NamedReference
-        && rightChild(predicate) instanceof Literal;
-  }
-
-  private static boolean litCompNamedRef(Predicate predicate) {
-    return leftChild(predicate) instanceof Literal
-        && rightChild(predicate) instanceof NamedReference;
   }
 }
