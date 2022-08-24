@@ -28,6 +28,7 @@ public enum MetadataTableType {
   HISTORY,
   METADATA_LOG_ENTRIES,
   SNAPSHOTS,
+  REFS,
   MANIFESTS,
   PARTITIONS,
   ALL_DATA_FILES,
