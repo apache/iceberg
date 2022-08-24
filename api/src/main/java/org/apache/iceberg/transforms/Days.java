@@ -66,7 +66,7 @@ public class Days<T> extends TimeTransform<T> {
 
   @Override
   public String toHumanString(Type alwaysDate, Integer value) {
-    return TransformUtil.humanDay(value);
+    return value != null ? TransformUtil.humanDay(value) : "null";
   }
 
   @Override

@@ -70,7 +70,7 @@ public class Hours<T> extends TimeTransform<T> {
 
   @Override
   public String toHumanString(Type alwaysInt, Integer value) {
-    return TransformUtil.humanHour(value);
+    return value != null ? TransformUtil.humanHour(value) : "null";
   }
 
   @Override

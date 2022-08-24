@@ -66,7 +66,7 @@ class Years<T> extends TimeTransform<T> {
 
   @Override
   public String toHumanString(Type alwaysInt, Integer value) {
-    return TransformUtil.humanYear(value);
+    return value != null ? TransformUtil.humanYear(value) : "null";
   }
 
   @Override
