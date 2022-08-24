@@ -41,6 +41,11 @@ public class Hours<T> extends TimeTransform<T> {
   }
 
   @Override
+  public boolean canTransform(Type type) {
+    return type.typeId() == Type.TypeID.TIMESTAMP;
+  }
+
+  @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
   }

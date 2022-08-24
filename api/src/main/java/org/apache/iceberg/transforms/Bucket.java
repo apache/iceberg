@@ -101,7 +101,20 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.isPrimitiveType();
+    switch (type.typeId()) {
+      case INTEGER:
+      case LONG:
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
+      case STRING:
+      case BINARY:
+      case FIXED:
+      case DECIMAL:
+      case UUID:
+        return true;
+    }
+    return false;
   }
 
   @Override
