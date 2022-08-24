@@ -104,7 +104,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   private void testCdcEvents(boolean partitioned) throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
-    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, false);
     taskWriterFactory.initialize(1, 1);
 
     // Start the 1th transaction.
@@ -184,7 +184,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private void testWritePureEqDeletes(boolean partitioned) throws IOException {
     initTable(partitioned);
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
-    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, false);
     taskWriterFactory.initialize(1, 1);
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
@@ -213,7 +213,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private void testAbort(boolean partitioned) throws IOException {
     initTable(partitioned);
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
-    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, false);
     taskWriterFactory.initialize(1, 1);
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
@@ -256,7 +256,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
   public void testPartitionedTableWithDataAsKey() throws IOException {
     initTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId());
-    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, false);
     taskWriterFactory.initialize(1, 1);
 
     // Start the 1th transaction.
@@ -301,7 +301,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
   public void testPartitionedTableWithDataAndIdAsKey() throws IOException {
     initTable(true);
     List<Integer> equalityFieldIds = Lists.newArrayList(dataFieldId(), idFieldId());
-    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, false);
     taskWriterFactory.initialize(1, 1);
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
@@ -322,6 +322,25 @@ public class TestDeltaTaskWriter extends TableTestBase {
         "Should have expected records", expectedRowSet(createRecord(1, "aaa")), actualRowSet("*"));
   }
 
+  @Test
+  public void testUpdateBeforePurePosDelete() throws IOException {
+    initTable(false);
+    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
+    TaskWriterFactory<RowData> taskWriterFactory = createTaskWriterFactory(equalityFieldIds, true);
+    taskWriterFactory.initialize(1, 1);
+
+    TaskWriter<RowData> writer = taskWriterFactory.create();
+    writer.write(createInsert(2, "bbb"));
+
+    // only update_before
+    writer.write(createUpdateBefore(2, "bbb")); // 1 pos-delete.
+//    writer.write(createUpdateAfter(2, "ddd"));
+
+    WriteResult result = writer.complete();
+    commitTransaction(result);
+    Assert.assertEquals("Should have no record", expectedRowSet(), actualRowSet("*"));
+  }
+
   private void commitTransaction(WriteResult result) {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
@@ -340,13 +359,13 @@ public class TestDeltaTaskWriter extends TableTestBase {
     return SimpleDataUtil.actualRowSet(table, columns);
   }
 
-  private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
+  private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds, boolean upsert) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         FlinkSchemaUtil.convert(table.schema()),
         128 * 1024 * 1024,
         format,
         equalityFieldIds,
-        false);
+            upsert);
   }
 }
