@@ -193,8 +193,8 @@ Current schema        Schema, id=1
                       ├── 1: x: required long
                       ├── 2: y: required long (comment)
                       └── 3: z: required long
-Current snapshot      id=3055729675574597004, parent_id=3051729675574597004,
-                      schema_id=1
+Current snapshot      Operation.APPEND: id=3055729675574597004,
+                      parent_id=3051729675574597004, schema_id=1
 Snapshots             Snapshots
                       ├── Snapshot 3051729675574597004, schema None:
                       │   s3://a/b/1.avro

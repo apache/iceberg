@@ -103,7 +103,8 @@ class ConsoleOutput(Output):
 
         snapshot_tree = Tree("Snapshots")
         for snapshot in metadata.snapshots:
-            snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}:  {snapshot.manifest_list}")
+            manifest_list_str = f": {snapshot.manifest_list}" if snapshot.manifest_list else ""
+            snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}{manifest_list_str}")
 
         output_table = self._table
         output_table.add_row("Table format version", str(metadata.format_version))

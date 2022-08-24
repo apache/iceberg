@@ -46,10 +46,16 @@ class DataFileContent(int, Enum):
     POSITION_DELETES = 1
     EQUALITY_DELETES = 2
 
+    def __repr__(self) -> str:
+        return f"DataFileContent.{self.name}"
+
 
 class ManifestContent(int, Enum):
     DATA = 0
     DELETES = 1
+
+    def __repr__(self) -> str:
+        return f"ManifestContent.{self.name}"
 
 
 class ManifestEntryStatus(int, Enum):
@@ -57,11 +63,17 @@ class ManifestEntryStatus(int, Enum):
     ADDED = 1
     DELETED = 2
 
+    def __repr__(self) -> str:
+        return f"ManifestEntryStatus.{self.name}"
+
 
 class FileFormat(str, Enum):
     AVRO = "AVRO"
     PARQUET = "PARQUET"
     ORC = "ORC"
+
+    def __repr__(self) -> str:
+        return f"FileFormat.{self.name}"
 
 
 class DataFile(IcebergBaseModel):
