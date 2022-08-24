@@ -370,7 +370,7 @@ Be careful when dropping a partition field because it will change the schema of 
 A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
 
 ```sql
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(timestamp)
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts)
 -- use optional AS keyword to specify a custom name for the new partition field 
 ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(timestamp) AS day_of_ts
 ```
