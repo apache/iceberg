@@ -16,17 +16,21 @@
 # under the License.
 from typing import (
     Callable,
+    Generic,
     Iterable,
     List,
     Optional,
+    TypeVar,
 )
 
+T = TypeVar("T")
 
-class Bin:
+
+class Bin(Generic[T]):
     def __init__(self, target_weight: int) -> None:
         self.bin_weight = 0
         self.target_weight = target_weight
-        self.items: List[int] = []
+        self.items: List[T] = []
 
     def weight(self) -> int:
         return self.bin_weight
@@ -34,7 +38,7 @@ class Bin:
     def can_add(self, weight: int) -> bool:
         return self.bin_weight + weight <= self.target_weight
 
-    def add(self, item: int, weight: int) -> None:
+    def add(self, item: T, weight: int) -> None:
         self.bin_weight += weight
         self.items.append(item)
 
@@ -45,10 +49,10 @@ class PackingIterator:
 
     def __init__(
         self,
-        items: Iterable[int],
+        items: Iterable[T],
         target_weight: int,
         lookback: int,
-        weight_func: Callable[[int], int],
+        weight_func: Callable[[T], int],
         largest_bin_first: bool = False,
     ) -> None:
         self.items = iter(items)
@@ -61,7 +65,7 @@ class PackingIterator:
     def __iter__(self) -> "PackingIterator":
         return self
 
-    def __next__(self) -> List[int]:
+    def __next__(self) -> List[T]:
         while True:
             try:
                 item = next(self.items)
