@@ -372,7 +372,7 @@ A partition field can be replaced by a new partition field in a single metadata 
 ```sql
 ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts)
 -- use optional AS keyword to specify a custom name for the new partition field 
-ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(timestamp) AS day_of_ts
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts) AS day_of_ts
 ```
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
