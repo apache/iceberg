@@ -408,11 +408,13 @@ def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
 def pre_order_visit(obj, visitor: PreOrderSchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
 
-    The function traverses the schema in pre-order fashion
+    The function traverses the schema in pre-order fashion. This is a slimmed down version
+    compared to the post-order traversal (missing before and after methods), mostly
+    because we don't use the pre-order traversal much.
 
     Args:
         obj(Schema | IcebergType): An instance of a Schema or an IcebergType
-        visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
+        visitor (PreOrderSchemaVisitor[T]): An instance of an implementation of the generic PreOrderSchemaVisitor base class
 
     Raises:
         NotImplementedError: If attempting to visit an unrecognized object type
@@ -422,27 +424,13 @@ def pre_order_visit(obj, visitor: PreOrderSchemaVisitor[T]) -> T:
 
 @pre_order_visit.register(Schema)
 def _(obj: Schema, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a Schema with a concrete SchemaVisitor"""
+    """Visit a Schema with a concrete PreOrderSchemaVisitor"""
     return visitor.schema(obj, lambda: pre_order_visit(obj.as_struct(), visitor))
-
-
-@visit.register(StructType)
-def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
-    """Visit a StructType with a concrete SchemaVisitor"""
-    results = []
-
-    for field in obj.fields:
-        visitor.before_field(field)
-        result = visit(field.field_type, visitor)
-        visitor.after_field(field)
-        results.append(visitor.field(field, result))
-
-    return visitor.struct(obj, results)
 
 
 @pre_order_visit.register(StructType)
 def _(obj: StructType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a StructType with a concrete SchemaVisitor"""
+    """Visit a StructType with a concrete PreOrderSchemaVisitor"""
     return visitor.struct(
         obj,
         [
@@ -457,19 +445,19 @@ def _(obj: StructType, visitor: PreOrderSchemaVisitor[T]) -> T:
 
 @pre_order_visit.register(ListType)
 def _(obj: ListType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a ListType with a concrete SchemaVisitor"""
+    """Visit a ListType with a concrete PreOrderSchemaVisitor"""
     return visitor.list(obj, lambda: pre_order_visit(obj.element_type, visitor))
 
 
 @pre_order_visit.register(MapType)
 def _(obj: MapType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a MapType with a concrete SchemaVisitor"""
+    """Visit a MapType with a concrete PreOrderSchemaVisitor"""
     return visitor.map(obj, lambda: pre_order_visit(obj.key_type, visitor), lambda: pre_order_visit(obj.value_type, visitor))
 
 
 @pre_order_visit.register(PrimitiveType)
 def _(obj: PrimitiveType, visitor: PreOrderSchemaVisitor[T]) -> T:
-    """Visit a PrimitiveType with a concrete SchemaVisitor"""
+    """Visit a PrimitiveType with a concrete PreOrderSchemaVisitor"""
     return visitor.primitive(obj)
 
 
