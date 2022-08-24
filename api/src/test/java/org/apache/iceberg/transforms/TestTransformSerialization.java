@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import org.apache.iceberg.TestHelpers;
@@ -29,32 +28,34 @@ import org.junit.Test;
 public class TestTransformSerialization {
   @Test
   public void testFunctionSerialization() throws Exception {
-    Type[] types = new Type[] {
-        Types.BooleanType.get(),
-        Types.IntegerType.get(),
-        Types.LongType.get(),
-        Types.FloatType.get(),
-        Types.DoubleType.get(),
-        Types.StringType.get(),
-        Types.DateType.get(),
-        Types.TimeType.get(),
-        Types.TimestampType.withoutZone(),
-        Types.TimestampType.withoutZone(),
-        Types.BinaryType.get(),
-        Types.FixedType.ofLength(4),
-        Types.DecimalType.of(9, 4),
-        Types.UUIDType.get(),
-    };
+    Type[] types =
+        new Type[] {
+          Types.BooleanType.get(),
+          Types.IntegerType.get(),
+          Types.LongType.get(),
+          Types.FloatType.get(),
+          Types.DoubleType.get(),
+          Types.StringType.get(),
+          Types.DateType.get(),
+          Types.TimeType.get(),
+          Types.TimestampType.withoutZone(),
+          Types.TimestampType.withoutZone(),
+          Types.BinaryType.get(),
+          Types.FixedType.ofLength(4),
+          Types.DecimalType.of(9, 4),
+          Types.UUIDType.get(),
+        };
 
-    Transform<?, ?>[] transforms = new Transform<?, ?>[] {
-        Transforms.identity(),
-        Transforms.bucket(1024),
-        Transforms.year(),
-        Transforms.month(),
-        Transforms.day(),
-        Transforms.hour(),
-        Transforms.truncate(16)
-    };
+    Transform<?, ?>[] transforms =
+        new Transform<?, ?>[] {
+          Transforms.identity(),
+          Transforms.bucket(1024),
+          Transforms.year(),
+          Transforms.month(),
+          Transforms.day(),
+          Transforms.hour(),
+          Transforms.truncate(16)
+        };
 
     for (Type type : types) {
       for (Transform<?, ?> transform : transforms) {
