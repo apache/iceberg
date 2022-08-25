@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.spark.source;
 
+import com.google.common.collect.Lists;
 import java.util.Map;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -56,5 +60,49 @@ public class TestSparkTable extends SparkCatalogTestBase {
     // different instances pointing to the same table must be equivalent
     Assert.assertNotSame("References must be different", table1, table2);
     Assert.assertEquals("Tables must be equivalent", table1, table2);
+  }
+
+  @Test
+  public void testTableName() {
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
+
+    for (String fileFormat : Lists.newArrayList("parquet", "orc", "avro")) {
+      for (String tableFormatVersion : Lists.newArrayList("1", "2")) {
+        String testTableName =
+            String.format("table_name_test_%s_v%s", fileFormat, tableFormatVersion);
+        withTables(
+            () -> {
+              sql(
+                  String.format(
+                      "CREATE TABLE %s USING iceberg TBLPROPERTIES ('%s'='%s', '%s'='%s')",
+                      tableName(testTableName),
+                      TableProperties.DEFAULT_FILE_FORMAT,
+                      fileFormat,
+                      TableProperties.FORMAT_VERSION,
+                      tableFormatVersion));
+
+              TableIdentifier icebergIdentifier =
+                  TableIdentifier.of(Namespace.of("default"), testTableName);
+              Identifier sparkIdentifier =
+                  Identifier.of(icebergIdentifier.namespace().levels(), icebergIdentifier.name());
+
+              try {
+                // Catalog#loadTable throw NoSuchTableException, however, the Action#invoke
+                // does not expect any exceptions to be thrown, thus it wrapped inside
+                // RuntimeException.
+                String actualTableName = catalog.loadTable(sparkIdentifier).name();
+                String expectedTableName =
+                    String.format(
+                        "iceberg/%s/v%s %s.%s",
+                        fileFormat, tableFormatVersion, catalogName, icebergIdentifier);
+                Assert.assertEquals(expectedTableName, actualTableName);
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            },
+            tableName(testTableName));
+      }
+    }
   }
 }
