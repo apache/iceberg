@@ -315,6 +315,9 @@ public class ORC {
                 config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), BLOOM_FILTER_FPP_DEFAULT);
         bloomFilterFpp =
             PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
+        Preconditions.checkArgument(
+            bloomFilterFpp > 0.0 && bloomFilterFpp < 1.0,
+            "Bloom filter fpp must be > 0.0 and < 1.0");
 
         return new Context(
             stripeSize,

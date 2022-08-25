@@ -74,4 +74,22 @@ public class TestBloomFilter {
       Assert.assertEquals(0.04, bloomFilterFpp, 1e-15);
     }
   }
+
+  @Test
+  public void testInvalidFppOption() throws Exception {
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .schema(DATA_SCHEMA)
+            .set("write.orc.bloom.filter.columns", "id,name")
+            .set("write.orc.bloom.filter.fpp", "-1")
+            .build()) {
+      Assert.fail("Expected exception");
+    } catch (IllegalArgumentException e) {
+      Assert.assertTrue(e.getMessage().contains("Bloom filter fpp must be > 0.0 and < 1.0"));
+    }
+  }
 }
