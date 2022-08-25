@@ -82,7 +82,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final FileType content;
-  private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
@@ -101,6 +100,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   protected ManifestReader(
       InputFile file,
+      int specId,
       Map<Integer, PartitionSpec> specsById,
       InheritableMetadata inheritableMetadata,
       FileType content) {
@@ -108,13 +108,26 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     this.inheritableMetadata = inheritableMetadata;
     this.content = content;
 
+    if (specsById != null) {
+      this.spec = specsById.get(specId);
+      Preconditions.checkArgument(
+          spec != null, "Could not find PartitionSpec for specId: %s", specId);
+    } else {
+      this.spec = readPartitionSpec(file);
+    }
+
+    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  }
+
+  private PartitionSpec readPartitionSpec(InputFile inputFile) {
+    Map<String, String> metadata;
     try {
       try (AvroIterable<ManifestEntry<F>> headerReader =
-          Avro.read(file)
+          Avro.read(inputFile)
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
               .classLoader(GenericManifestEntry.class.getClassLoader())
               .build()) {
-        this.metadata = headerReader.getMetadata();
+        metadata = headerReader.getMetadata();
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -126,15 +139,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       specId = Integer.parseInt(specProperty);
     }
 
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
-    } else {
-      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
-      this.spec =
-          PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-    }
-
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+    Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+    return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
   }
 
   public boolean isDeleteManifestReader() {
