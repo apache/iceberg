@@ -96,7 +96,9 @@ public class TestSparkTable extends SparkCatalogTestBase {
                     String.format(
                         "iceberg/%s/v%s %s.%s",
                         fileFormat, tableFormatVersion, catalogName, icebergIdentifier);
-                Assert.assertEquals(expectedTableName, actualTableName);
+                Assert.assertEquals(
+                    "Table name mismatched for (%s file format, %s table format version)",
+                    expectedTableName, actualTableName);
               } catch (NoSuchTableException e) {
                 throw new RuntimeException(e);
               }

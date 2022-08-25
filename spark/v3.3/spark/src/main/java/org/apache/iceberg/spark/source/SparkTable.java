@@ -146,10 +146,10 @@ public class SparkTable
   @Override
   public String name() {
     Map<String, String> properties = properties();
-    String format = properties.get(FORMAT_VERSION);
+    String tableFormatVersion = properties.get(FORMAT_VERSION);
     String fileFormat = properties.get("format");
-    if (format != null) {
-      return String.format("%s/v%s %s", fileFormat, format, icebergTable.name());
+    if (tableFormatVersion != null) {
+      return String.format("%s/v%s %s", fileFormat, tableFormatVersion, icebergTable.name());
     } else {
       return String.format("%s %s", fileFormat, icebergTable.name());
     }
