@@ -698,19 +698,6 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
             R: The return type defined by the concrete bound boolean expression visitor
         """
 
-    def handle_non_reference(self, term: BoundTerm) -> T:
-        """Handle a non-reference value in this visitor
-        Visitors that specificially require references can use this method to return a default value for expressions with non-references.
-        The default implementation will throw a TypeError because the non-reference is not supported.
-        Args:
-            term (BoundTerm): a non-reference term such as a transform
-        Raises:
-            TypeError: when handle_non_reference is not implemented in the concrete visitor
-        Returns:
-            R: The return type defined by the concrete bound boolean expression visitor
-        """
-        raise TypeError(f"{type(self).__name__} does not support non-reference: {term}")
-
     def visit_unbound_predicate(self, predicate: UnboundPredicate[T]):
         """Visit an unbound predicate
         Args:
@@ -730,7 +717,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
             R: The return type defined by the concrete bound boolean expression visitor
         """
         if not isinstance(predicate.term, BoundReference):
-            return self.handle_non_reference(term=predicate.term)
+            raise TypeError(f"{type(self).__name__} does not support non-reference: {predicate.term}")
         elif isinstance(predicate, BoundIn):
             return self.visit_in(ref=predicate.term, literals=predicate.literals)
 
