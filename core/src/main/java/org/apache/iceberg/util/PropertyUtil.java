@@ -100,9 +100,9 @@ public class PropertyUtil {
       Map<String, String> properties,
       List<String> deletedColumns,
       Map<String, String> renamedColumns,
-      Set<String> columnPrefixProperties) {
-    if (!properties.keySet().stream()
-        .anyMatch(key -> columnPrefixProperties.stream().anyMatch(key::startsWith))) {
+      Set<String> columnProperties) {
+    if (properties.keySet().stream()
+        .noneMatch(key -> columnProperties.stream().anyMatch(key::startsWith))) {
       return properties;
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
@@ -111,10 +111,7 @@ public class PropertyUtil {
           .forEach(
               key -> {
                 String prefix =
-                    columnPrefixProperties.stream()
-                        .filter(key::startsWith)
-                        .findFirst()
-                        .orElse(null);
+                    columnProperties.stream().filter(key::startsWith).findFirst().orElse(null);
 
                 if (prefix != null) {
                   String columnAlias = key.replaceFirst(prefix, "");

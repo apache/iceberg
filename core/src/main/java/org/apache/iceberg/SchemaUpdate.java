@@ -473,13 +473,13 @@ class SchemaUpdate implements UpdateSchema {
               .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
-        Set<String> columnPrefixProps =
+        Set<String> columnProperties =
             ImmutableSet.of(
                 TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
                 TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
-                newMetadata.properties(), deletedColumns, renamedColumns, columnPrefixProps);
+                newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
     }
