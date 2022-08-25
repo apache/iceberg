@@ -24,6 +24,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -119,7 +121,24 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         !overwriteFiles, "Cannot overwrite individual files and using filters");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
 
-    this.overwriteExpr = SparkFilters.convert(filters);
+    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    overwriteExpr = Expressions.alwaysTrue();
+    for (Filter filter : filters) {
+      Expression expr = SparkFilters.convert(filter);
+      if (expr != null) {
+        try {
+          Binder.bind(table.schema().asStruct(), expr, caseSensitive);
+          overwriteExpr = Expressions.and(overwriteExpr, expr);
+        } catch (ValidationException e) {
+          throw new UnsupportedOperationException(
+              "Cannot overwrite. Failed to bind expression to table schema: " + filter);
+        }
+      } else {
+        throw new UnsupportedOperationException(
+            "Cannot overwrite. Failed convert filter to Iceberg expression: " + filter);
+      }
+    }
+
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;
