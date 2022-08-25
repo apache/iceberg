@@ -82,7 +82,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
 
   @Override
   public SerializableFunction<T, Integer> bind(Type type) {
-    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    Preconditions.checkArgument(canTransform(type), "Cannot bucket by type: %s", type);
     return get(type, numBuckets);
   }
 
