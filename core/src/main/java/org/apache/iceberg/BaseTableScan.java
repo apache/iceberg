@@ -106,7 +106,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
-      LOG.info(
+      LOG.debug(
           "Scanning table {} snapshot {} created at {} with filter {}",
           table(),
           snapshot.snapshotId(),
