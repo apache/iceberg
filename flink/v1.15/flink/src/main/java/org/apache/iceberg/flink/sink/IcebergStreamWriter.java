@@ -42,6 +42,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient int attemptId;
   private transient IcebergStreamWriterMetrics writerMetrics;
 
+  private boolean ended;
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
@@ -53,6 +54,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
+    ended = false;
 
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
@@ -87,6 +89,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // remaining completed files to downstream before closing the writer so that we won't miss any
     // of them.
     flush();
+    ended = true;
   }
 
   @Override
@@ -100,6 +103,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   /** close all open files and emit files to downstream committer operator */
   private void flush() throws IOException {
+    if (ended) {
+      return;
+    }
     long startNano = System.nanoTime();
     WriteResult result = writer.complete();
     writerMetrics.updateFlushResult(result);

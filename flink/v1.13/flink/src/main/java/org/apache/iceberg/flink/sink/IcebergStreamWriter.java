@@ -39,6 +39,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
+  private boolean ended;
 
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
@@ -50,6 +51,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
+    ended = false;
 
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
@@ -86,6 +88,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // remaining
     // completed files to downstream before closing the writer so that we won't miss any of them.
     emit(writer.complete());
+    ended = true;
   }
 
   @Override
@@ -98,6 +101,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   }
 
   private void emit(WriteResult result) {
+    if (ended) {
+      return;
+    }
     output.collect(new StreamRecord<>(result));
   }
 }
