@@ -33,11 +33,11 @@ import pytest
 
 from pyiceberg import schema
 from pyiceberg.io import (
-    fsspec,
     FileIO,
     InputFile,
     OutputFile,
     OutputStream,
+    fsspec,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
