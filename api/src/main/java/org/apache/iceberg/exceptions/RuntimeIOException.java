@@ -22,11 +22,7 @@ import com.google.errorprone.annotations.FormatMethod;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-/**
- * @deprecated Use java.io.UncheckedIOException directly instead.
- *     <p>Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
- */
-@Deprecated
+/** Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context. */
 public class RuntimeIOException extends UncheckedIOException {
 
   public RuntimeIOException(IOException cause) {
