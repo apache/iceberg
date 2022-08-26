@@ -97,13 +97,14 @@ class ConsoleOutput(Output):
         for key, value in metadata.properties.items():
             table_properties.add_row(key, value)
 
-        schema_tree = Tree("Schema")
+        schema_tree = Tree(f"Schema, id={table.metadata.current_schema_id}")
         for field in table.schema().fields:
             schema_tree.add(str(field))
 
         snapshot_tree = Tree("Snapshots")
         for snapshot in metadata.snapshots:
-            snapshot_tree.add(f"Snapshot {snapshot.schema_id}: {snapshot.manifest_list}")
+            manifest_list_str = f": {snapshot.manifest_list}" if snapshot.manifest_list else ""
+            snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}{manifest_list_str}")
 
         output_table = self._table
         output_table.add_row("Table format version", str(metadata.format_version))
@@ -112,7 +113,8 @@ class ConsoleOutput(Output):
         output_table.add_row("Last Updated", str(metadata.last_updated_ms))
         output_table.add_row("Partition spec", str(table.spec()))
         output_table.add_row("Sort order", str(table.sort_order()))
-        output_table.add_row("Schema", schema_tree)
+        output_table.add_row("Current schema", schema_tree)
+        output_table.add_row("Current snapshot", str(table.current_snapshot()))
         output_table.add_row("Snapshots", snapshot_tree)
         output_table.add_row("Properties", table_properties)
         Console().print(output_table)
