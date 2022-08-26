@@ -165,7 +165,7 @@ class FsspecFileIO(FileIO):
 
     def _resolve_fs_type(self, scheme: str):
         """Initialize the proper filesystem for the location's scheme"""
-        if scheme in ("s3", "s3n", "s3a"):
+        if scheme in {"s3", "s3n", "s3a"}:
             from s3fs import S3FileSystem
 
             self._fs = S3FileSystem(client_kwargs=self._client_properties() or None, **self._fs_properties())
