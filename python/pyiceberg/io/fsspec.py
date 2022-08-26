@@ -31,7 +31,7 @@ class FsspecInputFile(InputFile):
         fs: An fsspec filesystem instance
     """
 
-    def __init__(self, location: str, fs):
+    def __init__(self, location: str, fs: AbstractFileSystem):
         self._fs = fs
         super().__init__(location=location)
 
