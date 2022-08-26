@@ -95,7 +95,6 @@ public class SparkV2Filters {
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   public static Expression convert(Predicate predicate) {
-
     Operation op = FILTERS.get(predicate.name());
     if (op != null) {
       switch (op) {
@@ -197,7 +196,7 @@ public class SparkV2Filters {
         case NOT:
           Not notPredicate = (Not) predicate;
           Predicate childPredicate = notPredicate.child();
-          if (childPredicate.name().equals(IN)) {
+          if (childPredicate.name().equals(IN) && isSupportedInPredicate(childPredicate)) {
             // infer an extra notNull predicate for Spark NOT IN filters
             // as Iceberg expressions don't follow the 3-value SQL boolean logic
             // col NOT IN (1, 2) in Spark is equal to notNull(col) && notIn(col, 1, 2) in Iceberg
@@ -241,14 +240,8 @@ public class SparkV2Filters {
           }
 
         case STARTS_WITH:
-          if (isRef(leftChild(predicate))
-              && isLiteral(rightChild(predicate))
-              && ((Literal<?>) rightChild(predicate)).value() instanceof UTF8String) {
-            String colName = toColumnName(leftChild(predicate));
-            return startsWith(colName, convertLiteral(rightChild(predicate)).toString());
-          } else {
-            return null;
-          }
+          String colName = toColumnName(leftChild(predicate));
+          return startsWith(colName, convertLiteral(rightChild(predicate)).toString());
       }
     }
 
@@ -339,7 +332,7 @@ public class SparkV2Filters {
     if (!isRef(childAtIndex(predicate, 0))) {
       return false;
     } else {
-      return Arrays.stream(predicate.children()).skip(1).allMatch(val -> isLiteral(val));
+      return Arrays.stream(predicate.children()).skip(1).allMatch(SparkV2Filters::isLiteral);
     }
   }
 }
