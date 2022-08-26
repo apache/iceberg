@@ -72,7 +72,7 @@ class FsspecOutputFile(OutputFile):
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
         object_info = self._fs.info(self.location)
-        if object_info.get("Size"):  # fsspec versions seem inconsistent on the case used for size
+        if object_info.get("Size"):
             return object_info["Size"]
         elif object_info.get("size"):
             return object_info["size"]
