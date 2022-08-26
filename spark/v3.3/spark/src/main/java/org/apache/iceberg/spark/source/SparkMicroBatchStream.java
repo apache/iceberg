@@ -79,6 +79,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean skipDelete;
   private final boolean skipOverwrite;
   private final Long fromTimestamp;
+  private final long streamDeleteFilterThreshold;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -95,6 +96,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
+    this.streamDeleteFilterThreshold = readConf.streamDeleteFilterThreshold();
 
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
@@ -165,7 +167,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
                         tableBroadcast,
                         expectedSchema,
                         caseSensitive,
-                        localityPreferred));
+                        localityPreferred,
+                        streamDeleteFilterThreshold));
 
     return readTasks;
   }

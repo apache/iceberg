@@ -25,6 +25,11 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  // Threshold for number of positional deletes present to use a streaming filter rather than a
+  // filter set; below this number, the deletes are held in memory
+  public static final String STREAM_DELETE_FILTER_THRESHOLD =
+      "spark.sql.iceberg.stream.delete.filter.threshold";
+
   // Controls whether reading/writing timestamps without timezones is allowed
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "spark.sql.iceberg.handle-timestamp-without-timezone";

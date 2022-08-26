@@ -35,14 +35,17 @@ import org.slf4j.LoggerFactory;
 
 class BatchDataReader extends BaseBatchReader<FileScanTask> {
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
+  private final long streamDeleteFilterThreshold;
 
   BatchDataReader(
       ScanTaskGroup<FileScanTask> task,
       Table table,
       Schema expectedSchema,
       boolean caseSensitive,
-      int size) {
+      int size,
+      long streamDeleteFilterThreshold) {
     super(table, task, expectedSchema, caseSensitive, size);
+    this.streamDeleteFilterThreshold = streamDeleteFilterThreshold;
   }
 
   @Override
@@ -66,7 +69,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
     SparkDeleteFilter deleteFilter =
         task.deletes().isEmpty()
             ? null
-            : new SparkDeleteFilter(filePath, task.deletes(), counter());
+            : new SparkDeleteFilter(
+                filePath, task.deletes(), streamDeleteFilterThreshold, counter());
 
     return newBatchIterable(
             inputFile,

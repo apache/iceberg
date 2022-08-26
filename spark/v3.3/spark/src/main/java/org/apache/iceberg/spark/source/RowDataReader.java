@@ -26,6 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
@@ -37,10 +38,21 @@ import org.slf4j.LoggerFactory;
 
 class RowDataReader extends BaseRowReader<FileScanTask> {
   private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
+  private long streamDeleteFilterThreshold;
+
+  RowDataReader(
+      ScanTaskGroup<FileScanTask> task,
+      Table table,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      long streamDeleteFilterThreshold) {
+    super(table, task, expectedSchema, caseSensitive);
+    this.streamDeleteFilterThreshold = streamDeleteFilterThreshold;
+  }
 
   RowDataReader(
       ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(table, task, expectedSchema, caseSensitive);
+    this(task, table, expectedSchema, caseSensitive, DeleteFilter.DEFAULT_STREAM_FILTER_THRESHOLD);
   }
 
   @Override
@@ -52,7 +64,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().path().toString();
     LOG.debug("Opening data file {}", filePath);
-    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes(), counter());
+    SparkDeleteFilter deleteFilter =
+        new SparkDeleteFilter(filePath, task.deletes(), streamDeleteFilterThreshold, counter());
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
