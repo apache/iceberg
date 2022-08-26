@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.orc;
 
-import static org.apache.iceberg.TableProperties.BLOOM_FILTER_FPP_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
@@ -27,7 +26,9 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
@@ -306,13 +307,16 @@ public class ORC {
         CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
 
         String bloomFilterColumns =
-            PropertyUtil.propertyAsString(config, OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(), "");
+            PropertyUtil.propertyAsString(
+                config,
+                OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(),
+                ORC_BLOOM_FILTER_COLUMNS_DEFAULT);
         bloomFilterColumns =
             PropertyUtil.propertyAsString(config, ORC_BLOOM_FILTER_COLUMNS, bloomFilterColumns);
 
         double bloomFilterFpp =
             PropertyUtil.propertyAsDouble(
-                config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), BLOOM_FILTER_FPP_DEFAULT);
+                config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), ORC_BLOOM_FILTER_FPP_DEFAULT);
         bloomFilterFpp =
             PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
         Preconditions.checkArgument(
