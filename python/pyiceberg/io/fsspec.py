@@ -178,7 +178,9 @@ class FsspecFileIO(FileIO):
             raise ValueError(f"Cannot determine fsspec implementation to use with scheme: {scheme}")
 
     def _fs_properties(self):
+        """Get fs properties from the file-io property map"""
         return {k[3:]: v for k, v in self.properties.items() if k.startswith("fs_")}
 
     def _client_properties(self):
+        """Get client properties from the file-io property map"""
         return {k[7:]: v for k, v in self.properties.items() if k.startswith("client_")}
