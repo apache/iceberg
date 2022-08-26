@@ -33,6 +33,7 @@ import pytest
 
 from pyiceberg import schema
 from pyiceberg.io import (
+    fsspec,
     FileIO,
     InputFile,
     OutputFile,
@@ -1124,10 +1125,10 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 
 @pytest.fixture
-def s3fs_fileio(request):
+def fsspec_fileio(request):
     client_kwargs = {
         "endpoint_url": request.config.getoption("--endpoint-url"),
         "aws_access_key_id": request.config.getoption("--aws-access-key-id"),
         "aws_secret_access_key": request.config.getoption("--aws-secret-access-key"),
     }
-    return s3fs.S3fsFileIO(client_kwargs=client_kwargs)
+    return fsspec.FsspecFileIO(client_kwargs=client_kwargs)
