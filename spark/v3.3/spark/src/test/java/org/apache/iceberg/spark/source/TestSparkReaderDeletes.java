@@ -141,18 +141,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
-    if (format.equals("parquet") && vectorized) {
-      table
-          .updateProperties()
-          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true")
-          .set(
-              TableProperties.PARQUET_BATCH_SIZE,
-              "4") // split 7 records to two batches to cover more code paths
-          .commit();
-    } else if (format.equals("parquet")) { // in this case, non-vectorized
-      table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false").commit();
-    } else if (format.equals("orc")) { // we only have non-vectorized for orc in our parameters
-      table.updateProperties().set(TableProperties.ORC_VECTORIZATION_ENABLED, "false").commit();
+    if (format.equals("parquet") || format.equals("orc")) {
+      String vectorizationEnabled =
+          format.equals("parquet")
+              ? TableProperties.PARQUET_VECTORIZATION_ENABLED
+              : TableProperties.ORC_VECTORIZATION_ENABLED;
+      String batchSize =
+          format.equals("parquet")
+              ? TableProperties.PARQUET_BATCH_SIZE
+              : TableProperties.ORC_BATCH_SIZE;
+      table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();
+      if (vectorized) {
+        // split 7 records to two batches to cover more code paths
+        table.updateProperties().set(batchSize, "4").commit();
+      }
     }
     return table;
   }
@@ -326,8 +328,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
-    long expectedDeletes = 4L;
-    checkDeleteCount(expectedDeletes);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -357,8 +358,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
-    long expectedDeletes = 4L;
-    checkDeleteCount(expectedDeletes);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -388,8 +388,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
-    long expectedDeletes = 3L;
-    checkDeleteCount(expectedDeletes);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -433,8 +432,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
-    long expectedDeletes = 4L;
-    checkDeleteCount(expectedDeletes);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -507,8 +505,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual =
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);
-    long expectedDeletes = 0L;
-    checkDeleteCount(expectedDeletes);
+    checkDeleteCount(0L);
   }
 
   private static final Schema PROJECTION_SCHEMA =
