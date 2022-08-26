@@ -167,13 +167,8 @@ class FsspecFileIO(FileIO):
         """Initialize the proper filesystem for the location's scheme"""
         if scheme in ("s3", "s3n", "s3a"):
             from s3fs import S3FileSystem
-
-            if client_kwargs := self._client_properties():
-                self._fs = S3FileSystem(client_kwargs=client_kwargs, **self._fs_properties())
-                return self._fs
-            else:
-                self._fs = S3FileSystem(**self._fs_properties())
-                return self._fs
+            self._fs = S3FileSystem(client_kwargs=client_kwargs or None, **self._fs_properties())
+            return self._fs
         else:
             raise ValueError(f"Cannot determine fsspec implementation to use with scheme: {scheme}")
 
