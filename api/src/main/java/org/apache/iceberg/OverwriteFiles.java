@@ -106,32 +106,6 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles caseSensitive(boolean caseSensitive);
 
   /**
-   * Enables validation that data files added concurrently do not conflict with this commit's
-   * operation.
-   *
-   * <p>This method should be called while committing non-idempotent overwrite operations. If a
-   * concurrent operation commits a new file after the data was read and that file might contain
-   * rows matching the specified conflict detection filter, the overwrite operation will detect this
-   * and fail.
-   *
-   * <p>Calling this method with a correct conflict detection filter is required to maintain
-   * serializable isolation for overwrite operations. Otherwise, the isolation level will be
-   * snapshot isolation.
-   *
-   * <p>Validation applies to files added to the table since the snapshot passed to {@link
-   * #validateFromSnapshot(long)}.
-   *
-   * @param conflictDetectionFilter an expression on rows in the table
-   * @return this for method chaining
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link
-   *     #conflictDetectionFilter(Expression)} and {@link #validateNoConflictingData()} instead.
-   */
-  @Deprecated
-  default OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter) {
-    return conflictDetectionFilter(conflictDetectionFilter).validateNoConflictingData();
-  }
-
-  /**
    * Sets a conflict detection filter used to validate concurrently added data and delete files.
    *
    * @param conflictDetectionFilter an expression on rows in the table
