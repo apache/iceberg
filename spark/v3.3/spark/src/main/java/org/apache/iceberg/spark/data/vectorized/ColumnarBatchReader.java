@@ -185,6 +185,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           if (hasIsDeletedColumn) {
             isDeleted[originalRowId] = true;
           }
+
           deletes.incrementDeleteCount();
         }
         originalRowId++;
@@ -206,6 +207,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           eqDeleteRowIdMapping[i] = i;
         }
       }
+
       return eqDeleteRowIdMapping;
     }
 
@@ -234,6 +236,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           if (hasIsDeletedColumn) {
             isDeleted[rowIdMapping[rowId]] = true;
           }
+
           deletes.incrementDeleteCount();
         }
 

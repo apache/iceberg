@@ -305,8 +305,9 @@ public abstract class DeleteReadTests {
     this.dataFile =
         FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
 
+    // At this point, the table has two data files, with 7 and 8 rows respectively, of which all but
+    // one are in duplicate.
     table.newAppend().appendFile(dataFile).commit();
-    // At this point, the table has 7 + 8 = 15 rows, of which all but one are in duplicate.
 
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -321,14 +322,13 @@ public abstract class DeleteReadTests {
         FileHelpers.writeDeleteFile(
             table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
+    // At this point, 3 rows in the first data file and 4 rows in the second data file are deleted.
     table.newRowDelta().addDeletes(eqDeletes).commit();
-    // At ths point, the table has (7 - 3) + (8 - 4) = 8 rows. 7 rows in all are deleted.
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122, 144);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
-    // 3 deletes in the first data file and 4 deletes in the second data file
     checkDeleteCount(7L);
   }
 
