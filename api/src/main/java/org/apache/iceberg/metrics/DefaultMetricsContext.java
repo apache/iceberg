@@ -25,21 +25,6 @@ public class DefaultMetricsContext implements MetricsContext {
   private static final int DEFAULT_HISTOGRAM_RESERVOIR_SIZE = 10_000;
 
   @Override
-  @Deprecated
-  @SuppressWarnings("unchecked")
-  public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-    if (Integer.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(unit).asIntCounter();
-    }
-
-    if (Long.class.equals(type)) {
-      return (Counter<T>) new DefaultCounter(unit).asLongCounter();
-    }
-    throw new IllegalArgumentException(
-        String.format("Counter for type %s is not supported", type.getName()));
-  }
-
-  @Override
   public Timer timer(String name, TimeUnit unit) {
     return new DefaultTimer(unit);
   }

@@ -18,77 +18,38 @@
  */
 package org.apache.iceberg.metrics;
 
-import static org.assertj.core.api.Assertions.withinPercentage;
-
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.withinPercentage;
+
 public class TestDefaultMetricsContext {
 
   @Test
-  public void unsupportedCounter() {
-    MetricsContext metricsContext = new DefaultMetricsContext();
+  public void counterNullCheck() {
     Assertions.assertThatThrownBy(
-            () -> metricsContext.counter("test", Double.class, MetricsContext.Unit.COUNT))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Counter for type java.lang.Double is not supported");
-  }
-
-  @Test
-  public void intCounterNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> new DefaultMetricsContext().counter("name", Integer.class, null))
+            () -> new DefaultMetricsContext().counter("name", null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
   }
 
   @Test
-  public void intCounter() {
+  public void counter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Integer> counter =
-        metricsContext.counter("intCounter", Integer.class, MetricsContext.Unit.BYTES);
-    counter.increment(5);
-    Assertions.assertThat(counter.value()).isEqualTo(5);
-    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
-  }
-
-  @Test
-  public void intCounterOverflow() {
-    MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Integer> counter =
-        metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
-    counter.increment(Integer.MAX_VALUE);
-    Assertions.assertThatThrownBy(counter::increment)
-        .isInstanceOf(ArithmeticException.class)
-        .hasMessage("integer overflow");
-    Assertions.assertThat(counter.value()).isEqualTo(Integer.MAX_VALUE);
-  }
-
-  @Test
-  public void longCounterNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> new DefaultMetricsContext().counter("name", Long.class, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid count unit: null");
-  }
-
-  @Test
-  public void longCounter() {
-    MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Long> counter =
-        metricsContext.counter("longCounter", Long.class, MetricsContext.Unit.COUNT);
+    Counter counter =
+        metricsContext.counter("longCounter", MetricsContext.Unit.COUNT);
     counter.increment(5L);
     Assertions.assertThat(counter.value()).isEqualTo(5L);
     Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.COUNT);
   }
 
   @Test
-  public void longCounterOverflow() {
+  public void counterOverflow() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Long> counter =
-        metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
+    Counter counter =
+        metricsContext.counter("test", MetricsContext.Unit.COUNT);
     counter.increment(Long.MAX_VALUE);
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)

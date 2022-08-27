@@ -6,9 +6,27 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "interface org.apache.iceberg.Rollback"
       justification: "Deprecations for 1.0 release"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.metrics.MetricsContext.Counter<T extends\
+        \ java.lang.Number>"
+      justification: "Deprecations for 1.0 release"
+    - code: "java.generics.formalTypeParameterRemoved"
+      old: "method <T extends java.lang.Number> org.apache.iceberg.metrics.MetricsContext.Counter<T>\
+        \ org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String, java.lang.Class<T>,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
+      new: "method org.apache.iceberg.metrics.Counter org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
+      justification: "Deprecations for 1.0 release"
     - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.expressions.Reference<T>::name()"
       justification: "All subclasses implement name"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method <T extends java.lang.Number> org.apache.iceberg.metrics.MetricsContext.Counter<T>\
+        \ org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String, java.lang.Class<T>,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
+      new: "method org.apache.iceberg.metrics.Counter org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
+      justification: "Deprecations for 1.0 release"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.OverwriteFiles org.apache.iceberg.OverwriteFiles::validateNoConflictingAppends(org.apache.iceberg.expressions.Expression)"
       justification: "Deprecations for 1.0 release"
@@ -17,6 +35,13 @@ acceptedBreaks:
       justification: "Deprecations for 1.0 release"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.RowDelta org.apache.iceberg.RowDelta::validateNoConflictingAppends(org.apache.iceberg.expressions.Expression)"
+      justification: "Deprecations for 1.0 release"
+    - code: "java.method.returnTypeChanged"
+      old: "method <T extends java.lang.Number> org.apache.iceberg.metrics.MetricsContext.Counter<T>\
+        \ org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String, java.lang.Class<T>,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
+      new: "method org.apache.iceberg.metrics.Counter org.apache.iceberg.metrics.MetricsContext::counter(java.lang.String,\
+        \ org.apache.iceberg.metrics.MetricsContext.Unit)"
       justification: "Deprecations for 1.0 release"
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:

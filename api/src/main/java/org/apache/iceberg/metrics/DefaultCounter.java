@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
@@ -42,8 +41,6 @@ public class DefaultCounter implements Counter {
 
   private final LongAdder counter;
   private final MetricsContext.Unit unit;
-  private AsIntCounter asIntCounter = null;
-  private AsLongCounter asLongCounter = null;
 
   DefaultCounter(MetricsContext.Unit unit) {
     Preconditions.checkArgument(null != unit, "Invalid count unit: null");
@@ -77,76 +74,4 @@ public class DefaultCounter implements Counter {
     return unit;
   }
 
-  MetricsContext.Counter<Integer> asIntCounter() {
-    if (null == asIntCounter) {
-      this.asIntCounter = new AsIntCounter();
-    }
-
-    return asIntCounter;
-  }
-
-  MetricsContext.Counter<Long> asLongCounter() {
-    if (null == asLongCounter) {
-      this.asLongCounter = new AsLongCounter();
-    }
-
-    return asLongCounter;
-  }
-
-  private class AsIntCounter implements MetricsContext.Counter<Integer> {
-
-    @Override
-    public void increment() {
-      increment(1);
-    }
-
-    @Override
-    public void increment(Integer amount) {
-      Math.addExact(counter.intValue(), amount);
-      DefaultCounter.this.increment(amount);
-    }
-
-    @Override
-    public Optional<Integer> count() {
-      return Optional.of(value());
-    }
-
-    @Override
-    public Integer value() {
-      return counter.intValue();
-    }
-
-    @Override
-    public MetricsContext.Unit unit() {
-      return unit;
-    }
-  }
-
-  private class AsLongCounter implements MetricsContext.Counter<Long> {
-
-    @Override
-    public void increment() {
-      DefaultCounter.this.increment();
-    }
-
-    @Override
-    public void increment(Long amount) {
-      DefaultCounter.this.increment(amount);
-    }
-
-    @Override
-    public Optional<Long> count() {
-      return Optional.of(value());
-    }
-
-    @Override
-    public Long value() {
-      return counter.longValue();
-    }
-
-    @Override
-    public MetricsContext.Unit unit() {
-      return unit;
-    }
-  }
 }

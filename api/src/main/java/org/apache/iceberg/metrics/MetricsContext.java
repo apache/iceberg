@@ -21,7 +21,6 @@ package org.apache.iceberg.metrics;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,64 +49,6 @@ public interface MetricsContext extends Serializable {
   }
 
   default void initialize(Map<String, String> properties) {}
-
-  /** @deprecated Use {@link org.apache.iceberg.metrics.Counter} instead. */
-  @Deprecated
-  interface Counter<T extends Number> {
-    /** Increment the counter by a single whole number value (i.e. 1). */
-    void increment();
-
-    /**
-     * Increment the counter by the provided amount.
-     *
-     * @param amount to be incremented
-     */
-    void increment(T amount);
-
-    /**
-     * Reporting count is optional if the counter is reporting externally.
-     *
-     * @return current count if available
-     * @deprecated Use {@link Counter#value()}
-     */
-    @Deprecated
-    default Optional<T> count() {
-      return Optional.empty();
-    }
-
-    /**
-     * Reports the current count.
-     *
-     * @return The current count
-     */
-    default T value() {
-      throw new UnsupportedOperationException("Count is not supported.");
-    }
-
-    /**
-     * The unit of the counter.
-     *
-     * @return The unit of the counter.
-     */
-    default Unit unit() {
-      return Unit.UNDEFINED;
-    }
-  }
-
-  /**
-   * Get a named counter of a specific type. Metric implementations may impose restrictions on what
-   * types are supported for specific counters.
-   *
-   * @param name name of the metric
-   * @param type numeric type of the counter value
-   * @param unit the unit designation of the metric
-   * @return a counter implementation
-   * @deprecated Use {@link MetricsContext#counter(String, Unit)} instead.
-   */
-  @Deprecated
-  default <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-    throw new UnsupportedOperationException("Counter is not supported.");
-  }
 
   /**
    * Get a named counter.
@@ -146,23 +87,6 @@ public interface MetricsContext extends Serializable {
       @Override
       public Timer timer(String name, TimeUnit unit) {
         return Timer.NOOP;
-      }
-
-      @Override
-      @SuppressWarnings("unchecked")
-      public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-        if (Integer.class.equals(type)) {
-          return (Counter<T>)
-              ((DefaultCounter) org.apache.iceberg.metrics.DefaultCounter.NOOP).asIntCounter();
-        }
-
-        if (Long.class.equals(type)) {
-          return (Counter<T>)
-              ((DefaultCounter) org.apache.iceberg.metrics.DefaultCounter.NOOP).asLongCounter();
-        }
-
-        throw new IllegalArgumentException(
-            String.format("Counter for type %s is not supported", type.getName()));
       }
 
       @Override

@@ -19,7 +19,6 @@
 package org.apache.iceberg.hadoop;
 
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,68 +48,6 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     // still track and report for the provided scheme.
     this.scheme = properties.getOrDefault(SCHEME, scheme);
     this.statistics = FileSystem.getStatistics(scheme, null);
-  }
-
-  /**
-   * The Hadoop implementation delegates to the FileSystem.Statistics implementation and therefore
-   * does not require support for operations like unit() and count() as the counter values are not
-   * directly consumed.
-   *
-   * @param name name of the metric
-   * @param type numeric type of the counter value
-   * @param unit ignored
-   * @param <T> Counter numeric type
-   * @return counter
-   */
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-    switch (name) {
-      case READ_BYTES:
-        ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
-        return (Counter<T>) longCounter(statistics()::incrementBytesRead);
-      case READ_OPERATIONS:
-        ValidationException.check(
-            type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics()::incrementReadOps);
-      case WRITE_BYTES:
-        ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
-        return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
-      case WRITE_OPERATIONS:
-        ValidationException.check(
-            type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
-    }
-  }
-
-  private Counter<Long> longCounter(Consumer<Long> consumer) {
-    return new Counter<Long>() {
-      @Override
-      public void increment() {
-        increment(1L);
-      }
-
-      @Override
-      public void increment(Long amount) {
-        consumer.accept(amount);
-      }
-    };
-  }
-
-  private Counter<Integer> integerCounter(Consumer<Integer> consumer) {
-    return new Counter<Integer>() {
-      @Override
-      public void increment() {
-        increment(1);
-      }
-
-      @Override
-      public void increment(Integer amount) {
-        consumer.accept(amount);
-      }
-    };
   }
 
   /**
