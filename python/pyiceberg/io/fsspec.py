@@ -19,16 +19,35 @@
 from typing import Dict, Union
 from urllib.parse import urlparse
 
-from pyiceberg.io import FileIO, InputFile, OutputFile
-from pyiceberg.typedef import EMPTY_DICT
+from fsspec import AbstractFileSystem
 
+from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.typedef import EMPTY_DICT, Properties
+
+
+def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
+    from s3fs import S3FileSystem
+
+    client_kwargs = {
+        "endpoint_url": properties.get("s3.endpoint"),
+        "aws_access_key_id": properties.get("s3.access-key-id"),
+        "aws_secret_access_key": properties.get("s3.secret-access-key"),
+    }
+
+    return S3FileSystem(client_kwargs=client_kwargs, **fs_properties)
+
+SCHEME_TO_FS = {
+    "s3": _s3,
+    "s3a": _s3,
+    "s3n": _s3,
+}
 
 class FsspecInputFile(InputFile):
     """An input file implementation for the FsspecFileIO
 
     Args:
         location(str): A URI to a file location
-        fs: An fsspec filesystem instance
+        _fs(AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -102,7 +121,6 @@ class FsspecOutputFile(OutputFile):
         """
         if not overwrite and self.exists():
             raise FileExistsError(f"Cannot create file, file already exists: {self.location}")
-        self._fs.touch(self.location)
         return self._fs.open(self.location, "wb")
 
     def to_input_file(self) -> FsspecInputFile:
@@ -113,11 +131,9 @@ class FsspecOutputFile(OutputFile):
 class FsspecFileIO(FileIO):
     """A FileIO implementation that uses fsspec"""
 
-    def __init__(self, client_kwargs: Dict[str, str] = EMPTY_DICT, **fs_kwargs):
-        client_properties = {f"client_{key}": val for key, val in client_kwargs.items()}
-        fs_properties = {f"fs_{key}": val for key, val in fs_kwargs.items()}
-        properties = {**client_properties, **fs_properties}
-        self._fs = None
+    def __init__(self, properties: Properties):
+        self._scheme_to_fs = {}
+        self._scheme_to_fs.update(SCHEME_TO_FS)
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:
@@ -130,7 +146,10 @@ class FsspecFileIO(FileIO):
             FsspecInputFile: An FsspecInputFile instance for the given location
         """
         uri = urlparse(location)
-        fs = self.properties.get("fs") or self._resolve_fs_type(scheme=uri.scheme)
+        
+        if uri.scheme not in self._scheme_to_fs:
+            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
+        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
         return FsspecInputFile(location=location, fs=fs)
 
     def new_output(self, location: str) -> FsspecOutputFile:
@@ -143,7 +162,9 @@ class FsspecFileIO(FileIO):
             FsspecOutputFile: An FsspecOutputFile instance for the given location
         """
         uri = urlparse(location)
-        fs = self.properties.get("fs") or self._resolve_fs_type(scheme=uri.scheme)
+        if uri.scheme not in self._scheme_to_fs:
+            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
+        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
         return FsspecOutputFile(location=location, fs=fs)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
@@ -160,7 +181,9 @@ class FsspecFileIO(FileIO):
             str_location = location
 
         uri = urlparse(str_location)
-        fs = self._fs or self._resolve_fs_type(scheme=uri.scheme)
+        if uri.scheme not in self._scheme_to_fs:
+            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
+        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
         fs.rm(str_location)
 
     def _resolve_fs_type(self, scheme: str):
@@ -176,7 +199,3 @@ class FsspecFileIO(FileIO):
     def _fs_properties(self):
         """Get fs properties from the file-io property map"""
         return {k[3:]: v for k, v in self.properties.items() if k.startswith("fs_")}
-
-    def _client_properties(self):
-        """Get client properties from the file-io property map"""
-        return {k[7:]: v for k, v in self.properties.items() if k.startswith("client_")}

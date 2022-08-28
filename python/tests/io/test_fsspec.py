@@ -27,10 +27,10 @@ def test_fsspec_new_input_file(fsspec_fileio):
     """Test creating a new input file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
-    input_file = fsspec_fileio.new_input(f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(f"s3://warehouse/{filename}")
 
     assert isinstance(input_file, fsspec.FsspecInputFile)
-    assert input_file.location == f"s3://testbucket/{filename}"
+    assert input_file.location == f"s3://warehouse/{filename}"
 
 
 @pytest.mark.s3
@@ -38,22 +38,21 @@ def test_fsspec_new_s3_output_file(fsspec_fileio):
     """Test creating a new output file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
-    output_file = fsspec_fileio.new_output(f"s3://testbucket/{filename}")
+    output_file = fsspec_fileio.new_output(f"s3://warehouse/{filename}")
 
     assert isinstance(output_file, fsspec.FsspecOutputFile)
-    assert output_file.location == f"s3://testbucket/{filename}"
+    assert output_file.location == f"s3://warehouse/{filename}"
 
 
 @pytest.mark.s3
 def test_fsspec_write_and_read_file(fsspec_fileio):
     """Test writing and reading a file using FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
-    f = output_file.create()
-    f.write(b"foo")
-    f.close()
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foo")
 
-    input_file = fsspec_fileio.new_input(f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(f"s3://warehouse/{filename}")
     assert input_file.open().read() == b"foo"
 
     fsspec_fileio.delete(input_file)
@@ -64,13 +63,13 @@ def test_fsspec_getting_length_of_file(fsspec_fileio):
     """Test getting the length of an FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
 
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
-    f = output_file.create()
-    f.write(b"foobar")
-    f.close()
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foobar")
+
     assert len(output_file) == 6
 
-    input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     assert len(input_file) == 6
 
     fsspec_fileio.delete(output_file)
@@ -82,12 +81,11 @@ def test_fsspec_file_tell(fsspec_fileio):
 
     filename = str(uuid.uuid4())
 
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
-    f = output_file.create()
-    f.write(b"foobar")
-    f.close()
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foobar")
 
-    input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
 
     f.seek(0)
@@ -105,12 +103,11 @@ def test_fsspec_read_specified_bytes_for_file(fsspec_fileio):
     """Test reading a specified number of bytes from an fsspec file-io file"""
 
     filename = str(uuid.uuid4())
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
-    f = output_file.create()
-    f.write(b"foo")
-    f.close()
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foo")
 
-    input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
 
     f.seek(0)
@@ -132,7 +129,7 @@ def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio):
     """Test that an fsppec input file raises appropriately when the s3 file is not found"""
 
     filename = str(uuid.uuid4())
-    input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     with pytest.raises(FileNotFoundError) as exc_info:
         input_file.open().read()
 
@@ -143,20 +140,19 @@ def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio):
 def test_checking_if_a_file_exists(fsspec_fileio):
     """Test checking if a file exists"""
 
-    non_existent_file = fsspec_fileio.new_input(location="s3://testbucket/does-not-exist.txt")
+    non_existent_file = fsspec_fileio.new_input(location="s3://warehouse/does-not-exist.txt")
     assert not non_existent_file.exists()
 
     filename = str(uuid.uuid4())
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
     assert not output_file.exists()
-    f = output_file.create()
-    f.write(b"foo")
-    f.close()
+    with output_file.create() as f:
+        f.write(b"foo")
 
-    existing_input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    existing_input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     assert existing_input_file.exists()
 
-    existing_output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
+    existing_output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
     assert existing_output_file.exists()
 
     fsspec_fileio.delete(existing_output_file)
@@ -166,26 +162,25 @@ def test_checking_if_a_file_exists(fsspec_fileio):
 def test_closing_a_file(fsspec_fileio):
     """Test closing an output file and input file"""
     filename = str(uuid.uuid4())
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
-    f = output_file.create()
-    f.write(b"foo")
-    assert not f.closed
-    f.close()
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
+    with output_file.create() as f:
+        f.write(b"foo")
+        assert not f.closed
     assert f.closed
 
-    input_file = fsspec_fileio.new_input(location=f"s3://testbucket/{filename}")
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
     assert not f.closed
     f.close()
     assert f.closed
 
-    fsspec_fileio.delete(f"s3://testbucket/{filename}")
+    fsspec_fileio.delete(f"s3://warehouse/{filename}")
 
 
 @pytest.mark.s3
 def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio):
     """Test converting an output file to an input file"""
     filename = str(uuid.uuid4())
-    output_file = fsspec_fileio.new_output(location=f"s3://testbucket/{filename}")
+    output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
     input_file = output_file.to_input_file()
     assert input_file.location == output_file.location

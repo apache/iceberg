@@ -59,11 +59,11 @@ from tests.io.test_io import LocalInputFile
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--endpoint-url", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
+        "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
-    parser.addoption("--aws-access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
+    parser.addoption("--s3.access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
     parser.addoption(
-        "--aws-secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
+        "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
     )
 
 
@@ -1126,9 +1126,9 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 @pytest.fixture
 def fsspec_fileio(request):
-    client_kwargs = {
-        "endpoint_url": request.config.getoption("--endpoint-url"),
-        "aws_access_key_id": request.config.getoption("--aws-access-key-id"),
-        "aws_secret_access_key": request.config.getoption("--aws-secret-access-key"),
+    properties = {
+        "s3.endpoint": request.config.getoption("--s3.endpoint"),
+        "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
+        "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
     }
-    return fsspec.FsspecFileIO(client_kwargs=client_kwargs)
+    return fsspec.FsspecFileIO(properties=properties)
