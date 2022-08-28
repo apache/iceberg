@@ -512,7 +512,7 @@ For more details on using S3 Acceleration, please refer to [Configuring fast, se
 ### S3 Dual-stack
 
 [S3 Dual-stack](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html) allows a client to access an S3 bucket through a dual-stack endpoint. 
-When clients make a request to a dual-stack endpoint, the bucket URL resolves to an IPv6 or an IPv4 address.
+When clients make a request to a dual-stack endpoint, the bucket URL resolves to an IPv6 address if possible, otherwise fallback to IPv4.
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
