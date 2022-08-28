@@ -105,7 +105,7 @@ public class TestIcebergInputFormats {
   @Before
   public void before() throws IOException {
     conf = new Configuration();
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     HadoopTables tables = new HadoopTables(conf);
 
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());

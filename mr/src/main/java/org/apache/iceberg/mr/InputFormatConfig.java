@@ -48,28 +48,6 @@ public class InputFormatConfig {
   public static final String TABLE_CATALOG_PREFIX = "iceberg.mr.table.catalog.";
   public static final String LOCALITY = "iceberg.mr.locality";
 
-  /**
-   * @deprecated please use {@link #catalogPropertyConfigKey(String, String)} with config key {@link
-   *     org.apache.iceberg.CatalogUtil#ICEBERG_CATALOG_TYPE} to specify the type of a catalog.
-   */
-  @Deprecated public static final String CATALOG = "iceberg.mr.catalog";
-
-  /**
-   * @deprecated please use {@link #catalogPropertyConfigKey(String, String)} with config key {@link
-   *     org.apache.iceberg.CatalogProperties#WAREHOUSE_LOCATION} to specify the warehouse location
-   *     of a catalog.
-   */
-  @Deprecated
-  public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION =
-      "iceberg.mr.catalog.hadoop.warehouse.location";
-
-  /**
-   * @deprecated please use {@link #catalogPropertyConfigKey(String, String)} with config key {@link
-   *     org.apache.iceberg.CatalogProperties#CATALOG_IMPL} to specify the implementation of a
-   *     catalog.
-   */
-  @Deprecated public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
-
   public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
