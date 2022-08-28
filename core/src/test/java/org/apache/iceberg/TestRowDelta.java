@@ -1414,29 +1414,6 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @Test
-  public void testBranchConflictingDeletes() {
-    table.newAppend().appendFile(FILE_A).commit();
-    Long ancestorSnapshot = table.currentSnapshot().snapshotId();
-    table.manageSnapshots().createBranch("branch", ancestorSnapshot).commit();
-
-    // This commit not result in validation exception as we start validation from a snapshot which
-    // is an actual ancestor of the branch
-    table
-        .newRowDelta()
-        .toBranch("branch")
-        .addDeletes(FILE_A_DELETES)
-        .validateFromSnapshot(ancestorSnapshot)
-        .conflictDetectionFilter(Expressions.equal("data", "a"))
-        .validateNoConflictingDeleteFiles()
-        .commit();
-
-    int branchSnapshot = 2;
-
-    Assert.assertEquals(table.currentSnapshot().snapshotId(), 1);
-    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
-  }
-
-  @Test
   public void testBranchValidationsNotValidAncestor() {
     table.newAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
@@ -1454,7 +1431,9 @@ public class TestRowDelta extends V2TableTestBase {
             .validateNoConflictingDeleteFiles();
 
     AssertHelpers.assertThrows(
-        "No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
+        "Snapshot 2 is not an ancestor of 1",
+        IllegalArgumentException.class,
+        () -> rowDelta.commit());
   }
 
   @Test

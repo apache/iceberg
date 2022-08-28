@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -106,11 +105,13 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   @Override
   protected void validate(TableMetadata base, Snapshot snapshot) {
     if (snapshot != null) {
-      Preconditions.checkArgument(
-          SnapshotUtil.isAncestorOf(snapshot.snapshotId(), startingSnapshotId, base::snapshot),
-          "Snapshot %s is not an ancestor of %s",
-          startingSnapshotId,
-          snapshot.snapshotId());
+      if (startingSnapshotId != null) {
+        Preconditions.checkArgument(
+            SnapshotUtil.isAncestorOf(snapshot.snapshotId(), startingSnapshotId, base::snapshot),
+            "Snapshot %s is not an ancestor of %s",
+            startingSnapshotId,
+            snapshot.snapshotId());
+      }
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
