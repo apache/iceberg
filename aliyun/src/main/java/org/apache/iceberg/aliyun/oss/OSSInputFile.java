@@ -25,9 +25,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
-/** @deprecated moving to package-private in 0.15.0; use OSSFileIO to create InputFile instances */
-@Deprecated
-public class OSSInputFile extends BaseOSSFile implements InputFile {
+class OSSInputFile extends BaseOSSFile implements InputFile {
 
   private Long length = null;
 
