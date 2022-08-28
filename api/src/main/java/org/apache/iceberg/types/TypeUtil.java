@@ -601,13 +601,13 @@ public class TypeUtil {
   }
 
   /**
-   * Used to traverse types with traversals other than pre-order.
+   * Used to traverse types with traversals other than post-order.
    *
    * <p>This passes a {@link Supplier} to each {@link CustomOrderSchemaVisitor visitor} method that
    * returns the result of traversing child types. Structs are passed an {@link Iterable} that
    * traverses child fields during iteration.
    *
-   * <p>An example use is assigning column IDs, which should be done with a post-order traversal.
+   * <p>An example use is assigning column IDs, which should be done with a pre-order traversal.
    *
    * @param type a type to traverse with a visitor
    * @param visitor a custom order visitor
