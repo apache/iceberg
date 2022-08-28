@@ -36,7 +36,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
@@ -1423,13 +1422,13 @@ public class TestRowDelta extends V2TableTestBase {
     // This commit not result in validation exception as we start validation from a snapshot which
     // is an actual ancestor of the branch
     table
-            .newRowDelta()
-            .toBranch("branch")
-            .addDeletes(FILE_A_DELETES)
-            .validateFromSnapshot(ancestorSnapshot)
-            .conflictDetectionFilter(Expressions.equal("data", "a"))
-            .validateNoConflictingDeleteFiles()
-            .commit();
+        .newRowDelta()
+        .toBranch("branch")
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(ancestorSnapshot)
+        .conflictDetectionFilter(Expressions.equal("data", "a"))
+        .validateNoConflictingDeleteFiles()
+        .commit();
 
     int branchSnapshot = 2;
 
@@ -1446,16 +1445,16 @@ public class TestRowDelta extends V2TableTestBase {
     // This commit will result in validation exception as we start validation from a snapshot which
     // is not an ancestor of the branch
     RowDelta rowDelta =
-            table
-                    .newRowDelta()
-                    .toBranch("branch")
-                    .addDeletes(FILE_A_DELETES)
-                    .validateFromSnapshot(table.currentSnapshot().snapshotId())
-                    .conflictDetectionFilter(Expressions.alwaysTrue())
-                    .validateNoConflictingDeleteFiles();
+        table
+            .newRowDelta()
+            .toBranch("branch")
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(table.currentSnapshot().snapshotId())
+            .conflictDetectionFilter(Expressions.alwaysTrue())
+            .validateNoConflictingDeleteFiles();
 
     AssertHelpers.assertThrows(
-            "No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
+        "No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
   }
 
   @Test
@@ -1467,13 +1466,13 @@ public class TestRowDelta extends V2TableTestBase {
     // This commit not result in validation exception as we start validation from a snapshot which
     // is an actual ancestor of the branch
     table
-            .newRowDelta()
-            .toBranch("branch")
-            .addDeletes(FILE_A_DELETES)
-            .validateFromSnapshot(ancestorSnapshot)
-            .conflictDetectionFilter(Expressions.alwaysTrue())
-            .validateNoConflictingDeleteFiles()
-            .commit();
+        .newRowDelta()
+        .toBranch("branch")
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(ancestorSnapshot)
+        .conflictDetectionFilter(Expressions.alwaysTrue())
+        .validateNoConflictingDeleteFiles()
+        .commit();
 
     int branchSnapshot = 2;
 

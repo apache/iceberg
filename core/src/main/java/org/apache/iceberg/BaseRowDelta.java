@@ -103,24 +103,14 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     return this;
   }
 
-  private void checkIfSnapshotIsAnAncestor(Snapshot snapshot, TableMetadata base) {
-    if (this.startingSnapshotId == null || snapshot == null) {
-      return;
-    }
-
-    for (Snapshot ancestor : SnapshotUtil.ancestorsOf(snapshot.snapshotId(), base::snapshot)) {
-      if (ancestor.snapshotId() == this.startingSnapshotId) {
-        return;
-      }
-    }
-    throw new ValidationException(
-        "Snapshot %s is not an ancestor of %s", startingSnapshotId, snapshot.snapshotId());
-  }
-
   @Override
   protected void validate(TableMetadata base, Snapshot snapshot) {
     if (snapshot != null) {
-      checkIfSnapshotIsAnAncestor(snapshot, base);
+      Preconditions.checkArgument(
+          SnapshotUtil.isAncestorOf(snapshot.snapshotId(), startingSnapshotId, base::snapshot),
+          "Snapshot %s is not an ancestor of %s",
+          startingSnapshotId,
+          snapshot.snapshotId());
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
