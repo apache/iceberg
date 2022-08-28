@@ -53,7 +53,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -85,9 +84,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
-
-  /** @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead */
-  @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
   private ORC() {}
 
@@ -125,19 +121,6 @@ public class ORC {
     public WriteBuilder metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
-    }
-
-    /**
-     * Setting a specific configuration value for the writer.
-     *
-     * @param property The property to set
-     * @param value The value to set
-     * @return The resulting builder for chaining purposes
-     * @deprecated Please use #set(String, String) instead
-     */
-    @Deprecated
-    public WriteBuilder config(String property, String value) {
-      return set(property, value);
     }
 
     public WriteBuilder set(String property, String value) {
@@ -187,11 +170,6 @@ public class ORC {
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
         this.conf.set(entry.getKey(), entry.getValue());
-      }
-
-      // for compatibility
-      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config.get(ORC_WRITE_BATCH_SIZE) == null) {
-        config.put(ORC_WRITE_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
       }
 
       // Map Iceberg properties to pass down to the ORC writer
