@@ -54,30 +54,18 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
   @Override
   protected CloseableIterator<InternalRow> open(ChangelogScanTask task) {
     JoinedRow cdcRow = new JoinedRow();
+
     cdcRow.withRight(changelogMetadata(task));
 
-    CloseableIterable<InternalRow> rows;
-    if (task instanceof AddedRowsScanTask) {
-      rows = openAddedRowsScanTask((AddedRowsScanTask) task);
-
-    } else if (task instanceof DeletedRowsScanTask) {
-      throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
-
-    } else if (task instanceof DeletedDataFileScanTask) {
-      rows = openDeletedDataFileScanTask((DeletedDataFileScanTask) task);
-
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported changelog scan task type: " + task.getClass().getName());
-    }
-
-    Preconditions.checkArgument(rows != null, "Fail to open scan task: %s", task);
+    CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
     CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
+
     return cdcRows.iterator();
   }
 
   private static InternalRow changelogMetadata(ChangelogScanTask task) {
     InternalRow metadataRow = new GenericInternalRow(3);
+
     metadataRow.update(0, UTF8String.fromString(task.operation().name()));
     metadataRow.update(1, task.changeOrdinal());
     metadataRow.update(2, task.commitSnapshotId());
@@ -85,22 +73,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
     return metadataRow;
   }
 
-  @Override
-  protected Stream<ContentFile<?>> referencedFiles(ChangelogScanTask task) {
+  private CloseableIterable<InternalRow> openChangelogScanTask(ChangelogScanTask task) {
     if (task instanceof AddedRowsScanTask) {
-      AddedRowsScanTask addedRowsScanTask = (AddedRowsScanTask) task;
-      DataFile file = addedRowsScanTask.file();
-      List<DeleteFile> deletes = addedRowsScanTask.deletes();
-      return Stream.concat(Stream.of(file), deletes.stream());
+      return openAddedRowsScanTask((AddedRowsScanTask) task);
 
     } else if (task instanceof DeletedRowsScanTask) {
       throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
 
     } else if (task instanceof DeletedDataFileScanTask) {
-      DeletedDataFileScanTask deletedDataFileScanTask = (DeletedDataFileScanTask) task;
-      DataFile file = deletedDataFileScanTask.file();
-      List<DeleteFile> existingDeletes = deletedDataFileScanTask.existingDeletes();
-      return Stream.concat(Stream.of(file), existingDeletes.stream());
+      return openDeletedDataFileScanTask((DeletedDataFileScanTask) task);
 
     } else {
       throw new IllegalArgumentException(
@@ -138,5 +119,36 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
         task.residual(),
         readSchema,
         idToConstant);
+  }
+
+  @Override
+  protected Stream<ContentFile<?>> referencedFiles(ChangelogScanTask task) {
+    if (task instanceof AddedRowsScanTask) {
+      return addedRowsScanTaskFiles((AddedRowsScanTask) task);
+
+    } else if (task instanceof DeletedRowsScanTask) {
+      throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
+
+    } else if (task instanceof DeletedDataFileScanTask) {
+      return deletedDataFileScanTaskFiles((DeletedDataFileScanTask) task);
+
+    } else {
+      throw new IllegalArgumentException(
+          "Unsupported changelog scan task type: " + task.getClass().getName());
+    }
+  }
+
+  private static Stream<ContentFile<?>> deletedDataFileScanTaskFiles(DeletedDataFileScanTask task) {
+    DeletedDataFileScanTask deletedDataFileScanTask = task;
+    DataFile file = deletedDataFileScanTask.file();
+    List<DeleteFile> existingDeletes = deletedDataFileScanTask.existingDeletes();
+    return Stream.concat(Stream.of(file), existingDeletes.stream());
+  }
+
+  private static Stream<ContentFile<?>> addedRowsScanTaskFiles(AddedRowsScanTask task) {
+    AddedRowsScanTask addedRowsScanTask = task;
+    DataFile file = addedRowsScanTask.file();
+    List<DeleteFile> deletes = addedRowsScanTask.deletes();
+    return Stream.concat(Stream.of(file), deletes.stream());
   }
 }
