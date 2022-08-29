@@ -97,6 +97,7 @@ public class AwsClientFactories {
     private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
+    private Boolean s3DualStackEnabled;
 
     DefaultAwsClientFactory() {}
 
@@ -105,6 +106,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
+          .dualstackEnabled(s3DualStackEnabled)
           .serviceConfiguration(
               S3Configuration.builder()
                   .pathStyleAccessEnabled(s3PathStyleAccess)
@@ -161,6 +163,11 @@ public class AwsClientFactories {
               properties,
               AwsProperties.S3_ACCELERATION_ENABLED,
               AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
+      this.s3DualStackEnabled =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              AwsProperties.S3_DUALSTACK_ENABLED,
+              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
