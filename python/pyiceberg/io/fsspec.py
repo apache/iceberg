@@ -49,7 +49,7 @@ class FsspecInputFile(InputFile):
 
     Args:
         location(str): A URI to a file location
-        _fs(AbstractFileSystem): An fsspec filesystem instance
+        fs(AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
