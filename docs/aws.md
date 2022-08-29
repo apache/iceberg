@@ -522,7 +522,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
-    --conf spark.sql.catalog.my_catalog.s3.s3.dualstack-enabled=true
+    --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
 
 For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
