@@ -108,21 +108,20 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     this.inheritableMetadata = inheritableMetadata;
     this.content = content;
 
-    if (specsById != null) {
+    if (specsById != null && specsById.containsKey(specId)) {
       this.spec = specsById.get(specId);
-      Preconditions.checkArgument(
-          spec != null, "Could not find PartitionSpec for specId: %s", specId);
     } else {
-      this.spec = readPartitionSpec(file);
+      this.spec = readPartitionSpec(file, specsById);
     }
 
     this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
   }
 
-  private PartitionSpec readPartitionSpec(InputFile inputFile) {
+  private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(
+      InputFile inputFile, Map<Integer, PartitionSpec> specsById) {
     Map<String, String> metadata;
     try {
-      try (AvroIterable<ManifestEntry<F>> headerReader =
+      try (AvroIterable<ManifestEntry<T>> headerReader =
           Avro.read(inputFile)
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
               .classLoader(GenericManifestEntry.class.getClassLoader())
@@ -139,8 +138,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       specId = Integer.parseInt(specProperty);
     }
 
-    Schema schema = SchemaParser.fromJson(metadata.get("schema"));
-    return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+    if (specsById != null && specsById.containsKey(specId)) {
+      return specsById.get(specId);
+    } else {
+      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+      return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+    }
   }
 
   public boolean isDeleteManifestReader() {
