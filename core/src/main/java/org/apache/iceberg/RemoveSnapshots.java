@@ -51,6 +51,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -366,11 +367,19 @@ class RemoveSnapshots implements ExpireSnapshots {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
-    // this is the set of ancestors of the current table state. when removing snapshots, this must
-    // only remove files that were deleted in an ancestor of the current table state to avoid
+    // ToDo: This will be removed when reachability analysis is done so files across multiple
+    // branches can be removed
+    SnapshotRef branchToCleanup = Iterables.getFirst(base.refs().values(), null);
+    if (branchToCleanup == null) {
+      return;
+    }
+
+    Snapshot branchTip = base.snapshot(branchToCleanup.snapshotId());
+
+    // this is the set of ancestors of the branch to cleanup. when removing snapshots, this must
+    // only remove files that were deleted in an ancestor of the branch to cleanup to avoid
     // physically deleting files that were logically deleted in a commit that was rolled back.
-    Set<Long> ancestorIds =
-        Sets.newHashSet(SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot));
+    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(branchTip, base::snapshot));
 
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
