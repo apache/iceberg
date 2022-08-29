@@ -35,7 +35,7 @@ ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\
 
 def micros_to_days(timestamp: int) -> int:
     """Converts a timestamp in microseconds to a date in days"""
-    return (datetime.fromtimestamp(timestamp / 1_000_000) - EPOCH_TIMESTAMP).days
+    return timedelta(microseconds=timestamp).days
 
 
 def micros_to_time(micros: int) -> time:
@@ -133,28 +133,24 @@ def to_human_timestamp(timestamp_micros: int) -> str:
     return (EPOCH_TIMESTAMP + timedelta(microseconds=timestamp_micros)).isoformat()
 
 
-def micros_to_hours(timestamp: int) -> int:
-    """Converts a timestamp in microseconds to a date in hours"""
-    return int((datetime.utcfromtimestamp(timestamp // 1_000_000) - EPOCH_TIMESTAMP).total_seconds() / 3600)
+def micros_to_hours(micros: int) -> int:
+    """Converts a timestamp in microseconds to hours from 1970-01-01T00:00"""
+    return micros // 3_600_000_000
 
 
 def days_to_months(days: int) -> int:
-    """Creates a date from the number of days from 1970-01-01"""
     d = days_to_date(days)
     return (d.year - EPOCH_DATE.year) * 12 + (d.month - EPOCH_DATE.month)
 
 
-def micros_to_months(timestamp: int) -> int:
-    dt = micros_to_timestamp(timestamp)
-    return (dt.year - EPOCH_TIMESTAMP.year) * 12 + (dt.month - EPOCH_TIMESTAMP.month) - (1 if dt.day < EPOCH_TIMESTAMP.day else 0)
+def micros_to_months(micros: int) -> int:
+    dt = micros_to_timestamp(micros)
+    return (dt.year - EPOCH_TIMESTAMP.year) * 12 + (dt.month - EPOCH_TIMESTAMP.month)
 
 
 def days_to_years(days: int) -> int:
     return days_to_date(days).year - EPOCH_DATE.year
 
 
-def micros_to_years(timestamp: int) -> int:
-    dt = micros_to_timestamp(timestamp)
-    return (dt.year - EPOCH_TIMESTAMP.year) - (
-        1 if dt.month < EPOCH_TIMESTAMP.month or (dt.month == EPOCH_TIMESTAMP.month and dt.day < EPOCH_TIMESTAMP.day) else 0
-    )
+def micros_to_years(micros: int) -> int:
+    return micros_to_timestamp(micros).year - EPOCH_TIMESTAMP.year
