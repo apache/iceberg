@@ -395,11 +395,6 @@ public class AwsProperties implements Serializable {
   public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
 
   /**
-   * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
-   */
-  @Deprecated public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
-
-  /**
    * This flag controls whether the S3 client will be initialized during the S3FileIO
    * initialization, instead of default lazy initialization upon use. This is needed for cases that
    * the credentials to use might change and needs to be preloaded.
