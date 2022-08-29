@@ -48,7 +48,7 @@ class TableProperties(object):
     PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"
 
     PARQUET_COMPRESSION = "write.parquet.compression-codec"
-    PARQUET_COMPRESSION_DEFAULT = "gzip"
+    PARQUET_COMPRESSION_DEFAULT = "snappy"
 
     AVRO_COMPRESSION = "write.avro.compression-codec"
     AVRO_COMPRESSION_DEFAULT = "gzip"
