@@ -16,23 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg;
 
-import org.apache.spark.sql.SparkSession;
+import java.util.List;
 
 /**
- * An action that deletes reachable files from a given metadata file.
+ * Represents a statistics file in the Puffin format, that can be used to read table data more
+ * efficiently.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
- *     DeleteReachableFilesSparkAction} instead.
+ * <p>Statistics are informational. A reader can choose to ignore statistics information. Statistics
+ * support is not required to read the table correctly.
  */
-@Deprecated
-public class BaseDeleteReachableFilesSparkAction extends DeleteReachableFilesSparkAction {
+public interface StatisticsFile {
+  /** ID of the Iceberg table's snapshot the statistics were computed from. */
+  long snapshotId();
 
-  public static final String STREAM_RESULTS = "stream-results";
-  public static final boolean STREAM_RESULTS_DEFAULT = false;
+  /**
+   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path. Never null.
+   */
+  String path();
 
-  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
-    super(spark, metadataFileLocation);
-  }
+  /** Size of the file */
+  long fileSizeInBytes();
+
+  /** Size of the Puffin footer. */
+  long fileFooterSizeInBytes();
+
+  /** List of statistics contained in the file. Never null. */
+  List<BlobMetadata> blobMetadata();
 }

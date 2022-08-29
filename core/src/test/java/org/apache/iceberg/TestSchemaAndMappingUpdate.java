@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -197,6 +199,27 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
     Assert.assertNull(
         "Make sure the metrics config no longer has bloop",
         table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop"));
+  }
+
+  @Test
+  public void testModificationWithParquetBloomConfig() {
+    table
+        .updateProperties()
+        .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+        .commit();
+
+    table.updateSchema().renameColumn("id", "ID").commit();
+    Assert.assertNotNull(
+        "Parquet bloom config for new column name ID should exists",
+        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
+    Assert.assertNull(
+        "Parquet bloom config for old column name id should not exists",
+        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id"));
+
+    table.updateSchema().deleteColumn("ID").commit();
+    Assert.assertNull(
+        "Parquet bloom config for dropped column name ID should not exists",
+        table.properties().get(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "ID"));
   }
 
   @Test

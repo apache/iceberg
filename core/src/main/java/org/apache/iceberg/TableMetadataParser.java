@@ -105,6 +105,7 @@ public class TableMetadataParser {
   static final String SNAPSHOT_LOG = "snapshot-log";
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
+  static final String STATISTICS = "statistics";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -453,6 +454,13 @@ public class TableMetadataParser {
       snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
     }
 
+    List<StatisticsFile> statisticsFiles;
+    if (node.has(STATISTICS)) {
+      statisticsFiles = statisticsFilesFromJson(node.get(STATISTICS));
+    } else {
+      statisticsFiles = ImmutableList.of();
+    }
+
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
     if (node.has(SNAPSHOT_LOG)) {
       Iterator<JsonNode> logIterator = node.get(SNAPSHOT_LOG).elements();
@@ -498,6 +506,7 @@ public class TableMetadataParser {
         entries.build(),
         metadataEntries.build(),
         refs,
+        statisticsFiles,
         ImmutableList.of() /* no changes from the file */);
   }
 
@@ -516,5 +525,19 @@ public class TableMetadataParser {
     }
 
     return refsBuilder.build();
+  }
+
+  private static List<StatisticsFile> statisticsFilesFromJson(JsonNode statisticsFilesList) {
+    Preconditions.checkArgument(
+        statisticsFilesList.isArray(),
+        "Cannot parse statistics files from non-array: %s",
+        statisticsFilesList);
+
+    ImmutableList.Builder<StatisticsFile> statisticsFilesBuilder = ImmutableList.builder();
+    for (JsonNode statisticsFile : statisticsFilesList) {
+      statisticsFilesBuilder.add(StatisticsFileParser.fromJson(statisticsFile));
+    }
+
+    return statisticsFilesBuilder.build();
   }
 }

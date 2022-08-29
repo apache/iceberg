@@ -36,12 +36,9 @@ public class DefaultTimer implements Timer {
   private final TimeUnit timeUnit;
   private final LongAdder count = new LongAdder();
   private final LongAdder totalTime = new LongAdder();
-  private final String name;
 
-  public DefaultTimer(String name, TimeUnit timeUnit) {
-    Preconditions.checkArgument(null != name, "Invalid timer name: null");
+  public DefaultTimer(TimeUnit timeUnit) {
     Preconditions.checkArgument(null != timeUnit, "Invalid time unit: null");
-    this.name = name;
     this.timeUnit = timeUnit;
   }
 
@@ -98,18 +95,13 @@ public class DefaultTimer implements Timer {
   }
 
   @Override
-  public String name() {
-    return name;
-  }
-
-  @Override
   public TimeUnit unit() {
     return timeUnit;
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(name())
+    return MoreObjects.toStringHelper(DefaultTimer.class)
         .add("duration", totalDuration())
         .add("count", count)
         .add("timeUnit", timeUnit)

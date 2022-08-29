@@ -53,6 +53,7 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
+import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -137,7 +138,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
-    return new IcebergSourceReader<>(lazyTable().name(), readerFunction, readerContext);
+    IcebergSourceReaderMetrics metrics =
+        new IcebergSourceReaderMetrics(readerContext.metricGroup(), lazyTable().name());
+    return new IcebergSourceReader<>(metrics, readerFunction, readerContext);
   }
 
   @Override

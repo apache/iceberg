@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -70,12 +71,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final String FLINK_JOB_ID = "flink.job-id";
 
   // The max checkpoint id we've committed to iceberg table. As the flink's checkpoint is always
-  // increasing, so we could
-  // correctly commit all the data files whose checkpoint id is greater than the max committed one
-  // to iceberg table, for
-  // avoiding committing the same data files twice. This id will be attached to iceberg's meta when
-  // committing the
-  // iceberg transaction.
+  // increasing, so we could correctly commit all the data files whose checkpoint id is greater than
+  // the max committed one to iceberg table, for avoiding committing the same data files twice. This
+  // id will be attached to iceberg's meta when committing the iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
@@ -85,37 +83,31 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final Map<String, String> snapshotProperties;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
-  // been committed
-  // to iceberg table). We need a sorted map here because there's possible that few checkpoints
-  // snapshot failed, for
-  // example: the 1st checkpoint have 2 data files <1, <file0, file1>>, the 2st checkpoint have 1
-  // data files
-  // <2, <file3>>. Snapshot for checkpoint#1 interrupted because of network/disk failure etc, while
-  // we don't expect
-  // any data loss in iceberg table. So we keep the finished files <1, <file0, file1>> in memory and
-  // retry to commit
-  // iceberg table when the next checkpoint happen.
+  // been committed to iceberg table). We need a sorted map here because there's possible that few
+  // checkpoints snapshot failed, for example: the 1st checkpoint have 2 data files <1, <file0,
+  // file1>>, the 2st checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
+  // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
+  // table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit iceberg
+  // table when the next checkpoint happen.
   private final NavigableMap<Long, byte[]> dataFilesPerCheckpoint = Maps.newTreeMap();
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
-  // be flushed to the
-  // 'dataFilesPerCheckpoint'.
+  // be flushed to the 'dataFilesPerCheckpoint'.
   private final List<WriteResult> writeResultsOfCurrentCkpt = Lists.newArrayList();
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient Table table;
+  private transient IcebergFilesCommitterMetrics committerMetrics;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
   private transient int continuousEmptyCheckpoints;
   private transient int maxContinuousEmptyCommits;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from
-  // snapshot created by the
-  // same flink job; another case is restoring from snapshot created by another different job. For
-  // the second case, we
-  // need to maintain the old flink job's id in flink state backend to find the
-  // max-committed-checkpoint-id when
-  // traversing iceberg table's snapshots.
+  // snapshot created by the same flink job; another case is restoring from snapshot created by
+  // another different job. For the second case, we need to maintain the old flink job's id in flink
+  // state backend to find the max-committed-checkpoint-id when traversing iceberg table's
+  // snapshots.
   private static final ListStateDescriptor<String> JOB_ID_DESCRIPTOR =
       new ListStateDescriptor<>("iceberg-flink-job-id", BasicTypeInfo.STRING_TYPE_INFO);
   private transient ListState<String> jobIdState;
@@ -146,6 +138,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
+    this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
 
     maxContinuousEmptyCommits =
         PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
@@ -169,10 +162,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
 
       // Since flink's checkpoint id will start from the max-committed-checkpoint-id + 1 in the new
-      // flink job even if
-      // it's restored from a snapshot created by another different flink job, so it's safe to
-      // assign the max committed
-      // checkpoint id from restored flink job to the current flink job.
+      // flink job even if it's restored from a snapshot created by another different flink job, so
+      // it's safe to assign the max committed checkpoint id from restored flink job to the current
+      // flink job.
       this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, restoredFlinkJobId);
 
       NavigableMap<Long, byte[]> uncommittedDataFiles =
@@ -196,6 +188,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         checkpointId);
 
     // Update the checkpoint state.
+    long startNano = System.nanoTime();
     dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
@@ -206,6 +199,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Clear the local buffer for current checkpoint.
     writeResultsOfCurrentCkpt.clear();
+    committerMetrics.checkpointDuration(
+        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
   }
 
   @Override
@@ -245,22 +240,32 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       manifests.addAll(deltaManifests.manifests());
     }
 
-    int totalFiles =
-        pendingResults.values().stream()
-            .mapToInt(r -> r.dataFiles().length + r.deleteFiles().length)
-            .sum();
+    CommitSummary summary = new CommitSummary(pendingResults);
+    commitPendingResult(pendingResults, summary, newFlinkJobId, checkpointId);
+    committerMetrics.updateCommitSummary(summary);
+    pendingMap.clear();
+    deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
+  }
+
+  private void commitPendingResult(
+      NavigableMap<Long, WriteResult> pendingResults,
+      CommitSummary summary,
+      String newFlinkJobId,
+      long checkpointId) {
+    long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
       if (replacePartitions) {
-        replacePartitions(pendingResults, newFlinkJobId, checkpointId);
+        replacePartitions(pendingResults, summary, newFlinkJobId, checkpointId);
       } else {
-        commitDeltaTxn(pendingResults, newFlinkJobId, checkpointId);
+        commitDeltaTxn(pendingResults, summary, newFlinkJobId, checkpointId);
       }
       continuousEmptyCheckpoints = 0;
     }
-    pendingMap.clear();
+  }
 
-    // Delete the committed manifests.
+  private void deleteCommittedManifests(
+      List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
     for (ManifestFile manifest : manifests) {
       try {
         table.io().deleteFile(manifest.path());
@@ -281,105 +286,87 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   private void replacePartitions(
-      NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId, long checkpointId) {
-    // Partition overwrite does not support delete files.
-    int deleteFilesNum =
-        pendingResults.values().stream().mapToInt(r -> r.deleteFiles().length).sum();
-    Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
-
+      NavigableMap<Long, WriteResult> pendingResults,
+      CommitSummary summary,
+      String newFlinkJobId,
+      long checkpointId) {
+    Preconditions.checkState(
+        summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
     // Commit the overwrite transaction.
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
-
-    int numFiles = 0;
     for (WriteResult result : pendingResults.values()) {
       Preconditions.checkState(
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
-
-      numFiles += result.dataFiles().length;
       Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
 
     commitOperation(
-        dynamicOverwrite, numFiles, 0, "dynamic partition overwrite", newFlinkJobId, checkpointId);
+        dynamicOverwrite, summary, "dynamic partition overwrite", newFlinkJobId, checkpointId);
   }
 
   private void commitDeltaTxn(
-      NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId, long checkpointId) {
-    int deleteFilesNum =
-        pendingResults.values().stream().mapToInt(r -> r.deleteFiles().length).sum();
-
-    if (deleteFilesNum == 0) {
+      NavigableMap<Long, WriteResult> pendingResults,
+      CommitSummary summary,
+      String newFlinkJobId,
+      long checkpointId) {
+    if (summary.deleteFilesCount() == 0) {
       // To be compatible with iceberg format V1.
       AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
-
-      int numFiles = 0;
       for (WriteResult result : pendingResults.values()) {
         Preconditions.checkState(
-            result.referencedDataFiles().length == 0, "Should have no referenced data files.");
-
-        numFiles += result.dataFiles().length;
+            result.referencedDataFiles().length == 0,
+            "Should have no referenced data files for append.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
-
-      commitOperation(appendFiles, numFiles, 0, "append", newFlinkJobId, checkpointId);
+      commitOperation(appendFiles, summary, "append", newFlinkJobId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
         // We don't commit the merged result into a single transaction because for the sequential
-        // transaction txn1 and
-        // txn2, the equality-delete files of txn2 are required to be applied to data files from
-        // txn1. Committing the
-        // merged one will lead to the incorrect delete semantic.
+        // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
+        // to data files from txn1. Committing the merged one will lead to the incorrect delete
+        // semantic.
         WriteResult result = e.getValue();
 
         // Row delta validations are not needed for streaming changes that write equality deletes.
-        // Equality deletes
-        // are applied to data in all previous sequence numbers, so retries may push deletes further
-        // in the future,
-        // but do not affect correctness. Position deletes committed to the table in this path are
-        // used only to delete
-        // rows from data files that are being added in this commit. There is no way for data files
-        // added along with
-        // the delete files to be concurrently removed, so there is no need to validate the files
-        // referenced by the
-        // position delete files that are being committed.
+        // Equality deletes are applied to data in all previous sequence numbers, so retries may
+        // push deletes further in the future, but do not affect correctness. Position deletes
+        // committed to the table in this path are used only to delete rows from data files that are
+        // being added in this commit. There is no way for data files added along with the delete
+        // files to be concurrently removed, so there is no need to validate the files referenced by
+        // the position delete files that are being committed.
         RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
 
-        int numDataFiles = result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
-
-        int numDeleteFiles = result.deleteFiles().length;
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-
-        commitOperation(
-            rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
+        commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, e.getKey());
       }
     }
   }
 
   private void commitOperation(
       SnapshotUpdate<?> operation,
-      int numDataFiles,
-      int numDeleteFiles,
+      CommitSummary summary,
       String description,
       String newFlinkJobId,
       long checkpointId) {
-    LOG.info(
-        "Committing {} with {} data files and {} delete files to table {}",
-        description,
-        numDataFiles,
-        numDeleteFiles,
-        table);
+    LOG.info("Committing {} to table {} with summary: {}", description, table.name(), summary);
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
 
-    long start = System.currentTimeMillis();
+    long startNano = System.nanoTime();
     operation.commit(); // abort is automatically called if this fails.
-    long duration = System.currentTimeMillis() - start;
-    LOG.info("Committed in {} ms", duration);
+    long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
+    LOG.info(
+        "Committed {} to table {} in {} ms with summary: {}",
+        description,
+        table.name(),
+        durationMs,
+        summary);
+    committerMetrics.commitDuration(durationMs);
   }
 
   @Override

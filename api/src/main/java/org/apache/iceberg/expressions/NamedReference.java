@@ -31,6 +31,7 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
     this.name = name;
   }
 
+  @Override
   public String name() {
     return name;
   }
@@ -44,7 +45,7 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
     ValidationException.check(
         field != null, "Cannot find field '%s' in struct: %s", name, schema.asStruct());
 
-    return new BoundReference<>(field, schema.accessorForField(field.fieldId()));
+    return new BoundReference<>(field, schema.accessorForField(field.fieldId()), name);
   }
 
   @Override

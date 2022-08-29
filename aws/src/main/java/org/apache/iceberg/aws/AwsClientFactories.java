@@ -94,8 +94,10 @@ public class AwsClientFactories {
     private String s3SessionToken;
     private Boolean s3PathStyleAccess;
     private Boolean s3UseArnRegionEnabled;
+    private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
+    private Boolean s3DualStackEnabled;
 
     DefaultAwsClientFactory() {}
 
@@ -104,7 +106,13 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .serviceConfiguration(s3Configuration(s3PathStyleAccess, s3UseArnRegionEnabled))
+          .dualstackEnabled(s3DualStackEnabled)
+          .serviceConfiguration(
+              S3Configuration.builder()
+                  .pathStyleAccessEnabled(s3PathStyleAccess)
+                  .useArnRegionEnabled(s3UseArnRegionEnabled)
+                  .accelerateModeEnabled(s3AccelerationEnabled)
+                  .build())
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -150,6 +158,16 @@ public class AwsClientFactories {
               properties,
               AwsProperties.S3_USE_ARN_REGION_ENABLED,
               AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+      this.s3AccelerationEnabled =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              AwsProperties.S3_ACCELERATION_ENABLED,
+              AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
+      this.s3DualStackEnabled =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              AwsProperties.S3_DUALSTACK_ENABLED,
+              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
@@ -182,6 +200,13 @@ public class AwsClientFactories {
     }
   }
 
+  /**
+   * Build an S3Configuration object
+   *
+   * @deprecated Not for public use. To build an S3Configuration object, use
+   *     S3Configuration.builder() directly. It will be removed in 2.0.0
+   */
+  @Deprecated
   public static S3Configuration s3Configuration(
       Boolean pathStyleAccess, Boolean s3UseArnRegionEnabled) {
     return S3Configuration.builder()

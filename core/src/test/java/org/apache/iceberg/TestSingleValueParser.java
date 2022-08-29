@@ -29,7 +29,7 @@ import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestDefaultValueParser {
+public class TestSingleValueParser {
 
   @Test
   public void testValidDefaults() throws IOException {
@@ -171,8 +171,8 @@ public class TestDefaultValueParser {
 
   // serialize to json and deserialize back should return the same result
   private static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) {
-    Object javaDefaultValue = DefaultValueParser.fromJson(type, defaultValue);
-    return DefaultValueParser.toJson(type, javaDefaultValue);
+    Object javaDefaultValue = SingleValueParser.fromJson(type, defaultValue);
+    return SingleValueParser.toJson(type, javaDefaultValue);
   }
 
   private static void jsonStringEquals(String s1, String s2) throws IOException {

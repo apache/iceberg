@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -100,8 +100,8 @@ class S3OutputStream extends PositionOutputStream {
   private final MessageDigest completeMessageDigest;
   private MessageDigest currentPartMessageDigest;
 
-  private final Counter<Long> writeBytes;
-  private final Counter<Integer> writeOperations;
+  private final Counter writeBytes;
+  private final Counter writeOperations;
 
   private long pos = 0;
   private boolean closed = false;
@@ -146,9 +146,8 @@ class S3OutputStream extends PositionOutputStream {
           "Failed to create message digest needed for s3 checksum checks", e);
     }
 
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations =
-        metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
 
     newStream();
   }
@@ -203,7 +202,7 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b, relativeOffset, remaining);
     pos += len;
-    writeBytes.increment((long) len);
+    writeBytes.increment(len);
     writeOperations.increment();
 
     // switch to multipart upload

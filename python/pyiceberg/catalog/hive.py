@@ -235,9 +235,9 @@ class HiveCatalog(Catalog):
 
         return tuple_identifier[0], tuple_identifier[1]
 
-    def __init__(self, name: str, properties: Properties, uri: str):
-        super().__init__(name, properties)
-        self._client = _HiveClient(uri)
+    def __init__(self, name: str, **properties: str):
+        super().__init__(name, **properties)
+        self._client = _HiveClient(properties["uri"])
 
     def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO) -> Table:
         properties: Dict[str, str] = table.parameters
@@ -320,7 +320,7 @@ class HiveCatalog(Catalog):
             if partition_spec.fields
             else DEFAULT_LAST_PARTITION_ID,
         )
-        io = load_file_io({**self.properties, **properties})
+        io = load_file_io({**self.properties, **properties}, location=location)
         self._write_metadata(metadata, io, metadata_location)
 
         tbl = HiveTable(
@@ -474,12 +474,16 @@ class HiveCatalog(Catalog):
         with self._client as open_client:
             return [(database_name, table_name) for table_name in open_client.get_all_tables(db_name=database_name)]
 
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
+        # Hive does not support hierarchical namespaces, therefore return an empty list
+        if namespace:
+            return []
+
         with self._client as open_client:
             return list(map(self.identifier_to_tuple, open_client.get_all_databases()))
 

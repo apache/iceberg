@@ -93,7 +93,7 @@ NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 
 class TableResponse(IcebergBaseModel):
-    metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
+    metadata_location: str = Field(alias="metadata-location")
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
     config: Properties = Field(default_factory=dict)
 
@@ -163,18 +163,13 @@ class OAuthErrorResponse(IcebergBaseModel):
 
 
 class RestCatalog(Catalog):
-    token: str
-    config: Properties
-
+    token: Optional[str]
     uri: str
 
     def __init__(
         self,
         name: str,
-        properties: Properties,
-        uri: str,
-        credentials: Optional[str] = None,
-        token: Optional[str] = None,
+        **properties: str,
     ):
         """Rest Catalog
 
@@ -183,17 +178,12 @@ class RestCatalog(Catalog):
         Args:
             name: Name to identify the catalog
             properties: Properties that are passed along to the configuration
-            uri: The base-url of the REST Catalog endpoint
-            credentials: The credentials for authentication against the client
-            token: The bearer token
         """
-        self.uri = uri
-        if credentials:
-            self.token = self._fetch_access_token(credentials)
-        elif token:
-            self.token = token
-        self.config = self._fetch_config(properties)
-        super().__init__(name, properties)
+        self.properties = properties
+        self.uri = properties["uri"]
+        if credential := properties.get("credential"):
+            properties["token"] = self._fetch_access_token(credential)
+        super().__init__(name, **self._fetch_config(properties))
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
@@ -208,8 +198,8 @@ class RestCatalog(Catalog):
             "Content-type": "application/json",
             "X-Client-Version": __version__,
         }
-        if self.token:
-            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {self.token}"
+        if token := self.properties.get("token"):
+            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
         return headers
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
@@ -227,13 +217,13 @@ class RestCatalog(Catalog):
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
 
         if prefixed:
-            url += self.config.get(PREFIX, "")
+            url += self.properties.get(PREFIX, "")
             url = url if url.endswith("/") else url + "/"
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, credentials: str) -> str:
-        client_id, client_secret = credentials.split(":")
+    def _fetch_access_token(self, credential: str) -> str:
+        client_id, client_secret = credential.split(":")
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
@@ -247,7 +237,10 @@ class RestCatalog(Catalog):
 
     def _fetch_config(self, properties: Properties) -> Properties:
         response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            self._handle_non_200_response(exc, {})
         config_response = ConfigResponse(**response.json())
         config = config_response.defaults
         config.update(properties)
@@ -373,9 +366,8 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError})
 
         table_response = TableResponse(**response.json())
-
         return Table(
-            identifier=(self.name,) + identifier_tuple,
+            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
             metadata_location=table_response.metadata_location,
             metadata=table_response.metadata,
         )
@@ -422,15 +414,23 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
 
-    def list_namespaces(self) -> List[Identifier]:
-        response = requests.get(self.url(Endpoints.list_namespaces), headers=self.headers)
-        response.raise_for_status()
-        namespaces = ListNamespaceResponse(**response.json())
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        namespace_tuple = self.identifier_to_tuple(namespace)
+        response = requests.get(
+            self.url(
+                f"{Endpoints.list_namespaces}?parent={NAMESPACE_SEPARATOR.join(namespace_tuple)}"
+                if namespace_tuple
+                else Endpoints.list_namespaces
+            ),
+            headers=self.headers,
+        )
         try:
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {})
-        return namespaces.namespaces
+
+        namespaces = ListNamespaceResponse(**response.json())
+        return [namespace_tuple + child_namespace for child_namespace in namespaces.namespaces]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)

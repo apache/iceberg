@@ -16,20 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
+import java.util.List;
+import java.util.Map;
 
-/**
- * An action to rewrite manifests.
- *
- * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
- *     RewriteManifestsSparkAction} instead.
- */
-@Deprecated
-public class BaseRewriteManifestsSparkAction extends RewriteManifestsSparkAction {
-  public BaseRewriteManifestsSparkAction(SparkSession spark, Table table) {
-    super(spark, table);
-  }
+/** A metadata about a statistics or indices blob. */
+public interface BlobMetadata {
+  /** Type of the blob. Never null */
+  String type();
+
+  /** ID of the Iceberg table's snapshot the blob was computed from */
+  long sourceSnapshotId();
+
+  /** Sequence number of the Iceberg table's snapshot the blob was computed from */
+  long sourceSnapshotSequenceNumber();
+
+  /** Ordered list of fields the blob was calculated from. Never null */
+  List<Integer> fields();
+
+  /** Additional properties of the blob, specific to the blob type. Never null */
+  Map<String, String> properties();
 }

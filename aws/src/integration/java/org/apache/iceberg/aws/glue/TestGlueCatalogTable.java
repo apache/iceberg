@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.BaseTable;
@@ -33,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -251,6 +253,29 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testDeleteTableWithPurge() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+
+    DataFile testFile =
+      DataFiles.builder(PartitionSpec.unpartitioned())
+          .withPath("/path/to/data-unpartitioned-a.parquet")
+          .withFileSizeInBytes(1)
+          .withRecordCount(1)
+          .build();
+    int numFilesToCreate = 31;
+    int commitFrequency = 5;
+    Transaction txn = table.newTransaction();
+    for (int i = 1; i <= numFilesToCreate; i++) {
+      AppendFiles appendFiles = txn.newFastAppend().appendFile(testFile);
+      appendFiles.commit();
+      // Every "commitFrequency" appends commit the transaction and start a new one so we can have multiple manifests
+      if (i % commitFrequency == 0) {
+        txn.commitTransaction();
+        txn = table.newTransaction();
+      }
+    }
+
+    txn.commitTransaction();
+
     glueCatalog.dropTable(TableIdentifier.of(namespace, tableName));
     AssertHelpers.assertThrows("should not have table",
         NoSuchTableException.class,

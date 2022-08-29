@@ -32,7 +32,7 @@ from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
-from pyiceberg.table.snapshots import Snapshot
+from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -83,9 +83,6 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
-    def current_schema(self) -> Schema:
-        return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
-
     @root_validator(pre=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
         if data.get("current-snapshot-id") == -1:
@@ -98,7 +95,8 @@ class TableMetadataCommonFields(IcebergBaseModel):
     def construct_refs(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as refs is an actual pydantic object
         if current_snapshot_id := data.get("current_snapshot_id"):
-            data["refs"] = {MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)}
+            if MAIN_BRANCH not in data["refs"]:
+                data["refs"][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
         return data
 
     location: str = Field()
@@ -152,7 +150,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     deleted from the file system until the last snapshot in which it was
     listed is garbage collected."""
 
-    snapshot_log: List[Dict[str, Any]] = Field(alias="snapshot-log", default_factory=list)
+    snapshot_log: List[SnapshotLogEntry] = Field(alias="snapshot-log", default_factory=list)
     """A list (optional) of timestamp and snapshot ID pairs that encodes
     changes to the current snapshot for the table. Each time the
     current-snapshot-id is changed, a new entry should be added with the
@@ -160,7 +158,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     expired from the list of valid snapshots, all entries before a snapshot
     that has expired should be removed."""
 
-    metadata_log: List[Dict[str, Any]] = Field(alias="metadata-log", default_factory=list)
+    metadata_log: List[MetadataLogEntry] = Field(alias="metadata-log", default_factory=list)
     """A list (optional) of timestamp and metadata file location pairs that
     encodes changes to the previous metadata files for the table. Each time
     a new metadata file is created, a new entry of the previous metadata

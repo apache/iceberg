@@ -166,6 +166,53 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testUpsertOptions() {
+    String tableName = "test_upsert_options";
+    LocalDate dt20220301 = LocalDate.of(2022, 3, 1);
+    LocalDate dt20220302 = LocalDate.of(2022, 3, 2);
+
+    Map<String, String> optionsUpsertProps = Maps.newHashMap(tableUpsertProps);
+    optionsUpsertProps.remove(TableProperties.UPSERT_ENABLED);
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, province STRING NOT NULL, dt DATE, PRIMARY KEY(id,province) NOT ENFORCED) "
+            + "PARTITIONED BY (province) WITH %s",
+        tableName, toWithClause(optionsUpsertProps));
+
+    try {
+      sql(
+          "INSERT INTO %s /*+ OPTIONS('upsert-enabled'='true')*/  VALUES "
+              + "(1, 'a', DATE '2022-03-01'),"
+              + "(2, 'b', DATE '2022-03-01'),"
+              + "(1, 'b', DATE '2022-03-01')",
+          tableName);
+
+      sql(
+          "INSERT INTO %s /*+ OPTIONS('upsert-enabled'='true')*/  VALUES "
+              + "(4, 'a', DATE '2022-03-02'),"
+              + "(5, 'b', DATE '2022-03-02'),"
+              + "(1, 'b', DATE '2022-03-02')",
+          tableName);
+
+      List<Row> rowsOn20220301 =
+          Lists.newArrayList(Row.of(2, "b", dt20220301), Row.of(1, "a", dt20220301));
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s WHERE dt < '2022-03-02'", tableName), rowsOn20220301);
+
+      List<Row> rowsOn20220302 =
+          Lists.newArrayList(
+              Row.of(1, "b", dt20220302), Row.of(4, "a", dt20220302), Row.of(5, "b", dt20220302));
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s WHERE dt = '2022-03-02'", tableName), rowsOn20220302);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Iterables.concat(rowsOn20220301, rowsOn20220302)));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  @Test
   public void testPrimaryKeyEqualToPartitionKey() {
     // This is an SQL based reproduction of TestFlinkIcebergSinkV2#testUpsertOnDataKey
     String tableName = "upsert_on_data_key";
