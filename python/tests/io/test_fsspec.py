@@ -20,6 +20,7 @@ import uuid
 import pytest
 
 from pyiceberg.io import fsspec
+from tests.io.test_io import LocalInputFile
 
 
 @pytest.mark.s3
@@ -184,3 +185,16 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio):
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
     input_file = output_file.to_input_file()
     assert input_file.location == output_file.location
+
+
+@pytest.mark.s3
+def test_writing_avro_file(generated_manifest_entry_file, fsspec_fileio):
+    """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
+    filename = str(uuid.uuid4())
+    with LocalInputFile(generated_manifest_entry_file).open() as f:
+        b1 = f.read()
+        with fsspec_fileio.new_output(location=f"s3://warehouse/{filename}").create() as out_f:
+            out_f.write(b1)
+        with fsspec_fileio.new_input(location=f"s3://warehouse/{filename}").open() as in_f:
+            b2 = in_f.read()
+            assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3

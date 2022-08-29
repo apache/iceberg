@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 from fsspec import AbstractFileSystem
 
 from pyiceberg.io import FileIO, InputFile, OutputFile
-from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.typedef import Properties
 
 
 def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
@@ -36,11 +36,13 @@ def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
 
     return S3FileSystem(client_kwargs=client_kwargs, **fs_properties)
 
+
 SCHEME_TO_FS = {
     "s3": _s3,
     "s3a": _s3,
     "s3n": _s3,
 }
+
 
 class FsspecInputFile(InputFile):
     """An input file implementation for the FsspecFileIO
@@ -134,6 +136,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
+        self._fs_cache: Dict[str, AbstractFileSystem] = {}
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:
@@ -146,10 +149,16 @@ class FsspecFileIO(FileIO):
             FsspecInputFile: An FsspecInputFile instance for the given location
         """
         uri = urlparse(location)
-        
+
         if uri.scheme not in self._scheme_to_fs:
             raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
+
+        if cached_fs := self._fs_cache.get(uri.scheme):
+            fs = cached_fs
+        else:
+            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
+            self._fs_cache[uri.scheme] = fs
+
         return FsspecInputFile(location=location, fs=fs)
 
     def new_output(self, location: str) -> FsspecOutputFile:
@@ -164,7 +173,13 @@ class FsspecFileIO(FileIO):
         uri = urlparse(location)
         if uri.scheme not in self._scheme_to_fs:
             raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
+
+        if cached_fs := self._fs_cache.get(uri.scheme):
+            fs = cached_fs
+        else:
+            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
+            self._fs_cache[uri.scheme] = fs
+
         return FsspecOutputFile(location=location, fs=fs)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
@@ -183,18 +198,13 @@ class FsspecFileIO(FileIO):
         uri = urlparse(str_location)
         if uri.scheme not in self._scheme_to_fs:
             raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-        fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
-        fs.rm(str_location)
 
-    def _resolve_fs_type(self, scheme: str):
-        """Initialize the proper filesystem for the location's scheme"""
-        if scheme in {"s3", "s3n", "s3a"}:
-            from s3fs import S3FileSystem
-
-            self._fs = S3FileSystem(client_kwargs=self._client_properties() or None, **self._fs_properties())
-            return self._fs
+        if cached_fs := self._fs_cache.get(uri.scheme):
+            fs = cached_fs
         else:
-            raise ValueError(f"Cannot determine fsspec implementation to use with scheme: {scheme}")
+            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
+            self._fs_cache[uri.scheme] = fs
+        fs.rm(str_location)
 
     def _fs_properties(self):
         """Get fs properties from the file-io property map"""
