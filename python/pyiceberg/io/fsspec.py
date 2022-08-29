@@ -16,7 +16,8 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
 
-from typing import Dict, Union
+from functools import lru_cache
+from typing import Callable, Union
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
@@ -136,7 +137,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
-        self._fs_cache: Dict[str, AbstractFileSystem] = {}
+        self.get_fs: Callable = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:
@@ -149,16 +150,7 @@ class FsspecFileIO(FileIO):
             FsspecInputFile: An FsspecInputFile instance for the given location
         """
         uri = urlparse(location)
-
-        if uri.scheme not in self._scheme_to_fs:
-            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-
-        if cached_fs := self._fs_cache.get(uri.scheme):
-            fs = cached_fs
-        else:
-            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
-            self._fs_cache[uri.scheme] = fs
-
+        fs = self.get_fs(uri.scheme)
         return FsspecInputFile(location=location, fs=fs)
 
     def new_output(self, location: str) -> FsspecOutputFile:
@@ -171,15 +163,7 @@ class FsspecFileIO(FileIO):
             FsspecOutputFile: An FsspecOutputFile instance for the given location
         """
         uri = urlparse(location)
-        if uri.scheme not in self._scheme_to_fs:
-            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-
-        if cached_fs := self._fs_cache.get(uri.scheme):
-            fs = cached_fs
-        else:
-            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
-            self._fs_cache[uri.scheme] = fs
-
+        fs = self.get_fs(uri.scheme)
         return FsspecOutputFile(location=location, fs=fs)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
@@ -196,15 +180,14 @@ class FsspecFileIO(FileIO):
             str_location = location
 
         uri = urlparse(str_location)
-        if uri.scheme not in self._scheme_to_fs:
-            raise ValueError(f"No registered filesystem for scheme: {uri.scheme}")
-
-        if cached_fs := self._fs_cache.get(uri.scheme):
-            fs = cached_fs
-        else:
-            fs = self._scheme_to_fs[uri.scheme](self.properties, **self._fs_properties())
-            self._fs_cache[uri.scheme] = fs
+        fs = self.get_fs(uri.scheme)
         fs.rm(str_location)
+
+    def _get_fs(self, scheme: str) -> AbstractFileSystem:
+        """Get a filesystem for a specific scheme"""
+        if scheme not in self._scheme_to_fs:
+            raise ValueError(f"No registered filesystem for scheme: {scheme}")
+        return self._scheme_to_fs[scheme](self.properties, **self._fs_properties())
 
     def _fs_properties(self):
         """Get fs properties from the file-io property map"""
