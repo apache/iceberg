@@ -29,7 +29,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -212,7 +211,7 @@ public class SparkTable
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
+    DataType sparkPartitionType = SparkSchemaUtil.convert(table().spec().partitionType());
     return new MetadataColumn[] {
       new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
       new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),

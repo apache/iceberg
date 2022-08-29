@@ -125,8 +125,7 @@ public class PartitionSpec implements Serializable {
   public StructType partitionType() {
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
-    for (int i = 0; i < fields.length; i += 1) {
-      PartitionField field = fields[i];
+    for (PartitionField field : fields) {
       Type sourceType = schema.findType(field.sourceId());
       Type resultType = field.transform().getResultType(sourceType);
       structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
