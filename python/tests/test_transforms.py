@@ -443,18 +443,40 @@ def test_void_transform_repr():
     assert repr(VoidTransform()) == "VoidTransform()"
 
 
-@pytest.mark.parametrize(
-    "transform,json",
-    [
-        (YearTransform(), '"year"'),
-        (MonthTransform(), '"month"'),
-        (DayTransform(), '"day"'),
-        (HourTransform(), '"hour"'),
-    ],
-)
-def test_datetime_transform_serde(transform, json):
-    assert transform.json() == json
-    assert TestType.parse_raw(json).__root__ == transform
+def test_year_transform_serialize():
+    assert YearTransform().json() == '"year"'
+
+
+def test_year_transform_deserialize():
+    transform = TestType.parse_raw('"year"').__root__
+    assert transform == YearTransform()
+
+
+def test_month_transform_serialize():
+    assert MonthTransform().json() == '"month"'
+
+
+def test_month_transform_deserialize():
+    transform = TestType.parse_raw('"month"').__root__
+    assert transform == MonthTransform()
+
+
+def test_day_transform_serialize():
+    assert DayTransform().json() == '"day"'
+
+
+def test_day_transform_deserialize():
+    transform = TestType.parse_raw('"day"').__root__
+    assert transform == DayTransform()
+
+
+def test_hour_transform_serialize():
+    assert HourTransform().json() == '"hour"'
+
+
+def test_hour_transform_deserialize():
+    transform = TestType.parse_raw('"hour"').__root__
+    assert transform == HourTransform()
 
 
 @pytest.mark.parametrize(

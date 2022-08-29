@@ -154,7 +154,6 @@ class BucketTransform(Transform[S, int]):
       num_buckets (int): The number of buckets.
     """
 
-    _source_type: IcebergType = PrivateAttr()
     _num_buckets: PositiveInt = PrivateAttr()
 
     def __init__(self, num_buckets: int, **data: Any):
@@ -238,7 +237,7 @@ class TimeResolution(IntEnum):
     SECOND = 0
 
 
-class TimeTransform(Transform[S, int]):
+class TimeTransform(Transform[S, int], Singleton):
     @property
     @abstractmethod
     def granularity(self) -> TimeResolution:
@@ -269,7 +268,6 @@ class YearTransform(TimeTransform):
     """
 
     __root__: Literal["year"] = Field(default="year")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -316,7 +314,6 @@ class MonthTransform(TimeTransform):
     """
 
     __root__: Literal["month"] = Field(default="month")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -363,7 +360,6 @@ class DayTransform(TimeTransform):
     """
 
     __root__: Literal["day"] = Field(default="day")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
@@ -413,7 +409,6 @@ class HourTransform(TimeTransform):
     """
 
     __root__: Literal["hour"] = Field(default="hour")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         if type(source) in {TimestampType, TimestamptzType}:
@@ -458,7 +453,6 @@ class IdentityTransform(Transform[S, S]):
     """
 
     __root__: Literal["identity"] = Field(default="identity")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v
@@ -617,7 +611,6 @@ class UnknownTransform(Transform):
     """
 
     __root__: Literal["unknown"] = Field(default="unknown")
-    _source_type: IcebergType = PrivateAttr()
     _transform: str = PrivateAttr()
 
     def __init__(self, transform: str, **data: Any):
