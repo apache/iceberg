@@ -37,7 +37,9 @@ public class ThreadPools {
 
   public static final int WORKER_THREAD_POOL_SIZE =
       getPoolSize(
-          WORKER_THREAD_POOL_SIZE_PROP, Math.max(2, Runtime.getRuntime().availableProcessors()));
+          WORKER_THREAD_POOL_SIZE_PROP,
+          SystemProperties.WORKER_THREAD_POOL_SIZE_ENV,
+          Math.max(2, Runtime.getRuntime().availableProcessors()));
 
   private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool");
 
@@ -79,8 +81,12 @@ public class ThreadPools {
     return new ScheduledThreadPoolExecutor(poolSize, newDaemonThreadFactory(namePrefix));
   }
 
-  private static int getPoolSize(String systemProperty, int defaultSize) {
+  private static int getPoolSize(String systemProperty, String envVariable, int defaultSize) {
     String value = System.getProperty(systemProperty);
+    if (value == null) {
+      value = System.getenv(envVariable);
+    }
+
     if (value != null) {
       try {
         return Integer.parseUnsignedInt(value);
