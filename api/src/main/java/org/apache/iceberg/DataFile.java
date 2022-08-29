@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
+import java.io.Serializable;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
@@ -31,8 +29,11 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 /** Interface for data files listed in a table manifest. */
-public interface DataFile extends ContentFile<DataFile> {
+public interface DataFile extends ContentFile<DataFile>, Serializable {
   // fields for adding delete data files
   Types.NestedField CONTENT =
       optional(

@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +40,9 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 public class CatalogUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtil.class);

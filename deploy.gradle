@@ -111,11 +111,11 @@ subprojects {
       repositories {
         maven {
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+            username project.hasProperty('mavenUser') ? "$mavenUser" : "tuyarer"
+            password project.hasProperty('mavenPassword') ? "$mavenPassword" : "Domate\$US26052017"
           }
           // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+          def apacheSnapshotsRepoUrl = 'https://art.code.pan.run:443/artifactory/maven-datalake/'
           def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
           def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
           def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
