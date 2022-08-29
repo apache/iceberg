@@ -83,7 +83,7 @@ class FsspecOutputFile(OutputFile):
 
     Args:
         location(str): A URI to a file location
-        fs: An fsspec filesystem instance
+        fs(AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs):
