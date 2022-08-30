@@ -346,7 +346,7 @@ def new_table_metadata(
     schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str, properties: Properties = EMPTY_DICT
 ) -> TableMetadata:
     fresh_schema = assign_fresh_schema_ids(schema)
-    fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, fresh_schema)
+    fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, schema, fresh_schema)
     fresh_sort_order = assign_fresh_sort_order_ids(sort_order, schema, fresh_schema)
 
     return TableMetadataV2(

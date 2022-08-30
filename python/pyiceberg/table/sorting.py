@@ -149,12 +149,12 @@ def assign_fresh_sort_order_ids(sort_order: SortOrder, old_schema: Schema, fresh
 
     fresh_fields = []
     for field in sort_order.fields:
-        original_field = old_schema.find_field(field.source_id)
+        original_field = old_schema.find_column_name(field.source_id)
         if original_field is None:
-            raise ValueError(f"Could not find in original schema: {field}")
-        fresh_field = fresh_schema.find_field(original_field.name)
+            raise ValueError(f"Could not find in old schema: {field}")
+        fresh_field = fresh_schema.find_field(original_field)
         if fresh_field is None:
-            raise ValueError(f"Could not find field in fresh schema: {original_field.name}")
+            raise ValueError(f"Could not find field in fresh schema: {original_field}")
         fresh_fields.append(
             SortField(
                 source_id=fresh_field.field_id,

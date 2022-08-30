@@ -623,63 +623,61 @@ def test_make_metadata_fresh():
         last_column_id=17,
         schemas=[
             Schema(
-                fields=(
-                    NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                    NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
-                    NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
-                    NestedField(
-                        field_id=4,
-                        name="qux",
-                        field_type=ListType(type="list", element_id=5, element_type=StringType(), element_required=True),
-                        required=True,
-                    ),
-                    NestedField(
-                        field_id=6,
-                        name="quux",
-                        field_type=MapType(
+                NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+                NestedField(
+                    field_id=4,
+                    name="qux",
+                    field_type=ListType(type="list", element_id=8, element_type=StringType(), element_required=True),
+                    required=True,
+                ),
+                NestedField(
+                    field_id=5,
+                    name="quux",
+                    field_type=MapType(
+                        type="map",
+                        key_id=9,
+                        key_type=StringType(),
+                        value_id=10,
+                        value_type=MapType(
                             type="map",
-                            key_id=7,
+                            key_id=11,
                             key_type=StringType(),
-                            value_id=8,
-                            value_type=MapType(
-                                type="map",
-                                key_id=9,
-                                key_type=StringType(),
-                                value_id=10,
-                                value_type=IntegerType(),
-                                value_required=True,
-                            ),
+                            value_id=12,
+                            value_type=IntegerType(),
                             value_required=True,
                         ),
-                        required=True,
+                        value_required=True,
                     ),
-                    NestedField(
-                        field_id=11,
-                        name="location",
-                        field_type=ListType(
-                            type="list",
-                            element_id=12,
-                            element_type=StructType(
-                                fields=(
-                                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
-                                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
-                                )
-                            ),
-                            element_required=True,
-                        ),
-                        required=True,
-                    ),
-                    NestedField(
-                        field_id=15,
-                        name="person",
-                        field_type=StructType(
+                    required=True,
+                ),
+                NestedField(
+                    field_id=6,
+                    name="location",
+                    field_type=ListType(
+                        type="list",
+                        element_id=13,
+                        element_type=StructType(
                             fields=(
-                                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-                                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+                                NestedField(field_id=14, name="latitude", field_type=FloatType(), required=False),
+                                NestedField(field_id=15, name="longitude", field_type=FloatType(), required=False),
                             )
                         ),
-                        required=False,
+                        element_required=True,
                     ),
+                    required=True,
+                ),
+                NestedField(
+                    field_id=7,
+                    name="person",
+                    field_type=StructType(
+                        fields=(
+                            NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                            NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+                        )
+                    ),
+                    required=False,
                 ),
                 schema_id=0,
                 identifier_field_ids=[2],
