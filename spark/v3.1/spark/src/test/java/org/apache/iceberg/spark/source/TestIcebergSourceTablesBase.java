@@ -782,7 +782,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
 
     inputDf
@@ -868,7 +868,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     String secondManifestList = table.currentSnapshot().manifestListLocation();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     List<Row> actual =
         spark
@@ -941,7 +941,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     Dataset<Row> actualDf =
         spark

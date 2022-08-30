@@ -64,7 +64,7 @@ public class TestCatalogs {
 
   @Test
   public void testLoadTableFromLocation() throws IOException {
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     AssertHelpers.assertThrows(
         "Should complain about table location not set",
         IllegalArgumentException.class,
@@ -109,7 +109,7 @@ public class TestCatalogs {
         "schema not set",
         () -> Catalogs.createTable(conf, missingSchema));
 
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     Properties missingLocation = new Properties();
     missingLocation.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     AssertHelpers.assertThrows(
@@ -212,60 +212,6 @@ public class TestCatalogs {
   }
 
   @Test
-  public void testLegacyLoadCatalogDefault() {
-    Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, null);
-    Assert.assertTrue(defaultCatalog.isPresent());
-    Assertions.assertThat(defaultCatalog.get()).isInstanceOf(HiveCatalog.class);
-    Assert.assertTrue(Catalogs.hiveCatalog(conf, new Properties()));
-  }
-
-  @Test
-  public void testLegacyLoadCatalogHive() {
-    conf.set(InputFormatConfig.CATALOG, CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
-    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, null);
-    Assert.assertTrue(hiveCatalog.isPresent());
-    Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
-    Assert.assertTrue(Catalogs.hiveCatalog(conf, new Properties()));
-  }
-
-  @Test
-  public void testLegacyLoadCatalogHadoop() {
-    conf.set(InputFormatConfig.CATALOG, CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
-    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
-    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, null);
-    Assert.assertTrue(hadoopCatalog.isPresent());
-    Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
-  }
-
-  @Test
-  public void testLegacyLoadCatalogCustom() {
-    conf.set(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalog.class.getName());
-    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
-    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, null);
-    Assert.assertTrue(customHadoopCatalog.isPresent());
-    Assertions.assertThat(customHadoopCatalog.get()).isInstanceOf(CustomHadoopCatalog.class);
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
-  }
-
-  @Test
-  public void testLegacyLoadCatalogLocation() {
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
-    Assert.assertFalse(Catalogs.loadCatalog(conf, null).isPresent());
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
-  }
-
-  @Test
-  public void testLegacyLoadCatalogUnknown() {
-    conf.set(InputFormatConfig.CATALOG, "fooType");
-    AssertHelpers.assertThrows(
-        "should complain about catalog not supported",
-        UnsupportedOperationException.class,
-        "Unknown catalog type",
-        () -> Catalogs.loadCatalog(conf, null));
-  }
-
-  @Test
   public void testLoadCatalogDefault() {
     String catalogName = "barCatalog";
     Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, catalogName);
@@ -291,21 +237,6 @@ public class TestCatalogs {
   }
 
   @Test
-  public void testLegacyLoadCustomCatalogWithHiveCatalogTypeSet() {
-    String catalogName = "barCatalog";
-    conf.set(
-        InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
-        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
-    conf.set(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalog.class.getName());
-    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
-    AssertHelpers.assertThrows(
-        "Should complain about both configs being set",
-        IllegalArgumentException.class,
-        "both type and catalog-impl are set",
-        () -> Catalogs.loadCatalog(conf, catalogName));
-  }
-
-  @Test
   public void testLoadCatalogHadoop() {
     String catalogName = "barCatalog";
     conf.set(
@@ -315,23 +246,6 @@ public class TestCatalogs {
         InputFormatConfig.catalogPropertyConfigKey(
             catalogName, CatalogProperties.WAREHOUSE_LOCATION),
         "/tmp/mylocation");
-    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
-    Assert.assertTrue(hadoopCatalog.isPresent());
-    Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
-    Assert.assertEquals(
-        "HadoopCatalog{name=barCatalog, location=/tmp/mylocation}", hadoopCatalog.get().toString());
-    Properties properties = new Properties();
-    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
-  }
-
-  @Test
-  public void testLoadCatalogHadoopWithLegacyWarehouseLocation() {
-    String catalogName = "barCatalog";
-    conf.set(
-        InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
-        CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
-    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);

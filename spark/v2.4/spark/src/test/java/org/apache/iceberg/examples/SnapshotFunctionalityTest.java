@@ -91,7 +91,7 @@ public class SnapshotFunctionalityTest {
   public void rollbackToPreviousSnapshotAndReadData() {
     long oldId = table.history().get(0).snapshotId();
 
-    table.rollback().toSnapshotId(oldId).commit();
+    table.manageSnapshots().rollbackTo(oldId).commit();
     table.refresh();
 
     Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());

@@ -18,21 +18,20 @@
  */
 package org.apache.iceberg;
 
-class RollbackToSnapshot extends SnapshotManager implements Rollback {
+/** API for updating statistics files in a table. */
+public interface UpdateStatistics extends PendingUpdate<Snapshot> {
+  /**
+   * Set the table's statistics file for given snapshot, replacing the previous statistics file for
+   * the snapshot if any exists.
+   *
+   * @return this for method chaining
+   */
+  UpdateStatistics setStatistics(long snapshotId, StatisticsFile statisticsFile);
 
-  RollbackToSnapshot(String tableName, TableOperations ops) {
-    super(tableName, ops);
-  }
-
-  @Override
-  public Rollback toSnapshotId(long snapshotId) {
-    super.setCurrentSnapshot(snapshotId);
-    return this;
-  }
-
-  @Override
-  public Rollback toSnapshotAtTime(long timestampMillis) {
-    super.rollbackToTime(timestampMillis);
-    return this;
-  }
+  /**
+   * Remove the table's statistics file for given snapshot.
+   *
+   * @return this for method chaining
+   */
+  UpdateStatistics removeStatistics(long snapshotId);
 }

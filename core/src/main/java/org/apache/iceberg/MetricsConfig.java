@@ -25,7 +25,6 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
@@ -62,38 +61,6 @@ public final class MetricsConfig implements Serializable {
 
   public static MetricsConfig getDefault() {
     return DEFAULT;
-  }
-
-  static Map<String, String> updateProperties(
-      Map<String, String> props, List<String> deletedColumns, Map<String, String> renamedColumns) {
-    if (props.keySet().stream().noneMatch(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))) {
-      return props;
-    } else {
-      Map<String, String> updatedProperties = Maps.newHashMap();
-      // Put all of the non metrics columns we aren't modifying
-      props
-          .keySet()
-          .forEach(
-              key -> {
-                if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
-                  String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
-                  if (renamedColumns.get(columnAlias) != null) {
-                    // The name has changed.
-                    String newKey =
-                        METRICS_MODE_COLUMN_CONF_PREFIX + renamedColumns.get(columnAlias);
-                    updatedProperties.put(newKey, props.get(key));
-                  } else if (!deletedColumns.contains(columnAlias)) {
-                    // Copy over the original
-                    updatedProperties.put(key, props.get(key));
-                  }
-                  // Implicit drop if deleted
-                } else {
-                  // Not a metric property
-                  updatedProperties.put(key, props.get(key));
-                }
-              });
-      return updatedProperties;
-    }
   }
 
   /**

@@ -333,13 +333,13 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
-  public ExpireSnapshots expireSnapshots() {
-    throw new UnsupportedOperationException(errorMsg("expireSnapshots"));
+  public UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException(errorMsg("updateStatistics"));
   }
 
   @Override
-  public Rollback rollback() {
-    throw new UnsupportedOperationException(errorMsg("rollback"));
+  public ExpireSnapshots expireSnapshots() {
+    throw new UnsupportedOperationException(errorMsg("expireSnapshots"));
   }
 
   @Override

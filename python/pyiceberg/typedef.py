@@ -23,8 +23,8 @@ from typing import (
 )
 
 
-class FrozenDict(Dict):
-    def __setitem__(self, instance, value):
+class FrozenDict(Dict[Any, Any]):
+    def __setitem__(self, instance: Any, value: Any) -> None:
         raise AttributeError("FrozenDict does not support assignment")
 
     def update(self, *args: Any, **kwargs: Any) -> None:

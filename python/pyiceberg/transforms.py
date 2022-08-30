@@ -18,6 +18,7 @@
 import base64
 import struct
 from abc import ABC, abstractmethod
+from enum import IntEnum
 from functools import singledispatch
 from typing import (
     Any,
@@ -58,6 +59,10 @@ IDENTITY = "identity"
 VOID = "void"
 BUCKET = "bucket"
 TRUNCATE = "truncate"
+YEAR = "year"
+MONTH = "month"
+DAY = "day"
+HOUR = "hour"
 
 BUCKET_PARSER = ParseNumberFromBrackets(BUCKET)
 TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
@@ -92,6 +97,14 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
                 return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
             elif v.startswith(TRUNCATE):
                 return TruncateTransform(width=TRUNCATE_PARSER.match(v))
+            elif v == YEAR:
+                return YearTransform()
+            elif v == MONTH:
+                return MonthTransform()
+            elif v == DAY:
+                return DayTransform()
+            elif v == HOUR:
+                return HourTransform()
             else:
                 return UnknownTransform(transform=v)
         return v
@@ -141,7 +154,6 @@ class BucketTransform(Transform[S, int]):
       num_buckets (int): The number of buckets.
     """
 
-    _source_type: IcebergType = PrivateAttr()
     _num_buckets: PositiveInt = PrivateAttr()
 
     def __init__(self, num_buckets: int, **data: Any):
@@ -215,6 +227,217 @@ class BucketTransform(Transform[S, int]):
         return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
+class TimeResolution(IntEnum):
+    YEAR = 6
+    MONTH = 5
+    WEEK = 4
+    DAY = 3
+    HOUR = 2
+    MINUTE = 1
+    SECOND = 0
+
+
+class TimeTransform(Transform[S, int], Singleton):
+    @property
+    @abstractmethod
+    def granularity(self) -> TimeResolution:
+        ...
+
+    def satisfies_order_of(self, other: Transform) -> bool:
+        return self.granularity <= other.granularity if hasattr(other, "granularity") else False
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return IntegerType()
+
+    @property
+    def dedup_name(self) -> str:
+        return "time"
+
+    @property
+    def preserves_order(self) -> bool:
+        return True
+
+
+class YearTransform(TimeTransform):
+    """Transforms a datetime value into a year value.
+
+    Example:
+        >>> transform = YearTransform()
+        >>> transform.transform(TimestampType())(1512151975038194)
+        47
+    """
+
+    __root__: Literal["year"] = Field(default="year")
+
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
+        source_type = type(source)
+        if source_type == DateType:
+
+            def year_func(v):
+                return datetime.days_to_years(v)
+
+        elif source_type in {TimestampType, TimestamptzType}:
+
+            def year_func(v):
+                return datetime.micros_to_years(v)
+
+        else:
+            raise ValueError(f"Cannot apply year transform for type: {source}")
+
+        return lambda v: year_func(v) if v is not None else None
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return type(source) in {
+            DateType,
+            TimestampType,
+            TimestamptzType,
+        }
+
+    @property
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.YEAR
+
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
+        return datetime.to_human_year(value) if isinstance(value, int) else "null"
+
+    def __repr__(self) -> str:
+        return "YearTransform()"
+
+
+class MonthTransform(TimeTransform):
+    """Transforms a datetime value into a month value.
+
+    Example:
+        >>> transform = MonthTransform()
+        >>> transform.transform(DateType())(17501)
+        575
+    """
+
+    __root__: Literal["month"] = Field(default="month")
+
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
+        source_type = type(source)
+        if source_type == DateType:
+
+            def month_func(v):
+                return datetime.days_to_months(v)
+
+        elif source_type in {TimestampType, TimestamptzType}:
+
+            def month_func(v):
+                return datetime.micros_to_months(v)
+
+        else:
+            raise ValueError(f"Cannot apply month transform for type: {source}")
+
+        return lambda v: month_func(v) if v else None
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return type(source) in {
+            DateType,
+            TimestampType,
+            TimestamptzType,
+        }
+
+    @property
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.MONTH
+
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
+        return datetime.to_human_month(value) if isinstance(value, int) else "null"
+
+    def __repr__(self) -> str:
+        return "MonthTransform()"
+
+
+class DayTransform(TimeTransform):
+    """Transforms a datetime value into a day value.
+
+    Example:
+        >>> transform = MonthTransform()
+        >>> transform.transform(DateType())(17501)
+        17501
+    """
+
+    __root__: Literal["day"] = Field(default="day")
+
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
+        source_type = type(source)
+        if source_type == DateType:
+
+            def day_func(v):
+                return v
+
+        elif source_type in {TimestampType, TimestamptzType}:
+
+            def day_func(v):
+                return datetime.micros_to_days(v)
+
+        else:
+            raise ValueError(f"Cannot apply day transform for type: {source}")
+
+        return lambda v: day_func(v) if v else None
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return type(source) in {
+            DateType,
+            TimestampType,
+            TimestamptzType,
+        }
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return DateType()
+
+    @property
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.DAY
+
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
+        return datetime.to_human_day(value) if isinstance(value, int) else "null"
+
+    def __repr__(self) -> str:
+        return "DayTransform()"
+
+
+class HourTransform(TimeTransform):
+    """Transforms a datetime value into a hour value.
+
+    Example:
+        >>> transform = HourTransform()
+        >>> transform.transform(TimestampType())(1512151975038194)
+        420042
+    """
+
+    __root__: Literal["hour"] = Field(default="hour")
+
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
+        if type(source) in {TimestampType, TimestamptzType}:
+
+            def hour_func(v):
+                return datetime.micros_to_hours(v)
+
+        else:
+            raise ValueError(f"Cannot apply hour transform for type: {source}")
+
+        return lambda v: hour_func(v) if v else None
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return type(source) in {
+            TimestampType,
+            TimestamptzType,
+        }
+
+    @property
+    def granularity(self) -> TimeResolution:
+        return TimeResolution.HOUR
+
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
+        return datetime.to_human_hour(value) if isinstance(value, int) else "null"
+
+    def __repr__(self) -> str:
+        return "HourTransform()"
+
+
 def _base64encode(buffer: bytes) -> str:
     """Converts bytes to base64 string"""
     return base64.b64encode(buffer).decode("ISO-8859-1")
@@ -230,7 +453,6 @@ class IdentityTransform(Transform[S, S]):
     """
 
     __root__: Literal["identity"] = Field(default="identity")
-    _source_type: IcebergType = PrivateAttr()
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v
@@ -389,7 +611,6 @@ class UnknownTransform(Transform):
     """
 
     __root__: Literal["unknown"] = Field(default="unknown")
-    _source_type: IcebergType = PrivateAttr()
     _transform: str = PrivateAttr()
 
     def __init__(self, transform: str, **data: Any):
