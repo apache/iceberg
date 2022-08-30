@@ -282,8 +282,6 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
             )
         ],
         current_schema_id=0,
-        partition_specs=[PartitionSpec(spec_id=0)],
-        default_spec_id=0,
         last_partition_id=1000,
         properties={"owner": "javaberg"},
         current_snapshot_id=None,
@@ -328,12 +326,8 @@ def test_load_table(hive_table: HiveTable):
             ),
         ],
         current_schema_id=1,
-        partition_specs=[
-            PartitionSpec(
-                spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),)
-            )
-        ],
-        default_spec_id=0,
+        partition_specs=[PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"))],
+        default_spec_id=1,
         last_partition_id=1000,
         properties={"read.split.target.size": "134217728"},
         current_snapshot_id=3055729675574597004,
@@ -364,7 +358,6 @@ def test_load_table(hive_table: HiveTable):
         metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
         sort_orders=[
             SortOrder(
-                3,
                 SortField(
                     source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
                 ),
@@ -374,6 +367,7 @@ def test_load_table(hive_table: HiveTable):
                     direction=SortDirection.DESC,
                     null_order=NullOrder.NULLS_LAST,
                 ),
+                order_id=3,
             )
         ],
         default_sort_order_id=3,

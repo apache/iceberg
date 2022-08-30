@@ -251,8 +251,8 @@ EXAMPLE_TABLE_METADATA_V2 = {
             ],
         },
     ],
-    "default-spec-id": 0,
-    "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+    "default-spec-id": 1,
+    "partition-specs": [{"spec-id": 1, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
     "last-partition-id": 1000,
     "default-sort-order-id": 3,
     "sort-orders": [

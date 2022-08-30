@@ -80,7 +80,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
 snappy = ["python-snappy"]
-python-snappy = ["zstandard"]
+zstandard = ["zstandard"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
 

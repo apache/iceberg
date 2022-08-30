@@ -29,8 +29,14 @@ from typing import (
 from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
-from pyiceberg.schema import Schema, assign_fresh_schema_ids
-from pyiceberg.table.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
+from pyiceberg.schema import INITIAL_SCHEMA_ID, Schema, assign_fresh_schema_ids
+from pyiceberg.table.partitioning import (
+    INITIAL_PARTITION_SPEC_ID,
+    UNPARTITIONED_PARTITION_SPEC,
+    UNPARTITIONED_PARTITION_SPEC_ID,
+    PartitionSpec,
+    assign_fresh_partition_spec_ids,
+)
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import (
@@ -44,8 +50,6 @@ from pyiceberg.utils.datetime import datetime_to_micros
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 INITIAL_SEQUENCE_NUMBER = 0
-INITIAL_SPEC_ID = 0
-DEFAULT_SCHEMA_ID = 0
 DEFAULT_LAST_PARTITION_ID = 1000
 
 
@@ -68,6 +72,12 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     for spec in partition_specs:
         if spec.spec_id == default_spec_id:
             return values
+
+    # When the table is unpartitioned, we just add the default spec
+    # This makes it optional when defining a table
+    if default_spec_id == UNPARTITIONED_PARTITION_SPEC_ID:
+        values["partition_specs"].append(UNPARTITIONED_PARTITION_SPEC)
+        return values
 
     raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
 
@@ -128,13 +138,13 @@ class TableMetadataCommonFields(IcebergBaseModel):
     schemas: List[Schema] = Field(default_factory=list)
     """A list of schemas, stored as objects with schema-id."""
 
-    current_schema_id: int = Field(alias="current-schema-id", default=DEFAULT_SCHEMA_ID)
+    current_schema_id: int = Field(alias="current-schema-id", default=INITIAL_SCHEMA_ID)
     """ID of the table’s current schema."""
 
     partition_specs: List[PartitionSpec] = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
-    default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
+    default_spec_id: int = Field(alias="default-spec-id", default=UNPARTITIONED_PARTITION_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
     last_partition_id: int = Field(alias="last-partition-id")
@@ -218,7 +228,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             The TableMetadata with the defaults applied
         """
         if data.get("schema") and "schema-id" not in data["schema"]:
-            data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
+            data["schema"]["schema-id"] = INITIAL_SCHEMA_ID
         if data.get("partition-spec") and "last-partition-id" not in data:
             data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
         return data
@@ -260,7 +270,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         """
         if not data.get("partition_specs"):
             fields = data["partition_spec"]
-            data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
+            if len(fields) == 0:
+                data["partition_specs"] = [UNPARTITIONED_PARTITION_SPEC]
+            else:
+                data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_PARTITION_SPEC_ID, fields=fields)]
         else:
             check_partition_specs(data)
         return data

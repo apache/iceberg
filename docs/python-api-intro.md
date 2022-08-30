@@ -27,158 +27,151 @@ menu:
 
 # Iceberg Python API
 
-Much of the python api conforms to the java api. You can get more info about the java api [here](../api).
+Much of the python api conforms to the Java API. You can get more info about the java api [here](../api).
+
+## Instal
+
+You can install the latest release version from pypi:
+
+```sh
+pip3 install "pyiceberg[hive,pyarrow]"
+```
+
+Or install the latest development version locally:
+
+```
+pip3 install poetry --upgrade
+pip3 install -e ".[hive,pyarrow]"
+```
+
+With optional dependencies:
+
+| Key       | Description:                                                         |
+|-----------|----------------------------------------------------------------------|
+| hive      | Support for the Hive metastore                                       |
+| pyarrow   | PyArrow as a FileIO implementation to interact with the object store |
+| zstandard | Support for zstandard Avro compresssion                              |
+| snappy    | Support for snappy Avro compresssion                                 |
 
 ## Catalog
 
-The Catalog interface, like java provides search and management operations for tables.
-
-To create a catalog:
+To instantiate a catalog:
 
 ``` python
-from iceberg.hive import HiveTables
+>>> from pyiceberg.catalog.hive import HiveCatalog
+>>> catalog = HiveCatalog(name='prod', uri='thrift://localhost:9083/')
 
-# instantiate Hive Tables
-conf = {"hive.metastore.uris": 'thrift://{hms_host}:{hms_port}',
-        "hive.metastore.warehouse.dir": {tmpdir} }
-tables = HiveTables(conf)
+>>> catalog.list_namespaces()
+[('default',), ('nyc',)]
+
+>>> catalog.list_tables('nyc')
+[('nyc', 'taxis')]
+
+>>> catalog.load_table(('nyc', 'taxis'))
+Table(identifier=('nyc', 'taxis'), ...)
 ```
 
-and to create a table from a catalog:
+And to create a table from a catalog:
 
 ``` python
-from iceberg.api.schema import Schema\
-from iceberg.api.types import TimestampType, DoubleType, StringType, NestedField
-from iceberg.api.partition_spec import PartitionSpecBuilder
+from pyiceberg.schema import Schema
+from pyiceberg.types import TimestampType, DoubleType, StringType, NestedField
 
-schema = Schema(NestedField.optional(1, "DateTime", TimestampType.with_timezone()),
-                NestedField.optional(2, "Bid", DoubleType.get()),
-                NestedField.optional(3, "Ask", DoubleType.get()),
-                NestedField.optional(4, "symbol", StringType.get()))
-partition_spec = PartitionSpecBuilder(schema).add(1, 1000, "DateTime_day", "day").build()
+schema = Schema(
+    NestedField(field_id=1, name="datetime", field_type=TimestampType(), required=False),
+    NestedField(field_id=2, name="bid", field_type=DoubleType(), required=False),
+    NestedField(field_id=3, name="ask", field_type=DoubleType(), required=False),
+    NestedField(field_id=4, name="symbol", field_type=StringType(), required=False),
+)
 
-tables.create(schema, "test.test_123", partition_spec)
-```
+from pyiceberg.table.partitioning import PartitionSpec, PartitionField
+from pyiceberg.transforms import DayTransform
 
+partition_spec = PartitionSpec(
+    PartitionField(source_id=1, field_id=1000, transform=DayTransform(), name="datetime_day")
+)
 
-## Tables
+from pyiceberg.table.sorting import SortOrder, SortField
+from pyiceberg.transforms import IdentityTransform
 
-The Table interface provides access to table metadata
+sort_order = SortOrder(
+    SortField(source_id=4, transform=IdentityTransform())
+)
 
-+ schema returns the current table `Schema`
-+ spec returns the current table `PartitonSpec`
-+ properties returns a map of key-value `TableProperties`
-+ currentSnapshot returns the current table `Snapshot`
-+ snapshots returns all valid snapshots for the table
-+ snapshot(id) returns a specific snapshot by ID
-+ location returns the table’s base location
+from pyiceberg.catalog.hive import HiveCatalog
+catalog = HiveCatalog(name='prod', uri='thrift://localhost:9083/')
 
-Tables also provide refresh to update the table to the latest version.
+catalog.create_table(
+    identifier='default.bids',
+    location='/Users/fokkodriesprong/Desktop/docker-spark-iceberg/wh/bids/',
+    schema=schema,
+    partition_spec=partition_spec,
+    sort_order=sort_order
+)
 
-### Scanning
-Iceberg table scans start by creating a `TableScan` object with `newScan`.
-
-``` python
-scan = table.new_scan();
-```
-
-To configure a scan, call filter and select on the `TableScan` to get a new `TableScan` with those changes.
-
-``` python
-filtered_scan = scan.filter(Expressions.equal("id", 5))
-```
-
-String expressions can also be passed to the filter method.
-
-``` python
-filtered_scan = scan.filter("id=5")
-```
-
-`Schema` projections can be applied against a `TableScan` by passing a list of column names.
-
-``` python
-filtered_scan = scan.select(["col_1", "col_2", "col_3"])
-```
-
-Because some data types cannot be read using the python library, a convenience method for excluding columns from projection is provided.
-
-``` python
-filtered_scan = scan.select_except(["unsupported_col_1", "unsupported_col_2"])
-```
-
-
-Calls to configuration methods create a new `TableScan` so that each `TableScan` is immutable.
-
-When a scan is configured, `planFiles`, `planTasks`, and `Schema` are used to return files, tasks, and the read projection.
-
-``` python
-scan = table.new_scan() \
-    .filter("id=5") \
-    .select(["id", "data"])
-
-projection = scan.schema
-for task in scan.plan_tasks():
-    print(task)
+Table(
+    identifier=('default', 'bids'), 
+    metadata_location='/Users/fokkodriesprong/Desktop/docker-spark-iceberg/wh/bids//metadata/00000-c8cd93ab-f784-474d-a167-b1a86b05195f.metadata.json', 
+    metadata=TableMetadataV2(
+        location='/Users/fokkodriesprong/Desktop/docker-spark-iceberg/wh/bids/', 
+        table_uuid=UUID('38d4cb39-4945-4bf2-b374-984b5c4984d2'), 
+        last_updated_ms=1661847562069, 
+        last_column_id=4, 
+        schemas=[
+            Schema(
+                NestedField(field_id=1, name='datetime', field_type=TimestampType(), required=False), 
+                NestedField(field_id=2, name='bid', field_type=DoubleType(), required=False), 
+                NestedField(field_id=3, name='ask', field_type=DoubleType(), required=False), 
+                NestedField(field_id=4, name='symbol', field_type=StringType(), required=False)), 
+                schema_id=1, 
+                identifier_field_ids=[])
+        ], 
+        current_schema_id=1, 
+        partition_specs=[
+            PartitionSpec(
+                PartitionField(source_id=1, field_id=1000, transform=DayTransform(), name='datetime_day'),))
+        ], 
+        default_spec_id=0, 
+        last_partition_id=1000, 
+        properties={}, 
+        current_snapshot_id=None, 
+        snapshots=[], 
+        snapshot_log=[], 
+        metadata_log=[], 
+        sort_orders=[
+            SortOrder(order_id=1, fields=[SortField(source_id=4, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST)])
+        ], 
+        default_sort_order_id=1,
+        refs={}, 
+        format_version=2,
+        last_sequence_number=0
+    )
+)
 ```
 
 ## Types
 
-Iceberg data types are located in `iceberg.api.types.types`
+The types are located in `pyiceberg.types`.
 
-### Primitives
+Primitive types:
 
-Primitive type instances are available from static methods in each type class. Types without parameters use `get`, and types like `DecimalType` use factory methods:
+- BooleanType
+- StringType
+- IntegerType
+- LongType
+- FloatType
+- DoubleType
+- DateType
+- TimeType
+- TimestampType
+- TimestamptzType
+- BinaryType
+- UUIDType
 
-```python
-IntegerType.get()    # int
-DoubleType.get()     # double
-DecimalType.of(9, 2) # decimal(9, 2)
-```
+Complex types:
 
-### Nested types
-Structs, maps, and lists are created using factory methods in type classes.
-
-Like struct fields, map keys or values and list elements are tracked as nested fields. Nested fields track [field IDs](https://iceberg.apache.org/evolution/#correctness) and nullability.
-
-Struct fields are created using `NestedField.optional` or `NestedField.required`. Map value and list element nullability is set in the map and list factory methods.
-
-```python
-# struct<1 id: int, 2 data: optional string>
-struct = StructType.of([NestedField.required(1, "id", IntegerType.get()),
-                        NestedField.optional(2, "data", StringType.get()])
-  )
-```
-```python
-# map<1 key: int, 2 value: optional string>
-map_var = MapType.of_optional(1, IntegerType.get(),
-                          2, StringType.get())
-```
-```python
-# array<1 element: int>
-list_var = ListType.of_required(1, IntegerType.get());
-```
-
-## Expressions
-Iceberg’s `Expressions` are used to configure table scans. To create `Expressions`, use the factory methods in `Expressions`.
-
-Supported `Predicate` expressions are:
-
-+ `is_null`
-+ `not_null`
-+ `equal`
-+ `not_equal`
-+ `less_than`
-+ `less_than_or_equal`
-+ `greater_than`
-+ `greater_than_or_equal`
-
-Supported expression `Operations`are:
-
-+ `and`
-+ `or`
-+ `not`
-
-Constant expressions are:
-
-+ `always_true`
-+ `always_false`
+- StructType
+- ListType
+- MapType
+- FixedType(16)
+- DecimalType(8, 3)

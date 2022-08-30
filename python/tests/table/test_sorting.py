@@ -34,10 +34,10 @@ from pyiceberg.transforms import BucketTransform, IdentityTransform, VoidTransfo
 @pytest.fixture
 def sort_order() -> SortOrder:
     return SortOrder(
-        22,
         SortField(source_id=19, transform=IdentityTransform(), null_order=NullOrder.NULLS_FIRST),
         SortField(source_id=25, transform=BucketTransform(4), direction=SortDirection.DESC),
         SortField(source_id=22, transform=VoidTransform(), direction=SortDirection.ASC),
+        order_id=22,
     )
 
 
@@ -61,7 +61,6 @@ def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]):
 
     assert table_metadata.sort_orders == [
         SortOrder(
-            3,
             SortField(2, IdentityTransform(), SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
             SortField(
                 3,
@@ -69,6 +68,7 @@ def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]):
                 direction=SortDirection.DESC,
                 null_order=NullOrder.NULLS_LAST,
             ),
+            order_id=3,
         )
     ]
 
