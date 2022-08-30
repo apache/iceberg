@@ -224,6 +224,11 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException("Cannot update statistics of a metadata table");
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
   }

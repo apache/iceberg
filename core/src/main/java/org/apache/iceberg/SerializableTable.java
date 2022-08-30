@@ -333,6 +333,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException(errorMsg("updateStatistics"));
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException(errorMsg("expireSnapshots"));
   }
