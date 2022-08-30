@@ -35,7 +35,9 @@ def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
         "aws_secret_access_key": properties.get("s3.secret-access-key"),
     }
 
-    return S3FileSystem(client_kwargs=client_kwargs, **fs_properties)
+    config_kwargs = {"signature_version": properties.get("s3.signer")}
+
+    return S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs, **fs_properties)
 
 
 SCHEME_TO_FS = {
