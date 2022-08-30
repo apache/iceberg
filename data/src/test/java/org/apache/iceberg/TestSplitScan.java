@@ -94,7 +94,7 @@ public class TestSplitScan {
 
     // With these number of records and the given SCHEMA
     // we can effectively write a file of approximate size 64 MB
-    int numRecords = 2500000;
+    int numRecords = 2000000;
     expectedRecords = RandomGenericData.generate(SCHEMA, numRecords, 0L);
     File file = writeToFile(expectedRecords, format);
 
