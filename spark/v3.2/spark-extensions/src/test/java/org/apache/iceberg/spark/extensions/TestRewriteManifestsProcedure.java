@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -192,5 +194,31 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.rewrite_manifests('')", catalogName));
+  }
+
+  public void testReplacePartitionField() {
+    sql(
+        "CREATE TABLE %s (id int, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",
+        tableName);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version' = '2')", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)\n", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, CAST('2022-01-01 10:00:00' AS TIMESTAMP), CAST('2022-01-01' AS DATE))",
+        tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+
+    sql("CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
   }
 }
