@@ -53,7 +53,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
-    ended = false;
 
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
