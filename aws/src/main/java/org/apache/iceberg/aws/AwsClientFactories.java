@@ -98,6 +98,7 @@ public class AwsClientFactories {
     private String dynamoDbEndpoint;
     private String httpClientType;
     private Boolean s3DualStackEnabled;
+    private AwsProperties awsProperties;
 
     DefaultAwsClientFactory() {}
 
@@ -106,13 +107,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .dualstackEnabled(s3DualStackEnabled)
-          .serviceConfiguration(
-              S3Configuration.builder()
-                  .pathStyleAccessEnabled(s3PathStyleAccess)
-                  .useArnRegionEnabled(s3UseArnRegionEnabled)
-                  .accelerateModeEnabled(s3AccelerationEnabled)
-                  .build())
+          .applyMutation(builder -> awsProperties.applyS3Configuration(builder))
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -143,6 +138,7 @@ public class AwsClientFactories {
 
     @Override
     public void initialize(Map<String, String> properties) {
+      this.awsProperties = new AwsProperties(properties);
       this.glueEndpoint = properties.get(AwsProperties.GLUE_CATALOG_ENDPOINT);
       this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);

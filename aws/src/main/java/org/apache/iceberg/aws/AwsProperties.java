@@ -29,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -441,6 +443,10 @@ public class AwsProperties implements Serializable {
   private boolean isS3DeleteEnabled;
   private final Map<String, String> s3BucketToAccessPointMapping;
   private boolean s3PreloadClientEnabled;
+  private boolean s3DualStackEnabled;
+  private boolean s3PathStyleAccess;
+  private boolean s3UseArnRegionEnabled;
+  private boolean s3AccelerationEnabled;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -467,6 +473,10 @@ public class AwsProperties implements Serializable {
     this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
     this.s3BucketToAccessPointMapping = ImmutableMap.of();
     this.s3PreloadClientEnabled = S3_PRELOAD_CLIENT_ENABLED_DEFAULT;
+    this.s3DualStackEnabled = S3_DUALSTACK_ENABLED_DEFAULT;
+    this.s3PathStyleAccess = S3FILEIO_PATH_STYLE_ACCESS_DEFAULT;
+    this.s3UseArnRegionEnabled = S3_USE_ARN_REGION_ENABLED_DEFAULT;
+    this.s3AccelerationEnabled = S3_ACCELERATION_ENABLED_DEFAULT;
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -509,6 +519,26 @@ public class AwsProperties implements Serializable {
             properties,
             S3FILEIO_MULTIPART_UPLOAD_THREADS,
             Runtime.getRuntime().availableProcessors());
+    this.s3PathStyleAccess =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
+            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
+    this.s3UseArnRegionEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+    this.s3AccelerationEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_ACCELERATION_ENABLED,
+            AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
+    this.s3DualStackEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_DUALSTACK_ENABLED,
+            AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
 
     try {
       this.s3FileIoMultiPartSize =
@@ -734,5 +764,16 @@ public class AwsProperties implements Serializable {
 
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
+  }
+
+  public <T extends S3ClientBuilder> void applyS3Configuration(T builder) {
+    builder
+        .dualstackEnabled(s3DualStackEnabled)
+        .serviceConfiguration(
+            S3Configuration.builder()
+                .pathStyleAccessEnabled(s3PathStyleAccess)
+                .useArnRegionEnabled(s3UseArnRegionEnabled)
+                .accelerateModeEnabled(s3AccelerationEnabled)
+                .build());
   }
 }
