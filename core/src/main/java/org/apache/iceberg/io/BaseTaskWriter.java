@@ -95,7 +95,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   public WriteResult complete() throws IOException {
     close();
 
-    Preconditions.checkState(failure != null, "Cannot return results from failed writer", failure);
+    Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
 
     return WriteResult.builder()
         .addDataFiles(completedDataFiles)

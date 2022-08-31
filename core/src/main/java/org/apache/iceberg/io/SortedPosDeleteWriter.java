@@ -116,7 +116,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   public List<DeleteFile> complete() throws IOException {
     close();
 
-    Preconditions.checkState(failure != null, "Cannot return results from failed writer", failure);
+    Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
 
     return completedFiles;
   }
