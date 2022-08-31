@@ -47,13 +47,14 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private boolean s3UseArnRegionEnabled;
   private String dynamoDbEndpoint;
   private String httpClientType;
+  private AwsProperties awsProperties;
 
   @Override
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::configure)
         .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
-        .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
+        .applyMutation(builder -> awsProperties.applyS3Configuration(builder))
         .build();
   }
 
@@ -77,6 +78,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   @Override
   public void initialize(Map<String, String> properties) {
+    this.awsProperties = new AwsProperties(properties);
     this.roleArn = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_ARN);
     Preconditions.checkNotNull(
         roleArn, "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
@@ -142,8 +144,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return httpClientType;
   }
 
+  @Deprecated
   protected boolean s3UseArnRegionEnabled() {
     return s3UseArnRegionEnabled;
+  }
+
+  protected AwsProperties awsProperties() {
+    return awsProperties;
   }
 
   private StsClient sts() {

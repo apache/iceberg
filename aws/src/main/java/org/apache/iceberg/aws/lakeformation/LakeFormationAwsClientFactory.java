@@ -80,9 +80,9 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
       return S3Client.builder()
           .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
           .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint()))
+          .applyMutation(builder -> awsProperties().applyS3Configuration(builder))
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
-          .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled()).build())
           .region(Region.of(region()))
           .build();
     } else {
