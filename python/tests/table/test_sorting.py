@@ -20,7 +20,7 @@ from typing import Any, Dict
 
 import pytest
 
-from pyiceberg.table.metadata import TableMetadata
+from pyiceberg.table.metadata import TableMetadataUtil
 from pyiceberg.table.sorting import (
     UNSORTED_SORT_ORDER,
     NullOrder,
@@ -57,7 +57,7 @@ def test_deserialize_sort_order(sort_order: SortOrder):
 
 
 def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]):
-    table_metadata = TableMetadata.parse_obj(example_table_metadata_v2)
+    table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
 
     assert table_metadata.sort_orders == [
         SortOrder(

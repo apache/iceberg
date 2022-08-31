@@ -52,8 +52,7 @@ from pyiceberg.exceptions import (
     UnauthorizedError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
-from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
+from pyiceberg.table import Table, TableMetadata
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -94,7 +93,7 @@ NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 class TableResponse(IcebergBaseModel):
     metadata_location: str = Field(alias="metadata-location")
-    metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
+    metadata: TableMetadata = Field()
     config: Properties = Field(default_factory=dict)
 
 

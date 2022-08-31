@@ -27,6 +27,7 @@ from typing import (
 
 from pydantic import Field, root_validator
 
+from pyiceberg.schema import Schema
 from pyiceberg.transforms import IdentityTransform, Transform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -125,6 +126,10 @@ class SortOrder(IcebergBaseModel):
     order_id: int = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
 
+    @property
+    def is_unsorted(self) -> bool:
+        return len(self.fields) == 0
+
     def __str__(self) -> str:
         result_str = "["
         if self.fields:
@@ -135,3 +140,31 @@ class SortOrder(IcebergBaseModel):
 
 UNSORTED_SORT_ORDER_ID = 0
 UNSORTED_SORT_ORDER = SortOrder(order_id=UNSORTED_SORT_ORDER_ID)
+INITIAL_SORT_ORDER_ID = 1
+
+
+def assign_fresh_sort_order_ids(sort_order: SortOrder, old_schema: Schema, fresh_schema: Schema) -> SortOrder:
+    if sort_order.is_unsorted:
+        return UNSORTED_SORT_ORDER
+
+    fresh_fields = []
+    for field in sort_order.fields:
+        original_field = old_schema.find_column_name(field.source_id)
+        if original_field is None:
+            raise ValueError(f"Could not find in old schema: {field}")
+        fresh_field = fresh_schema.find_field(original_field)
+        if fresh_field is None:
+            raise ValueError(f"Could not find field in fresh schema: {original_field}")
+        fresh_fields.append(
+            SortField(
+                source_id=fresh_field.field_id,
+                transform=field.transform,
+                direction=field.direction,
+                null_order=field.null_order,
+            )
+        )
+
+    return SortOrder(
+        INITIAL_SORT_ORDER_ID,
+        *fresh_fields,
+    )
