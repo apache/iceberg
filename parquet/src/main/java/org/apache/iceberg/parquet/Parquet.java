@@ -1011,8 +1011,10 @@ public class Parquet {
             conf.unset(property);
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
+          optionsBuilder.withCodecFactory(new ParquetCodecFactory(conf, 0));
         } else {
           optionsBuilder = ParquetReadOptions.builder();
+          optionsBuilder.withCodecFactory(new ParquetCodecFactory(new Configuration(), 0));
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
