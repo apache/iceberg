@@ -96,7 +96,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.s3UseArnRegionEnabled =
         PropertyUtil.propertyAsBoolean(
             properties,
-            AwsProperties.S3_ACCESS_POINTS_PREFIX,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED,
             AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.httpClientType =
