@@ -39,7 +39,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
-  private boolean ended;
 
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
@@ -51,7 +50,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
-    ended = false;
 
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
@@ -85,10 +83,18 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   @Override
   public void endInput() throws IOException {
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
-    // remaining
-    // completed files to downstream before closing the writer so that we won't miss any of them.
+    // remaining completed files to downstream before closing the writer so that we won't miss any
+    // of them.
+    // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
+    // causing files to be sent repeatedly, so we need to set write to null after the file is sent.
+
+    if (writer == null) {
+      return;
+    }
     emit(writer.complete());
-    ended = true;
+
+    // Set write to null to prevent multiple calls to the complete method of the same write
+    writer = null;
   }
 
   @Override
@@ -101,9 +107,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   }
 
   private void emit(WriteResult result) {
-    if (ended) {
-      return;
-    }
     output.collect(new StreamRecord<>(result));
   }
 }

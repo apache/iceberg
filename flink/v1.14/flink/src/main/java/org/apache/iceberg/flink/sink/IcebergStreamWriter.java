@@ -41,7 +41,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient int subTaskId;
   private transient int attemptId;
   private transient IcebergStreamWriterMetrics writerMetrics;
-  private boolean ended;
 
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
@@ -88,8 +87,10 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
     // remaining completed files to downstream before closing the writer so that we won't miss any
     // of them.
+    // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
+    // causing files to be sent repeatedly, so we need to set write to null after the file is sent.
+
     flush();
-    ended = true;
   }
 
   @Override
@@ -105,13 +106,17 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
    * close all open files and emit files to downstream committer operator
    */
   private void flush() throws IOException {
-    if (ended) {
+    if (writer == null) {
       return;
     }
+
     long startNano = System.nanoTime();
     WriteResult result = writer.complete();
     writerMetrics.updateFlushResult(result);
     output.collect(new StreamRecord<>(result));
     writerMetrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+
+    // Set write to null to prevent multiple calls to the complete method of the same write
+    writer = null;
   }
 }
