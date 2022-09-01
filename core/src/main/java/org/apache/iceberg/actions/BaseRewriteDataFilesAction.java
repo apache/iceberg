@@ -65,6 +65,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private PartitionSpec spec;
   private Expression filter;
   private long targetSizeInBytes;
+  private long splitSize;
   private int splitLookback;
   private long splitOpenFileCost;
 
@@ -74,15 +75,15 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     this.filter = Expressions.alwaysTrue();
     this.caseSensitive = false;
 
-    long splitSize =
+    this.splitSize =
         PropertyUtil.propertyAsLong(
             table.properties(), TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
-    long targetFileSize =
+    this.targetSizeInBytes =
         PropertyUtil.propertyAsLong(
             table.properties(),
             TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
             TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetSizeInBytes = Math.min(splitSize, targetFileSize);
+    this.splitSize = Math.min(this.splitSize, this.targetSizeInBytes);
 
     this.splitLookback =
         PropertyUtil.propertyAsInt(
@@ -243,7 +244,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
                 scanTasks -> {
                   CloseableIterable<FileScanTask> splitTasks =
                       TableScanUtil.splitFiles(
-                          CloseableIterable.withNoopClose(scanTasks), targetSizeInBytes);
+                          CloseableIterable.withNoopClose(scanTasks), this.splitSize);
                   return TableScanUtil.planTasks(
                       splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost);
                 })
