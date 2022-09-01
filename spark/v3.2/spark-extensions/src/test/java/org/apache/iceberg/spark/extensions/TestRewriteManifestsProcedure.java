@@ -196,6 +196,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         () -> sql("CALL %s.system.rewrite_manifests('')", catalogName));
   }
 
+  @Test
   public void testReplacePartitionField() {
     sql(
         "CREATE TABLE %s (id int, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",

@@ -24,14 +24,12 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.apache.spark.sql.types.StructType;
 
 public class SparkDataFile implements DataFile {
@@ -54,20 +52,30 @@ public class SparkDataFile implements DataFile {
   private final Type upperBoundsType;
   private final Type keyMetadataType;
 
-  private final Types.StructType partitionStruct;
-
+  private final SparkStructLike wrappedPartition;
+  private final StructLike partitionProjection;
   private Row wrapped;
-  private StructProjection wrappedPartitionProjected;
-  private StructType currentWrappedPartitionStruct;
-  private SparkStructLike wrappedPartition;
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
+    this(type, null, sparkType);
+  }
+
+  public SparkDataFile(
+      Types.StructType type, Types.StructType projectedType, StructType sparkType) {
     this.lowerBoundsType = type.fieldType("lower_bounds");
     this.upperBoundsType = type.fieldType("upper_bounds");
     this.keyMetadataType = type.fieldType("key_metadata");
-    this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
 
-    this.partitionStruct = type.fieldType("partition").asStructType();
+    Types.StructType partitionType = type.fieldType("partition").asStructType();
+    this.wrappedPartition = new SparkStructLike(partitionType);
+
+    if (projectedType != null) {
+      Types.StructType projectedPartitionType = projectedType.fieldType("partition").asStructType();
+      this.partitionProjection =
+          StructProjection.create(partitionType, projectedPartitionType).wrap(wrappedPartition);
+    } else {
+      this.partitionProjection = wrappedPartition;
+    }
 
     Map<String, Integer> positions = Maps.newHashMap();
     type.fields()
@@ -93,31 +101,10 @@ public class SparkDataFile implements DataFile {
     sortOrderIdPosition = positions.get("sort_order_id");
   }
 
-  private void wrapPartitionSpec(GenericRowWithSchema specRow) {
-    // We get all the partition fields, but want to project to the current one
-    StructType wrappedPartitionStruct = specRow.schema();
-
-    if (!wrappedPartitionStruct.equals(currentWrappedPartitionStruct)) {
-      this.currentWrappedPartitionStruct = wrappedPartitionStruct;
-
-      // The original IDs are lost in translation, therefore we apply the ones that we know
-      Schema icebergPartitionStruct =
-          SparkSchemaUtil.convertWithFreshIds(
-              new Schema(this.partitionStruct.fields()), wrappedPartitionStruct);
-
-      this.wrappedPartition = new SparkStructLike(icebergPartitionStruct.asStruct());
-      this.wrappedPartitionProjected =
-          StructProjection.createAllowMissing(
-              icebergPartitionStruct.asStruct(), this.partitionStruct);
-    }
-    this.wrappedPartition.wrap(specRow.getAs(partitionPosition));
-    this.wrappedPartitionProjected.wrap(wrappedPartition);
-  }
-
   public SparkDataFile wrap(Row row) {
     this.wrapped = row;
     if (wrappedPartition.size() > 0) {
-      wrapPartitionSpec(row.getAs(partitionPosition));
+      this.wrappedPartition.wrap(row.getAs(partitionPosition));
     }
     return this;
   }
@@ -145,7 +132,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public StructLike partition() {
-    return wrappedPartitionProjected;
+    return partitionProjection;
   }
 
   @Override
