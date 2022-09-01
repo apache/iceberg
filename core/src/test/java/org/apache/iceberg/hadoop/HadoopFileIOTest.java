@@ -27,8 +27,12 @@ import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -89,6 +93,28 @@ public class HadoopFileIOTest {
     hadoopFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
     assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator());
+  }
+
+  @Test
+  public void testHadoopFileIOKryoSerialization() throws IOException {
+    FileIO testHadoopFileIO = new HadoopFileIO();
+
+    // hadoop fileIO should be serializable when properties are passed as immutable map
+    testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testHadoopFileIO);
+
+    Assert.assertEquals(testHadoopFileIO.properties(), roundTripSerializedFileIO.properties());
+  }
+
+  @Test
+  public void testHadoopFileIOJavaSerialization() throws IOException, ClassNotFoundException {
+    FileIO testHadoopFileIO = new HadoopFileIO();
+
+    // hadoop fileIO should be serializable when properties are passed as immutable map
+    testHadoopFileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testHadoopFileIO);
+
+    Assert.assertEquals(testHadoopFileIO.properties(), roundTripSerializedFileIO.properties());
   }
 
   private void createRandomFiles(Path parent, int count) {

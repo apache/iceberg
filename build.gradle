@@ -222,6 +222,7 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
+    testImplementation "com.esotericsoftware:kryo"
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -269,6 +270,7 @@ project(':iceberg-core') {
     testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
@@ -381,6 +383,7 @@ project(':iceberg-aws') {
       exclude module: "logback-classic"
       exclude group: 'junit'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 
   sourceSets {
@@ -423,6 +426,7 @@ project(':iceberg-gcp') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 

@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -79,7 +80,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-  private Map<String, String> properties = null;
+  private SerializableMap<String, String> properties = null;
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
@@ -152,7 +153,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return properties.immutableMap();
   }
 
   /**
@@ -314,8 +315,8 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.awsProperties = new AwsProperties(props);
-    this.properties = props;
+    this.properties = SerializableMap.copyOf(props);
+    this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -334,7 +335,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(props);
+      context.initialize(properties);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);

@@ -29,6 +29,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   );
 
   private final Map<String, FileIO> ioInstances = Maps.newHashMap();
-  private Map<String, String> properties;
+  private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
 
   /**
@@ -80,13 +81,13 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return properties.immutableMap();
   }
 
   @Override
   public void initialize(Map<String, String> newProperties) {
     close(); // close and discard any existing FileIO instances
-    this.properties = newProperties;
+    this.properties = SerializableMap.copyOf(newProperties);
   }
 
   @Override
