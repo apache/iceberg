@@ -83,8 +83,13 @@ def test_sorting_to_string(sort_order: SortOrder):
 
 
 def test_sorting_to_repr(sort_order: SortOrder):
-    expected = """SortOrder(order_id=22, fields=[SortField(source_id=19, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST), SortField(source_id=25, transform=BucketTransform(num_buckets=4), direction=SortDirection.DESC, null_order=NullOrder.NULLS_LAST), SortField(source_id=22, transform=VoidTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST)])"""
+    expected = """SortOrder(SortField(source_id=19, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST), SortField(source_id=25, transform=BucketTransform(num_buckets=4), direction=SortDirection.DESC, null_order=NullOrder.NULLS_LAST), SortField(source_id=22, transform=VoidTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST), order_id=22)"""
     assert repr(sort_order) == expected
+
+
+def test_unsorting_to_repr():
+    expected = """SortOrder(order_id=0)"""
+    assert repr(UNSORTED_SORT_ORDER) == expected
 
 
 def test_sorting_repr(sort_order: SortOrder):

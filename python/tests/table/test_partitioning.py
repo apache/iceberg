@@ -34,6 +34,10 @@ def test_partition_field_init():
     )
 
 
+def test_unpartitioned_partition_spec_repr():
+    assert repr(UNPARTITIONED_PARTITION_SPEC) == "PartitionSpec(spec_id=0)"
+
+
 def test_partition_spec_init():
     bucket_transform: BucketTransform = BucketTransform(4)
 

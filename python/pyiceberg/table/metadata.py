@@ -250,8 +250,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if not data.get("schemas"):
             schema = data["schema_"]
             data["schemas"] = [schema]
-        else:
-            check_schemas(data)
+        check_schemas(data)
         return data
 
     @root_validator(skip_on_failure=True)
@@ -273,7 +272,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             if len(fields) == 0:
                 data["partition_specs"] = [UNPARTITIONED_PARTITION_SPEC]
             else:
-                data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_PARTITION_SPEC_ID, fields=fields)]
+                data["partition_specs"] = [PartitionSpec(*fields, spec_id=INITIAL_PARTITION_SPEC_ID)]
+                data["default_spec_id"] = INITIAL_PARTITION_SPEC_ID
         else:
             check_partition_specs(data)
         return data

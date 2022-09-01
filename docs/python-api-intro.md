@@ -46,12 +46,13 @@ pip3 install -e ".[hive,pyarrow]"
 
 With optional dependencies:
 
-| Key       | Description:                                                         |
-|-----------|----------------------------------------------------------------------|
-| hive      | Support for the Hive metastore                                       |
-| pyarrow   | PyArrow as a FileIO implementation to interact with the object store |
-| zstandard | Support for zstandard Avro compresssion                              |
-| snappy    | Support for snappy Avro compresssion                                 |
+| Key       | Description:                                                          |
+|-----------|-----------------------------------------------------------------------|
+| hive      | Support for the Hive metastore                                        |
+| pyarrow   | PyArrow as a FileIO implementation to interact with the object store  |
+| s3fs      | S3FS as a FileIO implementation to interact with the object store     |
+| zstandard | Support for zstandard Avro compresssion                               |
+| snappy    | Support for snappy Avro compresssion                                  |
 
 ## Catalog
 

@@ -118,6 +118,10 @@ class PartitionSpec(IcebergBaseModel):
         result_str += "]"
         return result_str
 
+    def __repr__(self) -> str:
+        fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
+        return f"PartitionSpec({fields}spec_id={self.spec_id})"
+
     def is_unpartitioned(self) -> bool:
         return not self.fields
 
@@ -172,7 +176,9 @@ def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fre
                 transform=field.transform,
             )
         )
-    return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)
+    if len(spec.fields) > 0:
+        return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)
+    return UNPARTITIONED_PARTITION_SPEC
 
 
 UNPARTITIONED_PARTITION_SPEC_ID = 0

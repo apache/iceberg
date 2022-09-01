@@ -77,7 +77,8 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 @pytest.fixture
 def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
     metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
-    ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2), LocalFileIO().new_output(str(metadata_path)), True)
+    metadata = TableMetadataV2(**example_table_metadata_v2)
+    ToOutputFile.table_metadata(metadata, LocalFileIO().new_output(str(metadata_path)), True)
 
     return HiveTable(
         tableName="new_tabl2e",
@@ -288,6 +289,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
         snapshots=[],
         snapshot_log=[],
         metadata_log=[],
+        default_spec_id=0,
         sort_orders=[SortOrder(order_id=0)],
         default_sort_order_id=0,
         refs={},
@@ -306,89 +308,92 @@ def test_load_table(hive_table: HiveTable):
     catalog._client.__enter__().get_table.assert_called_with(dbname="default", tbl_name="new_tabl2e")
 
     assert table.identifier == ("default", "new_tabl2e")
-    assert table.metadata == TableMetadataV2(
-        location="s3://bucket/test/location",
-        table_uuid=uuid.UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1"),
-        last_updated_ms=1602638573590,
-        last_column_id=3,
-        schemas=[
-            Schema(
-                NestedField(field_id=1, name="x", field_type=LongType(), required=True),
-                schema_id=0,
-                identifier_field_ids=[],
-            ),
-            Schema(
-                NestedField(field_id=1, name="x", field_type=LongType(), required=True),
-                NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
-                NestedField(field_id=3, name="z", field_type=LongType(), required=True),
-                schema_id=1,
-                identifier_field_ids=[1, 2],
-            ),
-        ],
-        current_schema_id=1,
-        partition_specs=[PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"))],
-        default_spec_id=1,
-        last_partition_id=1000,
-        properties={"read.split.target.size": "134217728"},
-        current_snapshot_id=3055729675574597004,
-        snapshots=[
-            Snapshot(
-                snapshot_id=3051729675574597004,
-                parent_snapshot_id=None,
-                sequence_number=0,
-                timestamp_ms=1515100955770,
-                manifest_list="s3://a/b/1.avro",
-                summary=Summary(operation=Operation.APPEND),
-                schema_id=None,
-            ),
-            Snapshot(
-                snapshot_id=3055729675574597004,
-                parent_snapshot_id=3051729675574597004,
-                sequence_number=1,
-                timestamp_ms=1555100955770,
-                manifest_list="s3://a/b/2.avro",
-                summary=Summary(operation=Operation.APPEND),
-                schema_id=1,
-            ),
-        ],
-        snapshot_log=[
-            SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
-            SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
-        ],
-        metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
-        sort_orders=[
-            SortOrder(
-                SortField(
-                    source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
+    assert (
+        TableMetadataV2(
+            location="s3://bucket/test/location",
+            table_uuid=uuid.UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1"),
+            last_updated_ms=1602638573590,
+            last_column_id=3,
+            schemas=[
+                Schema(
+                    NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+                    schema_id=0,
+                    identifier_field_ids=[],
                 ),
-                SortField(
-                    source_id=3,
-                    transform=BucketTransform(num_buckets=4),
-                    direction=SortDirection.DESC,
-                    null_order=NullOrder.NULLS_LAST,
+                Schema(
+                    NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+                    NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+                    NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+                    schema_id=1,
+                    identifier_field_ids=[1, 2],
                 ),
-                order_id=3,
-            )
-        ],
-        default_sort_order_id=3,
-        refs={
-            "test": SnapshotRef(
-                snapshot_id=3051729675574597004,
-                snapshot_ref_type=SnapshotRefType.TAG,
-                min_snapshots_to_keep=None,
-                max_snapshot_age_ms=None,
-                max_ref_age_ms=10000000,
-            ),
-            "main": SnapshotRef(
-                snapshot_id=3055729675574597004,
-                snapshot_ref_type=SnapshotRefType.BRANCH,
-                min_snapshots_to_keep=None,
-                max_snapshot_age_ms=None,
-                max_ref_age_ms=None,
-            ),
-        },
-        format_version=2,
-        last_sequence_number=34,
+            ],
+            current_schema_id=1,
+            partition_specs=[PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"))],
+            default_spec_id=1,
+            last_partition_id=1000,
+            properties={"read.split.target.size": "134217728"},
+            current_snapshot_id=3055729675574597004,
+            snapshots=[
+                Snapshot(
+                    snapshot_id=3051729675574597004,
+                    parent_snapshot_id=None,
+                    sequence_number=0,
+                    timestamp_ms=1515100955770,
+                    manifest_list="s3://a/b/1.avro",
+                    summary=Summary(operation=Operation.APPEND),
+                    schema_id=None,
+                ),
+                Snapshot(
+                    snapshot_id=3055729675574597004,
+                    parent_snapshot_id=3051729675574597004,
+                    sequence_number=1,
+                    timestamp_ms=1555100955770,
+                    manifest_list="s3://a/b/2.avro",
+                    summary=Summary(operation=Operation.APPEND),
+                    schema_id=1,
+                ),
+            ],
+            snapshot_log=[
+                SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
+                SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
+            ],
+            metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
+            sort_orders=[
+                SortOrder(
+                    SortField(
+                        source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
+                    ),
+                    SortField(
+                        source_id=3,
+                        transform=BucketTransform(num_buckets=4),
+                        direction=SortDirection.DESC,
+                        null_order=NullOrder.NULLS_LAST,
+                    ),
+                    order_id=3,
+                )
+            ],
+            default_sort_order_id=3,
+            refs={
+                "test": SnapshotRef(
+                    snapshot_id=3051729675574597004,
+                    snapshot_ref_type=SnapshotRefType.TAG,
+                    min_snapshots_to_keep=None,
+                    max_snapshot_age_ms=None,
+                    max_ref_age_ms=10000000,
+                ),
+                "main": SnapshotRef(
+                    snapshot_id=3055729675574597004,
+                    snapshot_ref_type=SnapshotRefType.BRANCH,
+                    min_snapshots_to_keep=None,
+                    max_snapshot_age_ms=None,
+                    max_ref_age_ms=None,
+                ),
+            },
+            format_version=2,
+            last_sequence_number=34,
+        )
+        == table.metadata
     )
 
 

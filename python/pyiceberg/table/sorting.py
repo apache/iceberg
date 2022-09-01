@@ -138,6 +138,10 @@ class SortOrder(IcebergBaseModel):
         result_str += "]"
         return result_str
 
+    def __repr__(self):
+        fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
+        return f"SortOrder({fields}order_id={self.order_id})"
+
 
 UNSORTED_SORT_ORDER_ID = 0
 UNSORTED_SORT_ORDER = SortOrder(order_id=UNSORTED_SORT_ORDER_ID)
