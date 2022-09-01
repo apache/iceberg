@@ -31,6 +31,11 @@ public interface ActionsProvider {
 
   /** Instantiates an action to migrate an existing table to Iceberg. */
   default MigrateTable migrateTable(String tableIdent) {
+    return migrateTable(tableIdent, false);
+  }
+
+  /** Instantiates an action to migrate an existing table to Iceberg. */
+  default MigrateTable migrateTable(String tableIdent, Boolean dropBackup) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement migrateTable");
   }

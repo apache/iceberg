@@ -179,7 +179,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_migrate_partitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
-    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source, true), source, dest);
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
@@ -203,7 +203,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .parquet(location.toURI().toString());
     sql("ALTER TABLE %s ADD PARTITION(id=0)", source);
 
-    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source, true), source, dest);
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
@@ -228,7 +228,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     sql(
         "ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'",
         source, partitionDataLoc.toURI().toString());
-    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source, true), source, dest);
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
@@ -244,7 +244,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected2 = sql("select *, null, null from %s order by id", source);
 
     // migrate table
-    SparkActions.get().migrateTable(source).execute();
+    SparkActions.get().migrateTable(source, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
@@ -283,7 +283,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     createSourceTable(CREATE_PARQUET, source);
 
     // migrate table
-    SparkActions.get().migrateTable(source).execute();
+    SparkActions.get().migrateTable(source, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
@@ -329,7 +329,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected2 = sql("select id from %s order by id", source);
 
     // migrate table
-    SparkActions.get().migrateTable(source).execute();
+    SparkActions.get().migrateTable(source, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
@@ -375,7 +375,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql("select id, col2 from %s order by id", source);
 
     // migrate table
-    SparkActions.get().migrateTable(source).execute();
+    SparkActions.get().migrateTable(source, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
 
     // drop column
@@ -397,7 +397,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_migrate_unpartitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
-    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source, true), source, dest);
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
@@ -455,7 +455,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("migrate_hive_table");
     String dest = source;
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
-    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source, true), source, dest);
     Assert.assertFalse(spark.catalog().tableExists(source + BACKUP_SUFFIX));
   }
 
@@ -597,7 +597,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         sql("SELECT col0, null, col1, col2, col3 FROM %s ORDER BY col0", tblName);
 
     // Migrate table
-    SparkActions.get().migrateTable(tblName).execute();
+    SparkActions.get().migrateTable(tblName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tblName + BACKUP_SUFFIX));
 
     // check if iceberg and non-iceberg output
@@ -645,7 +645,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         sql("SELECT col0, null, col1, col2, col3 FROM %s ORDER BY col0", tblName);
 
     // Migrate table
-    SparkActions.get().migrateTable(tblName).execute();
+    SparkActions.get().migrateTable(tblName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tblName + BACKUP_SUFFIX));
 
     // check if iceberg and non-iceberg output
@@ -718,7 +718,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
     // migrate table
-    SparkActions.get().migrateTable(tableName).execute();
+    SparkActions.get().migrateTable(tableName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
@@ -744,7 +744,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
     // migrate table
-    SparkActions.get().migrateTable(tableName).execute();
+    SparkActions.get().migrateTable(tableName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
@@ -772,7 +772,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
     // migrate table
-    SparkActions.get().migrateTable(tableName).execute();
+    SparkActions.get().migrateTable(tableName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result
@@ -797,7 +797,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
     // migrate table
-    SparkActions.get().migrateTable(tableName).execute();
+    SparkActions.get().migrateTable(tableName, true).execute();
     Assert.assertFalse(spark.catalog().tableExists(tableName + BACKUP_SUFFIX));
 
     // check migrated table is returning expected result

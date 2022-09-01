@@ -59,13 +59,19 @@ public class BaseMigrateTableSparkAction
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
+  private final Boolean dropBackup;
+
   public BaseMigrateTableSparkAction(
-      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+      SparkSession spark,
+      CatalogPlugin sourceCatalog,
+      Identifier sourceTableIdent,
+      Boolean dropBackup) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
     String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
+    this.dropBackup = dropBackup;
   }
 
   @Override
@@ -143,8 +149,8 @@ public class BaseMigrateTableSparkAction
             LOG.error("Cannot abort staged changes", abortException);
           }
         }
-      } else {
-        removeBackupTable();
+      } else if (dropBackup) {
+        dropBackupTable();
       }
     }
 
@@ -224,7 +230,11 @@ public class BaseMigrateTableSparkAction
     }
   }
 
-  private void removeBackupTable() {
-    destCatalog().dropTable(backupIdent);
+  private void dropBackupTable() {
+    try {
+      destCatalog().dropTable(backupIdent);
+    } catch (Exception e) {
+      LOG.error("Cannot drop the backup table {} after migrate is completed.", backupIdent, e);
+    }
   }
 }

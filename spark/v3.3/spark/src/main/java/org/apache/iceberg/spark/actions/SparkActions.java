@@ -57,14 +57,13 @@ public class SparkActions implements ActionsProvider {
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
-  @Override
-  public MigrateTableSparkAction migrateTable(String tableIdent) {
+  public MigrateTableSparkAction migrateTable(String tableIdent, Boolean dropBackup) {
     String ctx = "migrate target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
     return new MigrateTableSparkAction(
-        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier(), dropBackup);
   }
 
   @Override
