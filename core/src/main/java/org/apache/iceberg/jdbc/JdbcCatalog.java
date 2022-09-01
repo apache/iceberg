@@ -49,6 +49,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -154,11 +155,16 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
+    TableMetadata lastMetadata = null;
+    if (purge) {
+      try {
+        lastMetadata = ops.current();
+      } catch (NotFoundException e) {
+        LOG.warn(
+            "Failed to load table metadata for table: {}, continuing drop without purge",
+            identifier,
+            e);
+      }
     }
 
     int deletedRecords = execute(
