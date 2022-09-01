@@ -233,7 +233,31 @@ public class TestIcebergStreamWriter {
       Assert.assertEquals(expectedDataFiles * 2, result.dataFiles().length);
     }
   }
+  @Test
+  public void testBoundedStreamTriggeredEndInputBeforeTriggeringCheckpoint() throws Exception {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
+      testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
+      testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
+      // The EndInput is triggered first
+      testHarness.endInput();
+
+      long expectedDataFiles = partitioned ? 2 : 1;
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      Assert.assertEquals(0, result.deleteFiles().length);
+      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+
+      // Then trigger prepareSnapshotPreBarrier
+      testHarness.prepareSnapshotPreBarrier(1L);
+      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+
+      Assert.assertEquals(0, result.deleteFiles().length);
+      // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
+      // is triggered, write should only send WriteResult once
+      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+    }
+  }
   @Test
   public void testTableWithTargetFileSize() throws Exception {
     // Adjust the target-file-size in table properties.
@@ -339,6 +363,10 @@ public class TestIcebergStreamWriter {
 
     SimpleDataUtil.assertTableRecords(location, expected);
   }
+
+
+
+
 
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter()
       throws Exception {
