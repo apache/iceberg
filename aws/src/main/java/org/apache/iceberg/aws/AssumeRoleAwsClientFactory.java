@@ -44,7 +44,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private int timeout;
   private String region;
   private String s3Endpoint;
-  private boolean s3UseArnRegionEnabled;
   private String dynamoDbEndpoint;
   private String httpClientType;
   private AwsProperties awsProperties;
@@ -95,11 +94,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
-    this.s3UseArnRegionEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_USE_ARN_REGION_ENABLED,
-            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.httpClientType =
         PropertyUtil.propertyAsString(
@@ -142,11 +136,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected String httpClientType() {
     return httpClientType;
-  }
-
-  @Deprecated
-  protected boolean s3UseArnRegionEnabled() {
-    return s3UseArnRegionEnabled;
   }
 
   protected AwsProperties awsProperties() {
