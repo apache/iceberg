@@ -88,7 +88,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // of them.
 
     // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
-    // causing files to be sent repeatedly, so we need to set write to null after the file is sent.
+    // causing files to be sent repeatedly, the writer is marked as null after the last file is sent
+    // to guard against duplicated writes.
     flush();
   }
 
