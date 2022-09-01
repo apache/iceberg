@@ -21,6 +21,7 @@ package org.apache.iceberg.jdbc;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -385,6 +386,19 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         () -> catalog.listTables(testTable2.namespace()));
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
+  }
+
+  @Test
+  public void testDropTableWithoutMetadataFile() {
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    String metadataFileLocation = catalog.newTableOps(testTable).current().metadataFileLocation();
+    TableOperations ops = catalog.newTableOps(testTable);
+    ops.io().deleteFile(metadataFileLocation);
+    Assert.assertTrue(catalog.dropTable(testTable));
+    assertThatThrownBy(() -> catalog.loadTable(testTable))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist:");
   }
 
   @Test
