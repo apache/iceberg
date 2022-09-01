@@ -53,6 +53,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private Throwable failure;
 
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
@@ -66,6 +67,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
   protected PartitionSpec spec() {
     return spec;
+  }
+
+  protected void setFailure(Throwable throwable) {
+    if (failure == null) {
+      this.failure = throwable;
+    }
   }
 
   @Override
@@ -83,6 +90,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   @Override
   public WriteResult complete() throws IOException {
     close();
+
+    Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
 
     return WriteResult.builder()
         .addDataFiles(completedDataFiles)
@@ -181,28 +190,43 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     public void close() throws IOException {
-      // Close data writer and add completed data files.
-      if (dataWriter != null) {
-        dataWriter.close();
-        dataWriter = null;
-      }
+      try {
+        // Close data writer and add completed data files.
+        if (dataWriter != null) {
+          try {
+            dataWriter.close();
+          } finally {
+            dataWriter = null;
+          }
+        }
 
-      // Close eq-delete writer and add completed equality-delete files.
-      if (eqDeleteWriter != null) {
-        eqDeleteWriter.close();
-        eqDeleteWriter = null;
-      }
+        // Close eq-delete writer and add completed equality-delete files.
+        if (eqDeleteWriter != null) {
+          try {
+            eqDeleteWriter.close();
+          } finally {
+            eqDeleteWriter = null;
+          }
+        }
 
-      if (insertedRowMap != null) {
-        insertedRowMap.clear();
-        insertedRowMap = null;
-      }
+        if (insertedRowMap != null) {
+          insertedRowMap.clear();
+          insertedRowMap = null;
+        }
 
-      // Add the completed pos-delete files.
-      if (posDeleteWriter != null) {
-        completedDeleteFiles.addAll(posDeleteWriter.complete());
-        referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
-        posDeleteWriter = null;
+        // Add the completed pos-delete files.
+        if (posDeleteWriter != null) {
+          try {
+            // complete will call close
+            completedDeleteFiles.addAll(posDeleteWriter.complete());
+            referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
+          } finally {
+            posDeleteWriter = null;
+          }
+        }
+      } catch (IOException | RuntimeException e) {
+        setFailure(e);
+        throw e;
       }
     }
   }
@@ -287,21 +311,29 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     private void closeCurrent() throws IOException {
       if (currentWriter != null) {
-        currentWriter.close();
+        try {
+          currentWriter.close();
 
-        if (currentRows == 0L) {
-          try {
-            io.deleteFile(currentFile.encryptingOutputFile());
-          } catch (UncheckedIOException e) {
-            // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          if (currentRows == 0L) {
+            try {
+              io.deleteFile(currentFile.encryptingOutputFile());
+            } catch (UncheckedIOException e) {
+              // the file may not have been created, and it isn't worth failing the job to clean up,
+              // skip deleting
+            }
+          } else {
+            complete(currentWriter);
           }
-        } else {
-          complete(currentWriter);
-        }
 
-        this.currentFile = null;
-        this.currentWriter = null;
-        this.currentRows = 0;
+        } catch (IOException | RuntimeException e) {
+          setFailure(e);
+          throw e;
+
+        } finally {
+          this.currentFile = null;
+          this.currentWriter = null;
+          this.currentRows = 0;
+        }
       }
     }
 

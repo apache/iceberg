@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -162,7 +163,7 @@ public class TestS3OutputStream {
   }
 
   @Test
-  public void testCloseFailureShouldPersistOnFutureClose() throws IOException {
+  public void testDoubleClose() throws IOException {
     IllegalStateException mockException =
         new IllegalStateException("mock failure to completeUploads on close");
     Mockito.doThrow(mockException)
@@ -174,9 +175,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    Assertions.assertThatThrownBy(stream::close)
-        .isInstanceOf(IOException.class)
-        .hasCause(mockException);
+    Assertions.assertThatNoException().isThrownBy(stream::close);
   }
 
   private void writeTest() {
