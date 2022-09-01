@@ -45,7 +45,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
           "s3n", S3_FILE_IO_IMPL);
 
   private final Map<String, FileIO> ioInstances = Maps.newHashMap();
-  private Map<String, String> properties;
+  private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
 
   /**
@@ -77,7 +77,7 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
 
   @Override
   public Map<String, String> properties() {
-    return ((SerializableMap<String, String>) properties).immutableMap();
+    return properties.immutableMap();
   }
 
   @Override

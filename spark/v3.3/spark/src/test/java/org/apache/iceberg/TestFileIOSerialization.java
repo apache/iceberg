@@ -25,12 +25,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.aws.s3.S3FileIO;
-import org.apache.iceberg.gcp.gcs.GCSFileIO;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
@@ -102,60 +99,6 @@ public class TestFileIOSerialization {
     Assert.assertEquals("Conf pairs must match", toMap(expectedConf), toMap(actualConf));
     Assert.assertEquals("Conf values must be present", "v1", actualConf.get("k1"));
     Assert.assertEquals("Conf values must be present", "v2", actualConf.get("k2"));
-  }
-
-  @Test
-  public void testResolvingFileIOKryoSerialization() throws IOException {
-    FileIO resolvingFileIO = new ResolvingFileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    resolvingFileIO.initialize(properties);
-    FileIO deserializedIO = KryoHelpers.roundTripSerialize(resolvingFileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
-  }
-
-  @Test
-  public void testResolvingFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO resolvingFileIO = new ResolvingFileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    resolvingFileIO.initialize(properties);
-    FileIO deserializedIO = TestHelpers.roundTripSerialize(resolvingFileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
-  }
-
-  @Test
-  public void testS3FileIOKryoSerialization() throws IOException {
-    FileIO s3FileIO = new S3FileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    s3FileIO.initialize(properties);
-    FileIO deserializedIO = KryoHelpers.roundTripSerialize(s3FileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
-  }
-
-  @Test
-  public void testS3FileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO s3FileIO = new S3FileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    s3FileIO.initialize(properties);
-    FileIO deserializedIO = TestHelpers.roundTripSerialize(s3FileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
-  }
-
-  @Test
-  public void testGCSFileIOKryoSerialization() throws IOException {
-    FileIO gcsFileIO = new GCSFileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    gcsFileIO.initialize(properties);
-    FileIO deserializedIO = KryoHelpers.roundTripSerialize(gcsFileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
-  }
-
-  @Test
-  public void testGCSFileIOJavaSerialization() throws IOException, ClassNotFoundException {
-    FileIO gcsFileIO = new GCSFileIO();
-    Map<String, String> properties = ImmutableMap.of("k1", "v1");
-    gcsFileIO.initialize(properties);
-    FileIO deserializedIO = TestHelpers.roundTripSerialize(gcsFileIO);
-    Assert.assertEquals(properties, deserializedIO.properties());
   }
 
   private Map<String, String> toMap(Configuration conf) {

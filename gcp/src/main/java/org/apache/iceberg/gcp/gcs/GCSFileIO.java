@@ -56,7 +56,7 @@ public class GCSFileIO implements FileIO {
   private transient volatile Storage storage;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private Map<String, String> properties = null;
+  private SerializableMap<String, String> properties = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -106,7 +106,7 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public Map<String, String> properties() {
-    return ((SerializableMap<String, String>) properties).immutableMap();
+    return properties.immutableMap();
   }
 
   private Storage client() {
