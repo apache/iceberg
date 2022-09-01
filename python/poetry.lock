@@ -537,7 +537,7 @@ python-versions = "*"
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -742,7 +742,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "7c6acb4d397c3920d6d6a47ce29593e9cb4799cf8e676ddb4d8dea2d2e9e43e5"
+content-hash = "3c949093a3f568c641fdbc96f7f1f32640cf5c19572b3cacdcc5a7d6c3135855"
 
 [metadata.files]
 aiobotocore = []
