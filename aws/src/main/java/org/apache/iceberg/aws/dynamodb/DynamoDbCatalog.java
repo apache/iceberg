@@ -43,6 +43,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -351,13 +352,24 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
       }
 
       TableOperations ops = newTableOps(identifier);
-      TableMetadata lastMetadata = ops.current();
-      dynamo.deleteItem(DeleteItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .key(tablePrimaryKey(identifier))
-          .conditionExpression(COL_VERSION + " = :v")
-          .expressionAttributeValues(ImmutableMap.of(":v", response.item().get(COL_VERSION)))
-          .build());
+      TableMetadata lastMetadata = null;
+      if (purge) {
+        try {
+          lastMetadata = ops.current();
+        } catch (NotFoundException e) {
+          LOG.warn(
+              "Failed to load table metadata for table: {}, continuing drop without purge",
+              identifier,
+              e);
+        }
+      }
+      dynamo.deleteItem(
+          DeleteItemRequest.builder()
+              .tableName(awsProperties.dynamoDbTableName())
+              .key(tablePrimaryKey(identifier))
+              .conditionExpression(COL_VERSION + " = :v")
+              .expressionAttributeValues(ImmutableMap.of(":v", response.item().get(COL_VERSION)))
+              .build());
       LOG.info("Successfully dropped table {} from DynamoDb catalog", identifier);
 
       if (purge && lastMetadata != null) {
