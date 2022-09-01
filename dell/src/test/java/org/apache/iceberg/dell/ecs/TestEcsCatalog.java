@@ -190,7 +190,8 @@ public class TestEcsCatalog {
     ecsCatalog.dropTable(identifier, false);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThat(ecsCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(ecsCatalog.registerTable(identifier, metadataLocation, false))
+        .isNotNull();
     Assertions.assertThat(ecsCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
@@ -202,7 +203,10 @@ public class TestEcsCatalog {
     Table registeringTable = ecsCatalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation))
+    ecsCatalog.registerTable(identifier, metadataLocation, true);
+    Assertions.assertThat(ecsCatalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThatThrownBy(
+            () -> ecsCatalog.registerTable(identifier, metadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
     Assertions.assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();

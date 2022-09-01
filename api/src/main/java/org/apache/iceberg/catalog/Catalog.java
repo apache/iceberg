@@ -336,14 +336,17 @@ public interface Catalog {
   default void invalidateTable(TableIdentifier identifier) {}
 
   /**
-   * Register a table with the catalog if it does not exist.
+   * Register a table with the catalog.
    *
    * @param identifier a table identifier
    * @param metadataFileLocation the location of a metadata file
+   * @param force If true will register the table even if the table already existed, otherwise
+   *     it will throw table already existing error. Default is false.
    * @return a Table instance
    * @throws AlreadyExistsException if the table already exists in the catalog.
    */
-  default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+  default Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean force) {
     throw new UnsupportedOperationException("Registering tables is not supported");
   }
 

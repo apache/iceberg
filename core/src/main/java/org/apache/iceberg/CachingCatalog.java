@@ -188,8 +188,9 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
-  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
-    Table table = catalog.registerTable(identifier, metadataFileLocation);
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean force) {
+    Table table = catalog.registerTable(identifier, metadataFileLocation, force);
     invalidateTable(identifier);
     return table;
   }

@@ -89,4 +89,57 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
         originalFileCount,
         result.get(0)[2]);
   }
+
+  @Test
+  public void testForceRegisterTable() throws NoSuchTableException, ParseException {
+    Assume.assumeTrue(
+        "Register only implemented on Hive Catalogs",
+        spark.conf().get("spark.sql.catalog." + catalogName + ".type").equals("hive"));
+
+    long numRows1 = 100;
+    long numRows2 = 200;
+    sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
+
+    spark
+        .range(0, numRows1)
+        .withColumn("data", functions.col("id").cast(DataTypes.StringType))
+        .writeTo(tableName)
+        .append();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metaLocation =
+        ((HiveTableOperations) (((HasTableOperations) table).operations()))
+            .currentMetadataLocation();
+    spark
+        .range(0, numRows2)
+        .withColumn("data", functions.col("id").cast(DataTypes.StringType))
+        .writeTo(tableName)
+        .append();
+    table = Spark3Util.loadIcebergTable(spark, tableName);
+    String newMetalocation =
+        ((HiveTableOperations) (((HasTableOperations) table).operations()))
+            .currentMetadataLocation();
+
+    sql(
+        "CALL %s.system.register_table('%s', '%s', 'force')",
+        catalogName, targetName, metaLocation);
+    List<Object[]> oldResults = sql("SELECT * FROM %s", targetName);
+    sql(
+        "CALL %s.system.register_table('%s', '%s', 'force')",
+        catalogName, targetName, newMetalocation);
+    List<Object[]> newResults = sql("SELECT * FROM %s", targetName);
+
+    Assert.assertEquals(
+        "Should have the right row count in the procedure result", numRows1, oldResults.size());
+    Assert.assertEquals(
+        "Should have the right row count in the procedure result",
+        numRows1 + numRows2,
+        newResults.size());
+    Assert.assertThrows(
+        "Can't register with an existed table if force option was false.",
+        org.apache.iceberg.exceptions.AlreadyExistsException.class,
+        () ->
+            sql(
+                "CALL %s.system.register_table('%s', '%s')",
+                catalogName, targetName, newMetalocation));
+  }
 }
