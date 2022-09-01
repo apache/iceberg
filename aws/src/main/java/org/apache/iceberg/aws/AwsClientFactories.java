@@ -92,12 +92,8 @@ public class AwsClientFactories {
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
-    private Boolean s3PathStyleAccess;
-    private Boolean s3UseArnRegionEnabled;
-    private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
-    private Boolean s3DualStackEnabled;
     private AwsProperties awsProperties;
 
     DefaultAwsClientFactory() {}
@@ -107,7 +103,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .applyMutation(builder -> awsProperties.applyS3Configuration(builder))
+          .applyMutation(awsProperties::applyS3Configuration)
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -144,26 +140,6 @@ public class AwsClientFactories {
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
       this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
-      this.s3PathStyleAccess =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
-              AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
-      this.s3UseArnRegionEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_USE_ARN_REGION_ENABLED,
-              AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
-      this.s3AccelerationEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_ACCELERATION_ENABLED,
-              AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
-      this.s3DualStackEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_DUALSTACK_ENABLED,
-              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
