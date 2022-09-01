@@ -44,3 +44,4 @@ org.springframework:* = 5.3.9
 org.springframework.boot:* = 2.5.4
 org.mock-server:mockserver-netty = 5.11.1
 org.mock-server:mockserver-client-java = 5.11.1
+com.esotericsoftware:kryo = 4.0.2

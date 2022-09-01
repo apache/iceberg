@@ -30,6 +30,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +53,7 @@ public class GCSFileIO implements FileIO {
   private transient volatile Storage storage;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private Map<String, String> properties = null;
+  private SerializableMap<String, String> properties = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -102,7 +103,7 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return properties.immutableMap();
   }
 
   private Storage client() {
@@ -118,8 +119,8 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.properties = props;
-    this.gcpProperties = new GCPProperties(props);
+    this.properties = SerializableMap.copyOf(props);
+    this.gcpProperties = new GCPProperties(properties);
 
     this.storageSupplier = () -> {
       StorageOptions.Builder builder = StorageOptions.newBuilder();
@@ -131,12 +132,17 @@ public class GCSFileIO implements FileIO {
       // Report Hadoop metrics if Hadoop is available
       try {
         DynConstructors.Ctor<MetricsContext> ctor =
-            DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+            DynConstructors.builder(MetricsContext.class)
+                .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+                .buildChecked();
         MetricsContext context = ctor.newInstance("gcs");
-        context.initialize(props);
+        context.initialize(properties);
         this.metrics = context;
       } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-        LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
+        LOG.warn(
+            "Unable to load metrics class: '{}', falling back to null metrics",
+            DEFAULT_METRICS_IMPL,
+            e);
       }
 
       return builder.build().getService();
