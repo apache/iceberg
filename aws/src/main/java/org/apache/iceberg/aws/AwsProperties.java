@@ -766,7 +766,7 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
-  public <T extends S3ClientBuilder> void applyS3Configuration(T builder) {
+  public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(s3DualStackEnabled)
         .serviceConfiguration(
