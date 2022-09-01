@@ -318,12 +318,15 @@ To show a table's current partitions:
 SELECT * FROM prod.db.table.partitions
 ```
 
-| partition | record_count | file_count |
-| -- | -- | -- |
-|  {20211001, 11}|           1|         1|
-|  {20211002, 11}|           1|         1|
-|  {20211001, 10}|           1|         1|
-|  {20211002, 10}|           1|         1|
+| partition | record_count | file_count | spec_id |
+| -- | -- | -- | -- |
+|  {20211001, 11}|           1|         1|         0|
+|  {20211002, 11}|           1|         1|         0|
+|  {20211001, 10}|           1|         1|         0|
+|  {20211002, 10}|           1|         1|         0|
+
+Note:
+For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
 
 ### All Metadata Tables
 
