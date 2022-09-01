@@ -14,17 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+
+
+from typing import Dict, List, Optional
 
 from pydantic import Field
 
 from pyiceberg.schema import Schema
-from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
+from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
@@ -35,7 +32,7 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 class Table(IcebergBaseModel):
     identifier: Identifier = Field()
     metadata_location: str = Field()
-    metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
+    metadata: TableMetadata = Field()
 
     def refresh(self):
         """Refresh the current table metadata"""
