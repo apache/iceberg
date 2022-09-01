@@ -17,13 +17,13 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive
+	poetry install -E pyarrow -E hive -E s3fs
 
 lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not s3" ${PYTEST_ARGS}
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
