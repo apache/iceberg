@@ -62,7 +62,7 @@ project(':iceberg-mr') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
-    testImplementation("org.apache.avro:avro:1.9.2")
+    testImplementation("org.apache.avro:avro:1.11.1")
     testImplementation("org.apache.calcite:calcite-core")
     testImplementation("com.esotericsoftware:kryo-shaded:4.0.2")
     testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.13.3")
