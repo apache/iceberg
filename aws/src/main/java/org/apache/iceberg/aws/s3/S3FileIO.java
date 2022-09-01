@@ -157,7 +157,7 @@ public class S3FileIO
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return ((SerializableMap<String, String>) properties).immutableMap();
   }
 
   /**
@@ -351,7 +351,7 @@ public class S3FileIO
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.properties = SerializableMap.copyOf(props).immutableMap();
+    this.properties = SerializableMap.copyOf(props);
     this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided

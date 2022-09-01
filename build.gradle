@@ -229,6 +229,7 @@ project(':iceberg-api') {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation "com.esotericsoftware:kryo"
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
   }
@@ -384,7 +385,6 @@ project(':iceberg-aws') {
 
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
-    testImplementation 'com.twitter:chill-java'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"

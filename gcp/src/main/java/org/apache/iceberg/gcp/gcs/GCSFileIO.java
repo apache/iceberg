@@ -106,7 +106,7 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return ((SerializableMap<String, String>) properties).immutableMap();
   }
 
   private Storage client() {
@@ -122,7 +122,7 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.properties = SerializableMap.copyOf(props).immutableMap();
+    this.properties = SerializableMap.copyOf(props);
     this.gcpProperties = new GCPProperties(properties);
 
     this.storageSupplier =
