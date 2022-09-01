@@ -92,4 +92,7 @@ public class CatalogProperties {
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
+
+  public static final String NUM_METADATA_REFRESH_RETRIES = "num-metadata-refresh-retries";
+  public static final int NUM_METADATA_REFRESH_RETRIES_DEFAULT = 20;
 }

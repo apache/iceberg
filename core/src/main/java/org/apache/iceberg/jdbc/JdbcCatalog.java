@@ -72,11 +72,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private String warehouseLocation;
   private Object conf;
   private JdbcClientPool connections;
+  private Map<String, String> catalogProperties;
 
   public JdbcCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
@@ -154,7 +156,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new JdbcTableOperations(connections, io, catalogName, tableIdentifier);
+    int numMaxMetadataRefreshRetries =
+        catalogProperties.containsKey(CatalogProperties.NUM_METADATA_REFRESH_RETRIES)
+            ? Integer.parseInt(
+                catalogProperties.get(CatalogProperties.NUM_METADATA_REFRESH_RETRIES))
+            : CatalogProperties.NUM_METADATA_REFRESH_RETRIES_DEFAULT;
+    return new JdbcTableOperations(
+        connections, io, catalogName, tableIdentifier, numMaxMetadataRefreshRetries);
   }
 
   @Override
