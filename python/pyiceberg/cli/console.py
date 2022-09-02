@@ -16,24 +16,14 @@
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
 from functools import wraps
-from typing import (
-    Dict,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-)
+from typing import Literal, Optional, Tuple
 
 import click
 from click import Context
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.catalog.hive import HiveCatalog
-from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
-
-SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": RestCatalog}
 
 
 def catch_exception():
