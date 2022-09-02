@@ -147,11 +147,11 @@ public class SparkTable
   public String name() {
     Map<String, String> properties = properties();
     String tableFormatVersion = properties.get(FORMAT_VERSION);
-    String fileFormat = properties.get("format");
+    String prefix = "Iceberg";
     if (tableFormatVersion != null) {
-      return String.format("%s/v%s %s", fileFormat, tableFormatVersion, icebergTable.name());
+      return String.format("%s/v%s %s", prefix, tableFormatVersion, icebergTable.name());
     } else {
-      return String.format("%s %s", fileFormat, icebergTable.name());
+      return String.format("%s %s", prefix, icebergTable.name());
     }
   }
 

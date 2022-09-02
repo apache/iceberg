@@ -94,8 +94,7 @@ public class TestSparkTable extends SparkCatalogTestBase {
                 String actualTableName = catalog.loadTable(sparkIdentifier).name();
                 String expectedTableName =
                     String.format(
-                        "iceberg/%s/v%s %s.%s",
-                        fileFormat, tableFormatVersion, catalogName, icebergIdentifier);
+                        "Iceberg/v%s %s.%s", tableFormatVersion, catalogName, icebergIdentifier);
                 Assert.assertEquals(
                     "Table name mismatched for (%s file format, %s table format version)",
                     expectedTableName, actualTableName);
