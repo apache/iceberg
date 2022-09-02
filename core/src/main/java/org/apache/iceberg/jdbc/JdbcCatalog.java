@@ -19,6 +19,7 @@
 package org.apache.iceberg.jdbc;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -44,12 +45,14 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -69,10 +72,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private static final Joiner SLASH = Joiner.on("/");
 
   private FileIO io;
+  private EncryptionManagerFactory encryptionManagerFactory;
   private String catalogName = "jdbc";
   private String warehouseLocation;
   private Object conf;
   private JdbcClientPool connections;
+  private CloseableGroup closeableGroup;
 
   public JdbcCatalog() {}
 
@@ -97,6 +102,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
     this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
+    this.encryptionManagerFactory = CatalogUtil.loadEncryptionManagerFactory(properties);
+
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
       connections = new JdbcClientPool(uri, properties);
@@ -111,6 +118,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(io);
+    closeableGroup.addCloseable(encryptionManagerFactory);
+    closeableGroup.addCloseable(connections);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
@@ -155,7 +168,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new JdbcTableOperations(connections, io, catalogName, tableIdentifier);
+    return new JdbcTableOperations(
+        connections, io, encryptionManagerFactory, catalogName, tableIdentifier);
   }
 
   @Override
@@ -449,8 +463,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void close() {
-    connections.close();
+  public void close() throws IOException {
+    closeableGroup.close();
   }
 
   @Override

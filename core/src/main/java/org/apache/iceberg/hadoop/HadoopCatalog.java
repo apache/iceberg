@@ -44,6 +44,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -93,6 +94,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   private String warehouseLocation;
   private FileSystem fs;
   private FileIO fileIO;
+  private EncryptionManagerFactory encryptionManagerFactory;
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
   private Map<String, String> catalogProperties;
@@ -117,10 +119,14 @@ public class HadoopCatalog extends BaseMetastoreCatalog
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
+    this.encryptionManagerFactory = CatalogUtil.loadEncryptionManagerFactory(properties);
+
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(encryptionManagerFactory);
     closeableGroup.setSuppressCloseFailure(true);
 
     this.suppressPermissionError =
@@ -226,7 +232,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new HadoopTableOperations(
-        new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
+        new Path(defaultWarehouseLocation(identifier)),
+        fileIO,
+        encryptionManagerFactory,
+        conf,
+        lockManager);
   }
 
   @Override
