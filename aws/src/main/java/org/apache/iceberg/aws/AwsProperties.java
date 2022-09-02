@@ -503,12 +503,10 @@ public class AwsProperties implements Serializable {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
 
-    this.s3FileIoSseType =
-        properties.getOrDefault(
-            AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_NONE);
-    this.s3FileIoSseKey = properties.get(AwsProperties.S3FILEIO_SSE_KEY);
-    this.s3FileIoSseMd5 = properties.get(AwsProperties.S3FILEIO_SSE_MD5);
-    if (AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
+    this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
+    this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
+    this.s3FileIoSseMd5 = properties.get(S3FILEIO_SSE_MD5);
+    if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
           s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
       Preconditions.checkNotNull(
@@ -520,14 +518,12 @@ public class AwsProperties implements Serializable {
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE,
-            AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+            properties, GLUE_CATALOG_SKIP_ARCHIVE, GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
     this.glueCatalogSkipNameValidation =
         PropertyUtil.propertyAsBoolean(
             properties,
-            AwsProperties.GLUE_CATALOG_SKIP_NAME_VALIDATION,
-            AwsProperties.GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT);
+            GLUE_CATALOG_SKIP_NAME_VALIDATION,
+            GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT);
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
@@ -606,9 +602,7 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
     this.s3PreloadClientEnabled =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_PRELOAD_CLIENT_ENABLED,
-            AwsProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
+            properties, S3_PRELOAD_CLIENT_ENABLED, S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
@@ -806,12 +800,12 @@ public class AwsProperties implements Serializable {
 
   public SdkHttpClient.Builder configureHttpClientBuilder() {
     if (Strings.isNullOrEmpty(httpClientType)) {
-      httpClientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+      httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
     switch (httpClientType) {
-      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+      case HTTP_CLIENT_TYPE_URLCONNECTION:
         return UrlConnectionHttpClient.builder();
-      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+      case HTTP_CLIENT_TYPE_APACHE:
         return ApacheHttpClient.builder();
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
