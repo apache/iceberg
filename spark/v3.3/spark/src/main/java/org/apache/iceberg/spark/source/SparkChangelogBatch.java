@@ -19,49 +19,58 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileFormat;
+import java.util.Objects;
+import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
-import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 
-abstract class SparkBatch implements Batch {
+public class SparkChangelogBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
-  private final SparkReadConf readConf;
+  private final List<ScanTaskGroup<ChangelogScanTask>> taskGroups;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
+  private final int semanticBatchId;
 
-  SparkBatch(SparkSession spark, Table table, SparkReadConf readConf, Schema expectedSchema) {
+  SparkChangelogBatch(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      List<ScanTaskGroup<ChangelogScanTask>> taskGroups,
+      Schema expectedSchema,
+      int semanticBatchId) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
-    this.readConf = readConf;
+    this.taskGroups = taskGroups;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
+    this.semanticBatchId = semanticBatchId;
   }
 
   @Override
   public InputPartition[] planInputPartitions() {
-    // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast =
-        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
-    InputPartition[] partitions = new InputPartition[tasks().size()];
+    InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
     Tasks.range(partitions.length)
         .stopOnFailure()
@@ -70,7 +79,7 @@ abstract class SparkBatch implements Batch {
             index ->
                 partitions[index] =
                     new SparkInputPartition(
-                        tasks().get(index),
+                        taskGroups.get(index),
                         tableBroadcast,
                         expectedSchemaString,
                         caseSensitive,
@@ -79,54 +88,51 @@ abstract class SparkBatch implements Batch {
     return partitions;
   }
 
-  protected abstract List<CombinedScanTask> tasks();
-
-  protected JavaSparkContext sparkContext() {
-    return sparkContext;
+  @Override
+  public PartitionReaderFactory createReaderFactory() {
+    return new ReaderFactory();
   }
 
   @Override
-  public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(batchSize());
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    SparkChangelogBatch that = (SparkChangelogBatch) o;
+    return table.name().equals(that.table.name()) && semanticBatchId == that.semanticBatchId;
   }
 
-  private int batchSize() {
-    if (parquetOnly() && parquetBatchReadsEnabled()) {
-      return readConf.parquetBatchSize();
-    } else if (orcOnly() && orcBatchReadsEnabled()) {
-      return readConf.orcBatchSize();
-    } else {
-      return 0;
+  @Override
+  public int hashCode() {
+    return Objects.hash(table.name(), semanticBatchId);
+  }
+
+  private static class ReaderFactory implements PartitionReaderFactory {
+    @Override
+    public PartitionReader<InternalRow> createReader(InputPartition partition) {
+      Preconditions.checkArgument(
+          partition instanceof SparkInputPartition,
+          "Unknown input partition type: %s",
+          partition.getClass().getName());
+
+      return new RowReader((SparkInputPartition) partition);
     }
   }
 
-  private boolean parquetOnly() {
-    return tasks().stream()
-        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
-  }
+  private static class RowReader extends ChangelogRowReader
+      implements PartitionReader<InternalRow> {
 
-  private boolean parquetBatchReadsEnabled() {
-    return readConf.parquetVectorizationEnabled()
-        && // vectorization enabled
-        expectedSchema.columns().size() > 0
-        && // at least one column is projected
-        expectedSchema.columns().stream()
-            .allMatch(c -> c.type().isPrimitiveType()); // only primitives
-  }
-
-  private boolean orcOnly() {
-    return tasks().stream()
-        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
-  }
-
-  private boolean orcBatchReadsEnabled() {
-    return readConf.orcVectorizationEnabled()
-        && // vectorization enabled
-        tasks().stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
-  }
-
-  private boolean onlyFileFormat(CombinedScanTask task, FileFormat fileFormat) {
-    return task.files().stream()
-        .allMatch(fileScanTask -> fileScanTask.file().format().equals(fileFormat));
+    RowReader(SparkInputPartition partition) {
+      super(
+          partition.table(),
+          partition.taskGroup(),
+          partition.expectedSchema(),
+          partition.isCaseSensitive());
+    }
   }
 }
