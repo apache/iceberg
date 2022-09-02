@@ -230,7 +230,8 @@ public class TestIcebergStreamWriter {
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles * 2, result.dataFiles().length);
+      // Datafiles should not be sent again.
+      Assert.assertEquals(expectedDataFiles , result.dataFiles().length);
     }
   }
   @Test
@@ -248,10 +249,9 @@ public class TestIcebergStreamWriter {
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
-      // Then trigger prepareSnapshotPreBarrier
       testHarness.prepareSnapshotPreBarrier(1L);
-      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
 
+      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
       // is triggered, write should only send WriteResult once
