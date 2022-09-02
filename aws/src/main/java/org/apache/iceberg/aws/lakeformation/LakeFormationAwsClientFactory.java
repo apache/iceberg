@@ -78,7 +78,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public S3Client s3() {
     if (isTableRegisteredWithLakeFormation()) {
       return S3Client.builder()
-          .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
+          .httpClientBuilder(awsProperties().configureHttpClientBuilder())
           .applyMutation(
               builder ->
                   AwsClientFactories.configureEndpoint(builder, awsProperties().s3Endpoint()))
@@ -96,7 +96,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public KmsClient kms() {
     if (isTableRegisteredWithLakeFormation()) {
       return KmsClient.builder()
-          .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
+          .httpClientBuilder(awsProperties().configureHttpClientBuilder())
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
           .region(Region.of(region()))

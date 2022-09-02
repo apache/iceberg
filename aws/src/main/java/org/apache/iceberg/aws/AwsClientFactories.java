@@ -96,7 +96,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
+          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
           .credentialsProvider(
@@ -107,7 +107,7 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
+          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.glueEndpoint()))
           .build();
     }
@@ -115,14 +115,14 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
+          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
           .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
+          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
           .build();
     }
@@ -140,6 +140,7 @@ public class AwsClientFactories {
     }
   }
 
+  @Deprecated
   public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
     if (Strings.isNullOrEmpty(clientType)) {

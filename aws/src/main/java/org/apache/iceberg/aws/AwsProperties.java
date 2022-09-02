@@ -812,4 +812,18 @@ public class AwsProperties implements Serializable {
                 .accelerateModeEnabled(s3AccelerationEnabled)
                 .build());
   }
+
+  public SdkHttpClient.Builder configureHttpClientBuilder() {
+    if (Strings.isNullOrEmpty(httpClientType)) {
+      httpClientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+    }
+    switch (httpClientType) {
+      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+        return UrlConnectionHttpClient.builder();
+      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+        return ApacheHttpClient.builder();
+      default:
+        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
+    }
+  }
 }
