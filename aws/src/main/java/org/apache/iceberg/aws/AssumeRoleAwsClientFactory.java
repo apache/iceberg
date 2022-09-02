@@ -112,7 +112,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(awsProperties.configureHttpClientBuilder());
+    awsProperties.applyHttpClientConfiguration(clientBuilder);
 
     return clientBuilder;
   }
@@ -130,9 +130,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private StsClient sts() {
-    return StsClient.builder()
-        .httpClientBuilder(awsProperties.configureHttpClientBuilder())
-        .build();
+    return StsClient.builder().applyMutation(awsProperties::applyHttpClientConfiguration).build();
   }
 
   private String genSessionName() {

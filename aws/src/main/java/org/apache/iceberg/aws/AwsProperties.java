@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
-import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -798,15 +798,17 @@ public class AwsProperties implements Serializable {
                 .build());
   }
 
-  public SdkHttpClient.Builder configureHttpClientBuilder() {
+  public <T extends AwsSyncClientBuilder> void applyHttpClientConfiguration(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        return UrlConnectionHttpClient.builder();
+        builder.httpClientBuilder(UrlConnectionHttpClient.builder());
+        break;
       case HTTP_CLIENT_TYPE_APACHE:
-        return ApacheHttpClient.builder();
+        builder.httpClientBuilder(ApacheHttpClient.builder());
+        break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }

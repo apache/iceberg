@@ -96,7 +96,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
+          .applyMutation(awsProperties::applyHttpClientConfiguration)
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
           .credentialsProvider(
@@ -107,22 +107,20 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
+          .applyMutation(awsProperties::applyHttpClientConfiguration)
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.glueEndpoint()))
           .build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder()
-          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
-          .build();
+      return KmsClient.builder().applyMutation(awsProperties::applyHttpClientConfiguration).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .httpClientBuilder(awsProperties.configureHttpClientBuilder())
+          .applyMutation(awsProperties::applyHttpClientConfiguration)
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
           .build();
     }
