@@ -43,8 +43,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private Set<Tag> tags;
   private int timeout;
   private String region;
-  private String s3Endpoint;
-  private String dynamoDbEndpoint;
   private String httpClientType;
   private AwsProperties awsProperties;
 
@@ -52,7 +50,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::configure)
-        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
+        .applyMutation(
+            builder -> AwsClientFactories.configureEndpoint(builder, awsProperties.s3Endpoint()))
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .build();
   }
@@ -71,7 +70,9 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
         .applyMutation(this::configure)
-        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, dynamoDbEndpoint))
+        .applyMutation(
+            builder ->
+                AwsClientFactories.configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
         .build();
   }
 
@@ -92,9 +93,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     Preconditions.checkNotNull(
         region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
-    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
-    this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.httpClientType =
         PropertyUtil.propertyAsString(
             properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
@@ -128,10 +127,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected String region() {
     return region;
-  }
-
-  protected String s3Endpoint() {
-    return s3Endpoint;
   }
 
   protected String httpClientType() {
