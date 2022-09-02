@@ -34,14 +34,14 @@ Much of the python api conforms to the Java API. You can get more info about the
 You can install the latest release version from pypi:
 
 ```sh
-pip3 install "pyiceberg[hive,pyarrow]"
+pip3 install "pyiceberg[s3fs,hive]"
 ```
 
 Or install the latest development version locally:
 
 ```
 pip3 install poetry --upgrade
-pip3 install -e ".[hive,pyarrow]"
+pip3 install -e ".[s3fs,hive]"
 ```
 
 With optional dependencies:
