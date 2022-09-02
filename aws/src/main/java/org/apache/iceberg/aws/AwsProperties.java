@@ -26,9 +26,13 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -427,6 +431,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  private String httpClientType;
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -459,6 +464,8 @@ public class AwsProperties implements Serializable {
   private String dynamoDbEndpoint;
 
   public AwsProperties() {
+    this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
@@ -493,6 +500,10 @@ public class AwsProperties implements Serializable {
   }
 
   public AwsProperties(Map<String, String> properties) {
+    this.httpClientType =
+        PropertyUtil.propertyAsString(
+            properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+
     this.s3FileIoSseType =
         properties.getOrDefault(
             AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_NONE);
@@ -611,6 +622,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+  }
+
+  public String httpClientType() {
+    return httpClientType;
   }
 
   public String s3FileIoSseType() {
@@ -796,5 +811,19 @@ public class AwsProperties implements Serializable {
                 .useArnRegionEnabled(s3UseArnRegionEnabled)
                 .accelerateModeEnabled(s3AccelerationEnabled)
                 .build());
+  }
+
+  public SdkHttpClient.Builder configureHttpClientBuilder() {
+    if (Strings.isNullOrEmpty(httpClientType)) {
+      httpClientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+    }
+    switch (httpClientType) {
+      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+        return UrlConnectionHttpClient.builder();
+      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+        return ApacheHttpClient.builder();
+      default:
+        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
+    }
   }
 }
