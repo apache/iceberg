@@ -89,7 +89,6 @@ public class AwsClientFactories {
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
-    private String httpClientType;
     private AwsProperties awsProperties;
 
     DefaultAwsClientFactory() {}
@@ -97,7 +96,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
           .credentialsProvider(
@@ -108,7 +107,7 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.glueEndpoint()))
           .build();
     }
@@ -116,14 +115,14 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
           .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .httpClientBuilder(configureHttpClientBuilder(awsProperties.httpClientType()))
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
           .build();
     }
@@ -138,9 +137,6 @@ public class AwsClientFactories {
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
           "S3 client access key ID and secret access key must be set at the same time");
-      this.httpClientType =
-          PropertyUtil.propertyAsString(
-              properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
     }
   }
 

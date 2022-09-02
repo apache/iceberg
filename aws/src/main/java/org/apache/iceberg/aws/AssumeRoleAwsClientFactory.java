@@ -43,7 +43,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private Set<Tag> tags;
   private int timeout;
   private String region;
-  private String httpClientType;
   private AwsProperties awsProperties;
 
   @Override
@@ -94,9 +93,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
     this.tags = toTags(properties);
-    this.httpClientType =
-        PropertyUtil.propertyAsString(
-            properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
 
   protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
@@ -116,7 +112,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType));
+    clientBuilder.httpClientBuilder(
+        AwsClientFactories.configureHttpClientBuilder(awsProperties.httpClientType()));
 
     return clientBuilder;
   }
@@ -130,7 +127,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   protected String httpClientType() {
-    return httpClientType;
+    return awsProperties().httpClientType();
   }
 
   protected AwsProperties awsProperties() {
@@ -139,7 +136,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   private StsClient sts() {
     return StsClient.builder()
-        .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType))
+        .httpClientBuilder(
+            AwsClientFactories.configureHttpClientBuilder(awsProperties.httpClientType()))
         .build();
   }
 
