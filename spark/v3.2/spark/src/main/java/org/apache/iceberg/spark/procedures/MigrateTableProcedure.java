@@ -37,6 +37,7 @@ class MigrateTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
         ProcedureParameter.optional("properties", STRING_MAP)
       };
 
