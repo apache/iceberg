@@ -16,19 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/** Exception thrown on HTTP 5XX Server Error. */
-public class ServiceFailureException extends RESTException {
+/** Exception thrown on HTTP 503: service is unavailable */
+public class ServiceUnavailableException extends RESTException {
   @FormatMethod
-  public ServiceFailureException(String message, Object... args) {
+  public ServiceUnavailableException(String message, Object... args) {
     super(String.format(message, args));
   }
 
   @FormatMethod
-  public ServiceFailureException(Throwable cause, String message, Object... args) {
+  public ServiceUnavailableException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
 }
