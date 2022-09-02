@@ -23,12 +23,14 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 
 /**
@@ -59,6 +61,10 @@ public class ErrorHandlers {
           throw new NoSuchTableException("%s", error.message());
         case 409:
           throw new CommitFailedException("Commit failed: %s", error.message());
+        case 500:
+        case 504:
+          throw new CommitStateUnknownException(
+              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
     };
   }
@@ -115,10 +121,12 @@ public class ErrorHandlers {
         case 405:
         case 406:
           break;
-        case 501:
-          throw new UnsupportedOperationException(error.message());
         case 500:
           throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
+        case 501:
+          throw new UnsupportedOperationException(error.message());
+        case 503:
+          throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
       throw new RESTException("Unable to process: %s", error.message());
