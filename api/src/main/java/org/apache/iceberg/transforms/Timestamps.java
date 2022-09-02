@@ -60,9 +60,7 @@ enum Timestamps implements Transform<Long, Integer> {
         return (int) granularity.between(EPOCH, timestamp);
       } else {
         // add 1 micro to the value to account for the case where there is exactly 1 unit between
-        // the
-        // timestamp and epoch
-        // because the result will always be decremented.
+        // the timestamp and epoch because the result will always be decremented.
         OffsetDateTime timestamp =
             Instant.ofEpochSecond(
                     Math.floorDiv(timestampMicros, 1_000_000),

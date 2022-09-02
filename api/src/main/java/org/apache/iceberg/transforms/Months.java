@@ -38,8 +38,9 @@ public class Months<T> extends TimeTransform<T> {
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.MONTH;
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
-    throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
   @Override

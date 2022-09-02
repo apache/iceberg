@@ -59,8 +59,7 @@ enum Dates implements Transform<Integer, Integer> {
         return (int) granularity.between(EPOCH, date);
       } else {
         // add 1 day to the value to account for the case where there is exactly 1 unit between the
-        // date and epoch
-        // because the result will always be decremented.
+        // date and epoch because the result will always be decremented.
         LocalDate date = EPOCH.plusDays(days + 1);
         return (int) granularity.between(EPOCH, date) - 1;
       }

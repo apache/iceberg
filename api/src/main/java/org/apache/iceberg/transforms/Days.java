@@ -38,8 +38,9 @@ public class Days<T> extends TimeTransform<T> {
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.DAY;
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
-    throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
   @Override
