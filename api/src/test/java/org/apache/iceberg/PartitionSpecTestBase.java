@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
 @SuppressWarnings("checkstyle:HideUtilityClassConstructor")
@@ -69,8 +70,12 @@ public class PartitionSpecTestBase {
         PartitionSpec.builderFor(SCHEMA).truncate("l", 10).build(),
         PartitionSpec.builderFor(SCHEMA).truncate("dec", 10).build(),
         PartitionSpec.builderFor(SCHEMA).truncate("s", 10).build(),
-        PartitionSpec.builderFor(SCHEMA).add(6, "dec_unsupported", "unsupported").build(),
-        PartitionSpec.builderFor(SCHEMA).add(6, 1111, "dec_unsupported", "unsupported").build(),
+        PartitionSpec.builderFor(SCHEMA)
+            .add(6, "dec_unsupported", Transforms.fromString("unsupported"))
+            .build(),
+        PartitionSpec.builderFor(SCHEMA)
+            .add(6, 1111, "dec_unsupported", Transforms.fromString("unsupported"))
+            .build(),
         PartitionSpec.builderFor(SCHEMA).alwaysNull("ts").build(),
       };
 }

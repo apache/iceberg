@@ -250,7 +250,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
     Assert.assertEquals(
         "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
-    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Transform<?, ?> transform = Transforms.identity();
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
