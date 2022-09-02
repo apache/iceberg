@@ -62,7 +62,14 @@ public class Deletes {
     return equalityFilter.filter(rows);
   }
 
-  /** Returns the same rows that are input, while marking the deleted ones. */
+  /**
+   * Returns the same rows that are input, while marking the deleted ones.
+   *
+   * @param rows the rows to process
+   * @param isDeleted a predicate that determines if a row is deleted
+   * @param deleteMarker a function that marks a row as deleted
+   * @return the processed rows
+   */
   public static <T> CloseableIterable<T> markDeleted(
       CloseableIterable<T> rows, Predicate<T> isDeleted, Consumer<T> deleteMarker) {
     return CloseableIterable.transform(
@@ -71,12 +78,18 @@ public class Deletes {
           if (isDeleted.test(row)) {
             deleteMarker.accept(row);
           }
+
           return row;
         });
   }
 
   /**
    * Returns the remaining rows (the ones that are not deleted), while counting the deleted ones.
+   *
+   * @param rows the rows to process
+   * @param isDeleted a predicate that determines if a row is deleted
+   * @param counter a counter that counts deleted rows
+   * @return the processed rows
    */
   public static <T> CloseableIterable<T> filterDeleted(
       CloseableIterable<T> rows, Predicate<T> isDeleted, DeleteCounter counter) {
@@ -88,6 +101,7 @@ public class Deletes {
             if (deleted) {
               counter.increment();
             }
+
             return !deleted;
           }
         };
@@ -259,6 +273,7 @@ public class Deletes {
           if (deleted) {
             counter.increment();
           }
+
           return !deleted;
         }
       };

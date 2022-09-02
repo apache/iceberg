@@ -53,10 +53,11 @@ public class SparkSQLExecutionHelper {
     while (lastExecution.metricValues() == null && attempts > 0) {
       try {
         Thread.sleep(100);
-        attempts -= 1;
+        attempts--;
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
+
       lastExecution = statusStore.execution(lastExecution.executionId()).get();
     }
 

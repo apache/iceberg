@@ -41,6 +41,7 @@ public class NumDeletes implements CustomMetric {
     for (int i = 0; i < taskMetrics.length; i++) {
       sum += taskMetrics[i];
     }
+
     return NumberFormat.getIntegerInstance().format(sum);
   }
 }
