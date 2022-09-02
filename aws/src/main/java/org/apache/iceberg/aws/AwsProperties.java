@@ -447,19 +447,23 @@ public class AwsProperties implements Serializable {
   private boolean s3PathStyleAccess;
   private boolean s3UseArnRegionEnabled;
   private boolean s3AccelerationEnabled;
+  private String s3Endpoint;
 
+  private String glueEndpoint;
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
+  private String dynamoDbEndpoint;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
     this.s3FileIoAcl = null;
+    this.s3Endpoint = null;
 
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
@@ -479,10 +483,12 @@ public class AwsProperties implements Serializable {
     this.s3AccelerationEnabled = S3_ACCELERATION_ENABLED_DEFAULT;
 
     this.glueCatalogId = null;
+    this.glueEndpoint = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
 
+    this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
 
@@ -498,7 +504,9 @@ public class AwsProperties implements Serializable {
       Preconditions.checkNotNull(
           s3FileIoSseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
+    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
 
+    this.glueEndpoint = properties.get(AwsProperties.GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive =
         PropertyUtil.propertyAsBoolean(
@@ -600,6 +608,7 @@ public class AwsProperties implements Serializable {
             AwsProperties.S3_PRELOAD_CLIENT_ENABLED,
             AwsProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
+    this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
   }
@@ -636,6 +645,10 @@ public class AwsProperties implements Serializable {
     this.s3FileIoSseMd5 = sseMd5;
   }
 
+  public String glueEndpoint() {
+    return glueEndpoint;
+  }
+
   public String glueCatalogId() {
     return glueCatalogId;
   }
@@ -666,6 +679,10 @@ public class AwsProperties implements Serializable {
 
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
+  }
+
+  public String s3Endpoint() {
+    return s3Endpoint;
   }
 
   public int s3FileIoMultipartUploadThreads() {
@@ -714,6 +731,10 @@ public class AwsProperties implements Serializable {
 
   public boolean s3PreloadClientEnabled() {
     return s3PreloadClientEnabled;
+  }
+
+  public String dynamodbEndpoint() {
+    return dynamoDbEndpoint;
   }
 
   public String dynamoDbTableName() {
@@ -766,7 +787,7 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
-  public <T extends S3ClientBuilder> void applyS3Configuration(T builder) {
+  public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(s3DualStackEnabled)
         .serviceConfiguration(

@@ -86,13 +86,9 @@ public class AwsClientFactories {
   }
 
   static class DefaultAwsClientFactory implements AwsClientFactory {
-
-    private String glueEndpoint;
-    private String s3Endpoint;
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
-    private String dynamoDbEndpoint;
     private String httpClientType;
     private AwsProperties awsProperties;
 
@@ -102,8 +98,8 @@ public class AwsClientFactories {
     public S3Client s3() {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .applyMutation(awsProperties::applyS3Configuration)
+          .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
+          .applyMutation(awsProperties::applyS3ServiceConfigurations)
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -113,7 +109,7 @@ public class AwsClientFactories {
     public GlueClient glue() {
       return GlueClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
+          .applyMutation(builder -> configureEndpoint(builder, awsProperties.glueEndpoint()))
           .build();
     }
 
@@ -128,15 +124,13 @@ public class AwsClientFactories {
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
+          .applyMutation(builder -> configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
           .build();
     }
 
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
-      this.glueEndpoint = properties.get(AwsProperties.GLUE_CATALOG_ENDPOINT);
-      this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
       this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
@@ -144,7 +138,6 @@ public class AwsClientFactories {
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
           "S3 client access key ID and secret access key must be set at the same time");
-      this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
       this.httpClientType =
           PropertyUtil.propertyAsString(
               properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
