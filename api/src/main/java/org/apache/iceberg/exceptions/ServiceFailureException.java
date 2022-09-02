@@ -24,11 +24,11 @@ import com.google.errorprone.annotations.FormatMethod;
 public class ServiceFailureException extends RESTException {
   @FormatMethod
   public ServiceFailureException(String message, Object... args) {
-    super(String.format(message, args));
+    super(message, args);
   }
 
   @FormatMethod
   public ServiceFailureException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(cause, message, args);
   }
 }

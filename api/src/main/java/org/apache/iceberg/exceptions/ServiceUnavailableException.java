@@ -25,11 +25,11 @@ import com.google.errorprone.annotations.FormatMethod;
 public class ServiceUnavailableException extends RESTException {
   @FormatMethod
   public ServiceUnavailableException(String message, Object... args) {
-    super(String.format(message, args));
+    super(message, args);
   }
 
   @FormatMethod
   public ServiceUnavailableException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(cause, message, args);
   }
 }
