@@ -501,8 +501,7 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
-        PropertyUtil.propertyAsString(
-            properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+        PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
 
     this.s3FileIoSseType =
         properties.getOrDefault(
@@ -515,9 +514,9 @@ public class AwsProperties implements Serializable {
       Preconditions.checkNotNull(
           s3FileIoSseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
-    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
+    this.s3Endpoint = properties.get(S3FILEIO_ENDPOINT);
 
-    this.glueEndpoint = properties.get(AwsProperties.GLUE_CATALOG_ENDPOINT);
+    this.glueEndpoint = properties.get(GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive =
         PropertyUtil.propertyAsBoolean(
@@ -540,24 +539,16 @@ public class AwsProperties implements Serializable {
             Runtime.getRuntime().availableProcessors());
     this.s3PathStyleAccess =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
-            AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
+            properties, S3FILEIO_PATH_STYLE_ACCESS, S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
     this.s3UseArnRegionEnabled =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_USE_ARN_REGION_ENABLED,
-            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+            properties, S3_USE_ARN_REGION_ENABLED, S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.s3AccelerationEnabled =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_ACCELERATION_ENABLED,
-            AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
+            properties, S3_ACCELERATION_ENABLED, S3_ACCELERATION_ENABLED_DEFAULT);
     this.s3DualStackEnabled =
         PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_DUALSTACK_ENABLED,
-            AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
+            properties, S3_DUALSTACK_ENABLED, S3_DUALSTACK_ENABLED_DEFAULT);
 
     try {
       this.s3FileIoMultiPartSize =
@@ -619,7 +610,7 @@ public class AwsProperties implements Serializable {
             AwsProperties.S3_PRELOAD_CLIENT_ENABLED,
             AwsProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
-    this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
+    this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
   }
