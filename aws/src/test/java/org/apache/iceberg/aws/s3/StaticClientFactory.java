@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
@@ -50,6 +49,5 @@ class StaticClientFactory implements AwsClientFactory {
   }
 
   @Override
-  public void initialize(Map<String, String> properties) {
-  }
+  public void initialize(Map<String, String> properties) {}
 }
