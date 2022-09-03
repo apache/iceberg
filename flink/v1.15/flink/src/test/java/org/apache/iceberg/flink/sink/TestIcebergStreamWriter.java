@@ -229,7 +229,7 @@ public class TestIcebergStreamWriter {
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
-      // Datafiles should not be sent again.
+      // Datafiles should not be sent again
       Assert.assertEquals(expectedDataFiles , result.dataFiles().length);
     }
   }
