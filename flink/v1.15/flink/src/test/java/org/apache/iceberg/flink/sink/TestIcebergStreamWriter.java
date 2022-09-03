@@ -225,7 +225,6 @@ public class TestIcebergStreamWriter {
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
-      // invoke endInput again.
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
@@ -241,7 +240,6 @@ public class TestIcebergStreamWriter {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
-      // The EndInput is triggered first
       testHarness.endInput();
 
       long expectedDataFiles = partitioned ? 2 : 1;
@@ -258,6 +256,7 @@ public class TestIcebergStreamWriter {
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
     }
   }
+
   @Test
   public void testTableWithTargetFileSize() throws Exception {
     // Adjust the target-file-size in table properties.
@@ -363,10 +362,6 @@ public class TestIcebergStreamWriter {
 
     SimpleDataUtil.assertTableRecords(location, expected);
   }
-
-
-
-
 
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter()
       throws Exception {
