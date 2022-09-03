@@ -86,8 +86,8 @@ public class OAuthErrorResponseParser {
         jsonNode);
     Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
     String error = JsonUtil.getString(ERROR, jsonNode);
-    String errorDescription = JsonUtil.getString(ERROR_DESCRIPTION, jsonNode);
-    String errorUri = JsonUtil.getString(ERROR_URI, jsonNode);
+    String errorDescription = JsonUtil.getStringOrNull(ERROR_DESCRIPTION, jsonNode);
+    String errorUri = JsonUtil.getStringOrNull(ERROR_URI, jsonNode);
     return OAuthErrorResponse.builder()
         .withError(error)
         .withErrorDescription(errorDescription)
