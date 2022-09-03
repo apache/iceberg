@@ -86,9 +86,6 @@ public class AwsClientFactories {
   }
 
   static class DefaultAwsClientFactory implements AwsClientFactory {
-    private String s3AccessKeyId;
-    private String s3SecretAccessKey;
-    private String s3SessionToken;
     private AwsProperties awsProperties;
 
     DefaultAwsClientFactory() {}
@@ -99,8 +96,7 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyHttpClientConfiguration)
           .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
-          .credentialsProvider(
-              credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
+          .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .build();
     }
 
@@ -128,12 +124,9 @@ public class AwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
-      this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
-      this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
-      this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
 
       ValidationException.check(
-          (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+          awsProperties.s3KeyIdAccessKeyConfigured(),
           "S3 client access key ID and secret access key must be set at the same time");
     }
   }
@@ -175,6 +168,7 @@ public class AwsClientFactories {
         .build();
   }
 
+  @Deprecated
   static AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {

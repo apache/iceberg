@@ -57,6 +57,7 @@ public class TestAwsClientFactories {
   }
 
   @Test
+  @Deprecated
   public void testS3FileIoCredentialsProviders() {
     AwsCredentialsProvider basicCredentials =
         AwsClientFactories.credentialsProvider("key", "secret", null);
