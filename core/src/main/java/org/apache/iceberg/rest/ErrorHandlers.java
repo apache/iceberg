@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -45,46 +43,32 @@ public class ErrorHandlers {
 
   private ErrorHandlers() {}
 
-  public static ErrorHandler build(
-      Function<String, RESTErrorResponse> parser, Consumer<RESTErrorResponse> handler) {
-    return new ErrorHandler() {
-      @Override
-      public RESTErrorResponse parseResponse(String json) {
-        return parser.apply(json);
-      }
-
-      @Override
-      public void handle(RESTErrorResponse restError) {
-        handler.accept(restError);
-      }
-    };
-  }
-
   public static ErrorHandler namespaceErrorHandler() {
-    return build(
-        ErrorResponseParser::fromJson, baseNamespaceErrorHandler().andThen(baseErrorHandler()));
+    return NamespaceErrorHandler.INSTANCE;
   }
 
   public static ErrorHandler tableErrorHandler() {
-    return build(
-        ErrorResponseParser::fromJson, baseTableErrorHandler().andThen(baseErrorHandler()));
+    return TableErrorHandler.INSTANCE;
   }
 
   public static ErrorHandler tableCommitHandler() {
-    return build(
-        ErrorResponseParser::fromJson, baseCommitErrorHandler().andThen(baseErrorHandler()));
+    return CommitErrorHandler.INSTANCE;
   }
 
   public static ErrorHandler defaultErrorHandler() {
-    return build(ErrorResponseParser::fromJson, baseErrorHandler());
+    return DefaultErrorHandler.INSTANCE;
   }
 
   public static ErrorHandler oauthErrorHandler() {
-    return build(OAuthErrorResponseParser::fromJson, baseOauthErrorHandler());
+    return OAuthErrorHandler.INSTANCE;
   }
 
-  private static Consumer<RESTErrorResponse> baseCommitErrorHandler() {
-    return restError -> {
+  /** Table commit error handler. */
+  private static class CommitErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new CommitErrorHandler();
+
+    @Override
+    public void handle(RESTErrorResponse restError) {
       ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
@@ -96,15 +80,17 @@ public class ErrorHandlers {
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
-    };
+
+      super.handle(restError);
+    }
   }
 
-  /**
-   * Table level error handlers. Should be chained wih the {@link #baseErrorHandler}, which takes
-   * care of common cases.
-   */
-  private static Consumer<RESTErrorResponse> baseTableErrorHandler() {
-    return restError -> {
+  /** Table level error handler. */
+  private static class TableErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new TableErrorHandler();
+
+    @Override
+    public void handle(RESTErrorResponse restError) {
       ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
@@ -116,15 +102,17 @@ public class ErrorHandlers {
         case 409:
           throw new AlreadyExistsException("%s", error.message());
       }
-    };
+
+      super.handle(restError);
+    }
   }
 
-  /**
-   * Request error handlers specifically for CRUD ops on namespaces. Should be chained wih the
-   * {@link #baseErrorHandler}, which takes care of common cases.
-   */
-  private static Consumer<RESTErrorResponse> baseNamespaceErrorHandler() {
-    return restError -> {
+  /** Request error handler specifically for CRUD ops on namespaces. */
+  private static class NamespaceErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new NamespaceErrorHandler();
+
+    @Override
+    public void handle(RESTErrorResponse restError) {
       ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
@@ -134,15 +122,25 @@ public class ErrorHandlers {
         case 422:
           throw new RESTException("Unable to process: %s", error.message());
       }
-    };
+
+      super.handle(restError);
+    }
   }
 
   /**
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  private static Consumer<RESTErrorResponse> baseErrorHandler() {
-    return restError -> {
+  private static class DefaultErrorHandler implements ErrorHandler {
+    private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
+
+    @Override
+    public RESTErrorResponse parseResponse(String json) {
+      return ErrorResponseParser.fromJson(json);
+    }
+
+    @Override
+    public void handle(RESTErrorResponse restError) {
       ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 400:
@@ -163,12 +161,19 @@ public class ErrorHandlers {
       }
 
       throw new RESTException("Unable to process: %s", error.message());
-    };
+    }
   }
 
-  /** Request error handler for OAuth2 requests. */
-  private static Consumer<RESTErrorResponse> baseOauthErrorHandler() {
-    return restError -> {
+  private static class OAuthErrorHandler implements ErrorHandler {
+    private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
+
+    @Override
+    public RESTErrorResponse parseResponse(String json) {
+      return OAuthErrorResponseParser.fromJson(json);
+    }
+
+    @Override
+    public void handle(RESTErrorResponse restError) {
       OAuthErrorResponse error = (OAuthErrorResponse) restError;
       switch (error.error()) {
         case OAuth2Properties.INVALID_CLIENT_ERROR:
@@ -182,6 +187,6 @@ public class ErrorHandlers {
         default:
           throw new RESTException("Unable to process: %s", error.errorDescription());
       }
-    };
+    }
   }
 }
