@@ -181,8 +181,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         if (!deletedRowPositions.isDeleted(originalRowId + rowStartPosInBatch)) {
           posDelRowIdMapping[currentRowId] = originalRowId;
           currentRowId++;
-        } else if (hasIsDeletedColumn) {
-          isDeleted[originalRowId] = true;
+        } else {
+          if (hasIsDeletedColumn) {
+            isDeleted[originalRowId] = true;
+          }
+
+          deletes.incrementDeleteCount();
         }
         originalRowId++;
       }
@@ -203,6 +207,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           eqDeleteRowIdMapping[i] = i;
         }
       }
+
       return eqDeleteRowIdMapping;
     }
 
@@ -227,8 +232,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           // skip deleted rows by pointing to the next undeleted row Id
           rowIdMapping[currentRowId] = rowIdMapping[rowId];
           currentRowId++;
-        } else if (hasIsDeletedColumn) {
-          isDeleted[rowIdMapping[rowId]] = true;
+        } else {
+          if (hasIsDeletedColumn) {
+            isDeleted[rowIdMapping[rowId]] = true;
+          }
+
+          deletes.incrementDeleteCount();
         }
 
         rowId++;

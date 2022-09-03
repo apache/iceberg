@@ -29,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.IcebergBuild;
@@ -118,11 +117,13 @@ public class TestHTTPClient {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
     AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<RESTErrorResponse> onError =
-        (error) -> {
-          errorCounter.incrementAndGet();
-          throw new RuntimeException("Failure response");
-        };
+    ErrorHandler onError =
+        ErrorHandlers.build(
+            json -> null,
+            error -> {
+              errorCounter.incrementAndGet();
+              throw new RuntimeException("Failure response");
+            });
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -144,13 +145,17 @@ public class TestHTTPClient {
     Item body = new Item(0L, "hank");
     int statusCode = 404;
     AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<RESTErrorResponse> onError =
-        error -> {
-          errorCounter.incrementAndGet();
-          throw new RuntimeException(
-              String.format(
-                  "Called error handler for method %s due to status code: %d", method, statusCode));
-        };
+
+    ErrorHandler onError =
+        ErrorHandlers.build(
+            json -> null,
+            error -> {
+              errorCounter.incrementAndGet();
+              throw new RuntimeException(
+                  String.format(
+                      "Called error handler for method %s due to status code: %d",
+                      method, statusCode));
+            });
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -214,7 +219,7 @@ public class TestHTTPClient {
   }
 
   private static Item doExecuteRequest(
-      HttpMethod method, String path, Item body, Consumer<RESTErrorResponse> onError) {
+      HttpMethod method, String path, Item body, ErrorHandler onError) {
     Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:

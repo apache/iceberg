@@ -19,11 +19,11 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
@@ -104,8 +104,8 @@ public class LocationProviders {
   }
 
   static class ObjectStoreLocationProvider implements LocationProvider {
-    private static final Transform<String, Integer> HASH_FUNC =
-        Transforms.bucket(Types.StringType.get(), Integer.MAX_VALUE);
+    private static final Function<Object, Integer> HASH_FUNC =
+        Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
 
     private final String storageLocation;
     private final String context;

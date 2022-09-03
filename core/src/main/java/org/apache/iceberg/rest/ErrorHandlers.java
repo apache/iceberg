@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -32,7 +33,9 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthErrorResponse;
+import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
 
 /**
  * A set of consumers to handle errors for requests for table entities or for namespace entities, to
@@ -42,16 +45,42 @@ public class ErrorHandlers {
 
   private ErrorHandlers() {}
 
-  public static Consumer<RESTErrorResponse> namespaceErrorHandler() {
-    return baseNamespaceErrorHandler().andThen(defaultErrorHandler());
+  public static ErrorHandler build(
+      Function<String, RESTErrorResponse> parser, Consumer<RESTErrorResponse> handler) {
+    return new ErrorHandler() {
+      @Override
+      public RESTErrorResponse parseResponse(String json) {
+        return parser.apply(json);
+      }
+
+      @Override
+      public void handle(RESTErrorResponse restError) {
+        handler.accept(restError);
+      }
+    };
   }
 
-  public static Consumer<RESTErrorResponse> tableErrorHandler() {
-    return baseTableErrorHandler().andThen(defaultErrorHandler());
+  public static ErrorHandler namespaceErrorHandler() {
+    return build(
+        ErrorResponseParser::fromJson, baseNamespaceErrorHandler().andThen(baseErrorHandler()));
   }
 
-  public static Consumer<RESTErrorResponse> tableCommitHandler() {
-    return baseCommitErrorHandler().andThen(defaultErrorHandler());
+  public static ErrorHandler tableErrorHandler() {
+    return build(
+        ErrorResponseParser::fromJson, baseTableErrorHandler().andThen(baseErrorHandler()));
+  }
+
+  public static ErrorHandler tableCommitHandler() {
+    return build(
+        ErrorResponseParser::fromJson, baseCommitErrorHandler().andThen(baseErrorHandler()));
+  }
+
+  public static ErrorHandler defaultErrorHandler() {
+    return build(ErrorResponseParser::fromJson, baseErrorHandler());
+  }
+
+  public static ErrorHandler oauthErrorHandler() {
+    return build(OAuthErrorResponseParser::fromJson, baseOauthErrorHandler());
   }
 
   private static Consumer<RESTErrorResponse> baseCommitErrorHandler() {
@@ -71,7 +100,7 @@ public class ErrorHandlers {
   }
 
   /**
-   * Table level error handlers. Should be chained wih the {@link #defaultErrorHandler}, which takes
+   * Table level error handlers. Should be chained wih the {@link #baseErrorHandler}, which takes
    * care of common cases.
    */
   private static Consumer<RESTErrorResponse> baseTableErrorHandler() {
@@ -92,7 +121,7 @@ public class ErrorHandlers {
 
   /**
    * Request error handlers specifically for CRUD ops on namespaces. Should be chained wih the
-   * {@link #defaultErrorHandler}, which takes care of common cases.
+   * {@link #baseErrorHandler}, which takes care of common cases.
    */
   private static Consumer<RESTErrorResponse> baseNamespaceErrorHandler() {
     return restError -> {
@@ -112,7 +141,7 @@ public class ErrorHandlers {
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  public static Consumer<RESTErrorResponse> defaultErrorHandler() {
+  private static Consumer<RESTErrorResponse> baseErrorHandler() {
     return restError -> {
       ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
@@ -138,7 +167,7 @@ public class ErrorHandlers {
   }
 
   /** Request error handler for OAuth2 requests. */
-  public static Consumer<RESTErrorResponse> oauthErrorHandler() {
+  private static Consumer<RESTErrorResponse> baseOauthErrorHandler() {
     return restError -> {
       OAuthErrorResponse error = (OAuthErrorResponse) restError;
       switch (error.error()) {

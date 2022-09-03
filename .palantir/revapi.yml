@@ -18,6 +18,10 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.RowDelta org.apache.iceberg.RowDelta::validateNoConflictingAppends(org.apache.iceberg.expressions.Expression)"
       justification: "Deprecations for 1.0 release"
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.PartitionKey"
+      new: "class org.apache.iceberg.PartitionKey"
+      justification: "Serialization across versions is not supported"
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

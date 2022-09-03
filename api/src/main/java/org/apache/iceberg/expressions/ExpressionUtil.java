@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
-  private static final Transform<CharSequence, Integer> HASH_FUNC =
-      Transforms.bucket(Types.StringType.get(), Integer.MAX_VALUE);
+  private static final Function<Object, Integer> HASH_FUNC =
+      Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
   private static final Pattern DATE = Pattern.compile("\\d\\d\\d\\d-\\d\\d-\\d\\d");
   private static final Pattern TIME = Pattern.compile("\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?");
   private static final Pattern TIMESTAMP =

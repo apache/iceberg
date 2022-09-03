@@ -25,7 +25,6 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.function.Consumer;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -46,7 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,14 +103,12 @@ public class HTTPClient implements RESTClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response,
-      String responseBody,
-      Consumer<RESTErrorResponse> errorHandler) {
+      CloseableHttpResponse response, String responseBody, ErrorHandler errorHandler) {
     RESTErrorResponse errorResponse = null;
 
     if (responseBody != null) {
       try {
-        errorResponse = ErrorResponseParser.fromJson(responseBody);
+        errorResponse = errorHandler.parseResponse(responseBody);
       } catch (UncheckedIOException | IllegalArgumentException e) {
         // It's possible to receive a non-successful response that isn't a properly defined
         // ErrorResponse
@@ -131,7 +127,7 @@ public class HTTPClient implements RESTClient {
       errorResponse = buildDefaultErrorResponse(response);
     }
 
-    errorHandler.accept(errorResponse);
+    errorHandler.handle(errorResponse);
 
     // Throw an exception in case the provided error handler does not throw.
     throw new RESTException("Unhandled error: %s", errorResponse);
@@ -173,7 +169,7 @@ public class HTTPClient implements RESTClient {
       Object requestBody,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<RESTErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
@@ -229,8 +225,7 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public void head(
-      String path, Map<String, String> headers, Consumer<RESTErrorResponse> errorHandler) {
+  public void head(String path, Map<String, String> headers, ErrorHandler errorHandler) {
     execute(Method.HEAD, path, null, null, null, headers, errorHandler);
   }
 
@@ -240,7 +235,7 @@ public class HTTPClient implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<RESTErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
@@ -250,16 +245,13 @@ public class HTTPClient implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<RESTErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T delete(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<RESTErrorResponse> errorHandler) {
+      String path, Class<T> responseType, Map<String, String> headers, ErrorHandler errorHandler) {
     return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
@@ -269,7 +261,7 @@ public class HTTPClient implements RESTClient {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<RESTErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
   }
 

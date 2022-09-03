@@ -51,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -181,7 +180,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
     Assert.assertEquals(
         "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
-    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Transform<?, ?> transform = Transforms.identity();
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 

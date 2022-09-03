@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
@@ -101,7 +100,7 @@ class RESTTableOperations implements TableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     UpdateTableRequest.Builder requestBuilder;
     List<MetadataUpdate> baseChanges;
-    Consumer<RESTErrorResponse> errorHandler;
+    ErrorHandler errorHandler;
     switch (updateType) {
       case CREATE:
         Preconditions.checkState(

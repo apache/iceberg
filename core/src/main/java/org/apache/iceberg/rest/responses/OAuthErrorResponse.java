@@ -77,18 +77,18 @@ public class OAuthErrorResponse implements RESTErrorResponse {
 
     private Builder() {}
 
-    public Builder withError(String error) {
-      this.error = error;
+    public Builder withError(String type) {
+      this.error = type;
       return this;
     }
 
-    public Builder withErrorDescription(String errorDescription) {
-      this.errorDescription = errorDescription;
+    public Builder withErrorDescription(String description) {
+      this.errorDescription = description;
       return this;
     }
 
-    public Builder withErrorUri(String errorUri) {
-      this.errorUri = errorUri;
+    public Builder withErrorUri(String uri) {
+      this.errorUri = uri;
       return this;
     }
 
