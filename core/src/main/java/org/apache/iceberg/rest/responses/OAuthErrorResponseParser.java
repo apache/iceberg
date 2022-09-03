@@ -66,10 +66,10 @@ public class OAuthErrorResponseParser {
   }
 
   /**
-   * Read ErrorResponse from a JSON string.
+   * Read OAuthErrorResponse from a JSON string.
    *
-   * @param json a JSON string of an ErrorResponse
-   * @return an ErrorResponse object
+   * @param json a JSON string of an OAuthErrorResponse
+   * @return an OAuthErrorResponse object
    */
   public static OAuthErrorResponse fromJson(String json) {
     try {

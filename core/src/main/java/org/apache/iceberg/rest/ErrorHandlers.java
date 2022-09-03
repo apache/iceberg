@@ -135,7 +135,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
 
     @Override
-    public RESTErrorResponse parseResponse(String json) {
+    public RESTErrorResponse parseResponse(int code, String json) {
       return ErrorResponseParser.fromJson(json);
     }
 
@@ -166,26 +166,35 @@ public class ErrorHandlers {
 
   private static class OAuthErrorHandler implements ErrorHandler {
     private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
+    private static final String SERVER_ERROR = "server_error";
 
     @Override
-    public RESTErrorResponse parseResponse(String json) {
-      return OAuthErrorResponseParser.fromJson(json);
+    public RESTErrorResponse parseResponse(int code, String json) {
+      if (code == 400 || code == 401) {
+        return OAuthErrorResponseParser.fromJson(json);
+      }
+      return OAuthErrorResponse.builder()
+          .withError(SERVER_ERROR)
+          .withErrorDescription(json)
+          .build();
     }
 
     @Override
     public void handle(RESTErrorResponse restError) {
-      OAuthErrorResponse error = (OAuthErrorResponse) restError;
-      switch (error.error()) {
-        case OAuth2Properties.INVALID_CLIENT_ERROR:
-          throw new NotAuthorizedException("Not authorized: %s", error.errorDescription());
-        case OAuth2Properties.INVALID_REQUEST_ERROR:
-        case OAuth2Properties.INVALID_GRANT_ERROR:
-        case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
-        case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
-        case OAuth2Properties.INVALID_SCOPE_ERROR:
-          throw new BadRequestException("Malformed request: %s", error.errorDescription());
-        default:
-          throw new RESTException("Unable to process: %s", error.errorDescription());
+      if (restError instanceof OAuthErrorResponse) {
+        OAuthErrorResponse error = (OAuthErrorResponse) restError;
+        switch (error.error()) {
+          case OAuth2Properties.INVALID_CLIENT_ERROR:
+            throw new NotAuthorizedException("Not authorized: %s", error.errorDescription());
+          case OAuth2Properties.INVALID_REQUEST_ERROR:
+          case OAuth2Properties.INVALID_GRANT_ERROR:
+          case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
+          case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
+          case OAuth2Properties.INVALID_SCOPE_ERROR:
+            throw new BadRequestException("Malformed request: %s", error.errorDescription());
+          default:
+            throw new RESTException("Unable to process: %s", error.errorDescription());
+        }
       }
     }
   }

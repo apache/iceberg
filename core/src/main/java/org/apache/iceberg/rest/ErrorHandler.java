@@ -20,7 +20,7 @@ package org.apache.iceberg.rest;
 
 public interface ErrorHandler {
 
-  RESTErrorResponse parseResponse(String json);
+  RESTErrorResponse parseResponse(int code, String json);
 
   void handle(RESTErrorResponse restError);
 }

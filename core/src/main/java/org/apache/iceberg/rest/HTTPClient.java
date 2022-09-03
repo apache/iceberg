@@ -108,7 +108,7 @@ public class HTTPClient implements RESTClient {
 
     if (responseBody != null) {
       try {
-        errorResponse = errorHandler.parseResponse(responseBody);
+        errorResponse = errorHandler.parseResponse(response.getCode(), responseBody);
       } catch (UncheckedIOException | IllegalArgumentException e) {
         // It's possible to receive a non-successful response that isn't a properly defined
         // ErrorResponse
