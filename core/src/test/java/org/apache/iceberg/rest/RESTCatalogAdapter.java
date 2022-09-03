@@ -307,7 +307,9 @@ public class RESTCatalogAdapter implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       ErrorHandler errorHandler) {
+    // Note: we only handle catalog API errors as OAuth calls are mocked
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
+
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
