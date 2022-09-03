@@ -118,7 +118,7 @@ public class TestHTTPClient {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
     AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<ErrorResponse> onError =
+    Consumer<RESTErrorResponse> onError =
         (error) -> {
           errorCounter.incrementAndGet();
           throw new RuntimeException("Failure response");
@@ -144,7 +144,7 @@ public class TestHTTPClient {
     Item body = new Item(0L, "hank");
     int statusCode = 404;
     AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<ErrorResponse> onError =
+    Consumer<RESTErrorResponse> onError =
         error -> {
           errorCounter.incrementAndGet();
           throw new RuntimeException(
@@ -214,7 +214,7 @@ public class TestHTTPClient {
   }
 
   private static Item doExecuteRequest(
-      HttpMethod method, String path, Item body, Consumer<ErrorResponse> onError) {
+      HttpMethod method, String path, Item body, Consumer<RESTErrorResponse> onError) {
     Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:

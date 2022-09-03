@@ -307,7 +307,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Object body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
@@ -343,7 +343,7 @@ public class RESTCatalogAdapter implements RESTClient {
       String path,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
@@ -353,7 +353,7 @@ public class RESTCatalogAdapter implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, null, body, responseType, headers, errorHandler);
   }
 
@@ -363,12 +363,13 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(HTTPMethod.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public void head(
+      String path, Map<String, String> headers, Consumer<RESTErrorResponse> errorHandler) {
     execute(HTTPMethod.HEAD, path, null, null, null, headers, errorHandler);
   }
 
@@ -378,7 +379,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, null, formData, responseType, headers, errorHandler);
   }
 

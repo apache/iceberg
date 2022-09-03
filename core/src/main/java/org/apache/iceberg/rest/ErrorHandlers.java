@@ -30,7 +30,9 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.OAuthErrorResponse;
 
 /**
  * A set of consumers to handle errors for requests for table entities or for namespace entities, to
@@ -40,20 +42,21 @@ public class ErrorHandlers {
 
   private ErrorHandlers() {}
 
-  public static Consumer<ErrorResponse> namespaceErrorHandler() {
+  public static Consumer<RESTErrorResponse> namespaceErrorHandler() {
     return baseNamespaceErrorHandler().andThen(defaultErrorHandler());
   }
 
-  public static Consumer<ErrorResponse> tableErrorHandler() {
+  public static Consumer<RESTErrorResponse> tableErrorHandler() {
     return baseTableErrorHandler().andThen(defaultErrorHandler());
   }
 
-  public static Consumer<ErrorResponse> tableCommitHandler() {
+  public static Consumer<RESTErrorResponse> tableCommitHandler() {
     return baseCommitErrorHandler().andThen(defaultErrorHandler());
   }
 
-  private static Consumer<ErrorResponse> baseCommitErrorHandler() {
-    return error -> {
+  private static Consumer<RESTErrorResponse> baseCommitErrorHandler() {
+    return restError -> {
+      ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
           throw new NoSuchTableException("%s", error.message());
@@ -71,8 +74,9 @@ public class ErrorHandlers {
    * Table level error handlers. Should be chained wih the {@link #defaultErrorHandler}, which takes
    * care of common cases.
    */
-  private static Consumer<ErrorResponse> baseTableErrorHandler() {
-    return error -> {
+  private static Consumer<RESTErrorResponse> baseTableErrorHandler() {
+    return restError -> {
+      ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
@@ -90,8 +94,9 @@ public class ErrorHandlers {
    * Request error handlers specifically for CRUD ops on namespaces. Should be chained wih the
    * {@link #defaultErrorHandler}, which takes care of common cases.
    */
-  private static Consumer<ErrorResponse> baseNamespaceErrorHandler() {
-    return error -> {
+  private static Consumer<RESTErrorResponse> baseNamespaceErrorHandler() {
+    return restError -> {
+      ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -107,8 +112,9 @@ public class ErrorHandlers {
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  public static Consumer<ErrorResponse> defaultErrorHandler() {
-    return error -> {
+  public static Consumer<RESTErrorResponse> defaultErrorHandler() {
+    return restError -> {
+      ErrorResponse error = (ErrorResponse) restError;
       switch (error.code()) {
         case 400:
           throw new BadRequestException("Malformed request: %s", error.message());
@@ -128,6 +134,25 @@ public class ErrorHandlers {
       }
 
       throw new RESTException("Unable to process: %s", error.message());
+    };
+  }
+
+  /** Request error handler for OAuth2 requests. */
+  public static Consumer<RESTErrorResponse> oauthErrorHandler() {
+    return restError -> {
+      OAuthErrorResponse error = (OAuthErrorResponse) restError;
+      switch (error.error()) {
+        case OAuth2Properties.INVALID_CLIENT_ERROR:
+          throw new NotAuthorizedException("Not authorized: %s", error.errorDescription());
+        case OAuth2Properties.INVALID_REQUEST_ERROR:
+        case OAuth2Properties.INVALID_GRANT_ERROR:
+        case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
+        case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
+        case OAuth2Properties.INVALID_SCOPE_ERROR:
+          throw new BadRequestException("Malformed request: %s", error.errorDescription());
+        default:
+          throw new RESTException("Unable to process: %s", error.errorDescription());
+      }
     };
   }
 }

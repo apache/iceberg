@@ -88,7 +88,7 @@ public class HTTPClient implements RESTClient {
         || code == HttpStatus.SC_NO_CONTENT;
   }
 
-  private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
+  private static RESTErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
     String responseReason = response.getReasonPhrase();
     String message =
         responseReason != null && !responseReason.isEmpty()
@@ -105,8 +105,10 @@ public class HTTPClient implements RESTClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
-    ErrorResponse errorResponse = null;
+      CloseableHttpResponse response,
+      String responseBody,
+      Consumer<RESTErrorResponse> errorHandler) {
+    RESTErrorResponse errorResponse = null;
 
     if (responseBody != null) {
       try {
@@ -171,7 +173,7 @@ public class HTTPClient implements RESTClient {
       Object requestBody,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
@@ -227,7 +229,8 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public void head(
+      String path, Map<String, String> headers, Consumer<RESTErrorResponse> errorHandler) {
     execute(Method.HEAD, path, null, null, null, headers, errorHandler);
   }
 
@@ -237,7 +240,7 @@ public class HTTPClient implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
@@ -247,7 +250,7 @@ public class HTTPClient implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
   }
 
@@ -256,7 +259,7 @@ public class HTTPClient implements RESTClient {
       String path,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
@@ -266,7 +269,7 @@ public class HTTPClient implements RESTClient {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Consumer<RESTErrorResponse> errorHandler) {
     return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
   }
 
