@@ -45,7 +45,6 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -73,9 +72,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.glue.GlueClient;
-import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
@@ -278,18 +274,18 @@ public class TestS3FileIO {
 
   @Test
   public void testMissingTableMetadata() {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(
         CatalogProperties.URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/warehouse");
-    properties.put(CatalogProperties.FILE_IO_IMPL, S3FileIO.class.getName());
-    properties.put(AwsProperties.CLIENT_FACTORY, StaticClientFactory.class.getName());
+    conf.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
+    conf.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
+    conf.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/warehouse");
+    conf.put(CatalogProperties.FILE_IO_IMPL, S3FileIO.class.getName());
+    conf.put(AwsProperties.CLIENT_FACTORY, StaticClientFactory.class.getName());
 
     try (JdbcCatalog catalog = new JdbcCatalog()) {
-      catalog.initialize("test_jdbc_catalog", properties);
+      catalog.initialize("test_jdbc_catalog", conf);
 
       Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
       TableIdentifier ident = TableIdentifier.of("table_name");
@@ -362,31 +358,4 @@ public class TestS3FileIO {
                     builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
                     RequestBody.empty()));
   }
-}
-
-class StaticClientFactory implements AwsClientFactory {
-  static S3Client client;
-
-  @Override
-  public S3Client s3() {
-    return client;
-  }
-
-  @Override
-  public GlueClient glue() {
-    return null;
-  }
-
-  @Override
-  public KmsClient kms() {
-    return null;
-  }
-
-  @Override
-  public DynamoDbClient dynamo() {
-    return null;
-  }
-
-  @Override
-  public void initialize(Map<String, String> properties) {}
 }
