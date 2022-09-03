@@ -30,6 +30,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -435,6 +440,9 @@ public class AwsProperties implements Serializable {
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
+  private String s3AccessKeyId;
+  private String s3SecretAccessKey;
+  private String s3SessionToken;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
   private int s3FileIoDeleteBatchSize;
@@ -469,6 +477,9 @@ public class AwsProperties implements Serializable {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
+    this.s3AccessKeyId = null;
+    this.s3SecretAccessKey = null;
+    this.s3SessionToken = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
 
@@ -506,6 +517,9 @@ public class AwsProperties implements Serializable {
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
     this.s3FileIoSseMd5 = properties.get(S3FILEIO_SSE_MD5);
+    this.s3AccessKeyId = properties.get(S3FILEIO_ACCESS_KEY_ID);
+    this.s3SecretAccessKey = properties.get(S3FILEIO_SECRET_ACCESS_KEY);
+    this.s3SessionToken = properties.get(S3FILEIO_SESSION_TOKEN);
     if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
           s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
@@ -785,6 +799,30 @@ public class AwsProperties implements Serializable {
 
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
+  }
+
+  public boolean s3KeyIdAccessKeyConfigured() {
+    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
+  }
+
+  public static AwsCredentialsProvider credentialsProvider(
+      String accessKeyId, String secretAccessKey, String sessionToken) {
+    if (accessKeyId != null) {
+      if (sessionToken == null) {
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+      } else {
+        return StaticCredentialsProvider.create(
+            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
+      }
+    } else {
+      return DefaultCredentialsProvider.create();
+    }
+  }
+
+  public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
+    builder.credentialsProvider(
+        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
 
   public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
