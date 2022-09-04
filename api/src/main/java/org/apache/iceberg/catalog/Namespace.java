@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -25,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** A namespace in a {@link Catalog}. */
-public class Namespace {
+public class Namespace implements Serializable {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =

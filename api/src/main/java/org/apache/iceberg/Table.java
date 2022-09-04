@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -25,7 +26,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
 /** Represents a table. */
-public interface Table {
+public interface Table extends Serializable {
 
   /**
    * Return the full name for this table.
