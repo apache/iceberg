@@ -29,7 +29,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-INITIAL_PARTITION_SPEC_ID = 1
+INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000
 
 
@@ -159,6 +159,9 @@ class PartitionSpec(IcebergBaseModel):
         )
 
 
+UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)
+
+
 def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fresh_schema: Schema) -> PartitionSpec:
     partition_fields = []
     for pos, field in enumerate(spec.fields):
@@ -176,10 +179,4 @@ def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fre
                 transform=field.transform,
             )
         )
-    if len(spec.fields) > 0:
-        return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)
-    return UNPARTITIONED_PARTITION_SPEC
-
-
-UNPARTITIONED_PARTITION_SPEC_ID = 0
-UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=UNPARTITIONED_PARTITION_SPEC_ID)
+    return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)

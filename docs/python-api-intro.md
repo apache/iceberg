@@ -109,7 +109,11 @@ catalog.create_table(
     partition_spec=partition_spec,
     sort_order=sort_order
 )
+```
 
+Which returns a newly created table:
+
+```
 Table(
     identifier=('default', 'bids'), 
     metadata_location='/Users/fokkodriesprong/Desktop/docker-spark-iceberg/wh/bids//metadata/00000-c8cd93ab-f784-474d-a167-b1a86b05195f.metadata.json', 

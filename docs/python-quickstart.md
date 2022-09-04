@@ -54,27 +54,59 @@ Commands:
   uuid        Returns the UUID of the table
 ```
 
-Browsing the catalog
+
+# Configuration
+
+There are three ways of setting the configuration.
+
+For the CLI you can pass it in using `--uri` and `--credential` and it will automatically detect the type based on the scheme (`http(s)` for rest, `thrift` for Hive).
+
+Secondly, YAML based configuration is supported `cat ~/.pyiceberg.yaml`:
+
+```yaml
+catalog:
+    default:  
+        uri: thrift://localhost:9083
+
+    rest:
+        uri: http://rest-catalog/ws/
+        credential: t-1234:secret
+```
+
+Lastly, you can also set it using environment variables:
 
 ```sh
-➜  pyiceberg --uri thrift://localhost:9083 list                       
+export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
+
+export PYICEBERG_CATALOG__REST__URI=http://rest-catalog/ws/
+export PYICEBERG_CATALOG__REST__CREDENTIAL=t-1234:secret
+```
+
+Where the structure is equivalent to the YAML. The levels are separated using a double underscore (`__`).
+
+# Browsing the catalog
+
+This example assumes that you have a default catalog set. If you want to load another catalog, for example, the rest example above. Then you need to set `--catalog rest`.
+
+## Listing global namespaces
+
+```sh
+➜  pyiceberg list                       
 default
 nyc  
 ```
 
+## Listing tables in a namespace
+
 ```sh
-➜  pyiceberg --uri thrift://localhost:9083 list nyc
+➜  pyiceberg list nyc
 nyc.taxis
 ```
 
-```sh
-➜  pyiceberg --uri thrift://localhost:9083 list nyc
-nyc.taxis
-```
-
+## Describing a table
 
 ```sh
-pyiceberg --uri thrift://localhost:9083 describe nyc.taxis
+pyiceberg describe nyc.taxis
 Table format version  1                                                                                                                                                                                                 
 Metadata location     file:/.../nyc.db/taxis/metadata/00000-aa3a3eac-ea08-4255-b890-383a64a94e42.metadata.json                                                        
 Table UUID            6cdfda33-bfa3-48a7-a09e-7abb462e3460                                                                                                                                                              
@@ -111,7 +143,7 @@ Properties            owner                 root
 Or output in JSON for automation:
 
 ```sh
-pyiceberg --uri thrift://localhost:9083 --output json describe nyc.taxis | jq
+pyiceberg --output json describe nyc.taxis | jq
 {
   "identifier": [
     "nyc",
@@ -133,108 +165,7 @@ pyiceberg --uri thrift://localhost:9083 --output json describe nyc.taxis | jq
             "type": "long",
             "required": false
           },
-          {
-            "id": 2,
-            "name": "tpep_pickup_datetime",
-            "type": "timestamptz",
-            "required": false
-          },
-          {
-            "id": 3,
-            "name": "tpep_dropoff_datetime",
-            "type": "timestamptz",
-            "required": false
-          },
-          {
-            "id": 4,
-            "name": "passenger_count",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 5,
-            "name": "trip_distance",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 6,
-            "name": "RatecodeID",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 7,
-            "name": "store_and_fwd_flag",
-            "type": "string",
-            "required": false
-          },
-          {
-            "id": 8,
-            "name": "PULocationID",
-            "type": "long",
-            "required": false
-          },
-          {
-            "id": 9,
-            "name": "DOLocationID",
-            "type": "long",
-            "required": false
-          },
-          {
-            "id": 10,
-            "name": "payment_type",
-            "type": "long",
-            "required": false
-          },
-          {
-            "id": 11,
-            "name": "fare_amount",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 12,
-            "name": "extra",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 13,
-            "name": "mta_tax",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 14,
-            "name": "tip_amount",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 15,
-            "name": "tolls_amount",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 16,
-            "name": "improvement_surcharge",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 17,
-            "name": "total_amount",
-            "type": "double",
-            "required": false
-          },
-          {
-            "id": 18,
-            "name": "congestion_surcharge",
-            "type": "double",
-            "required": false
-          },
+...
           {
             "id": 19,
             "name": "airport_fee",
@@ -312,108 +243,7 @@ pyiceberg --uri thrift://localhost:9083 --output json describe nyc.taxis | jq
           "type": "long",
           "required": false
         },
-        {
-          "id": 2,
-          "name": "tpep_pickup_datetime",
-          "type": "timestamptz",
-          "required": false
-        },
-        {
-          "id": 3,
-          "name": "tpep_dropoff_datetime",
-          "type": "timestamptz",
-          "required": false
-        },
-        {
-          "id": 4,
-          "name": "passenger_count",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 5,
-          "name": "trip_distance",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 6,
-          "name": "RatecodeID",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 7,
-          "name": "store_and_fwd_flag",
-          "type": "string",
-          "required": false
-        },
-        {
-          "id": 8,
-          "name": "PULocationID",
-          "type": "long",
-          "required": false
-        },
-        {
-          "id": 9,
-          "name": "DOLocationID",
-          "type": "long",
-          "required": false
-        },
-        {
-          "id": 10,
-          "name": "payment_type",
-          "type": "long",
-          "required": false
-        },
-        {
-          "id": 11,
-          "name": "fare_amount",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 12,
-          "name": "extra",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 13,
-          "name": "mta_tax",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 14,
-          "name": "tip_amount",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 15,
-          "name": "tolls_amount",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 16,
-          "name": "improvement_surcharge",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 17,
-          "name": "total_amount",
-          "type": "double",
-          "required": false
-        },
-        {
-          "id": 18,
-          "name": "congestion_surcharge",
-          "type": "double",
-          "required": false
-        },
+...
         {
           "id": 19,
           "name": "airport_fee",
@@ -428,29 +258,3 @@ pyiceberg --uri thrift://localhost:9083 --output json describe nyc.taxis | jq
   }
 }
 ```
-
-## Configuration
-
-There are several ways of setting the configuration. For the CLI you can pass it in using `--uri` and `--credential` and it will automatically detect the type based on the scheme (`http(s)` for rest, `thrift` for Hive).
-
-Also, YAML based configuration is supported `cat ~/.pyiceberg.yaml`:
-
-```yaml
-catalog:
-    default:  
-        uri: thrift://localhost:9083
-
-    rest:
-        uri: http://rest-catalog/ws/
-        credential: t-1234:secret
-```
-
-Lastly, you can also set it using environment variables:
-```sh
-export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
-
-export PYICEBERG_CATALOG__REST__URI=http://rest-catalog/ws/
-export PYICEBERG_CATALOG__REST__CREDENTIAL=t-1234:secret
-```
-
-Which is equivalent to the YAML.

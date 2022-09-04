@@ -35,7 +35,7 @@ def test_partition_field_init():
 
 
 def test_unpartitioned_partition_spec_repr():
-    assert repr(UNPARTITIONED_PARTITION_SPEC) == "PartitionSpec(spec_id=0)"
+    assert repr(PartitionSpec()) == "PartitionSpec(spec_id=0)"
 
 
 def test_partition_spec_init():
@@ -44,7 +44,7 @@ def test_partition_spec_init():
     id_field1 = PartitionField(3, 1001, bucket_transform, "id")
     partition_spec1 = PartitionSpec(id_field1)
 
-    assert partition_spec1.spec_id == 1
+    assert partition_spec1.spec_id == 0
     assert partition_spec1 == partition_spec1
     assert partition_spec1 != id_field1
     assert str(partition_spec1) == f"[\n  {str(id_field1)}\n]"
@@ -69,7 +69,7 @@ def test_partition_compatible_with():
 
 
 def test_unpartitioned():
-    assert not UNPARTITIONED_PARTITION_SPEC.fields
+    assert len(UNPARTITIONED_PARTITION_SPEC.fields) == 0
     assert UNPARTITIONED_PARTITION_SPEC.is_unpartitioned()
     assert str(UNPARTITIONED_PARTITION_SPEC) == "[]"
 

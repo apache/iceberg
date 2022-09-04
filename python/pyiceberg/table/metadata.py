@@ -30,13 +30,7 @@ from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import INITIAL_SCHEMA_ID, Schema, assign_fresh_schema_ids
-from pyiceberg.table.partitioning import (
-    INITIAL_PARTITION_SPEC_ID,
-    UNPARTITIONED_PARTITION_SPEC,
-    UNPARTITIONED_PARTITION_SPEC_ID,
-    PartitionSpec,
-    assign_fresh_partition_spec_ids,
-)
+from pyiceberg.table.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import (
@@ -67,19 +61,14 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
+    if default_spec_id is not None:
+        partition_specs: List[PartitionSpec] = values["partition_specs"]
+        for spec in partition_specs:
+            if spec.spec_id == default_spec_id:
+                return values
 
-    partition_specs: List[PartitionSpec] = values["partition_specs"]
-    for spec in partition_specs:
-        if spec.spec_id == default_spec_id:
-            return values
-
-    # When the table is unpartitioned, we just add the default spec
-    # This makes it optional when defining a table
-    if default_spec_id == UNPARTITIONED_PARTITION_SPEC_ID:
-        values["partition_specs"].append(UNPARTITIONED_PARTITION_SPEC)
-        return values
-
-    raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
+        raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
+    return values
 
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -144,7 +133,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     partition_specs: List[PartitionSpec] = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
-    default_spec_id: int = Field(alias="default-spec-id", default=UNPARTITIONED_PARTITION_SPEC_ID)
+    default_spec_id: Optional[int] = Field(alias="default-spec-id", default=None)
     """ID of the “current” spec that writers should use by default."""
 
     last_partition_id: int = Field(alias="last-partition-id")
@@ -269,11 +258,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         """
         if not data.get("partition_specs"):
             fields = data["partition_spec"]
-            if len(fields) == 0:
-                data["partition_specs"] = [UNPARTITIONED_PARTITION_SPEC]
-            else:
-                data["partition_specs"] = [PartitionSpec(*fields, spec_id=INITIAL_PARTITION_SPEC_ID)]
-                data["default_spec_id"] = INITIAL_PARTITION_SPEC_ID
+            migrated_spec = PartitionSpec(*fields)
+            data["partition_specs"] = [migrated_spec]
+            data["default_spec_id"] = migrated_spec.spec_id
         else:
             check_partition_specs(data)
         return data
