@@ -93,8 +93,8 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .applyMutation(awsProperties::applyHttpClientConfiguration)
-          .applyMutation(builder -> configureEndpoint(builder, awsProperties.s3Endpoint()))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
           .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .build();
@@ -103,21 +103,23 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .applyMutation(awsProperties::applyHttpClientConfiguration)
-          .applyMutation(builder -> configureEndpoint(builder, awsProperties.glueEndpoint()))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().applyMutation(awsProperties::applyHttpClientConfiguration).build();
+      return KmsClient.builder()
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .applyMutation(awsProperties::applyHttpClientConfiguration)
-          .applyMutation(builder -> configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
     }
 
@@ -147,6 +149,7 @@ public class AwsClientFactories {
     }
   }
 
+  @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));

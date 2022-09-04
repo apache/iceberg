@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.lakeformation;
 
 import java.util.Map;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -78,10 +77,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public S3Client s3() {
     if (isTableRegisteredWithLakeFormation()) {
       return S3Client.builder()
-          .applyMutation(awsProperties()::applyHttpClientConfiguration)
-          .applyMutation(
-              builder ->
-                  AwsClientFactories.configureEndpoint(builder, awsProperties().s3Endpoint()))
+          .applyMutation(awsProperties()::applyHttpClientConfigurations)
+          .applyMutation(awsProperties()::applyS3EndpointConfigurations)
           .applyMutation(awsProperties()::applyS3ServiceConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
@@ -96,7 +93,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public KmsClient kms() {
     if (isTableRegisteredWithLakeFormation()) {
       return KmsClient.builder()
-          .applyMutation(awsProperties()::applyHttpClientConfiguration)
+          .applyMutation(awsProperties()::applyHttpClientConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
           .region(Region.of(region()))

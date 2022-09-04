@@ -50,8 +50,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::configure)
-        .applyMutation(
-            builder -> AwsClientFactories.configureEndpoint(builder, awsProperties.s3Endpoint()))
+        .applyMutation(awsProperties::applyS3EndpointConfigurations)
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .build();
   }
@@ -70,9 +69,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
         .applyMutation(this::configure)
-        .applyMutation(
-            builder ->
-                AwsClientFactories.configureEndpoint(builder, awsProperties.dynamodbEndpoint()))
+        .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
         .build();
   }
 
@@ -112,7 +109,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .build());
 
     clientBuilder.region(Region.of(region));
-    awsProperties.applyHttpClientConfiguration(clientBuilder);
+    awsProperties.applyHttpClientConfigurations(clientBuilder);
 
     return clientBuilder;
   }
@@ -130,7 +127,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private StsClient sts() {
-    return StsClient.builder().applyMutation(awsProperties::applyHttpClientConfiguration).build();
+    return StsClient.builder().applyMutation(awsProperties::applyHttpClientConfigurations).build();
   }
 
   private String genSessionName() {
