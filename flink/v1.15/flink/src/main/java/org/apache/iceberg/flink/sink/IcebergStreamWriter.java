@@ -101,9 +101,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
         .toString();
   }
 
-  /**
-   * close all open files and emit files to downstream committer operator,
-   */
+  /** close all open files and emit files to downstream committer operator */
   private void flush() throws IOException {
     if (writer == null) {
       return;
@@ -115,8 +113,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     output.collect(new StreamRecord<>(result));
     writerMetrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
 
-    // Set writer to null to prevent duplicate flushes in the corner case of prepareSnapshotPreBarrier
-    // happening after endInput.
+    // Set writer to null to prevent duplicate flushes in the corner case of
+    // prepareSnapshotPreBarrier happening after endInput.
     writer = null;
   }
 }
