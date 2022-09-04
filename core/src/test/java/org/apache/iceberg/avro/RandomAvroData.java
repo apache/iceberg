@@ -57,6 +57,9 @@ public class RandomAvroData {
 
     private RandomDataGenerator(Schema schema, long seed) {
       this.typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");
+      for (org.apache.avro.Schema s : typeToSchema.values()) {
+        AvroSchemaUtil.convertToDeriveNameMapping(s);
+      }
       this.random = new Random(seed);
     }
 

@@ -78,6 +78,10 @@ public class AvroSchemaUtil {
     return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
   }
 
+  public static Type convertToDeriveNameMapping(Schema schema) {
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, true));
+  }
+
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
     final List<Types.NestedField> fields = convert(schema).asNestedType().asStructType().fields();
     return new org.apache.iceberg.Schema(fields);
@@ -158,11 +162,44 @@ public class AvroSchemaUtil {
     return false;
   }
 
+  /**
+   * This method decides whether a schema is of type union and is complex union and is optional
+   *
+   * <p>Complex union: the number of options in union larger than 2 Optional: null is present in
+   * union
+   *
+   * @param schema input schema
+   * @return true if schema is complex union and it is optional
+   */
+  public static boolean isOptionalComplexUnion(Schema schema) {
+    if (schema.getType() == UNION && schema.getTypes().size() > 2) {
+      for (Schema type : schema.getTypes()) {
+        if (type.getType() == Schema.Type.NULL) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   static Schema toOption(Schema schema) {
     if (schema.getType() == UNION) {
       Preconditions.checkArgument(
           isOptionSchema(schema), "Union schemas are not supported: %s", schema);
       return schema;
+    } else {
+      return Schema.createUnion(NULL, schema);
+    }
+  }
+
+  public static Schema toOption(Schema schema, boolean nullIsSecondElement) {
+    if (schema.getType() == UNION) {
+      Preconditions.checkArgument(
+          isOptionSchema(schema), "Union schemas are not supported: %s", schema);
+      return schema;
+    } else if (nullIsSecondElement) {
+      return Schema.createUnion(schema, NULL);
     } else {
       return Schema.createUnion(NULL, schema);
     }

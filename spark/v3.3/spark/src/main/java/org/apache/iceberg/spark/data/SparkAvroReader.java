@@ -27,6 +27,7 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
@@ -88,7 +89,11 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
 
     @Override
     public ValueReader<?> union(Type expected, Schema union, List<ValueReader<?>> options) {
-      return ValueReaders.union(options);
+      if (AvroSchemaUtil.isOptionSchema(union)) {
+        return ValueReaders.union(options);
+      } else {
+        return SparkValueReaders.complexUnion(union, options, expected);
+      }
     }
 
     @Override

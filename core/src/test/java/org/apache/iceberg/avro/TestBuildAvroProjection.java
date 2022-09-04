@@ -410,4 +410,26 @@ public class TestBuildAvroProjection {
         1,
         Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
   }
+
+  @Test
+  public void projectUnionWithBranchSchemaUnchanged() {
+
+    final Type icebergType =
+        Types.StructType.of(
+            Types.NestedField.required(0, "tag", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "field0", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "field1", Types.StringType.get()));
+
+    final org.apache.avro.Schema expected =
+        SchemaBuilder.unionOf().intType().and().stringType().endUnion();
+
+    final BuildAvroProjection testSubject =
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
+
+    final Iterable<org.apache.avro.Schema> branches = expected.getTypes();
+
+    final org.apache.avro.Schema actual = testSubject.union(expected, branches);
+
+    assertEquals("Union projection produced undesired union schema", expected, actual);
+  }
 }

@@ -60,6 +60,7 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
   @Override
   public void setSchema(Schema newFileSchema) {
     this.fileSchema = newFileSchema;
+    AvroSchemaUtil.convertToDeriveNameMapping(this.fileSchema);
     if (nameMapping == null && !AvroSchemaUtil.hasIds(fileSchema)) {
       nameMapping = MappingUtil.create(expectedSchema);
     }
