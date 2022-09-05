@@ -46,6 +46,26 @@ public class TestOAuthErrorResponseParser {
   }
 
   @Test
+  public void testOAuthErrorResponseToJsonWithNulls() {
+    String error = OAuth2Properties.INVALID_CLIENT_ERROR;
+    String expected =
+        String.format("{\"error\":\"%s\",\"error_description\":null,\"error_uri\":null}", error);
+    OAuthErrorResponse response = OAuthErrorResponse.builder().withError(error).build();
+    Assert.assertEquals(
+        "Should be able to serialize an error response as json",
+        OAuthErrorResponseParser.toJson(response),
+        expected);
+  }
+
+  @Test
+  public void testOAuthErrorResponseBuilderMIssingError() {
+    Assert.assertThrows(
+        "Missing error should throw exception",
+        IllegalArgumentException.class,
+        () -> OAuthErrorResponse.builder().build());
+  }
+
+  @Test
   public void testOAuthErrorResponseFromJson() {
     String error = OAuth2Properties.INVALID_CLIENT_ERROR;
     String description = "Credentials given were invalid";
@@ -61,6 +81,30 @@ public class TestOAuthErrorResponseParser {
             .withErrorUri(uri)
             .build();
     assertEquals(expected, OAuthErrorResponseParser.fromJson(json));
+  }
+
+  @Test
+  public void testOAuthErrorResponseFromJsonWithNulls() {
+    String error = OAuth2Properties.INVALID_CLIENT_ERROR;
+    String json = String.format("{\"error\":\"%s\"}", error);
+    OAuthErrorResponse expected = OAuthErrorResponse.builder().withError(error).build();
+    assertEquals(expected, OAuthErrorResponseParser.fromJson(json));
+
+    // test with explicitly set nulls
+    json = String.format("{\"error\":\"%s\",\"error_description\":null,\"error_uri\":null}", error);
+    assertEquals(expected, OAuthErrorResponseParser.fromJson(json));
+  }
+
+  @Test
+  public void testOAuthErrorResponseFromJsonMissingError() {
+    String description = "Credentials given were invalid";
+    String uri = "http://iceberg.apache.org";
+    String json =
+        String.format("{\"error_description\":\"%s\",\"error_uri\":\"%s\"}", description, uri);
+    Assert.assertThrows(
+        "Missing error should throw exception",
+        IllegalArgumentException.class,
+        () -> OAuthErrorResponseParser.fromJson(json));
   }
 
   public void assertEquals(OAuthErrorResponse expected, OAuthErrorResponse actual) {
