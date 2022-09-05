@@ -298,11 +298,10 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
     if (sparkCatalogImpl != null) {
       Preconditions.checkArgument(
           sparkCatalogImpl.equals("hive"),
-          "Please enable hive support for Spark. " +
-              "Using Spark's built-in %s catalog with Iceberg's hive catalog " +
-              "might result in inconsistent behavior of SparkSessionCatalog. ",
-          sparkCatalogImpl
-      );
+          "Please enable hive support for Spark. "
+              + "Using Spark's built-in %s catalog with Iceberg's hive catalog "
+              + "might result in inconsistent behavior of SparkSessionCatalog. ",
+          sparkCatalogImpl);
     }
   }
 

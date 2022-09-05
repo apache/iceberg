@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.spark.sql.SparkSession;
@@ -27,20 +26,22 @@ import org.junit.Test;
 public class TestSparkSessionCatalogWithoutHiveSupport {
   @Test
   public void testCheckHiveSupport() {
-    SparkSession sparkWithoutHiveSupport = SparkSession.builder()
-        .master("local[2]")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
-        .config("spark.sql.catalog.spark_catalog.type", "hive")
-        .getOrCreate();
+    SparkSession sparkWithoutHiveSupport =
+        SparkSession.builder()
+            .master("local[2]")
+            .config(
+                "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
+            .config("spark.sql.catalog.spark_catalog.type", "hive")
+            .getOrCreate();
     IllegalArgumentException exception =
         Assert.assertThrows(
             IllegalArgumentException.class,
             () -> sparkWithoutHiveSupport.sessionState().catalogManager().v2SessionCatalog());
     String errorMessage =
         String.format(
-            "Please enable hive support for Spark. " +
-                "Using Spark's built-in %s catalog with Iceberg's hive catalog " +
-                "might result in inconsistent behavior of SparkSessionCatalog. ",
+            "Please enable hive support for Spark. "
+                + "Using Spark's built-in %s catalog with Iceberg's hive catalog "
+                + "might result in inconsistent behavior of SparkSessionCatalog. ",
             StaticSQLConf.CATALOG_IMPLEMENTATION().defaultValue().get());
     Assert.assertEquals(errorMessage, exception.getMessage());
   }
