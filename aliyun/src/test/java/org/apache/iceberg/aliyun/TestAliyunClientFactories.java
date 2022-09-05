@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun;
 
 import com.aliyun.oss.OSS;
@@ -30,23 +29,27 @@ public class TestAliyunClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assert.assertEquals("Default client should be singleton",
-        AliyunClientFactories.defaultFactory(), AliyunClientFactories.defaultFactory());
+    Assert.assertEquals(
+        "Default client should be singleton",
+        AliyunClientFactories.defaultFactory(),
+        AliyunClientFactories.defaultFactory());
 
     AliyunClientFactory defaultFactory = AliyunClientFactories.from(Maps.newHashMap());
     Assert.assertTrue(
         "Should load default when factory impl not configured",
-         defaultFactory instanceof AliyunClientFactories.DefaultAliyunClientFactory);
-    Assert.assertNull("Should have no Aliyun properties set",
-        defaultFactory.aliyunProperties().accessKeyId());
+        defaultFactory instanceof AliyunClientFactories.DefaultAliyunClientFactory);
+    Assert.assertNull(
+        "Should have no Aliyun properties set", defaultFactory.aliyunProperties().accessKeyId());
 
-    AliyunClientFactory defaultFactoryWithConfig = AliyunClientFactories.from(
-        ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
+    AliyunClientFactory defaultFactoryWithConfig =
+        AliyunClientFactories.from(ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
     Assert.assertTrue(
         "Should load default when factory impl not configured",
         defaultFactoryWithConfig instanceof AliyunClientFactories.DefaultAliyunClientFactory);
-    Assert.assertEquals("Should have access key set",
-        "key", defaultFactoryWithConfig.aliyunProperties().accessKeyId());
+    Assert.assertEquals(
+        "Should have access key set",
+        "key",
+        defaultFactoryWithConfig.aliyunProperties().accessKeyId());
   }
 
   @Test
@@ -62,8 +65,7 @@ public class TestAliyunClientFactories {
 
     AliyunProperties aliyunProperties;
 
-    public CustomFactory() {
-    }
+    public CustomFactory() {}
 
     @Override
     public OSS newOSSClient() {

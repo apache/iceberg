@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
@@ -34,13 +33,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
-/**
- * A utility class that converts Spark values to Iceberg's internal representation.
- */
+/** A utility class that converts Spark values to Iceberg's internal representation. */
 public class SparkValueConverter {
 
-  private SparkValueConverter() {
-  }
+  private SparkValueConverter() {}
 
   public static Record convert(Schema schema, Row row) {
     return convert(schema.asStruct(), row);

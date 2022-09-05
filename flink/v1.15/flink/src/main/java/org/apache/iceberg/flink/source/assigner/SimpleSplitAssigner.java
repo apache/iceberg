@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.assigner;
 
 import java.util.ArrayDeque;
@@ -31,8 +30,8 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 
 /**
- * Since all methods are called in the source coordinator thread by enumerator,
- * there is no need for locking.
+ * Since all methods are called in the source coordinator thread by enumerator, there is no need for
+ * locking.
  */
 @Internal
 public class SimpleSplitAssigner implements SplitAssigner {
@@ -63,19 +62,23 @@ public class SimpleSplitAssigner implements SplitAssigner {
 
   @Override
   public void onDiscoveredSplits(Collection<IcebergSourceSplit> splits) {
-    pendingSplits.addAll(splits);
-    completeAvailableFuturesIfNeeded();
+    addSplits(splits);
   }
 
   @Override
   public void onUnassignedSplits(Collection<IcebergSourceSplit> splits) {
-    pendingSplits.addAll(splits);
-    completeAvailableFuturesIfNeeded();
+    addSplits(splits);
   }
 
-  /**
-   * Simple assigner only tracks unassigned splits
-   */
+  private void addSplits(Collection<IcebergSourceSplit> splits) {
+    if (!splits.isEmpty()) {
+      pendingSplits.addAll(splits);
+      // only complete pending future if new splits are discovered
+      completeAvailableFuturesIfNeeded();
+    }
+  }
+
+  /** Simple assigner only tracks unassigned splits */
   @Override
   public Collection<IcebergSourceSplitState> state() {
     return pendingSplits.stream()

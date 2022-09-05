@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr;
 
 import java.io.File;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -53,19 +53,19 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   @Parameterized.Parameters(name = "inputFormat = {0}, fileFormat={1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "IcebergInputFormat", FileFormat.PARQUET },
-        { "IcebergInputFormat", FileFormat.AVRO },
-        { "IcebergInputFormat", FileFormat.ORC },
-        { "MapredIcebergInputFormat", FileFormat.PARQUET },
-        { "MapredIcebergInputFormat", FileFormat.AVRO },
-        { "MapredIcebergInputFormat", FileFormat.ORC },
+      {"IcebergInputFormat", FileFormat.PARQUET},
+      {"IcebergInputFormat", FileFormat.AVRO},
+      {"IcebergInputFormat", FileFormat.ORC},
+      {"MapredIcebergInputFormat", FileFormat.PARQUET},
+      {"MapredIcebergInputFormat", FileFormat.AVRO},
+      {"MapredIcebergInputFormat", FileFormat.ORC},
     };
   }
 
   @Before
   @Override
   public void writeTestDataFile() throws IOException {
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     super.writeTestDataFile();
   }
 
@@ -97,17 +97,20 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
 
   @Override
   public StructLikeSet rowSet(String name, Table table, String... columns) {
-    InputFormatConfig.ConfigBuilder builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
+    InputFormatConfig.ConfigBuilder builder =
+        new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
     Schema projected = table.schema().select(columns);
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
 
-    set.addAll(TestIcebergInputFormats.TESTED_INPUT_FORMATS.stream()
-        .filter(recordFactory -> recordFactory.name().equals(inputFormat))
-        .map(recordFactory -> recordFactory.create(builder.project(projected).conf()).getRecords())
-        .flatMap(List::stream)
-        .map(record -> new InternalRecordWrapper(projected.asStruct()).wrap(record))
-        .collect(Collectors.toList())
-    );
+    set.addAll(
+        TestIcebergInputFormats.TESTED_INPUT_FORMATS.stream()
+            .filter(recordFactory -> recordFactory.name().equals(inputFormat))
+            .map(
+                recordFactory ->
+                    recordFactory.create(builder.project(projected).conf()).getRecords())
+            .flatMap(List::stream)
+            .map(record -> new InternalRecordWrapper(projected.asStruct()).wrap(record))
+            .collect(Collectors.toList()));
 
     return set;
   }

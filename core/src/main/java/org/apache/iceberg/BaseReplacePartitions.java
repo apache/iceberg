@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -24,8 +23,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
 
-public class BaseReplacePartitions
-    extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
+public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartitions>
+    implements ReplacePartitions {
 
   private final PartitionSet replacedPartitions;
   private Long startingSnapshotId;
@@ -81,7 +80,7 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public void validate(TableMetadata currentMetadata) {
+  public void validate(TableMetadata currentMetadata, Snapshot snapshot) {
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
@@ -102,14 +101,14 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     if (dataSpec().fields().size() <= 0) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());
     }
 
     try {
-      return super.apply(base);
+      return super.apply(base, snapshot);
     } catch (ManifestFilterManager.DeleteException e) {
       throw new ValidationException(
           "Cannot commit file that conflicts with existing partition: %s", e.partition());

@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -34,17 +34,18 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Base class for {@link TableScan} implementations.
- */
-abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
+/** Base class for {@link TableScan} implementations. */
+abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask>
+    implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
+  private ScanReport.ScanMetrics scanMetrics;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected BaseTableScan(
+      TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, context);
   }
 
@@ -52,23 +53,19 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
     return context().snapshotId();
   }
 
-  protected boolean colStats() {
-    return context().returnColumnStats();
-  }
-
-  protected boolean shouldIgnoreResiduals() {
-    return context().ignoreResiduals();
-  }
-
-  protected ExecutorService planExecutor() {
-    return context().planExecutor();
-  }
-
   protected Map<String, String> options() {
     return context().options();
   }
 
   protected abstract CloseableIterable<FileScanTask> doPlanFiles();
+
+  protected ScanReport.ScanMetrics scanMetrics() {
+    if (scanMetrics == null) {
+      this.scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    }
+
+    return scanMetrics;
+  }
 
   @Override
   public Table table() {
@@ -87,38 +84,51 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId());
-    Preconditions.checkArgument(tableOps().current().snapshot(scanSnapshotId) != null,
-        "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+    Preconditions.checkArgument(
+        tableOps().current().snapshot(scanSnapshotId) != null,
+        "Cannot find snapshot with ID %s",
+        scanSnapshotId);
+    return newRefinedScan(
+        tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId());
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
 
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
-  }
-
-  @Override
-  public Expression filter() {
-    return context().rowFilter();
   }
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
-      LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table(),
-          snapshot.snapshotId(), DateTimeUtil.formatTimestampMillis(snapshot.timestampMillis()),
+      LOG.info(
+          "Scanning table {} snapshot {} created at {} with filter {}",
+          table(),
+          snapshot.snapshotId(),
+          DateTimeUtil.formatTimestampMillis(snapshot.timestampMillis()),
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
+      Timer.Timed scanDuration = scanMetrics().totalPlanningDuration().start();
 
-      return doPlanFiles();
-
+      return CloseableIterable.whenComplete(
+          doPlanFiles(),
+          () -> {
+            scanDuration.stop();
+            ScanReport scanReport =
+                ScanReport.builder()
+                    .withProjection(schema())
+                    .withTableName(table().name())
+                    .withSnapshotId(snapshot.snapshotId())
+                    .fromScanMetrics(scanMetrics())
+                    .build();
+            context().scanReporter().reportScan(scanReport);
+          });
     } else {
       LOG.info("Scanning empty table {}", table());
       return CloseableIterable.empty();
@@ -128,20 +138,17 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
-    return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+    CloseableIterable<FileScanTask> splitFiles =
+        TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
+    return TableScanUtil.planTasks(
+        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
   }
 
   @Override
   public Snapshot snapshot() {
-    return snapshotId() != null ?
-        tableOps().current().snapshot(snapshotId()) :
-        tableOps().current().currentSnapshot();
-  }
-
-  @Override
-  public boolean isCaseSensitive() {
-    return context().caseSensitive();
+    return snapshotId() != null
+        ? tableOps().current().snapshot(snapshotId())
+        : tableOps().current().currentSnapshot();
   }
 
   @Override

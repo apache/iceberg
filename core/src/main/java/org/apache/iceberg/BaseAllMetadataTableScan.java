@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -35,12 +34,17 @@ import org.slf4j.LoggerFactory;
 abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseAllMetadataTableScan.class);
 
-  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
+  BaseAllMetadataTableScan(
+      TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
     super(ops, table, schema, tableType);
   }
 
-  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType,
-                           TableScanContext context) {
+  BaseAllMetadataTableScan(
+      TableOperations ops,
+      Table table,
+      Schema schema,
+      MetadataTableType tableType,
+      TableScanContext context) {
     super(ops, table, schema, tableType, context);
   }
 
@@ -56,17 +60,23 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    LOG.info("Scanning metadata table {} with filter {}.", table(), ExpressionUtil.toSanitizedString(filter()));
+    LOG.info(
+        "Scanning metadata table {} with filter {}.",
+        table(),
+        ExpressionUtil.toSanitizedString(filter()));
     Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
 
     return doPlanFiles();
   }
 
-  protected CloseableIterable<ManifestFile> reachableManifests(Function<Snapshot, Iterable<ManifestFile>> toManifests) {
+  protected CloseableIterable<ManifestFile> reachableManifests(
+      Function<Snapshot, Iterable<ManifestFile>> toManifests) {
     Iterable<Snapshot> snapshots = table().snapshots();
-    Iterable<Iterable<ManifestFile>> manifestIterables = Iterables.transform(snapshots, toManifests);
+    Iterable<Iterable<ManifestFile>> manifestIterables =
+        Iterables.transform(snapshots, toManifests);
 
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(manifestIterables, planExecutor())) {
+    try (CloseableIterable<ManifestFile> iterable =
+        new ParallelIterable<>(manifestIterables, planExecutor())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close parallel iterable", e);

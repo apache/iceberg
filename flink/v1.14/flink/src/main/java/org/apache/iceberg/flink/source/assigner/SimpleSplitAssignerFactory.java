@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.assigner;
 
 import java.util.Collection;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
-/**
- * Create simple assigner that hands out splits without any guarantee in order or locality.
- */
+/** Create simple assigner that hands out splits without any guarantee in order or locality. */
 public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
 
   @Override

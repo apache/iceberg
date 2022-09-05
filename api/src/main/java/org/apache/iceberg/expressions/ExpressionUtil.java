@@ -16,36 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
-/**
- * Expression utility methods.
- */
+/** Expression utility methods. */
 public class ExpressionUtil {
-  private static final Transform<CharSequence, Integer> HASH_FUNC = Transforms
-      .bucket(Types.StringType.get(), Integer.MAX_VALUE);
+  private static final Function<Object, Integer> HASH_FUNC =
+      Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
   private static final Pattern DATE = Pattern.compile("\\d\\d\\d\\d-\\d\\d-\\d\\d");
-  private static final Pattern TIME = Pattern.compile(
-      "\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?");
-  private static final Pattern TIMESTAMP = Pattern.compile(
-      "\\d\\d\\d\\d-\\d\\d-\\d\\dT\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?([-+]\\d\\d:\\d\\d)?");
+  private static final Pattern TIME = Pattern.compile("\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?");
+  private static final Pattern TIMESTAMP =
+      Pattern.compile(
+          "\\d\\d\\d\\d-\\d\\d-\\d\\dT\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?([-+]\\d\\d:\\d\\d)?");
 
-  private ExpressionUtil() {
-  }
+  private ExpressionUtil() {}
 
   /**
-   * Produces an unbound {@link Expression} with the same structure, but with data values replaced by descriptions.
-   * <p>
-   * Numbers are replaced with magnitude and type, string-like values are replaced by hashes, and date/time values are
-   * replaced by the type.
+   * Produces an unbound {@link Expression} with the same structure, but with data values replaced
+   * by descriptions.
+   *
+   * <p>Numbers are replaced with magnitude and type, string-like values are replaced by hashes, and
+   * date/time values are replaced by the type.
    *
    * @param expr an Expression to sanitize
    * @return a sanitized Expression
@@ -55,10 +52,11 @@ public class ExpressionUtil {
   }
 
   /**
-   * Produces a sanitized expression string with the same structure, but with data values replaced by descriptions.
-   * <p>
-   * Numbers are replaced with magnitude and type, string-like values are replaced by hashes, and date/time values are
-   * replaced by the type.
+   * Produces a sanitized expression string with the same structure, but with data values replaced
+   * by descriptions.
+   *
+   * <p>Numbers are replaced with magnitude and type, string-like values are replaced by hashes, and
+   * date/time values are replaced by the type.
    *
    * @param expr an Expression to sanitize
    * @return a sanitized expression string
@@ -69,10 +67,10 @@ public class ExpressionUtil {
 
   /**
    * Returns whether two unbound expressions will accept the same inputs.
-   * <p>
-   * If this returns true, the expressions are guaranteed to return the same evaluation for the same input. However, if
-   * this returns false the expressions may return the same evaluation for the same input. That is, expressions may
-   * be equivalent even if this returns false.
+   *
+   * <p>If this returns true, the expressions are guaranteed to return the same evaluation for the
+   * same input. However, if this returns false the expressions may return the same evaluation for
+   * the same input. That is, expressions may be equivalent even if this returns false.
    *
    * @param left an unbound expression
    * @param right an unbound expression
@@ -80,29 +78,33 @@ public class ExpressionUtil {
    * @param caseSensitive whether to bind expressions using case-sensitive matching
    * @return true if the expressions are equivalent
    */
-  public static boolean equivalent(Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
+  public static boolean equivalent(
+      Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
     return Binder.bind(struct, Expressions.rewriteNot(left), caseSensitive)
         .isEquivalentTo(Binder.bind(struct, Expressions.rewriteNot(right), caseSensitive));
   }
 
   /**
    * Returns whether an expression selects whole partitions for a partition spec.
-   * <p>
-   * For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec, [hours(ts)], but does
-   * not select whole partitions in a daily spec, [days(ts)].
+   *
+   * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
+   * [hours(ts)], but does not select whole partitions in a daily spec, [days(ts)].
    *
    * @param expr an unbound expression
    * @param spec a partition spec
    * @return true if the expression will select whole partitions in the given spec
    */
-  public static boolean selectsPartitions(Expression expr, PartitionSpec spec, boolean caseSensitive) {
+  public static boolean selectsPartitions(
+      Expression expr, PartitionSpec spec, boolean caseSensitive) {
     return equivalent(
         Projections.inclusive(spec, caseSensitive).project(expr),
         Projections.strict(spec, caseSensitive).project(expr),
-        spec.partitionType(), caseSensitive);
+        spec.partitionType(),
+        caseSensitive);
   }
 
-  private static class ExpressionSanitizer extends ExpressionVisitors.ExpressionVisitor<Expression> {
+  private static class ExpressionSanitizer
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
     private static final ExpressionSanitizer INSTANCE = new ExpressionSanitizer();
 
     @Override
@@ -156,10 +158,12 @@ public class ExpressionUtil {
           return new UnboundPredicate<>(pred.op(), pred.term(), (T) sanitize(pred.literal()));
         case IN:
         case NOT_IN:
-          Iterable<String> iter = () -> pred.literals().stream().map(ExpressionUtil::sanitize).iterator();
+          Iterable<String> iter =
+              () -> pred.literals().stream().map(ExpressionUtil::sanitize).iterator();
           return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
         default:
-          throw new UnsupportedOperationException("Cannot sanitize unsupported predicate type: " + pred.op());
+          throw new UnsupportedOperationException(
+              "Cannot sanitize unsupported predicate type: " + pred.op());
       }
     }
   }
@@ -232,19 +236,24 @@ public class ExpressionUtil {
         case NOT_EQ:
           return term + " != " + sanitize(pred.literal());
         case IN:
-          return term + " IN " + pred.literals().stream()
-              .map(ExpressionUtil::sanitize)
-              .collect(Collectors.joining(", ", "(", ")"));
+          return term
+              + " IN "
+              + pred.literals().stream()
+                  .map(ExpressionUtil::sanitize)
+                  .collect(Collectors.joining(", ", "(", ")"));
         case NOT_IN:
-          return term + " NOT IN " + pred.literals().stream()
-              .map(ExpressionUtil::sanitize)
-              .collect(Collectors.joining(", ", "(", ")"));
+          return term
+              + " NOT IN "
+              + pred.literals().stream()
+                  .map(ExpressionUtil::sanitize)
+                  .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + sanitize(pred.literal());
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal());
         default:
-          throw new UnsupportedOperationException("Cannot sanitize unsupported predicate type: " + pred.op());
+          throw new UnsupportedOperationException(
+              "Cannot sanitize unsupported predicate type: " + pred.op());
       }
     }
   }

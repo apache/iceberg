@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -25,9 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-/**
- * Represents a change to table metadata.
- */
+/** Represents a change to table metadata. */
 public interface MetadataUpdate extends Serializable {
   void applyTo(TableMetadata.Builder metadataBuilder);
 
@@ -181,6 +178,46 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class SetStatistics implements MetadataUpdate {
+    private final long snapshotId;
+    private final StatisticsFile statisticsFile;
+
+    public SetStatistics(long snapshotId, StatisticsFile statisticsFile) {
+      this.snapshotId = snapshotId;
+      this.statisticsFile = statisticsFile;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    public StatisticsFile statisticsFile() {
+      return statisticsFile;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setStatistics(snapshotId, statisticsFile);
+    }
+  }
+
+  class RemoveStatistics implements MetadataUpdate {
+    private final long snapshotId;
+
+    public RemoveStatistics(long snapshotId) {
+      this.snapshotId = snapshotId;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeStatistics(snapshotId);
+    }
+  }
+
   class AddSnapshot implements MetadataUpdate {
     private final Snapshot snapshot;
 
@@ -240,8 +277,13 @@ public interface MetadataUpdate extends Serializable {
     private Long maxSnapshotAgeMs;
     private Long maxRefAgeMs;
 
-    public SetSnapshotRef(String refName, Long snapshotId, SnapshotRefType type, Integer minSnapshotsToKeep,
-                          Long maxSnapshotAgeMs, Long maxRefAgeMs) {
+    public SetSnapshotRef(
+        String refName,
+        Long snapshotId,
+        SnapshotRefType type,
+        Integer minSnapshotsToKeep,
+        Long maxSnapshotAgeMs,
+        Long maxRefAgeMs) {
       this.refName = refName;
       this.snapshotId = snapshotId;
       this.type = type;
@@ -276,11 +318,12 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      SnapshotRef ref = SnapshotRef.builderFor(snapshotId, type)
-          .minSnapshotsToKeep(minSnapshotsToKeep)
-          .maxSnapshotAgeMs(maxSnapshotAgeMs)
-          .maxRefAgeMs(maxRefAgeMs)
-          .build();
+      SnapshotRef ref =
+          SnapshotRef.builderFor(snapshotId, type)
+              .minSnapshotsToKeep(minSnapshotsToKeep)
+              .maxSnapshotAgeMs(maxSnapshotAgeMs)
+              .maxRefAgeMs(maxRefAgeMs)
+              .build();
       metadataBuilder.setRef(refName, ref);
     }
   }

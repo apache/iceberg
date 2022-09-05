@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -32,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -42,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -249,6 +253,29 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testDeleteTableWithPurge() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+
+    DataFile testFile =
+      DataFiles.builder(PartitionSpec.unpartitioned())
+          .withPath("/path/to/data-unpartitioned-a.parquet")
+          .withFileSizeInBytes(1)
+          .withRecordCount(1)
+          .build();
+    int numFilesToCreate = 31;
+    int commitFrequency = 5;
+    Transaction txn = table.newTransaction();
+    for (int i = 1; i <= numFilesToCreate; i++) {
+      AppendFiles appendFiles = txn.newFastAppend().appendFile(testFile);
+      appendFiles.commit();
+      // Every "commitFrequency" appends commit the transaction and start a new one so we can have multiple manifests
+      if (i % commitFrequency == 0) {
+        txn.commitTransaction();
+        txn = table.newTransaction();
+      }
+    }
+
+    txn.commitTransaction();
+
     glueCatalog.dropTable(TableIdentifier.of(namespace, tableName));
     AssertHelpers.assertThrows("should not have table",
         NoSuchTableException.class,
@@ -296,6 +323,20 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertEquals("skipArchive should not create new version",
         1, glue.getTableVersions(GetTableVersionsRequest.builder()
             .databaseName(namespace).tableName(tableName).build()).tableVersions().size());
+  }
+
+  @Test
+  public void testCommitTableSkipNameValidation() {
+    String namespace = "dd-dd";
+    namespaces.add(namespace);
+    glueCatalogWithSkipNameValidation.createNamespace(Namespace.of(namespace));
+    String tableName = "cc-cc";
+    glueCatalogWithSkipNameValidation.createTable(
+            TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+            .databaseName(namespace).name(tableName).build());
+    Assert.assertEquals(namespace, response.table().databaseName());
+    Assert.assertEquals(tableName, response.table().name());
   }
 
   @Test
@@ -390,7 +431,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         NestedField.required(4, "data", Types.StringType.get())
     );
 
-    org.apache.iceberg.Table table = glueCatalog.buildTable(tableIdent, schema)
+    Table table = glueCatalog.buildTable(tableIdent, schema)
         .withProperty("key2", "table-key2")
         .withProperty("key3", "table-key3")
         .withProperty("key5", "table-key5")
@@ -418,5 +459,34 @@ public class TestGlueCatalogTable extends GlueTestBase {
             " properties.",
         "table-key5",
         table.properties().get("key5"));
+  }
+
+  @Test
+  public void testRegisterTable() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
+    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableAlreadyExists() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class);
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
   }
 }

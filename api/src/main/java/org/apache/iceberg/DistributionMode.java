@@ -16,27 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Enum of supported write distribution mode, it defines the write behavior of batch or streaming job:
- * <p>
- * 1. none: don't shuffle rows. It is suitable for scenarios where the rows are located in only few
- * partitions, otherwise that may produce too many small files because each task is writing rows into different
- * partitions randomly.
- * <p>
- * 2. hash: hash distribute by partition key, which is suitable for the scenarios where the rows are located
- * into different partitions evenly.
- * <p>
- * 3. range: range distribute by partition key (or sort key if table has an {@link SortOrder}), which is suitable
- * for the scenarios where rows are located into different partitions with skew distribution.
+ * Enum of supported write distribution mode, it defines the write behavior of batch or streaming
+ * job:
+ *
+ * <p>1. none: don't shuffle rows. It is suitable for scenarios where the rows are located in only
+ * few partitions, otherwise that may produce too many small files because each task is writing rows
+ * into different partitions randomly.
+ *
+ * <p>2. hash: hash distribute by partition key, which is suitable for the scenarios where the rows
+ * are located into different partitions evenly.
+ *
+ * <p>3. range: range distribute by partition key (or sort key if table has an {@link SortOrder}),
+ * which is suitable for the scenarios where rows are located into different partitions with skew
+ * distribution.
  */
 public enum DistributionMode {
-  NONE("none"), HASH("hash"), RANGE("range");
+  NONE("none"),
+  HASH("hash"),
+  RANGE("range");
 
   private final String modeName;
 

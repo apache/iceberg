@@ -16,29 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Takes in the full configuration for the {@link RESTSessionCatalog}, which should already have
- * called the server's initial configuration route.
- * Using the merged configuration, an instance of {@link RESTClient} is obtained that can be used with the
- * RESTCatalog.
+ * called the server's initial configuration route. Using the merged configuration, an instance of
+ * {@link RESTClient} is obtained that can be used with the RESTCatalog.
  */
 public class HTTPClientFactory implements Function<Map<String, String>, RESTClient> {
+
+  @VisibleForTesting static final String CLIENT_VERSION_HEADER = "X-Client-Version";
+
+  @VisibleForTesting
+  static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   @Override
   public RESTClient apply(Map<String, String> properties) {
     Preconditions.checkArgument(properties != null, "Invalid configuration: null");
-    Preconditions.checkArgument(properties.containsKey(CatalogProperties.URI), "REST Catalog server URI is required");
+    Preconditions.checkArgument(
+        properties.containsKey(CatalogProperties.URI), "REST Catalog server URI is required");
 
     String baseURI = properties.get(CatalogProperties.URI).trim();
+    String clientVersion = IcebergBuild.fullVersion();
+    String gitCommitShortId = IcebergBuild.gitCommitShortId();
 
-    return HTTPClient.builder().uri(baseURI).build();
+    return HTTPClient.builder()
+        .withHeader(CLIENT_VERSION_HEADER, clientVersion)
+        .withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, gitCommitShortId)
+        .uri(baseURI)
+        .build();
   }
 }

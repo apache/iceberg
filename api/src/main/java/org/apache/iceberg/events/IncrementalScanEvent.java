@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.events;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
-/**
- * Event sent to listeners when an incremental table scan is planned.
- */
+/** Event sent to listeners when an incremental table scan is planned. */
 public final class IncrementalScanEvent {
   private final String tableName;
   private final long fromSnapshotId;
@@ -33,8 +30,13 @@ public final class IncrementalScanEvent {
   private final Schema projection;
   private final boolean fromSnapshotInclusive;
 
-  public IncrementalScanEvent(String tableName, long fromSnapshotId, long toSnapshotId, Expression filter,
-                              Schema projection, boolean fromSnapshotInclusive) {
+  public IncrementalScanEvent(
+      String tableName,
+      long fromSnapshotId,
+      long toSnapshotId,
+      Expression filter,
+      Schema projection,
+      boolean fromSnapshotInclusive) {
     this.tableName = tableName;
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;

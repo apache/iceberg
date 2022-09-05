@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
@@ -35,14 +34,14 @@ import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
 
-  private DataFiles() {
-  }
+  private DataFiles() {}
 
   static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
   }
 
-  static PartitionData copyPartitionData(PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
+  static PartitionData copyPartitionData(
+      PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -64,20 +63,22 @@ public class DataFiles {
     }
 
     String[] partitions = partitionPath.split("/", -1);
-    Preconditions.checkArgument(partitions.length <= spec.fields().size(),
+    Preconditions.checkArgument(
+        partitions.length <= spec.fields().size(),
         "Invalid partition data, too many fields (expecting %s): %s",
-        spec.fields().size(), partitionPath);
-    Preconditions.checkArgument(partitions.length >= spec.fields().size(),
+        spec.fields().size(),
+        partitionPath);
+    Preconditions.checkArgument(
+        partitions.length >= spec.fields().size(),
         "Invalid partition data, not enough fields (expecting %s): %s",
-        spec.fields().size(), partitionPath);
+        spec.fields().size(),
+        partitionPath);
 
     for (int i = 0; i < partitions.length; i += 1) {
       PartitionField field = spec.fields().get(i);
       String[] parts = partitions[i].split("=", 2);
       Preconditions.checkArgument(
-          parts.length == 2 &&
-              parts[0] != null &&
-              field.name().equals(parts[0]),
+          parts.length == 2 && parts[0] != null && field.name().equals(parts[0]),
           "Invalid partition: %s",
           partitions[i]);
 
@@ -160,7 +161,8 @@ public class DataFiles {
 
     public Builder copy(DataFile toCopy) {
       if (isPartitioned) {
-        Preconditions.checkState(specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
+        Preconditions.checkState(
+            specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.filePath = toCopy.path().toString();
@@ -173,8 +175,8 @@ public class DataFiles {
       this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
-      this.keyMetadata = toCopy.keyMetadata() == null ? null
-          : ByteBuffers.copy(toCopy.keyMetadata());
+      this.keyMetadata =
+          toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
       return this;
@@ -233,7 +235,8 @@ public class DataFiles {
     }
 
     public Builder withPartitionPath(String newPartitionPath) {
-      Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
+      Preconditions.checkArgument(
+          isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
       if (!newPartitionPath.isEmpty()) {
         this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
@@ -288,10 +291,22 @@ public class DataFiles {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
-          specId, filePath, format, isPartitioned ? partitionData.copy() : null,
-          fileSizeInBytes, new Metrics(
-              recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
-          keyMetadata, splitOffsets, sortOrderId);
+          specId,
+          filePath,
+          format,
+          isPartitioned ? partitionData.copy() : null,
+          fileSizeInBytes,
+          new Metrics(
+              recordCount,
+              columnSizes,
+              valueCounts,
+              nullValueCounts,
+              nanValueCounts,
+              lowerBounds,
+              upperBounds),
+          keyMetadata,
+          splitOffsets,
+          sortOrderId);
     }
   }
 

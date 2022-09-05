@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,13 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
-
-public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> implements RewriteManifests {
+public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
+    implements RewriteManifests {
   private static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   private static final String CREATED_MANIFESTS_COUNT = "manifests-created";
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
@@ -81,9 +80,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     this.ops = ops;
     this.specsById = ops.current().specsById();
     this.manifestTargetSizeBytes =
-      ops.current().propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-    this.snapshotIdInheritanceEnabled = ops.current()
-        .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+        ops.current()
+            .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.snapshotIdInheritanceEnabled =
+        ops.current()
+            .propertyAsBoolean(
+                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -104,12 +106,16 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   @Override
   protected Map<String, String> summary() {
-    int createdManifestsCount = newManifests.size() + addedManifests.size() + rewrittenAddedManifests.size();
+    int createdManifestsCount =
+        newManifests.size() + addedManifests.size() + rewrittenAddedManifests.size();
     summaryBuilder.set(CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
     summaryBuilder.set(KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
-    summaryBuilder.set(REPLACED_MANIFESTS_COUNT, String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
+    summaryBuilder.set(
+        REPLACED_MANIFESTS_COUNT,
+        String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
     summaryBuilder.set(PROCESSED_ENTRY_COUNT, String.valueOf(entryCount.get()));
-    summaryBuilder.setPartitionSummaryLimit(0); // do not include partition summaries because data did not change
+    summaryBuilder.setPartitionSummaryLimit(
+        0); // do not include partition summaries because data did not change
     return summaryBuilder.build();
   }
 
@@ -134,12 +140,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   @Override
   public RewriteManifests addManifest(ManifestFile manifest) {
     Preconditions.checkArgument(!manifest.hasAddedFiles(), "Cannot add manifest with added files");
-    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
+    Preconditions.checkArgument(
+        !manifest.hasDeletedFiles(), "Cannot add manifest with deleted files");
     Preconditions.checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
-    Preconditions.checkArgument(manifest.sequenceNumber() == -1,
-        "Sequence must be assigned during commit");
+    Preconditions.checkArgument(
+        manifest.sequenceNumber() == -1, "Sequence must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
@@ -161,7 +168,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
@@ -175,9 +182,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     validateFilesCounts();
 
-    Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
-        Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
-        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
+    Iterable<ManifestFile> newManifestsWithMetadata =
+        Iterables.transform(
+            Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
+            manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
 
     // put new manifests at the beginning
     List<ManifestFile> apply = Lists.newArrayList();
@@ -207,7 +215,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     // keep any existing manifests as-is that were not processed
     keptManifests.clear();
     currentManifests.stream()
-        .filter(manifest -> !rewrittenManifests.contains(manifest) && !deletedManifests.contains(manifest))
+        .filter(
+            manifest ->
+                !rewrittenManifests.contains(manifest) && !deletedManifests.contains(manifest))
         .forEach(keptManifests::add);
   }
 
@@ -223,29 +233,37 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private void performRewrite(List<ManifestFile> currentManifests) {
     reset();
 
-    List<ManifestFile> remainingManifests = currentManifests.stream()
-        .filter(manifest -> !deletedManifests.contains(manifest))
-        .collect(Collectors.toList());
+    List<ManifestFile> remainingManifests =
+        currentManifests.stream()
+            .filter(manifest -> !deletedManifests.contains(manifest))
+            .collect(Collectors.toList());
 
     try {
       Tasks.foreach(remainingManifests)
           .executeWith(workerPool())
-          .run(manifest -> {
-            if (predicate != null && !predicate.test(manifest)) {
-              keptManifests.add(manifest);
-            } else {
-              rewrittenManifests.add(manifest);
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
-                  .select(Arrays.asList("*"))) {
-                reader.liveEntries().forEach(
-                    entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())
-                );
+          .run(
+              manifest -> {
+                if (predicate != null && !predicate.test(manifest)) {
+                  keptManifests.add(manifest);
+                } else {
+                  rewrittenManifests.add(manifest);
+                  try (ManifestReader<DataFile> reader =
+                      ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
+                          .select(Arrays.asList("*"))) {
+                    reader
+                        .liveEntries()
+                        .forEach(
+                            entry ->
+                                appendEntry(
+                                    entry,
+                                    clusterByFunc.apply(entry.file()),
+                                    manifest.partitionSpecId()));
 
-              } catch (IOException x) {
-                throw new RuntimeIOException(x);
-              }
-            }
-          });
+                  } catch (IOException x) {
+                    throw new RuntimeIOException(x);
+                  }
+                }
+              });
     } finally {
       Tasks.foreach(writers.values()).executeWith(workerPool()).run(WriterWrapper::close);
     }
@@ -256,16 +274,19 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     deletedManifests.stream()
         .filter(manifest -> !currentManifests.contains(manifest))
         .findAny()
-        .ifPresent(manifest -> {
-          throw new ValidationException("Manifest is missing: %s", manifest.path());
-        });
+        .ifPresent(
+            manifest -> {
+              throw new ValidationException("Manifest is missing: %s", manifest.path());
+            });
   }
 
   private void validateFilesCounts() {
-    Iterable<ManifestFile> createdManifests = Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests);
+    Iterable<ManifestFile> createdManifests =
+        Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests);
     int createdManifestsFilesCount = activeFilesCount(createdManifests);
 
-    Iterable<ManifestFile> replacedManifests = Iterables.concat(rewrittenManifests, deletedManifests);
+    Iterable<ManifestFile> replacedManifests =
+        Iterables.concat(rewrittenManifests, deletedManifests);
     int replacedManifestsFilesCount = activeFilesCount(replacedManifests);
 
     if (createdManifestsFilesCount != replacedManifestsFilesCount) {
@@ -279,8 +300,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     int activeFilesCount = 0;
 
     for (ManifestFile manifest : manifests) {
-      Preconditions.checkNotNull(manifest.addedFilesCount(), "Missing file counts in %s", manifest.path());
-      Preconditions.checkNotNull(manifest.existingFilesCount(), "Missing file counts in %s", manifest.path());
+      Preconditions.checkNotNull(
+          manifest.addedFilesCount(), "Missing file counts in %s", manifest.path());
+      Preconditions.checkNotNull(
+          manifest.existingFilesCount(), "Missing file counts in %s", manifest.path());
       activeFilesCount += manifest.addedFilesCount();
       activeFilesCount += manifest.existingFilesCount();
     }
@@ -310,7 +333,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     cleanUncommitted(rewrittenAddedManifests, committed);
   }
 
-  private void cleanUncommitted(Iterable<ManifestFile> manifests, Set<ManifestFile> committedManifests) {
+  private void cleanUncommitted(
+      Iterable<ManifestFile> manifests, Set<ManifestFile> committedManifests) {
     for (ManifestFile manifest : manifests) {
       if (!committedManifests.contains(manifest)) {
         deleteFile(manifest.path());
@@ -350,7 +374,5 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
         }
       }
     }
-
   }
-
 }

@@ -16,30 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import java.util.Map;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.StructProjection;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
- * <p>
- * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
- * use {@link DataFilesTable}.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
+ * and data files.
+ *
+ * <p>WARNING: this table exposes internal details, like files that have been deleted. For a table
+ * of the live data files, use {@link DataFilesTable}.
  */
-public class ManifestEntriesTable extends BaseMetadataTable {
+public class ManifestEntriesTable extends BaseEntriesTable {
 
   ManifestEntriesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".entries");
@@ -55,18 +43,6 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  public Schema schema() {
-    StructType partitionType = Partitioning.partitionType(table());
-    Schema schema = ManifestEntry.getSchema(partitionType);
-    if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
-  }
-
-  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.ENTRIES;
   }
@@ -77,72 +53,22 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       super(ops, table, schema, MetadataTableType.ENTRIES);
     }
 
-    private EntriesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    private EntriesTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ENTRIES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
-                                       TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new EntriesTableScan(ops, table, schema, context);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      // return entries from both data and delete manifests
       CloseableIterable<ManifestFile> manifests =
           CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
-      return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
-    }
-  }
-
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
-    private final Schema schema;
-    private final Schema fileSchema;
-    private final FileIO io;
-    private final ManifestFile manifest;
-    private final Map<Integer, PartitionSpec> specsById;
-
-    ManifestReadTask(Table table, ManifestFile manifest, Schema schema, String schemaString,
-                     String specString, ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.schema = schema;
-      this.io = table.io();
-      this.manifest = manifest;
-      this.specsById = Maps.newHashMap(table.specs());
-
-      Type fileProjection = schema.findType("data_file");
-      this.fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
-    }
-
-    @Override
-    public CloseableIterable<StructLike> rows() {
-      // Project data-file fields
-      CloseableIterable<StructLike> prunedRows;
-      if (manifest.content() == ManifestContent.DATA) {
-        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
-            file -> (GenericManifestEntry<DataFile>) file);
-      } else {
-        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                .project(fileSchema).entries(),
-            file -> (GenericManifestEntry<DeleteFile>) file);
-      }
-
-      // Project non-readable fields
-      Schema readSchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
-      StructProjection projection = StructProjection.create(readSchema, schema);
-      return CloseableIterable.transform(prunedRows, projection::wrap);
-    }
-
-    @Override
-    public Iterable<FileScanTask> split(long splitSize) {
-      return ImmutableList.of(this); // don't split
+      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
   }
 }

@@ -1,6 +1,8 @@
 ---
+title: "Puffin Spec"
 url: puffin-spec
-toc: false
+toc: true
+disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -101,7 +103,9 @@ with content size present), UTF-8 encoded JSON payload representing a single
 | Field Name        | Field Type                              | Required | Description |
 |-------------------|-----------------------------------------|----------| ----------- |
 | type              | JSON string                             | yes      | See [Blob types](#blob-types)
-| fields            | list of JSON long                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob.
+| fields            | JSON list of ints                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob.
+| snapshot-id       | JSON long                               | yes      | ID of the Iceberg table's snapshot the blob was computed from.
+| sequence-number   | JSON long                               | yes      | Sequence number of the Iceberg table's snapshot the blob was computed from.
 | offset            | JSON long                               | yes      | The offset in the file where the blob contents start
 | length            | JSON long                               | yes      | The length of the blob stored in the file (after compression, if compressed)
 | compression-codec | JSON string                             | no       | See [Compression codecs](#compression-codecs). If omitted, the data is assumed to be uncompressed.
@@ -140,5 +144,3 @@ When writing a Puffin file it is recommended to set the following fields in the
 
 - `created-by` - human-readable identification of the application writing the file,
   along with its version. Example "Trino version 381".
-- `source-snapshot-id` - a table snapshot which was used to calculate blob contents
-- `source-sequence-number` - sequence number of the table snapshot used to calculate blob contents

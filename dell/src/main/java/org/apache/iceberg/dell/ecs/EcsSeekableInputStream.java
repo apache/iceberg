@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.Range;
@@ -25,16 +24,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 
 /**
- * A {@link SeekableInputStream} implementation that warp {@link S3Client#readObjectStream(String, String, Range)}
+ * A {@link SeekableInputStream} implementation that warp {@link S3Client#readObjectStream(String,
+ * String, Range)}
+ *
  * <ol>
- *   <li>The stream is only be loaded when start reading.</li>
- *   <li>This class won't cache any bytes of content. It only maintains pos of {@link SeekableInputStream}</li>
- *   <li>This class is not thread-safe.</li>
+ *   <li>The stream is only be loaded when start reading.
+ *   <li>This class won't cache any bytes of content. It only maintains pos of {@link
+ *       SeekableInputStream}
+ *   <li>This class is not thread-safe.
  * </ol>
  */
 class EcsSeekableInputStream extends SeekableInputStream {
@@ -42,24 +44,21 @@ class EcsSeekableInputStream extends SeekableInputStream {
   private final S3Client client;
   private final EcsURI uri;
 
-  /**
-   * Mutable pos set by {@link #seek(long)}
-   */
+  /** Mutable pos set by {@link #seek(long)} */
   private long newPos = 0;
-  /**
-   * Current pos of object content
-   */
+  /** Current pos of object content */
   private long pos = -1;
+
   private InputStream internalStream;
 
-  private final Counter<Long> readBytes;
-  private final Counter<Integer> readOperations;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   EcsSeekableInputStream(S3Client client, EcsURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
   }
 
   @Override
@@ -90,7 +89,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
     pos += delta;
-    readBytes.increment((long) delta);
+    readBytes.increment(delta);
     readOperations.increment();
     return delta;
   }

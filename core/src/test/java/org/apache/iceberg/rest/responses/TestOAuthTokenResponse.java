@@ -16,25 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.Collections;
-import java.util.Set;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenResponse> {
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "access_token", "token_type", "issued_token_type", "expires_in", "scope" };
+    return new String[] {"access_token", "token_type", "issued_token_type", "expires_in", "scope"};
   }
 
   @Override
@@ -52,8 +46,10 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
   public void assertEquals(OAuthTokenResponse actual, OAuthTokenResponse expected) {
     Assert.assertEquals("Token should match", expected.token(), actual.token());
     Assert.assertEquals("Token type should match", expected.tokenType(), actual.tokenType());
-    Assert.assertEquals("Issued token type should match", expected.issuedTokenType(), actual.issuedTokenType());
-    Assert.assertEquals("Expiration should match", expected.expiresInSeconds(), actual.expiresInSeconds());
+    Assert.assertEquals(
+        "Issued token type should match", expected.issuedTokenType(), actual.issuedTokenType());
+    Assert.assertEquals(
+        "Expiration should match", expected.expiresInSeconds(), actual.expiresInSeconds());
     Assert.assertEquals("Scope should match", expected.scopes(), actual.scopes());
   }
 
@@ -67,24 +63,6 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
     return OAuth2Util.tokenResponseToJson(response);
   }
 
-  @Override
-  public void testHasOnlyKnownFields() {
-    Set<String> fieldsFromSpec = Sets.newHashSet();
-    Collections.addAll(fieldsFromSpec, allFieldsFromSpec());
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
-      for (String field : fieldsFromSpec) {
-        Assert.assertTrue("Should have field: " + field, node.has(field));
-      }
-
-      for (String field : ((Iterable<? extends String>) node::fieldNames)) {
-        Assert.assertTrue("Should not have field: " + field, fieldsFromSpec.contains(field));
-      }
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   @Test
   public void testRoundTrip() throws Exception {
     assertRoundTripSerializesEquallyFrom(
@@ -92,8 +70,8 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
         OAuthTokenResponse.builder().withToken("bearer-token").withTokenType("bearer").build());
 
     assertRoundTripSerializesEquallyFrom(
-        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\"," +
-            "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}",
+        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+            + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}",
         OAuthTokenResponse.builder()
             .withToken("bearer-token")
             .withTokenType("bearer")
@@ -118,9 +96,9 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
             .build());
 
     assertRoundTripSerializesEquallyFrom(
-        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\"," +
-            "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"," +
-            "\"expires_in\":600,\"scope\":\"a b\"}",
+        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+            + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\","
+            + "\"expires_in\":600,\"scope\":\"a b\"}",
         OAuthTokenResponse.builder()
             .withToken("bearer-token")
             .withTokenType("bearer")
@@ -136,25 +114,25 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
     AssertHelpers.assertThrows(
         "Token should be required",
         IllegalArgumentException.class,
-        "missing string access_token",
+        "missing string: access_token",
         () -> deserialize("{\"token_type\":\"bearer\"}"));
 
     AssertHelpers.assertThrows(
         "Token should be string",
         IllegalArgumentException.class,
-        "Cannot parse access_token to a string value: 34",
+        "Cannot parse to a string value: access_token: 34",
         () -> deserialize("{\"access_token\":34,\"token_type\":\"bearer\"}"));
 
     AssertHelpers.assertThrows(
         "Token type should be required",
         IllegalArgumentException.class,
-        "missing string token_type",
+        "missing string: token_type",
         () -> deserialize("{\"access_token\":\"bearer-token\"}"));
 
     AssertHelpers.assertThrows(
         "Token type should be string",
         IllegalArgumentException.class,
-        "Cannot parse token_type to a string value: 34",
+        "Cannot parse to a string value: token_type: 34",
         () -> deserialize("{\"access_token\":\"bearer-token\",\"token_type\":34}"));
   }
 }

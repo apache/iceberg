@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.io.Closeable;
@@ -40,7 +39,8 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
+public class RESTCatalog
+    implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
@@ -53,7 +53,9 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     this(SessionCatalog.SessionContext.createEmpty(), clientBuilder);
   }
 
-  public RESTCatalog(SessionCatalog.SessionContext context, Function<Map<String, String>, RESTClient> clientBuilder) {
+  public RESTCatalog(
+      SessionCatalog.SessionContext context,
+      Function<Map<String, String>, RESTClient> clientBuilder) {
     this.sessionCatalog = new RESTSessionCatalog(clientBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
@@ -100,14 +102,18 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
-                           Map<String, String> props) {
+  public Table createTable(
+      TableIdentifier ident,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> props) {
     return delegate.createTable(ident, schema, spec, location, props);
   }
 
   @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                           Map<String, String> props) {
+  public Table createTable(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> props) {
     return delegate.createTable(ident, schema, spec, props);
   }
 
@@ -122,19 +128,24 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                               String location, Map<String, String> props) {
+  public Transaction newCreateTableTransaction(
+      TableIdentifier ident,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> props) {
     return delegate.newCreateTableTransaction(ident, schema, spec, location, props);
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                               Map<String, String> props) {
+  public Transaction newCreateTableTransaction(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, Map<String, String> props) {
     return delegate.newCreateTableTransaction(ident, schema, spec, props);
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+  public Transaction newCreateTableTransaction(
+      TableIdentifier ident, Schema schema, PartitionSpec spec) {
     return delegate.newCreateTableTransaction(ident, schema, spec);
   }
 
@@ -144,25 +155,35 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                                String location, Map<String, String> props, boolean orCreate) {
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier ident,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> props,
+      boolean orCreate) {
     return delegate.newReplaceTableTransaction(ident, schema, spec, location, props, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                                Map<String, String> props, boolean orCreate) {
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier ident,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> props,
+      boolean orCreate) {
     return delegate.newReplaceTableTransaction(ident, schema, spec, props, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                                boolean orCreate) {
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier ident, Schema schema, PartitionSpec spec, boolean orCreate) {
     return delegate.newReplaceTableTransaction(ident, schema, spec, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, boolean orCreate) {
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier ident, Schema schema, boolean orCreate) {
     return delegate.newReplaceTableTransaction(ident, schema, orCreate);
   }
 
@@ -207,7 +228,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public boolean setProperties(Namespace ns, Map<String, String> props) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace ns, Map<String, String> props)
+      throws NoSuchNamespaceException {
     return nsDelegate.setProperties(ns, props);
   }
 

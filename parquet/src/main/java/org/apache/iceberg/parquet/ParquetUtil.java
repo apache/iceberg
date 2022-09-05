@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -67,14 +66,14 @@ import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetUtil {
   // not meant to be instantiated
-  private ParquetUtil() {
-  }
+  private ParquetUtil() {}
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     return fileMetrics(file, metricsConfig, null);
   }
 
-  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
+  public static Metrics fileMetrics(
+      InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
       return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
@@ -82,14 +81,17 @@ public class ParquetUtil {
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
-                                      MetricsConfig metricsConfig) {
+  public static Metrics footerMetrics(
+      ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig) {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
-                                      MetricsConfig metricsConfig, NameMapping nameMapping) {
+  public static Metrics footerMetrics(
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
 
     long rowCount = 0;
@@ -104,8 +106,8 @@ public class ParquetUtil {
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
-    Map<Integer, FieldMetrics<?>> fieldMetricsMap = fieldMetrics.collect(
-        Collectors.toMap(FieldMetrics::id, Function.identity()));
+    Map<Integer, FieldMetrics<?>> fieldMetricsMap =
+        fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
@@ -138,11 +140,13 @@ public class ParquetUtil {
           if (metricsMode != MetricsModes.Counts.get() && !fieldMetricsMap.containsKey(fieldId)) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
-              Literal<?> min = ParquetConversions.fromParquetPrimitive(
-                  field.type(), column.getPrimitiveType(), stats.genericGetMin());
+              Literal<?> min =
+                  ParquetConversions.fromParquetPrimitive(
+                      field.type(), column.getPrimitiveType(), stats.genericGetMin());
               updateMin(lowerBounds, fieldId, field.type(), min, metricsMode);
-              Literal<?> max = ParquetConversions.fromParquetPrimitive(
-                  field.type(), column.getPrimitiveType(), stats.genericGetMax());
+              Literal<?> max =
+                  ParquetConversions.fromParquetPrimitive(
+                      field.type(), column.getPrimitiveType(), stats.genericGetMax());
               updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
             }
           }
@@ -159,39 +163,52 @@ public class ParquetUtil {
 
     updateFromFieldMetrics(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
 
-    return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
-        MetricsUtil.createNanValueCounts(fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
+    return new Metrics(
+        rowCount,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        MetricsUtil.createNanValueCounts(
+            fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
         toBufferMap(fileSchema, lowerBounds),
         toBufferMap(fileSchema, upperBounds));
   }
 
   private static void updateFromFieldMetrics(
-      Map<Integer, FieldMetrics<?>> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
-      Map<Integer, Literal<?>> lowerBounds, Map<Integer, Literal<?>> upperBounds) {
-    idToFieldMetricsMap.entrySet().forEach(entry -> {
-      int fieldId = entry.getKey();
-      FieldMetrics<?> metrics = entry.getValue();
-      MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      Map<Integer, FieldMetrics<?>> idToFieldMetricsMap,
+      MetricsConfig metricsConfig,
+      Schema schema,
+      Map<Integer, Literal<?>> lowerBounds,
+      Map<Integer, Literal<?>> upperBounds) {
+    idToFieldMetricsMap
+        .entrySet()
+        .forEach(
+            entry -> {
+              int fieldId = entry.getKey();
+              FieldMetrics<?> metrics = entry.getValue();
+              MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
 
-      // only check for MetricsModes.None, since we don't truncate float/double values.
-      if (metricsMode != MetricsModes.None.get()) {
-        if (!metrics.hasBounds()) {
-          lowerBounds.remove(fieldId);
-          upperBounds.remove(fieldId);
-        } else if (metrics.upperBound() instanceof Float) {
-          lowerBounds.put(fieldId, Literal.of((Float) metrics.lowerBound()));
-          upperBounds.put(fieldId, Literal.of((Float) metrics.upperBound()));
-        } else if (metrics.upperBound() instanceof Double) {
-          lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
-          upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
-        } else {
-          throw new UnsupportedOperationException("Expected only float or double column metrics");
-        }
-      }
-    });
+              // only check for MetricsModes.None, since we don't truncate float/double values.
+              if (metricsMode != MetricsModes.None.get()) {
+                if (!metrics.hasBounds()) {
+                  lowerBounds.remove(fieldId);
+                  upperBounds.remove(fieldId);
+                } else if (metrics.upperBound() instanceof Float) {
+                  lowerBounds.put(fieldId, Literal.of((Float) metrics.lowerBound()));
+                  upperBounds.put(fieldId, Literal.of((Float) metrics.upperBound()));
+                } else if (metrics.upperBound() instanceof Double) {
+                  lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
+                  upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
+                } else {
+                  throw new UnsupportedOperationException(
+                      "Expected only float or double column metrics");
+                }
+              }
+            });
   }
 
-  private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {
+  private static MessageType getParquetTypeWithIds(
+      ParquetMetadata metadata, NameMapping nameMapping) {
     MessageType type = metadata.getFileMetaData().getSchema();
 
     if (ParquetSchemaUtil.hasIds(type)) {
@@ -206,7 +223,8 @@ public class ParquetUtil {
   }
 
   /**
-   * Returns a list of offsets in ascending order determined by the starting position of the row groups.
+   * Returns a list of offsets in ascending order determined by the starting position of the row
+   * groups.
    */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
     List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
@@ -250,8 +268,12 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMin(Map<Integer, Literal<?>> lowerBounds, int id, Type type,
-                                    Literal<T> min, MetricsMode metricsMode) {
+  private static <T> void updateMin(
+      Map<Integer, Literal<?>> lowerBounds,
+      int id,
+      Type type,
+      Literal<T> min,
+      MetricsMode metricsMode) {
     Literal<T> currentMin = (Literal<T>) lowerBounds.get(id);
     if (currentMin == null || min.comparator().compare(min.value(), currentMin.value()) < 0) {
       if (metricsMode == MetricsModes.Full.get()) {
@@ -261,11 +283,13 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            lowerBounds.put(id, UnicodeUtil.truncateStringMin((Literal<CharSequence>) min, truncateLength));
+            lowerBounds.put(
+                id, UnicodeUtil.truncateStringMin((Literal<CharSequence>) min, truncateLength));
             break;
           case FIXED:
           case BINARY:
-            lowerBounds.put(id, BinaryUtil.truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
+            lowerBounds.put(
+                id, BinaryUtil.truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
             break;
           default:
             lowerBounds.put(id, min);
@@ -275,8 +299,12 @@ public class ParquetUtil {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> void updateMax(Map<Integer, Literal<?>> upperBounds, int id, Type type,
-                                    Literal<T> max, MetricsMode metricsMode) {
+  private static <T> void updateMax(
+      Map<Integer, Literal<?>> upperBounds,
+      int id,
+      Type type,
+      Literal<T> max,
+      MetricsMode metricsMode) {
     Literal<T> currentMax = (Literal<T>) upperBounds.get(id);
     if (currentMax == null || max.comparator().compare(max.value(), currentMax.value()) > 0) {
       if (metricsMode == MetricsModes.Full.get()) {
@@ -286,16 +314,16 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            Literal<CharSequence> truncatedMaxString = UnicodeUtil.truncateStringMax((Literal<CharSequence>) max,
-                truncateLength);
+            Literal<CharSequence> truncatedMaxString =
+                UnicodeUtil.truncateStringMax((Literal<CharSequence>) max, truncateLength);
             if (truncatedMaxString != null) {
               upperBounds.put(id, truncatedMaxString);
             }
             break;
           case FIXED:
           case BINARY:
-            Literal<ByteBuffer> truncatedMaxBinary = BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max,
-                truncateLength);
+            Literal<ByteBuffer> truncatedMaxBinary =
+                BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength);
             if (truncatedMaxBinary != null) {
               upperBounds.put(id, truncatedMaxBinary);
             }
@@ -310,7 +338,8 @@ public class ParquetUtil {
   private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
     Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
     for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
-      bufferMap.put(entry.getKey(),
+      bufferMap.put(
+          entry.getKey(),
           Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
     }
     return bufferMap;
@@ -342,6 +371,10 @@ public class ParquetUtil {
       // page encoding stats
       return true;
     }
+  }
+
+  public static boolean hasNoBloomFilterPages(ColumnChunkMetaData meta) {
+    return meta.getBloomFilterOffset() <= 0;
   }
 
   public static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {

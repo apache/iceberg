@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=protected-access,unused-argument
 
 import os
 import tempfile
@@ -22,8 +23,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pyarrow.fs import FileType
 
-from iceberg.io.base import InputStream, OutputStream
-from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.io import InputStream, OutputStream
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 def test_pyarrow_input_file():
@@ -194,8 +195,8 @@ def test_raise_on_delete_file_with_no_permission():
         assert "Cannot delete file" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-@patch("iceberg.io.pyarrow.FileSystem")
+@patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("pyiceberg.io.pyarrow.FileSystem")
 def test_raise_on_opening_an_s3_file_no_permission(filesystem_mock, exists_mock):
     """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
@@ -212,8 +213,8 @@ def test_raise_on_opening_an_s3_file_no_permission(filesystem_mock, exists_mock)
     assert "Cannot open file, access denied:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-@patch("iceberg.io.pyarrow.FileSystem")
+@patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("pyiceberg.io.pyarrow.FileSystem")
 def test_raise_on_opening_an_s3_file_not_found(filesystem_mock, exists_mock):
     """Test that a PyArrowFile raises a FileNotFoundError when the pyarrow error includes 'Path does not exist'"""
 
@@ -230,8 +231,8 @@ def test_raise_on_opening_an_s3_file_not_found(filesystem_mock, exists_mock):
     assert "Cannot open file, does not exist:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-@patch("iceberg.io.pyarrow.FileSystem")
+@patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("pyiceberg.io.pyarrow.FileSystem")
 def test_raise_on_creating_an_s3_file_no_permission(filesystem_mock, exists_mock):
     """Test that creating a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
@@ -248,7 +249,7 @@ def test_raise_on_creating_an_s3_file_no_permission(filesystem_mock, exists_mock
     assert "Cannot create file, access denied:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.FileSystem")
+@patch("pyiceberg.io.pyarrow.FileSystem")
 def test_deleting_s3_file_no_permission(filesystem_mock):
     """Test that a PyArrowFile raises a PermissionError when the pyarrow OSError includes 'AWS Error [code 15]'"""
 
@@ -265,7 +266,7 @@ def test_deleting_s3_file_no_permission(filesystem_mock):
     assert "Cannot delete file, access denied:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.FileSystem")
+@patch("pyiceberg.io.pyarrow.FileSystem")
 def test_deleting_s3_file_not_found(filesystem_mock):
     """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 

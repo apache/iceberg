@@ -21,71 +21,42 @@ from typing import List
 
 import pytest
 
-from iceberg.expressions import base
-from iceberg.types import NestedField, Singleton, StringType
-
-
-@pytest.mark.parametrize(
-    "operation,opposite_operation",
-    [
-        (base.Operation.TRUE, base.Operation.FALSE),
-        (base.Operation.FALSE, base.Operation.TRUE),
-        (base.Operation.IS_NULL, base.Operation.NOT_NULL),
-        (base.Operation.NOT_NULL, base.Operation.IS_NULL),
-        (base.Operation.IS_NAN, base.Operation.NOT_NAN),
-        (base.Operation.NOT_NAN, base.Operation.IS_NAN),
-        (base.Operation.LT, base.Operation.GT_EQ),
-        (base.Operation.LT_EQ, base.Operation.GT),
-        (base.Operation.GT, base.Operation.LT_EQ),
-        (base.Operation.GT_EQ, base.Operation.LT),
-        (base.Operation.EQ, base.Operation.NOT_EQ),
-        (base.Operation.NOT_EQ, base.Operation.EQ),
-        (base.Operation.IN, base.Operation.NOT_IN),
-        (base.Operation.NOT_IN, base.Operation.IN),
-    ],
+from pyiceberg.expressions import base
+from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
+from pyiceberg.schema import Accessor, Schema
+from pyiceberg.types import (
+    DoubleType,
+    FloatType,
+    IntegerType,
+    NestedField,
+    StringType,
 )
-def test_negation_of_operations(operation, opposite_operation):
-    assert operation.negate() == opposite_operation
+from pyiceberg.utils.singleton import Singleton
 
 
-@pytest.mark.parametrize(
-    "operation",
-    [
-        base.Operation.NOT,
-        base.Operation.AND,
-        base.Operation.OR,
-    ],
-)
-def test_raise_on_no_negation_for_operation(operation):
-    with pytest.raises(ValueError) as exc_info:
-        operation.negate()
-
-    assert str(exc_info.value) == f"No negation defined for operation {operation}"
-
-
-class TestExpressionA(base.BooleanExpression, Singleton):
+class ExpressionA(base.BooleanExpression, Singleton):
     def __invert__(self):
-        return TestExpressionB()
+        return ExpressionB()
 
     def __repr__(self):
-        return "TestExpressionA()"
+        return "ExpressionA()"
 
     def __str__(self):
         return "testexpra"
 
 
-class TestExpressionB(base.BooleanExpression, Singleton):
+class ExpressionB(base.BooleanExpression, Singleton):
     def __invert__(self):
-        return TestExpressionA()
+        return ExpressionA()
 
     def __repr__(self):
-        return "TestExpressionB()"
+        return "ExpressionB()"
 
     def __str__(self):
         return "testexprb"
 
 
-class TestBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
+class BooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
     """A test implementation of a BooleanExpressionVisit
 
     As this visitor visits each node, it appends an element to a `visit_histor` list. This enables testing that a given expression is
@@ -124,23 +95,23 @@ class TestBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
         return self.visit_history
 
     def visit_test_expression_a(self) -> List:
-        self.visit_history.append("TestExpressionA")
+        self.visit_history.append("ExpressionA")
         return self.visit_history
 
     def visit_test_expression_b(self) -> List:
-        self.visit_history.append("TestExpressionB")
+        self.visit_history.append("ExpressionB")
         return self.visit_history
 
 
-@base.visit.register(TestExpressionA)
-def _(obj: TestExpressionA, visitor: TestBooleanExpressionVisitor) -> List:
-    """Visit a TestExpressionA with a TestBooleanExpressionVisitor"""
+@base.visit.register(ExpressionA)
+def _(obj: ExpressionA, visitor: BooleanExpressionVisitor) -> List:
+    """Visit a ExpressionA with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_a()
 
 
-@base.visit.register(TestExpressionB)
-def _(obj: TestExpressionB, visitor: TestBooleanExpressionVisitor) -> List:
-    """Visit a TestExpressionB with a TestBooleanExpressionVisitor"""
+@base.visit.register(ExpressionB)
+def _(obj: ExpressionB, visitor: BooleanExpressionVisitor) -> List:
+    """Visit a ExpressionB with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_b()
 
 
@@ -148,48 +119,264 @@ def _(obj: TestExpressionB, visitor: TestBooleanExpressionVisitor) -> List:
     "op, rep",
     [
         (
-            base.And(TestExpressionA(), TestExpressionB()),
-            "And(TestExpressionA(), TestExpressionB())",
+            base.And(ExpressionA(), ExpressionB()),
+            "And(left=ExpressionA(), right=ExpressionB())",
         ),
         (
-            base.Or(TestExpressionA(), TestExpressionB()),
-            "Or(TestExpressionA(), TestExpressionB())",
+            base.Or(ExpressionA(), ExpressionB()),
+            "Or(left=ExpressionA(), right=ExpressionB())",
         ),
-        (base.Not(TestExpressionA()), "Not(TestExpressionA())"),
+        (base.Not(ExpressionA()), "Not(child=ExpressionA())"),
     ],
 )
 def test_reprs(op, rep):
     assert repr(op) == rep
 
 
+def test_isnull_inverse():
+    assert ~base.IsNull(base.Reference("a")) == base.NotNull(base.Reference("a"))
+
+
+def test_isnull_bind():
+    schema = Schema(NestedField(2, "a", IntegerType()), schema_id=1)
+    bound = base.BoundIsNull(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNull(base.Reference("a")).bind(schema) == bound
+
+
+def test_isnull_bind_required():
+    schema = Schema(NestedField(2, "a", IntegerType(), required=True), schema_id=1)
+    assert base.IsNull(base.Reference("a")).bind(schema) == base.AlwaysFalse()
+
+
+def test_notnull_inverse():
+    assert ~base.NotNull(base.Reference("a")) == base.IsNull(base.Reference("a"))
+
+
+def test_notnull_bind():
+    schema = Schema(NestedField(2, "a", IntegerType()), schema_id=1)
+    bound = base.BoundNotNull(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNull(base.Reference("a")).bind(schema) == bound
+
+
+def test_notnull_bind_required():
+    schema = Schema(NestedField(2, "a", IntegerType(), required=True), schema_id=1)
+    assert base.NotNull(base.Reference("a")).bind(schema) == base.AlwaysTrue()
+
+
+def test_isnan_inverse():
+    assert ~base.IsNaN(base.Reference("f")) == base.NotNaN(base.Reference("f"))
+
+
+def test_isnan_bind_float():
+    schema = Schema(NestedField(2, "f", FloatType()), schema_id=1)
+    bound = base.BoundIsNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNaN(base.Reference("f")).bind(schema) == bound
+
+
+def test_isnan_bind_double():
+    schema = Schema(NestedField(2, "d", DoubleType()), schema_id=1)
+    bound = base.BoundIsNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNaN(base.Reference("d")).bind(schema) == bound
+
+
+def test_isnan_bind_nonfloat():
+    schema = Schema(NestedField(2, "i", IntegerType()), schema_id=1)
+    assert base.IsNaN(base.Reference("i")).bind(schema) == base.AlwaysFalse()
+
+
+def test_notnan_inverse():
+    assert ~base.NotNaN(base.Reference("f")) == base.IsNaN(base.Reference("f"))
+
+
+def test_notnan_bind_float():
+    schema = Schema(NestedField(2, "f", FloatType()), schema_id=1)
+    bound = base.BoundNotNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNaN(base.Reference("f")).bind(schema) == bound
+
+
+def test_notnan_bind_double():
+    schema = Schema(NestedField(2, "d", DoubleType()), schema_id=1)
+    bound = base.BoundNotNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNaN(base.Reference("d")).bind(schema) == bound
+
+
+def test_notnan_bind_nonfloat():
+    schema = Schema(NestedField(2, "i", IntegerType()), schema_id=1)
+    assert base.NotNaN(base.Reference("i")).bind(schema) == base.AlwaysTrue()
+
+
 @pytest.mark.parametrize(
     "op, string",
     [
-        (base.And(TestExpressionA(), TestExpressionB()), "(testexpra and testexprb)"),
-        (base.Or(TestExpressionA(), TestExpressionB()), "(testexpra or testexprb)"),
-        (base.Not(TestExpressionA()), "(not testexpra)"),
+        (base.And(ExpressionA(), ExpressionB()), "And(left=ExpressionA(), right=ExpressionB())"),
+        (base.Or(ExpressionA(), ExpressionB()), "Or(left=ExpressionA(), right=ExpressionB())"),
+        (base.Not(ExpressionA()), "Not(child=ExpressionA())"),
     ],
 )
 def test_strs(op, string):
     assert str(op) == string
 
 
+def test_ref_binding_case_sensitive(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    ref = base.Reference("foo")
+    bound = base.BoundReference(schema.find_field(1), schema.accessor_for_field(1))
+    assert ref.bind(schema, case_sensitive=True) == bound
+
+
+def test_ref_binding_case_sensitive_failure(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    ref = base.Reference("Foo")
+    with pytest.raises(ValueError):
+        ref.bind(schema, case_sensitive=True)
+
+
+def test_ref_binding_case_insensitive(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    ref = base.Reference("Foo")
+    bound = base.BoundReference(schema.find_field(1), schema.accessor_for_field(1))
+    assert ref.bind(schema, case_sensitive=False) == bound
+
+
+def test_ref_binding_case_insensitive_failure(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    ref = base.Reference("Foot")
+    with pytest.raises(ValueError):
+        ref.bind(schema, case_sensitive=False)
+
+
+def test_in_to_eq():
+    assert base.In(base.Reference("x"), (literal(34.56),)) == base.EqualTo(base.Reference("x"), literal(34.56))
+
+
+def test_bind_in(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    bound = base.BoundIn(
+        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), {literal("hello"), literal("world")}
+    )
+    assert base.In(base.Reference("foo"), (literal("hello"), literal("world"))).bind(schema) == bound
+
+
+def test_bind_dedup(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    bound = base.BoundIn(
+        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), {literal("hello"), literal("world")}
+    )
+    assert base.In(base.Reference("foo"), (literal("hello"), literal("world"), literal("world"))).bind(schema) == bound
+
+
+def test_bind_dedup_to_eq(request):
+    schema = request.getfixturevalue("table_schema_simple")
+    bound = base.BoundEqualTo(base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), literal("hello"))
+    assert base.In(base.Reference("foo"), (literal("hello"), literal("hello"))).bind(schema) == bound
+
+
+@pytest.mark.parametrize(
+    "a,  schema",
+    [
+        (
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
+        ),
+        (
+            base.NotEqualTo(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+        (
+            base.EqualTo(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+        (
+            base.GreaterThan(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+        (
+            base.LessThan(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+        (
+            base.GreaterThanOrEqual(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+        (
+            base.LessThanOrEqual(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+        ),
+    ],
+)
+def test_bind(a, schema, request):
+    schema = request.getfixturevalue(schema)
+    assert a.bind(schema, case_sensitive=True).term.field == schema.find_field(a.term.name, case_sensitive=True)
+
+
+@pytest.mark.parametrize(
+    "a,  schema",
+    [
+        (
+            base.In(base.Reference("Bar"), (literal(5), literal(2))),
+            "table_schema_simple",
+        ),
+        (
+            base.NotIn(base.Reference("Bar"), (literal(5), literal(2))),
+            "table_schema_simple",
+        ),
+        (
+            base.NotEqualTo(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+        (
+            base.EqualTo(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+        (
+            base.GreaterThan(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+        (
+            base.LessThan(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+        (
+            base.GreaterThanOrEqual(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+        (
+            base.LessThanOrEqual(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
+        ),
+    ],
+)
+def test_bind_case_insensitive(a, schema, request):
+    schema = request.getfixturevalue(schema)
+    assert a.bind(schema, case_sensitive=False).term.field == schema.find_field(a.term.name, case_sensitive=False)
+
+
 @pytest.mark.parametrize(
     "exp, testexpra, testexprb",
     [
         (
-            base.And(TestExpressionA(), TestExpressionB()),
-            base.And(TestExpressionA(), TestExpressionB()),
-            base.Or(TestExpressionA(), TestExpressionB()),
+            base.And(ExpressionA(), ExpressionB()),
+            base.And(ExpressionA(), ExpressionB()),
+            base.Or(ExpressionA(), ExpressionB()),
         ),
         (
-            base.Or(TestExpressionA(), TestExpressionB()),
-            base.Or(TestExpressionA(), TestExpressionB()),
-            base.And(TestExpressionA(), TestExpressionB()),
+            base.Or(ExpressionA(), ExpressionB()),
+            base.Or(ExpressionA(), ExpressionB()),
+            base.And(ExpressionA(), ExpressionB()),
         ),
-        (base.Not(TestExpressionA()), base.Not(TestExpressionA()), TestExpressionB()),
-        (TestExpressionA(), TestExpressionA(), TestExpressionB()),
-        (TestExpressionB(), TestExpressionB(), TestExpressionA()),
+        (base.Not(ExpressionA()), base.Not(ExpressionA()), ExpressionB()),
+        (ExpressionA(), ExpressionA(), ExpressionB()),
+        (ExpressionB(), ExpressionB(), ExpressionA()),
+        (
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("not_foo"), (literal("hello"), literal("world"))),
+        ),
+        (
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("foo"), (literal("goodbye"), literal("world"))),
+        ),
     ],
 )
 def test_eq(exp, testexpra, testexprb):
@@ -200,15 +387,32 @@ def test_eq(exp, testexpra, testexprb):
     "lhs, rhs",
     [
         (
-            base.And(TestExpressionA(), TestExpressionB()),
-            base.Or(TestExpressionB(), TestExpressionA()),
+            base.And(ExpressionA(), ExpressionB()),
+            base.Or(ExpressionB(), ExpressionA()),
         ),
         (
-            base.Or(TestExpressionA(), TestExpressionB()),
-            base.And(TestExpressionB(), TestExpressionA()),
+            base.Or(ExpressionA(), ExpressionB()),
+            base.And(ExpressionB(), ExpressionA()),
         ),
-        (base.Not(TestExpressionA()), TestExpressionA()),
-        (TestExpressionA(), TestExpressionB()),
+        (
+            base.Not(ExpressionA()),
+            ExpressionA(),
+        ),
+        (
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (base.GreaterThan(base.Reference("foo"), literal(5)), base.LessThanOrEqual(base.Reference("foo"), literal(5))),
+        (base.LessThan(base.Reference("foo"), literal(5)), base.GreaterThanOrEqual(base.Reference("foo"), literal(5))),
+        (base.EqualTo(base.Reference("foo"), literal(5)), base.NotEqualTo(base.Reference("foo"), literal(5))),
+        (
+            ExpressionA(),
+            ExpressionB(),
+        ),
     ],
 )
 def test_negate(lhs, rhs):
@@ -219,14 +423,14 @@ def test_negate(lhs, rhs):
     "lhs, rhs",
     [
         (
-            base.And(TestExpressionA(), TestExpressionB(), TestExpressionA()),
-            base.And(base.And(TestExpressionA(), TestExpressionB()), TestExpressionA()),
+            base.And(ExpressionA(), ExpressionB(), ExpressionA()),
+            base.And(base.And(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
         (
-            base.Or(TestExpressionA(), TestExpressionB(), TestExpressionA()),
-            base.Or(base.Or(TestExpressionA(), TestExpressionB()), TestExpressionA()),
+            base.Or(ExpressionA(), ExpressionB(), ExpressionA()),
+            base.Or(base.Or(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
-        (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
+        (base.Not(base.Not(ExpressionA())), ExpressionA()),
     ],
 )
 def test_reduce(lhs, rhs):
@@ -236,11 +440,11 @@ def test_reduce(lhs, rhs):
 @pytest.mark.parametrize(
     "lhs, rhs",
     [
-        (base.And(base.AlwaysTrue(), TestExpressionB()), TestExpressionB()),
-        (base.And(base.AlwaysFalse(), TestExpressionB()), base.AlwaysFalse()),
-        (base.Or(base.AlwaysTrue(), TestExpressionB()), base.AlwaysTrue()),
-        (base.Or(base.AlwaysFalse(), TestExpressionB()), TestExpressionB()),
-        (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
+        (base.And(base.AlwaysTrue(), ExpressionB()), ExpressionB()),
+        (base.And(base.AlwaysFalse(), ExpressionB()), base.AlwaysFalse()),
+        (base.Or(base.AlwaysTrue(), ExpressionB()), base.AlwaysTrue()),
+        (base.Or(base.AlwaysFalse(), ExpressionB()), ExpressionB()),
+        (base.Not(base.Not(ExpressionA())), ExpressionA()),
     ],
 )
 def test_base_AlwaysTrue_base_AlwaysFalse(lhs, rhs):
@@ -274,14 +478,14 @@ def test_accessor_base_class(foo_struct):
     assert base.Accessor(position=6).get(foo_struct) == 1.234
     assert base.Accessor(position=7).get(foo_struct) == Decimal("1.234")
     assert base.Accessor(position=8).get(foo_struct) == uuid_value
-    assert base.Accessor(position=9).get(foo_struct) == True
-    assert base.Accessor(position=10).get(foo_struct) == False
+    assert base.Accessor(position=9).get(foo_struct) is True
+    assert base.Accessor(position=10).get(foo_struct) is False
     assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"
 
 
 def test_bound_reference_str_and_repr():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
@@ -290,10 +494,10 @@ def test_bound_reference_str_and_repr():
 
 def test_bound_reference_field_property():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
-    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
 def test_bound_reference(table_schema_simple, foo_struct):
@@ -316,40 +520,324 @@ def test_bound_reference(table_schema_simple, foo_struct):
 
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
-    assert bound_ref3.eval(foo_struct) == True
+    assert bound_ref3.eval(foo_struct) is True
 
 
 def test_boolean_expression_visitor():
     """Test post-order traversal of boolean expression visit method"""
     expr = base.And(
-        base.Or(base.Not(TestExpressionA()), base.Not(TestExpressionB()), TestExpressionA(), TestExpressionB()),
-        base.Not(TestExpressionA()),
-        TestExpressionB(),
+        base.Or(base.Not(ExpressionA()), base.Not(ExpressionB()), ExpressionA(), ExpressionB()),
+        base.Not(ExpressionA()),
+        ExpressionB(),
     )
-    visitor = TestBooleanExpressionVisitor()
+    visitor = BooleanExpressionVisitor()
     result = base.visit(expr, visitor=visitor)
     assert result == [
-        "TestExpressionA",
+        "ExpressionA",
         "NOT",
-        "TestExpressionB",
+        "ExpressionB",
         "NOT",
         "OR",
-        "TestExpressionA",
+        "ExpressionA",
         "OR",
-        "TestExpressionB",
+        "ExpressionB",
         "OR",
-        "TestExpressionA",
+        "ExpressionA",
         "NOT",
         "AND",
-        "TestExpressionB",
+        "ExpressionB",
         "AND",
     ]
 
 
 def test_boolean_expression_visit_raise_not_implemented_error():
     """Test raise NotImplementedError when visiting an unsupported object type"""
-    visitor = TestBooleanExpressionVisitor()
+    visitor = BooleanExpressionVisitor()
     with pytest.raises(NotImplementedError) as exc_info:
         base.visit("foo", visitor=visitor)
 
     assert str(exc_info.value) == "Cannot visit unsupported expression: foo"
+
+
+def test_always_true_expression_binding(table_schema_simple):
+    """Test that visiting an always-true expression returns always-true"""
+    unbound_expression = base.AlwaysTrue()
+    bound_expression = base.visit(unbound_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == base.AlwaysTrue()
+
+
+def test_always_false_expression_binding(table_schema_simple):
+    """Test that visiting an always-false expression returns always-false"""
+    unbound_expression = base.AlwaysFalse()
+    bound_expression = base.visit(unbound_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == base.AlwaysFalse()
+
+
+def test_always_false_and_always_true_expression_binding(table_schema_simple):
+    """Test that visiting both an always-true AND always-false expression returns always-false"""
+    unbound_expression = base.And(base.AlwaysTrue(), base.AlwaysFalse())
+    bound_expression = base.visit(unbound_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == base.AlwaysFalse()
+
+
+def test_always_false_or_always_true_expression_binding(table_schema_simple):
+    """Test that visiting always-true OR always-false expression returns always-true"""
+    unbound_expression = base.Or(base.AlwaysTrue(), base.AlwaysFalse())
+    bound_expression = base.visit(unbound_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == base.AlwaysTrue()
+
+
+@pytest.mark.parametrize(
+    "unbound_and_expression,expected_bound_expression",
+    [
+        (
+            base.And(
+                base.In(base.Reference("foo"), (literal("foo"), literal("bar"))),
+                base.In(base.Reference("bar"), (literal(1), literal(2), literal(3))),
+            ),
+            base.And(
+                base.BoundIn[str](
+                    base.BoundReference(
+                        field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                        accessor=Accessor(position=0, inner=None),
+                    ),
+                    {StringLiteral("foo"), StringLiteral("bar")},
+                ),
+                base.BoundIn[int](
+                    base.BoundReference(
+                        field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                        accessor=Accessor(position=1, inner=None),
+                    ),
+                    {LongLiteral(1), LongLiteral(2), LongLiteral(3)},
+                ),
+            ),
+        ),
+        (
+            base.And(
+                base.In(base.Reference("foo"), (literal("bar"), literal("baz"))),
+                base.In(
+                    base.Reference("bar"),
+                    (literal(1),),
+                ),
+                base.In(
+                    base.Reference("foo"),
+                    (literal("baz"),),
+                ),
+            ),
+            base.And(
+                base.And(
+                    base.BoundIn[str](
+                        base.BoundReference(
+                            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                            accessor=Accessor(position=0, inner=None),
+                        ),
+                        {StringLiteral("bar"), StringLiteral("baz")},
+                    ),
+                    base.BoundEqualTo[int](
+                        base.BoundReference(
+                            field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                            accessor=Accessor(position=1, inner=None),
+                        ),
+                        LongLiteral(1),
+                    ),
+                ),
+                base.BoundEqualTo[str](
+                    base.BoundReference(
+                        field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                        accessor=Accessor(position=0, inner=None),
+                    ),
+                    StringLiteral("baz"),
+                ),
+            ),
+        ),
+    ],
+)
+def test_and_expression_binding(unbound_and_expression, expected_bound_expression, table_schema_simple):
+    """Test that visiting an unbound AND expression with a bind-visitor returns the expected bound expression"""
+    bound_expression = base.visit(unbound_and_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == expected_bound_expression
+
+
+@pytest.mark.parametrize(
+    "unbound_or_expression,expected_bound_expression",
+    [
+        (
+            base.Or(
+                base.In(base.Reference("foo"), (literal("foo"), literal("bar"))),
+                base.In(base.Reference("bar"), (literal(1), literal(2), literal(3))),
+            ),
+            base.Or(
+                base.BoundIn[str](
+                    base.BoundReference(
+                        field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                        accessor=Accessor(position=0, inner=None),
+                    ),
+                    {StringLiteral("foo"), StringLiteral("bar")},
+                ),
+                base.BoundIn[int](
+                    base.BoundReference(
+                        field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                        accessor=Accessor(position=1, inner=None),
+                    ),
+                    {LongLiteral(1), LongLiteral(2), LongLiteral(3)},
+                ),
+            ),
+        ),
+        (
+            base.Or(
+                base.In(base.Reference("foo"), (literal("bar"), literal("baz"))),
+                base.In(
+                    base.Reference("foo"),
+                    (literal("bar"),),
+                ),
+                base.In(
+                    base.Reference("foo"),
+                    (literal("baz"),),
+                ),
+            ),
+            base.Or(
+                base.Or(
+                    base.BoundIn[str](
+                        base.BoundReference(
+                            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                            accessor=Accessor(position=0, inner=None),
+                        ),
+                        {StringLiteral("bar"), StringLiteral("baz")},
+                    ),
+                    base.BoundIn[str](
+                        base.BoundReference(
+                            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                            accessor=Accessor(position=0, inner=None),
+                        ),
+                        {StringLiteral("bar")},
+                    ),
+                ),
+                base.BoundIn[str](
+                    base.BoundReference(
+                        field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                        accessor=Accessor(position=0, inner=None),
+                    ),
+                    {StringLiteral("baz")},
+                ),
+            ),
+        ),
+        (
+            base.Or(
+                base.AlwaysTrue(),
+                base.AlwaysFalse(),
+            ),
+            base.AlwaysTrue(),
+        ),
+        (
+            base.Or(
+                base.AlwaysTrue(),
+                base.AlwaysTrue(),
+            ),
+            base.AlwaysTrue(),
+        ),
+        (
+            base.Or(
+                base.AlwaysFalse(),
+                base.AlwaysFalse(),
+            ),
+            base.AlwaysFalse(),
+        ),
+    ],
+)
+def test_or_expression_binding(unbound_or_expression, expected_bound_expression, table_schema_simple):
+    """Test that visiting an unbound OR expression with a bind-visitor returns the expected bound expression"""
+    bound_expression = base.visit(unbound_or_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == expected_bound_expression
+
+
+@pytest.mark.parametrize(
+    "unbound_in_expression,expected_bound_expression",
+    [
+        (
+            base.In(base.Reference("foo"), (literal("foo"), literal("bar"))),
+            base.BoundIn[str](
+                base.BoundReference[str](
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+                {StringLiteral("foo"), StringLiteral("bar")},
+            ),
+        ),
+        (
+            base.In(base.Reference("foo"), (literal("bar"), literal("baz"))),
+            base.BoundIn[str](
+                base.BoundReference[str](
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+                {StringLiteral("bar"), StringLiteral("baz")},
+            ),
+        ),
+        (
+            base.In(
+                base.Reference("foo"),
+                (literal("bar"),),
+            ),
+            base.BoundEqualTo(
+                base.BoundReference[str](
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+                StringLiteral("bar"),
+            ),
+        ),
+    ],
+)
+def test_in_expression_binding(unbound_in_expression, expected_bound_expression, table_schema_simple):
+    """Test that visiting an unbound IN expression with a bind-visitor returns the expected bound expression"""
+    bound_expression = base.visit(unbound_in_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == expected_bound_expression
+
+
+@pytest.mark.parametrize(
+    "unbound_not_expression,expected_bound_expression",
+    [
+        (
+            base.Not(base.In(base.Reference("foo"), (literal("foo"), literal("bar")))),
+            base.Not(
+                base.BoundIn[str](
+                    base.BoundReference[str](
+                        field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                        accessor=Accessor(position=0, inner=None),
+                    ),
+                    {StringLiteral("foo"), StringLiteral("bar")},
+                )
+            ),
+        ),
+        (
+            base.Not(
+                base.Or(
+                    base.In(base.Reference("foo"), (literal("foo"), literal("bar"))),
+                    base.In(base.Reference("foo"), (literal("foo"), literal("bar"), literal("baz"))),
+                )
+            ),
+            base.Not(
+                base.Or(
+                    base.BoundIn[str](
+                        base.BoundReference(
+                            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                            accessor=Accessor(position=0, inner=None),
+                        ),
+                        {StringLiteral("foo"), StringLiteral("bar")},
+                    ),
+                    base.BoundIn[str](
+                        base.BoundReference(
+                            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                            accessor=Accessor(position=0, inner=None),
+                        ),
+                        {StringLiteral("foo"), StringLiteral("bar"), StringLiteral("baz")},
+                    ),
+                ),
+            ),
+        ),
+    ],
+)
+def test_not_expression_binding(unbound_not_expression, expected_bound_expression, table_schema_simple):
+    """Test that visiting an unbound NOT expression with a bind-visitor returns the expected bound expression"""
+    bound_expression = base.visit(unbound_not_expression, visitor=base.BindVisitor(schema=table_schema_simple))
+    assert bound_expression == expected_bound_expression

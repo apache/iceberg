@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
-/**
- * Spark DF write options
- */
+/** Spark DF write options */
 public class SparkWriteOptions {
 
-  private SparkWriteOptions() {
-  }
+  private SparkWriteOptions() {}
 
   // Fileformat for write operations(default: Table write.format.default )
   public static final String WRITE_FORMAT = "write-format";
@@ -52,5 +48,8 @@ public class SparkWriteOptions {
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
   // Controls whether to allow writing timestamps without zone info
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
+      "handle-timestamp-without-timezone";
+
+  public static final String OVERWRITE_MODE = "overwrite-mode";
 }

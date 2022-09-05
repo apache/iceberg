@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -65,19 +64,13 @@ import org.slf4j.LoggerFactory;
 public class EcsCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Object> {
 
-  /**
-   * Suffix of table metadata object
-   */
+  /** Suffix of table metadata object */
   private static final String TABLE_OBJECT_SUFFIX = ".table";
 
-  /**
-   * Suffix of namespace metadata object
-   */
+  /** Suffix of namespace metadata object */
   private static final String NAMESPACE_OBJECT_SUFFIX = ".namespace";
 
-  /**
-   * Key of properties version in ECS object user metadata.
-   */
+  /** Key of properties version in ECS object user metadata. */
   private static final String PROPERTIES_VERSION_USER_METADATA_KEY = "iceberg_properties_version";
 
   private static final Logger LOG = LoggerFactory.getLogger(EcsCatalog.class);
@@ -86,25 +79,24 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private Object hadoopConf;
   private String catalogName;
 
-  /**
-   * Warehouse is unified with other catalog that without delimiter.
-   */
+  /** Warehouse is unified with other catalog that without delimiter. */
   private EcsURI warehouseLocation;
+
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
 
   /**
    * No-arg constructor to load the catalog dynamically.
-   * <p>
-   * All fields are initialized by calling {@link EcsCatalog#initialize(String, Map)} later.
+   *
+   * <p>All fields are initialized by calling {@link EcsCatalog#initialize(String, Map)} later.
    */
-  public EcsCatalog() {
-  }
+  public EcsCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+    Preconditions.checkArgument(
+        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
         "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
@@ -131,18 +123,20 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new EcsTableOperations(String.format("%s.%s", catalogName, tableIdentifier),
-        tableURI(tableIdentifier), fileIO, this);
+    return new EcsTableOperations(
+        String.format("%s.%s", catalogName, tableIdentifier),
+        tableURI(tableIdentifier),
+        fileIO,
+        this);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    return String.format("%s/%s", namespacePrefix(tableIdentifier.namespace()), tableIdentifier.name());
+    return String.format(
+        "%s/%s", namespacePrefix(tableIdentifier.namespace()), tableIdentifier.name());
   }
 
-  /**
-   * Iterate all table objects with the namespace prefix.
-   */
+  /** Iterate all table objects with the namespace prefix. */
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     if (!namespace.isEmpty() && !namespaceExists(namespace)) {
@@ -154,49 +148,46 @@ public class EcsCatalog extends BaseMetastoreCatalog
     // Add the end slash when delimiter listing
     EcsURI prefix = new EcsURI(String.format("%s/", namespacePrefix(namespace)));
     do {
-      ListObjectsResult listObjectsResult = client.listObjects(
-          new ListObjectsRequest(prefix.bucket())
-              .withDelimiter("/")
-              .withPrefix(prefix.name())
-              .withMarker(marker));
+      ListObjectsResult listObjectsResult =
+          client.listObjects(
+              new ListObjectsRequest(prefix.bucket())
+                  .withDelimiter("/")
+                  .withPrefix(prefix.name())
+                  .withMarker(marker));
       marker = listObjectsResult.getNextMarker();
-      results.addAll(listObjectsResult.getObjects().stream()
-          .filter(s3Object -> s3Object.getKey().endsWith(TABLE_OBJECT_SUFFIX))
-          .map(object -> parseTableId(namespace, prefix, object))
-          .collect(Collectors.toList()));
+      results.addAll(
+          listObjectsResult.getObjects().stream()
+              .filter(s3Object -> s3Object.getKey().endsWith(TABLE_OBJECT_SUFFIX))
+              .map(object -> parseTableId(namespace, prefix, object))
+              .collect(Collectors.toList()));
     } while (marker != null);
 
     LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, results);
     return results;
   }
 
-  /**
-   * Get object prefix of namespace without the end slash.
-   */
+  /** Get object prefix of namespace without the end slash. */
   private String namespacePrefix(Namespace namespace) {
     if (namespace.isEmpty()) {
       return warehouseLocation.location();
     } else {
       // If the warehouseLocation.name is empty, the leading slash will be ignored
-      return String.format("%s/%s", warehouseLocation.location(),
-          String.join("/", namespace.levels()));
+      return String.format(
+          "%s/%s", warehouseLocation.location(), String.join("/", namespace.levels()));
     }
   }
 
   private TableIdentifier parseTableId(Namespace namespace, EcsURI prefix, S3Object s3Object) {
     String key = s3Object.getKey();
-    Preconditions.checkArgument(key.startsWith(prefix.name()),
-        "List result should have same prefix", key, prefix);
+    Preconditions.checkArgument(
+        key.startsWith(prefix.name()), "List result should have same prefix", key, prefix);
 
-    String tableName = key.substring(
-        prefix.name().length(),
-        key.length() - TABLE_OBJECT_SUFFIX.length());
+    String tableName =
+        key.substring(prefix.name().length(), key.length() - TABLE_OBJECT_SUFFIX.length());
     return TableIdentifier.of(namespace, tableName);
   }
 
-  /**
-   * Remove table object. If the purge flag is set, remove all data objects.
-   */
+  /** Remove table object. If the purge flag is set, remove all data objects. */
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     if (!tableExists(identifier)) {
@@ -220,24 +211,26 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   private EcsURI tableURI(TableIdentifier id) {
-    return new EcsURI(String.format("%s/%s%s", namespacePrefix(id.namespace()), id.name(), TABLE_OBJECT_SUFFIX));
+    return new EcsURI(
+        String.format("%s/%s%s", namespacePrefix(id.namespace()), id.name(), TABLE_OBJECT_SUFFIX));
   }
 
   /**
    * Table rename will only move table object, the data objects will still be in-place.
    *
    * @param from identifier of the table to rename
-   * @param to   new table name
+   * @param to new table name
    */
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (!namespaceExists(to.namespace())) {
-      throw new NoSuchNamespaceException("Cannot rename %s to %s because namespace %s does not exist",
-              from, to, to.namespace());
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s because namespace %s does not exist", from, to, to.namespace());
     }
 
     if (tableExists(to)) {
-      throw new AlreadyExistsException("Cannot rename %s because destination table %s exists", from, to);
+      throw new AlreadyExistsException(
+          "Cannot rename %s because destination table %s exists", from, to);
     }
 
     EcsURI fromURI = tableURI(from);
@@ -249,7 +242,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
     EcsURI toURI = tableURI(to);
 
     if (!putNewProperties(toURI, properties.content())) {
-      throw new AlreadyExistsException("Cannot rename %s because destination table %s exists", from, to);
+      throw new AlreadyExistsException(
+          "Cannot rename %s because destination table %s exists", from, to);
     }
 
     client.deleteObject(fromURI.bucket(), fromURI.name());
@@ -260,7 +254,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
   public void createNamespace(Namespace namespace, Map<String, String> properties) {
     EcsURI namespaceObject = namespaceURI(namespace);
     if (!putNewProperties(namespaceObject, properties)) {
-      throw new AlreadyExistsException("namespace %s(%s) has already existed", namespace, namespaceObject);
+      throw new AlreadyExistsException(
+          "namespace %s(%s) has already existed", namespace, namespaceObject);
     }
   }
 
@@ -279,16 +274,18 @@ public class EcsCatalog extends BaseMetastoreCatalog
     // Add the end slash when delimiter listing
     EcsURI prefix = new EcsURI(String.format("%s/", namespacePrefix(namespace)));
     do {
-      ListObjectsResult listObjectsResult = client.listObjects(
-          new ListObjectsRequest(prefix.bucket())
-              .withDelimiter("/")
-              .withPrefix(prefix.name())
-              .withMarker(marker));
+      ListObjectsResult listObjectsResult =
+          client.listObjects(
+              new ListObjectsRequest(prefix.bucket())
+                  .withDelimiter("/")
+                  .withPrefix(prefix.name())
+                  .withMarker(marker));
       marker = listObjectsResult.getNextMarker();
-      results.addAll(listObjectsResult.getObjects().stream()
-          .filter(s3Object -> s3Object.getKey().endsWith(NAMESPACE_OBJECT_SUFFIX))
-          .map(object -> parseNamespace(namespace, prefix, object))
-          .collect(Collectors.toList()));
+      results.addAll(
+          listObjectsResult.getObjects().stream()
+              .filter(s3Object -> s3Object.getKey().endsWith(NAMESPACE_OBJECT_SUFFIX))
+              .map(object -> parseNamespace(namespace, prefix, object))
+              .collect(Collectors.toList()));
     } while (marker != null);
 
     LOG.debug("Listing namespace {} returned namespaces: {}", namespace, results);
@@ -297,25 +294,24 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private Namespace parseNamespace(Namespace parent, EcsURI prefix, S3Object s3Object) {
     String key = s3Object.getKey();
-    Preconditions.checkArgument(key.startsWith(prefix.name()),
-        "List result should have same prefix", key, prefix);
+    Preconditions.checkArgument(
+        key.startsWith(prefix.name()), "List result should have same prefix", key, prefix);
 
-    String namespaceName = key.substring(
-        prefix.name().length(),
-        key.length() - NAMESPACE_OBJECT_SUFFIX.length());
+    String namespaceName =
+        key.substring(prefix.name().length(), key.length() - NAMESPACE_OBJECT_SUFFIX.length());
     String[] namespace = Arrays.copyOf(parent.levels(), parent.levels().length + 1);
     namespace[namespace.length - 1] = namespaceName;
     return Namespace.of(namespace);
   }
 
-  /**
-   * Load namespace properties.
-   */
+  /** Load namespace properties. */
   @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace)
+      throws NoSuchNamespaceException {
     EcsURI namespaceObject = namespaceURI(namespace);
     if (!objectMetadata(namespaceObject).isPresent()) {
-      throw new NoSuchNamespaceException("Namespace %s(%s) properties object is absent", namespace, namespaceObject);
+      throw new NoSuchNamespaceException(
+          "Namespace %s(%s) properties object is absent", namespace, namespaceObject);
     }
 
     Map<String, String> result = loadProperties(namespaceObject).content();
@@ -341,12 +337,14 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties)
+      throws NoSuchNamespaceException {
     return updateProperties(namespace, r -> r.putAll(properties));
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+  public boolean removeProperties(Namespace namespace, Set<String> properties)
+      throws NoSuchNamespaceException {
     return updateProperties(namespace, r -> r.keySet().removeAll(properties));
   }
 
@@ -374,17 +372,19 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   private void checkURI(EcsURI uri) {
-    Preconditions.checkArgument(uri.bucket().equals(warehouseLocation.bucket()),
+    Preconditions.checkArgument(
+        uri.bucket().equals(warehouseLocation.bucket()),
         "Properties object %s should be in same bucket %s",
-        uri.location(), warehouseLocation.bucket());
-    Preconditions.checkArgument(uri.name().startsWith(warehouseLocation.name()),
+        uri.location(),
+        warehouseLocation.bucket());
+    Preconditions.checkArgument(
+        uri.name().startsWith(warehouseLocation.name()),
         "Properties object %s should have the expected prefix %s",
-        uri.location(), warehouseLocation.name());
+        uri.location(),
+        warehouseLocation.name());
   }
 
-  /**
-   * Get S3 object metadata which include E-Tag, user metadata and so on.
-   */
+  /** Get S3 object metadata which include E-Tag, user metadata and so on. */
   public Optional<S3ObjectMetadata> objectMetadata(EcsURI uri) {
     checkURI(uri);
     try {
@@ -398,9 +398,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     }
   }
 
-  /**
-   * Record class of properties content and E-Tag
-   */
+  /** Record class of properties content and E-Tag */
   static class Properties {
     private final String eTag;
     private final Map<String, String> content;
@@ -419,9 +417,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     }
   }
 
-  /**
-   * Parse object content and metadata as properties.
-   */
+  /** Parse object content and metadata as properties. */
   Properties loadProperties(EcsURI uri) {
     checkURI(uri);
     GetObjectResult<InputStream> result = client.getObject(uri.bucket(), uri.name());
@@ -437,15 +433,15 @@ public class EcsCatalog extends BaseMetastoreCatalog
     return new Properties(objectMetadata.getETag(), content);
   }
 
-  /**
-   * Create a new object to store properties.
-   */
+  /** Create a new object to store properties. */
   boolean putNewProperties(EcsURI uri, Map<String, String> properties) {
     checkURI(uri);
-    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(), PropertiesSerDesUtil.toBytes(properties));
-    request.setObjectMetadata(new S3ObjectMetadata().addUserMetadata(
-            PROPERTIES_VERSION_USER_METADATA_KEY,
-            PropertiesSerDesUtil.currentVersion()));
+    PutObjectRequest request =
+        new PutObjectRequest(uri.bucket(), uri.name(), PropertiesSerDesUtil.toBytes(properties));
+    request.setObjectMetadata(
+        new S3ObjectMetadata()
+            .addUserMetadata(
+                PROPERTIES_VERSION_USER_METADATA_KEY, PropertiesSerDesUtil.currentVersion()));
     request.setIfNoneMatch("*");
     try {
       client.putObject(request);
@@ -459,20 +455,19 @@ public class EcsCatalog extends BaseMetastoreCatalog
     }
   }
 
-  /**
-   * Update a exist object to store properties.
-   */
+  /** Update a exist object to store properties. */
   boolean updatePropertiesObject(EcsURI uri, String eTag, Map<String, String> properties) {
     checkURI(uri);
     // Exclude some keys
     Map<String, String> newProperties = new LinkedHashMap<>(properties);
 
     // Replace properties object
-    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(),
-            PropertiesSerDesUtil.toBytes(newProperties));
-    request.setObjectMetadata(new S3ObjectMetadata().addUserMetadata(
-            PROPERTIES_VERSION_USER_METADATA_KEY,
-            PropertiesSerDesUtil.currentVersion()));
+    PutObjectRequest request =
+        new PutObjectRequest(uri.bucket(), uri.name(), PropertiesSerDesUtil.toBytes(newProperties));
+    request.setObjectMetadata(
+        new S3ObjectMetadata()
+            .addUserMetadata(
+                PROPERTIES_VERSION_USER_METADATA_KEY, PropertiesSerDesUtil.currentVersion()));
     request.setIfMatch(eTag);
     try {
       client.putObject(request);

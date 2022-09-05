@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
@@ -34,13 +37,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-
 public class TestS3InputStream {
-  @ClassRule
-  public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 
   private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
@@ -60,7 +58,7 @@ public class TestS3InputStream {
 
     try (SeekableInputStream in = new S3InputStream(s3, uri)) {
       int readSize = 1024;
-      byte [] actual = new byte[readSize];
+      byte[] actual = new byte[readSize];
 
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -85,13 +83,14 @@ public class TestS3InputStream {
     }
   }
 
-  private void readAndCheck(SeekableInputStream in, long rangeStart, int size, byte [] original, boolean buffered)
+  private void readAndCheck(
+      SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
     in.seek(rangeStart);
     assertEquals(rangeStart, in.getPos());
 
     long rangeEnd = rangeStart + size;
-    byte [] actual = new byte[size];
+    byte[] actual = new byte[size];
 
     if (buffered) {
       IOUtils.readFully(in, actual);
@@ -140,8 +139,8 @@ public class TestS3InputStream {
   }
 
   private void readAndCheckRanges(
-      RangeReadable in, byte [] original, long position, byte [] buffer, int offset,
-      int length) throws IOException {
+      RangeReadable in, byte[] original, long position, byte[] buffer, int offset, int length)
+      throws IOException {
     in.readFully(position, buffer, offset, length);
 
     assertArrayEquals(

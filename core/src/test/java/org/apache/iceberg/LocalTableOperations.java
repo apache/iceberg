@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -60,13 +59,15 @@ class LocalTableOperations implements TableOperations {
 
   @Override
   public String metadataFileLocation(String fileName) {
-    return createdMetadataFilePaths.computeIfAbsent(fileName, name -> {
-      try {
-        return temp.newFile(name).getAbsolutePath();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
-      }
-    });
+    return createdMetadataFilePaths.computeIfAbsent(
+        fileName,
+        name -> {
+          try {
+            return temp.newFile(name).getAbsolutePath();
+          } catch (IOException e) {
+            throw new RuntimeIOException(e);
+          }
+        });
   }
 
   @Override

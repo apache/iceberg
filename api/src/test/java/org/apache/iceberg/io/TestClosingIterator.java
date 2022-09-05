@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
-
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -28,6 +25,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
 public class TestClosingIterator {
   @Test
@@ -67,5 +67,13 @@ public class TestClosingIterator {
     assertFalse(closingIterator.hasNext());
     assertFalse(closingIterator.hasNext());
     verify(underlying, times(1)).close();
+  }
+
+  @Test
+  public void transformNullCheck() {
+    Assertions.assertThatThrownBy(
+            () -> CloseableIterator.transform(CloseableIterator.empty(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid transform: null");
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.File;
@@ -36,17 +35,19 @@ public class TestGenericReadProjection extends TestReadProjection {
     File file = temp.newFile(desc + ".avro");
     file.delete();
 
-    try (FileAppender<Record> appender = Avro.write(Files.localOutput(file))
-        .schema(writeSchema)
-        .createWriterFunc(DataWriter::create)
-        .build()) {
+    try (FileAppender<Record> appender =
+        Avro.write(Files.localOutput(file))
+            .schema(writeSchema)
+            .createWriterFunc(DataWriter::create)
+            .build()) {
       appender.add(record);
     }
 
-    Iterable<Record> records = Avro.read(Files.localInput(file))
-        .project(readSchema)
-        .createReaderFunc(DataReader::create)
-        .build();
+    Iterable<Record> records =
+        Avro.read(Files.localInput(file))
+            .project(readSchema)
+            .createReaderFunc(DataReader::create)
+            .build();
 
     return Iterables.getOnlyElement(records);
   }

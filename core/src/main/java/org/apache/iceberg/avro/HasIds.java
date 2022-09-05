@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
@@ -25,8 +24,8 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
- * Lazily evaluates the schema to see if any field ids are set.
- * Returns true when a first field is found which has field id set
+ * Lazily evaluates the schema to see if any field ids are set. Returns true when a first field is
+ * found which has field id set
  */
 class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
@@ -42,9 +41,9 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean map(Schema map, Supplier<Boolean> value) {
-    return AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
-        AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP) ||
-        value.get();
+    return AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP)
+        || AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP)
+        || value.get();
   }
 
   @Override

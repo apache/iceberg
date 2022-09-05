@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import java.net.URI;
@@ -25,9 +24,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-/**
- * An immutable record class of ECS location
- */
+/** An immutable record class of ECS location */
 class EcsURI {
 
   private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
@@ -43,39 +40,29 @@ class EcsURI {
 
     URI uri = URI.create(location);
     ValidationException.check(
-        VALID_SCHEME.contains(uri.getScheme().toLowerCase()),
-        "Invalid ecs location: %s",
-        location);
+        VALID_SCHEME.contains(uri.getScheme().toLowerCase()), "Invalid ecs location: %s", location);
     this.bucket = uri.getHost();
     this.name = uri.getPath().replaceAll("^/*", "");
   }
 
-  /**
-   * The leading slashes of name will be ignored.
-   */
+  /** The leading slashes of name will be ignored. */
   EcsURI(String bucket, String name) {
     this.bucket = bucket;
     this.name = name.replaceAll("^/*", "");
     this.location = String.format("ecs://%s/%s", bucket, name);
   }
 
-  /**
-   * Returns ECS bucket name.
-   */
+  /** Returns ECS bucket name. */
   public String bucket() {
     return bucket;
   }
 
-  /**
-   * Returns ECS object name.
-   */
+  /** Returns ECS object name. */
   public String name() {
     return name;
   }
 
-  /**
-   * Returns original location.
-   */
+  /** Returns original location. */
   public String location() {
     return location;
   }

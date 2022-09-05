@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
-
 
 import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
@@ -27,19 +25,40 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
 class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   */
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
   GenericDeleteFile(Schema avroSchema) {
     super(avroSchema);
   }
 
-  GenericDeleteFile(int specId, FileContent content, String filePath, FileFormat format, PartitionData partition,
-                    long fileSizeInBytes, Metrics metrics, int[] equalityFieldIds,
-                    Integer sortOrderId, ByteBuffer keyMetadata) {
-    super(specId, content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
-        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(), metrics.nanValueCounts(),
-        metrics.lowerBounds(), metrics.upperBounds(), null, equalityFieldIds, sortOrderId, keyMetadata);
+  GenericDeleteFile(
+      int specId,
+      FileContent content,
+      String filePath,
+      FileFormat format,
+      PartitionData partition,
+      long fileSizeInBytes,
+      Metrics metrics,
+      int[] equalityFieldIds,
+      Integer sortOrderId,
+      ByteBuffer keyMetadata) {
+    super(
+        specId,
+        content,
+        filePath,
+        format,
+        partition,
+        fileSizeInBytes,
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        metrics.valueCounts(),
+        metrics.nullValueCounts(),
+        metrics.nanValueCounts(),
+        metrics.lowerBounds(),
+        metrics.upperBounds(),
+        null,
+        equalityFieldIds,
+        sortOrderId,
+        keyMetadata);
   }
 
   /**
@@ -52,11 +71,8 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(toCopy, fullCopy);
   }
 
-  /**
-   * Constructor for Java serialization.
-   */
-  GenericDeleteFile() {
-  }
+  /** Constructor for Java serialization. */
+  GenericDeleteFile() {}
 
   @Override
   public DeleteFile copyWithoutStats() {
@@ -71,8 +87,10 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   @Override
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
-    return AvroSchemaUtil.convert(type, ImmutableMap.of(
-        type, GenericDeleteFile.class.getName(),
-        partitionStruct, PartitionData.class.getName()));
+    return AvroSchemaUtil.convert(
+        type,
+        ImmutableMap.of(
+            type, GenericDeleteFile.class.getName(),
+            partitionStruct, PartitionData.class.getName()));
   }
 }

@@ -179,7 +179,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces:
+  /v1/{prefix}/namespaces:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     get:
       tags:
@@ -197,12 +199,12 @@ paths:
           description:
             An optional namespace, underneath which to list namespaces.
             If not provided or empty, all top-level namespaces should be listed.
-            If parent is a multipart namespace, the parts must be separated by the null byte.
+            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
           required: false
           allowEmptyValue: true
           schema:
             type: string
-          example: "accounting%00tax"
+          example: "accounting%1Ftax"
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -268,8 +270,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}:
+  /v1/{prefix}/namespaces/{namespace}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -333,8 +336,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/properties:
+  /v1/{prefix}/namespaces/{namespace}/properties:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     post:
@@ -394,8 +398,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables:
+  /v1/{prefix}/namespaces/{namespace}/tables:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -486,8 +491,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables/{table}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
 
@@ -702,7 +708,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/tables/rename:
+  /v1/{prefix}/tables/rename:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     post:
       tags:
@@ -773,14 +781,22 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the null byte.
+        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
       schema:
         type: string
       examples:
         singlepart_namespace:
           value: "accounting"
         multipart_namespace:
-          value: "accounting%00tax"
+          value: "accounting%1Ftax"
+
+    prefix:
+      name: prefix
+      in: path
+      schema:
+        type: string
+      required: true
+      description: An optional prefix in the path
 
     table:
       name: table
@@ -869,6 +885,9 @@ components:
 
     RenameTableRequest:
       type: object
+      required:
+        - source
+        - destination
       properties:
         source:
           $ref: '#/components/schemas/TableIdentifier'
@@ -1065,6 +1084,7 @@ components:
     SortOrder:
       type: object
       required:
+        - order-id
         - fields
       properties:
         order-id:
@@ -1085,13 +1105,15 @@ components:
       properties:
         snapshot-id:
           type: integer
+        parent-snapshot-id:
+          type: integer
+        sequence-number:
+          type: integer
         timestamp-ms:
           type: integer
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
-        schema-id:
-          type: integer
         summary:
           type: object
           required:
@@ -1102,6 +1124,8 @@ components:
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
               type: string
+        schema-id:
+          type: integer
 
     SnapshotReference:
       type: object
@@ -1411,19 +1435,19 @@ components:
         Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
 
         - `assert-create` - the table must not already exist; used for create transactions
-        
+
         - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
 
         - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-        
+
         - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-        
+
         - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-        
+
         - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-        
+
         - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-        
+
         - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
@@ -1461,19 +1485,20 @@ components:
     LoadTableResult:
       description:
         Result used when a table is successfully loaded.
-        
-        
-        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata must be returned in the `metadata-location` field. Clients can check whether metadata has changed by comparing metadata locations.
-        
-        
+
+
+        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
+        Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
+
+
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
       type: object
       required:
-        - metadata-location
         - metadata
       properties:
         metadata-location:
           type: string
+          description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -1558,7 +1583,7 @@ components:
             Client ID
 
 
-            This can be sent in the request body, but OAuth2 recomments sending it in
+            This can be sent in the request body, but OAuth2 recommends sending it in
             a Basic Authorization header.
         client_secret:
           type: string
@@ -1566,7 +1591,7 @@ components:
             Client secret
 
 
-            This can be sent in the request body, but OAuth2 recomments sending it in
+            This can be sent in the request body, but OAuth2 recommends sending it in
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
@@ -1901,7 +1926,7 @@ components:
               - removed
             properties:
               updated:
-                description: List of property keys that were added or udpated
+                description: List of property keys that were added or updated
                 type: array
                 uniqueItems: true
                 items:
@@ -1995,7 +2020,7 @@ components:
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
-      value: "accounting%00tax"
+      value: "accounting%1Ftax"
 
     NamespaceAsPathVariable:
       summary: A single part namespace, as represented in a path paremeter

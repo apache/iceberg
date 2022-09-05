@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.actions;
 
 import org.apache.flink.configuration.Configuration;
@@ -26,9 +25,10 @@ import org.apache.iceberg.Table;
 
 public class Actions {
 
-  public static final Configuration CONFIG = new Configuration()
-      // disable classloader check as Avro may cache class/object in the serializers.
-      .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
+  public static final Configuration CONFIG =
+      new Configuration()
+          // disable classloader check as Avro may cache class/object in the serializers.
+          .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
   private StreamExecutionEnvironment env;
   private Table table;
@@ -49,5 +49,4 @@ public class Actions {
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(env, table);
   }
-
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
@@ -27,8 +26,8 @@ import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -52,8 +51,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private long next = 0;
   private boolean closed = false;
 
-  private final Counter<Long> readBytes;
-  private final Counter<Integer> readOperations;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   private int skipSize = 1024 * 1024;
 
@@ -66,8 +65,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.location = location;
     this.awsProperties = awsProperties;
 
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }
@@ -107,7 +106,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
-    readBytes.increment((long) bytesRead);
+    readBytes.increment(bytesRead);
     readOperations.increment();
 
     return bytesRead;
@@ -132,10 +131,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private InputStream readRange(String range) {
-    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
-        .bucket(location.bucket())
-        .key(location.key())
-        .range(range);
+    GetObjectRequest.Builder requestBuilder =
+        GetObjectRequest.builder().bucket(location.bucket()).key(location.key()).range(range);
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -178,10 +175,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private void openStream() throws IOException {
-    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
-        .bucket(location.bucket())
-        .key(location.key())
-        .range(String.format("bytes=%s-", pos));
+    GetObjectRequest.Builder requestBuilder =
+        GetObjectRequest.builder()
+            .bucket(location.bucket())
+            .key(location.key())
+            .range(String.format("bytes=%s-", pos));
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -205,8 +203,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
+      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
   }

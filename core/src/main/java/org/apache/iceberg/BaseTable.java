@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -25,23 +24,33 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.LoggingScanReporter;
+import org.apache.iceberg.metrics.ScanReporter;
 
 /**
  * Base {@link Table} implementation.
- * <p>
- * This can be extended by providing a {@link TableOperations} to the constructor.
- * <p>
- * Serializing and deserializing a BaseTable object returns a read only implementation of the BaseTable using a
- * {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
- * deserialization.
+ *
+ * <p>This can be extended by providing a {@link TableOperations} to the constructor.
+ *
+ * <p>Serializing and deserializing a BaseTable object returns a read only implementation of the
+ * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
+ * when reading the table data after deserialization.
  */
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
   private final String name;
+  private final ScanReporter scanReporter;
 
   public BaseTable(TableOperations ops, String name) {
     this.ops = ops;
     this.name = name;
+    this.scanReporter = new LoggingScanReporter();
+  }
+
+  public BaseTable(TableOperations ops, String name, ScanReporter scanReporter) {
+    this.ops = ops;
+    this.name = name;
+    this.scanReporter = scanReporter;
   }
 
   @Override
@@ -61,12 +70,18 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this);
+    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(scanReporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
-    return new BaseIncrementalAppendScan(ops, this);
+    return new BaseIncrementalAppendScan(
+        ops, this, schema(), new TableScanContext().reportWith(scanReporter));
+  }
+
+  @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return new BaseIncrementalChangelogScan(ops, this);
   }
 
   @Override
@@ -200,11 +215,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
-  public Rollback rollback() {
-    return new RollbackToSnapshot(name, ops);
-  }
-
-  @Override
   public ManageSnapshots manageSnapshots() {
     return new SnapshotManager(name, ops);
   }
@@ -227,6 +237,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return operations().locationProvider();
+  }
+
+  @Override
+  public Map<String, SnapshotRef> refs() {
+    return ops.current().refs();
   }
 
   @Override

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
@@ -38,8 +37,7 @@ import org.apache.iceberg.types.Types;
 
 public class AvroSchemaUtil {
 
-  private AvroSchemaUtil() {
-  }
+  private AvroSchemaUtil() {}
 
   // Original Iceberg field name corresponding to a sanitized Avro name
   public static final String ICEBERG_FIELD_NAME_PROP = "iceberg-field-name";
@@ -55,13 +53,12 @@ public class AvroSchemaUtil {
   private static final Schema.Type UNION = Schema.Type.UNION;
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
-  public static Schema convert(org.apache.iceberg.Schema schema,
-                               String tableName) {
+  public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
     return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
   }
 
-  public static Schema convert(org.apache.iceberg.Schema schema,
-                               Map<Types.StructType, String> names) {
+  public static Schema convert(
+      org.apache.iceberg.Schema schema, Map<Types.StructType, String> names) {
     return TypeUtil.visit(schema, new TypeToSchema(names));
   }
 
@@ -92,18 +89,22 @@ public class AvroSchemaUtil {
 
   /**
    * Check if any of the nodes in a given avro schema is missing an ID
-   * <p>
-   * To have an ID for a node:
+   *
+   * <p>To have an ID for a node:
+   *
    * <ul>
    *   <li>a field node under struct (record) schema should have {@link #FIELD_ID_PROP} property
    *   <li>an element node under list (array) schema should have {@link #ELEMENT_ID_PROP} property
-   *   <li>a pair of key and value node under map schema should have {@link #KEY_ID_PROP} and
-   *   {@link #VALUE_ID_PROP} respectively
+   *   <li>a pair of key and value node under map schema should have {@link #KEY_ID_PROP} and {@link
+   *       #VALUE_ID_PROP} respectively
    *   <li>a primitive node is not assigned any ID properties
    * </ul>
+   *
    * <p>
+   *
    * @param schema an Avro Schema
-   * @return true if any of the nodes of the given Avro Schema is missing an ID property, false otherwise
+   * @return true if any of the nodes of the given Avro Schema is missing an ID property, false
+   *     otherwise
    */
   static boolean missingIds(Schema schema) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new MissingIds());
@@ -115,23 +116,26 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
-  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
+  public static Schema pruneColumns(
+      Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
   }
 
-  public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
-                                           Map<String, String> renames) {
+  public static Schema buildAvroProjection(
+      Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
   }
 
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
-    if (logicalType instanceof LogicalTypes.TimestampMillis || logicalType instanceof LogicalTypes.TimestampMicros) {
+    if (logicalType instanceof LogicalTypes.TimestampMillis
+        || logicalType instanceof LogicalTypes.TimestampMicros) {
       // timestamptz is adjusted to UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 
       if (value == null) {
-        // not all avro timestamp logical types will have the adjust_to_utc prop, default to timestamp without timezone
+        // not all avro timestamp logical types will have the adjust_to_utc prop, default to
+        // timestamp without timezone
         return false;
       } else if (value instanceof Boolean) {
         return (Boolean) value;
@@ -156,8 +160,8 @@ public class AvroSchemaUtil {
 
   static Schema toOption(Schema schema) {
     if (schema.getType() == UNION) {
-      Preconditions.checkArgument(isOptionSchema(schema),
-          "Union schemas are not supported: %s", schema);
+      Preconditions.checkArgument(
+          isOptionSchema(schema), "Union schemas are not supported: %s", schema);
       return schema;
     } else {
       return Schema.createUnion(NULL, schema);
@@ -165,10 +169,10 @@ public class AvroSchemaUtil {
   }
 
   static Schema fromOption(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == UNION,
-        "Expected union schema but was passed: %s", schema);
-    Preconditions.checkArgument(schema.getTypes().size() == 2,
-        "Expected optional schema, but was passed: %s", schema);
+    Preconditions.checkArgument(
+        schema.getType() == UNION, "Expected union schema but was passed: %s", schema);
+    Preconditions.checkArgument(
+        schema.getTypes().size() == 2, "Expected optional schema, but was passed: %s", schema);
     if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
       return schema.getTypes().get(1);
     } else {
@@ -177,8 +181,8 @@ public class AvroSchemaUtil {
   }
 
   static Schema fromOptions(List<Schema> options) {
-    Preconditions.checkArgument(options.size() == 2,
-        "Expected two schemas, but was passed: %s options", options.size());
+    Preconditions.checkArgument(
+        options.size() == 2, "Expected two schemas, but was passed: %s options", options.size());
     if (options.get(0).getType() == Schema.Type.NULL) {
       return options.get(1);
     } else {
@@ -190,24 +194,35 @@ public class AvroSchemaUtil {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 
-  static Schema createMap(int keyId, Schema keySchema,
-                          int valueId, Schema valueSchema) {
+  static Schema createMap(int keyId, Schema keySchema, int valueId, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
     Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
     keyField.addProp(FIELD_ID_PROP, keyId);
 
-    Schema.Field valueField = new Schema.Field("value", valueSchema, null,
-        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
+    Schema.Field valueField =
+        new Schema.Field(
+            "value",
+            valueSchema,
+            null,
+            isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
     valueField.addProp(FIELD_ID_PROP, valueId);
 
-    return LogicalMap.get().addToSchema(Schema.createArray(Schema.createRecord(
-        keyValueName, null, null, false, ImmutableList.of(keyField, valueField))));
+    return LogicalMap.get()
+        .addToSchema(
+            Schema.createArray(
+                Schema.createRecord(
+                    keyValueName, null, null, false, ImmutableList.of(keyField, valueField))));
   }
 
-  static Schema createProjectionMap(String recordName,
-                          int keyId, String keyName, Schema keySchema,
-                          int valueId, String valueName, Schema valueSchema) {
+  static Schema createProjectionMap(
+      String recordName,
+      int keyId,
+      String keyName,
+      Schema keySchema,
+      int valueId,
+      String valueName,
+      Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
     Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
@@ -216,15 +231,20 @@ public class AvroSchemaUtil {
     }
     keyField.addProp(FIELD_ID_PROP, keyId);
 
-    Schema.Field valueField = new Schema.Field("value", valueSchema, null,
-        isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
+    Schema.Field valueField =
+        new Schema.Field(
+            "value",
+            valueSchema,
+            null,
+            isOptionSchema(valueSchema) ? JsonProperties.NULL_VALUE : null);
     valueField.addProp(FIELD_ID_PROP, valueId);
     if (!"value".equals(valueName)) {
       valueField.addAlias(valueName);
     }
 
-    Schema keyValueRecord = Schema.createRecord(
-        keyValueName, null, null, false, ImmutableList.of(keyField, valueField));
+    Schema keyValueRecord =
+        Schema.createRecord(
+            keyValueName, null, null, false, ImmutableList.of(keyField, valueField));
     if (!keyValueName.equals(recordName)) {
       keyValueRecord.addAlias(recordName);
     }
@@ -238,7 +258,8 @@ public class AvroSchemaUtil {
     return id;
   }
 
-  private static Integer getId(Schema schema, String propertyName, NameMapping nameMapping, List<String> names) {
+  private static Integer getId(
+      Schema schema, String propertyName, NameMapping nameMapping, List<String> names) {
     if (schema.getType() == UNION) {
       return getId(fromOption(schema), propertyName, nameMapping, names);
     }
@@ -264,42 +285,45 @@ public class AvroSchemaUtil {
   }
 
   public static int getKeyId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map key id for non-map schema: %s", schema);
+    Preconditions.checkArgument(
+        schema.getType() == MAP, "Cannot get map key id for non-map schema: %s", schema);
     return getId(schema, KEY_ID_PROP);
   }
 
-  static Integer getKeyId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map key id for non-map schema: %s", schema);
+  static Integer getKeyId(
+      Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(
+        schema.getType() == MAP, "Cannot get map key id for non-map schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("key");
     return getId(schema, KEY_ID_PROP, nameMapping, names);
   }
 
   public static int getValueId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map value id for non-map schema: %s", schema);
+    Preconditions.checkArgument(
+        schema.getType() == MAP, "Cannot get map value id for non-map schema: %s", schema);
     return getId(schema, VALUE_ID_PROP);
   }
 
-  static Integer getValueId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == MAP,
-        "Cannot get map value id for non-map schema: %s", schema);
+  static Integer getValueId(
+      Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(
+        schema.getType() == MAP, "Cannot get map value id for non-map schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("value");
     return getId(schema, VALUE_ID_PROP, nameMapping, names);
   }
 
   public static int getElementId(Schema schema) {
-    Preconditions.checkArgument(schema.getType() == ARRAY,
-        "Cannot get array element id for non-array schema: %s", schema);
+    Preconditions.checkArgument(
+        schema.getType() == ARRAY, "Cannot get array element id for non-array schema: %s", schema);
     return getId(schema, ELEMENT_ID_PROP);
   }
 
-  static Integer getElementId(Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
-    Preconditions.checkArgument(schema.getType() == ARRAY,
-        "Cannot get array element id for non-array schema: %s", schema);
+  static Integer getElementId(
+      Schema schema, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+    Preconditions.checkArgument(
+        schema.getType() == ARRAY, "Cannot get array element id for non-array schema: %s", schema);
     List<String> names = Lists.newArrayList(parentFieldNames);
     names.add("element");
     return getId(schema, ELEMENT_ID_PROP, nameMapping, names);
@@ -311,7 +335,8 @@ public class AvroSchemaUtil {
     return id;
   }
 
-  static Integer getFieldId(Schema.Field field, NameMapping nameMapping, Iterable<String> parentFieldNames) {
+  static Integer getFieldId(
+      Schema.Field field, NameMapping nameMapping, Iterable<String> parentFieldNames) {
     Object id = field.getObjectProp(FIELD_ID_PROP);
     if (id != null) {
       return toInt(id);
@@ -350,8 +375,13 @@ public class AvroSchemaUtil {
       // original schema.
       copy.addAlias(record.getName(), record.getNamespace() == null ? "" : record.getNamespace());
     } else {
-      copy = Schema.createRecord(record.getName(),
-          record.getDoc(), record.getNamespace(), record.isError(), newFields);
+      copy =
+          Schema.createRecord(
+              record.getName(),
+              record.getDoc(),
+              record.getNamespace(),
+              record.isError(),
+              newFields);
     }
 
     for (Map.Entry<String, Object> prop : record.getObjectProps().entrySet()) {
@@ -362,8 +392,8 @@ public class AvroSchemaUtil {
   }
 
   static Schema.Field copyField(Schema.Field field, Schema newSchema, String newName) {
-    Schema.Field copy = new Schema.Field(newName,
-        newSchema, field.doc(), field.defaultVal(), field.order());
+    Schema.Field copy =
+        new Schema.Field(newName, newSchema, field.doc(), field.defaultVal(), field.order());
 
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
@@ -377,8 +407,8 @@ public class AvroSchemaUtil {
   }
 
   static Schema replaceElement(Schema array, Schema elementSchema) {
-    Preconditions.checkArgument(array.getType() == ARRAY,
-        "Cannot invoke replaceElement on non array schema: %s", array);
+    Preconditions.checkArgument(
+        array.getType() == ARRAY, "Cannot invoke replaceElement on non array schema: %s", array);
     Schema copy = Schema.createArray(elementSchema);
     for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
@@ -387,8 +417,8 @@ public class AvroSchemaUtil {
   }
 
   static Schema replaceValue(Schema map, Schema valueSchema) {
-    Preconditions.checkArgument(map.getType() == MAP,
-        "Cannot invoke replaceValue on non map schema: %s", map);
+    Preconditions.checkArgument(
+        map.getType() == MAP, "Cannot invoke replaceValue on non map schema: %s", map);
     Schema copy = Schema.createMap(valueSchema);
     for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());

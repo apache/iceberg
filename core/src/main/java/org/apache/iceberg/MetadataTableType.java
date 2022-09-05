@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
@@ -27,7 +26,9 @@ public enum MetadataTableType {
   DATA_FILES,
   DELETE_FILES,
   HISTORY,
+  METADATA_LOG_ENTRIES,
   SNAPSHOTS,
+  REFS,
   MANIFESTS,
   PARTITIONS,
   ALL_DATA_FILES,

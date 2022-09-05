@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,19 +60,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private final String sourceTableName = "source_table";
   private File fileTableDir;
 
-  public TestAddFilesProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestAddFilesProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void setupTempDirs() {
@@ -97,12 +96,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -116,12 +118,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`orc`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -134,10 +139,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     // Create an Avro file
 
-    Schema schema = SchemaBuilder.record("record").fields()
-        .requiredInt("id")
-        .requiredString("data")
-        .endRecord();
+    Schema schema =
+        SchemaBuilder.record("record")
+            .fields()
+            .requiredInt("id")
+            .requiredString("data")
+            .endRecord();
     GenericRecord record1 = new GenericData.Record(schema);
     record1.put("id", 1L);
     record1.put("data", "a");
@@ -153,30 +160,30 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     dataFileWriter.append(record2);
     dataFileWriter.close();
 
-    String createIceberg =
-        "CREATE TABLE %s (id Long, data String) USING iceberg";
+    String createIceberg = "CREATE TABLE %s (id Long, data String) USING iceberg";
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
-        catalogName, tableName, outputFile.getPath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`avro`.`%s`')",
+            catalogName, tableName, outputFile.getPath());
     Assert.assertEquals(1L, result);
 
-    List<Object[]> expected = Lists.newArrayList(
-        new Object[]{1L, "a"},
-        new Object[]{2L, "b"}
-    );
+    List<Object[]> expected = Lists.newArrayList(new Object[] {1L, "a"}, new Object[] {2L, "b"});
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    List<Object[]> actualRecordCount = sql("select %s from %s.files",
-        DataFile.RECORD_COUNT.name(),
-        tableName);
+    List<Object[]> actualRecordCount =
+        sql("select %s from %s.files", DataFile.RECORD_COUNT.name(), tableName);
     List<Object[]> expectedRecordCount = Lists.newArrayList();
-    expectedRecordCount.add(new Object[]{2L});
-    assertEquals("Iceberg file metadata should have correct metadata count",
-        expectedRecordCount, actualRecordCount);
+    expectedRecordCount.add(new Object[] {2L});
+    assertEquals(
+        "Iceberg file metadata should have correct metadata count",
+        expectedRecordCount,
+        actualRecordCount);
   }
 
   // TODO Adding spark-avro doesn't work in tests
@@ -189,12 +196,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`avro`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -208,12 +218,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '%s')",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -227,12 +238,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -241,17 +255,19 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   public void addDataUnpartitionedMissingCol() {
     createUnpartitionedFileTable("parquet");
 
-    String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String) USING iceberg";
+    String createIceberg = "CREATE TABLE %s (id Integer, name String, dept String) USING iceberg";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -265,12 +281,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(8L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -284,17 +303,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(8L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore  // TODO Classpath issues prevent us from actually writing to a Spark ORC table
+  @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataPartitionedOrc() {
     createPartitionedFileTable("orc");
 
@@ -303,12 +325,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(8L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -323,12 +348,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`avro`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(8L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -342,12 +370,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '%s')",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(8L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -361,12 +390,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -376,17 +408,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createCompositePartitionedTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
-            "PARTITIONED BY (id, dept)";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg "
+            + "PARTITIONED BY (id, dept)";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -396,18 +431,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createCompositePartitionedTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
-            "PARTITIONED BY (id, dept)";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg "
+            + "PARTITIONED BY (id, dept)";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(6L, result);
 
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id", sourceTableName),
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id",
+            sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
@@ -416,17 +456,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
-            "PARTITIONED BY (id, dept)";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg "
+            + "PARTITIONED BY (id, dept)";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -436,18 +479,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
-            "PARTITIONED BY (id, dept)";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg "
+            + "PARTITIONED BY (id, dept)";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(6L, result);
 
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id", sourceTableName),
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id",
+            sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
@@ -456,13 +504,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createWeirdCaseTable();
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, `naMe` String, dept String, subdept String) USING iceberg " +
-            "PARTITIONED BY (`naMe`)";
+        "CREATE TABLE %s (id Integer, `naMe` String, dept String, subdept String) USING iceberg "
+            + "PARTITIONED BY (`naMe`)";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '%s', map('naMe', 'John Doe'))",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '%s', map('naMe', 'John Doe'))",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);
 
@@ -472,22 +522,30 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Spark does not actually handle this pushdown correctly for hive based tables and it returns 0 records
      */
     List<Object[]> expected =
-        sql("SELECT id, `naMe`, dept, subdept from %s ORDER BY id", sourceTableName)
-            .stream()
+        sql("SELECT id, `naMe`, dept, subdept from %s ORDER BY id", sourceTableName).stream()
             .filter(r -> r[1].equals("John Doe"))
             .collect(Collectors.toList());
 
     // TODO when this assert breaks Spark fixed the pushdown issue
-    Assert.assertEquals("If this assert breaks it means that Spark has fixed the pushdown issue", 0,
-        sql("SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id", sourceTableName)
+    Assert.assertEquals(
+        "If this assert breaks it means that Spark has fixed the pushdown issue",
+        0,
+        sql(
+                "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
+                sourceTableName)
             .size());
 
     // Pushdown works for iceberg
-    Assert.assertEquals("We should be able to pushdown mixed case partition keys", 2,
-        sql("SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id", tableName)
+    Assert.assertEquals(
+        "We should be able to pushdown mixed case partition keys",
+        2,
+        sql(
+                "SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id",
+                tableName)
             .size());
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         expected,
         sql("SELECT id, `naMe`, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -501,12 +559,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '%s', map('id', 1))",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '%s', map('id', 1))",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
@@ -520,19 +581,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    AssertHelpers.assertThrows("Should forbid adding of partitioned data to unpartitioned table",
+    AssertHelpers.assertThrows(
+        "Should forbid adding of partitioned data to unpartitioned table",
         IllegalArgumentException.class,
         "Cannot use partition filter with an unpartitioned table",
-        () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-            catalogName, tableName, fileTableDir.getAbsolutePath())
-    );
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+                catalogName, tableName, fileTableDir.getAbsolutePath()));
 
-    AssertHelpers.assertThrows("Should forbid adding of partitioned data to unpartitioned table",
+    AssertHelpers.assertThrows(
+        "Should forbid adding of partitioned data to unpartitioned table",
         IllegalArgumentException.class,
         "Cannot add partitioned files to an unpartitioned table",
-        () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-            catalogName, tableName, fileTableDir.getAbsolutePath())
-    );
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                catalogName, tableName, fileTableDir.getAbsolutePath()));
   }
 
   @Test
@@ -544,19 +609,24 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    AssertHelpers.assertThrows("Should forbid adding with a mismatching partition spec",
+    AssertHelpers.assertThrows(
+        "Should forbid adding with a mismatching partition spec",
         IllegalArgumentException.class,
         "is greater than the number of partitioned columns",
-        () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
-            catalogName, tableName, fileTableDir.getAbsolutePath()));
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
+                catalogName, tableName, fileTableDir.getAbsolutePath()));
 
-    AssertHelpers.assertThrows("Should forbid adding with partition spec with incorrect columns",
+    AssertHelpers.assertThrows(
+        "Should forbid adding with partition spec with incorrect columns",
         IllegalArgumentException.class,
         "specified partition filter refers to columns that are not partitioned",
-        () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
-            catalogName, tableName, fileTableDir.getAbsolutePath()));
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
+                catalogName, tableName, fileTableDir.getAbsolutePath()));
   }
-
 
   @Test
   public void addTwice() {
@@ -567,24 +637,30 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 1))",
-        catalogName, tableName, sourceTableName);
+    Object result1 =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', 1))",
+            catalogName, tableName, sourceTableName);
     Assert.assertEquals(2L, result1);
 
-    Object result2 = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 2))",
-        catalogName, tableName, sourceTableName);
+    Object result2 =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', 2))",
+            catalogName, tableName, sourceTableName);
     Assert.assertEquals(2L, result2);
 
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", tableName));
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 2 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
@@ -598,21 +674,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 1))",
+    scalarSql(
+        "CALL %s.system.add_files("
+            + "table => '%s', "
+            + "source_table => '%s', "
+            + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows("Should not allow adding duplicate files",
+    AssertHelpers.assertThrows(
+        "Should not allow adding duplicate files",
         IllegalStateException.class,
-        "Cannot complete import because data files to be imported already" +
-            " exist within the target table",
-        () -> scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 1))",
-        catalogName, tableName, sourceTableName));
+        "Cannot complete import because data files to be imported already"
+            + " exist within the target table",
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files("
+                    + "table => '%s', "
+                    + "source_table => '%s', "
+                    + "partition_filter => map('id', 1))",
+                catalogName, tableName, sourceTableName));
   }
 
   @Test
@@ -624,27 +704,33 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 1))",
-        catalogName, tableName, sourceTableName);
+    Object result1 =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', 1))",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result1);
 
-    Object result2 = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', 1)," +
-            "check_duplicate_files => false)",
-        catalogName, tableName, sourceTableName);
+    Object result2 =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', 1),"
+                + "check_duplicate_files => false)",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result2);
 
-
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 UNION ALL " +
-            "SELECT id, name, dept, subdept FROM %s WHERE id = 1", sourceTableName, sourceTableName),
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(
+            "SELECT id, name, dept, subdept FROM %s WHERE id = 1 UNION ALL "
+                + "SELECT id, name, dept, subdept FROM %s WHERE id = 1",
+            sourceTableName, sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s", tableName, tableName));
   }
 
@@ -657,15 +743,16 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    scalarSql("CALL %s.system.add_files('%s', '%s')",
-        catalogName, tableName, sourceTableName);
+    scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows("Should not allow adding duplicate files",
+    AssertHelpers.assertThrows(
+        "Should not allow adding duplicate files",
         IllegalStateException.class,
-        "Cannot complete import because data files to be imported already" +
-            " exist within the target table",
-        () -> scalarSql("CALL %s.system.add_files('%s', '%s')",
-            catalogName, tableName, sourceTableName));
+        "Cannot complete import because data files to be imported already"
+            + " exist within the target table",
+        () ->
+            scalarSql(
+                "CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName));
   }
 
   @Test
@@ -677,23 +764,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 = scalarSql("CALL %s.system.add_files('%s', '%s')",
-        catalogName, tableName, sourceTableName);
+    Object result1 =
+        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
     Assert.assertEquals(2L, result1);
 
-    Object result2 = scalarSql("CALL %s.system.add_files(" +
-        "table => '%s', " +
-            "source_table => '%s'," +
-            "check_duplicate_files => false)",
-        catalogName, tableName, sourceTableName);
+    Object result2 =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s',"
+                + "check_duplicate_files => false)",
+            catalogName, tableName, sourceTableName);
     Assert.assertEquals(2L, result2);
 
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT * FROM (SELECT * FROM %s UNION ALL " +
-            "SELECT * from %s) ORDER BY id", sourceTableName, sourceTableName),
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(
+            "SELECT * FROM (SELECT * FROM %s UNION ALL " + "SELECT * from %s) ORDER BY id",
+            sourceTableName, sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
-
-
   }
 
   @Test
@@ -706,30 +795,34 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     File outputFile = temp.newFile("test.orc");
     final int numRows = 5;
     List<Record> expectedRecords = createOrcFile(outputFile, numRows);
-    String createIceberg =
-        "CREATE TABLE %s (x float, y double, z long) USING iceberg";
+    String createIceberg = "CREATE TABLE %s (x float, y double, z long) USING iceberg";
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
-        catalogName, tableName, outputFile.getPath());
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`orc`.`%s`')",
+            catalogName, tableName, outputFile.getPath());
     Assert.assertEquals(1L, result);
 
-    List<Object[]> expected = expectedRecords.stream()
-        .map(record -> new Object[]{record.get(0), record.get(1), record.get(2)})
-        .collect(Collectors.toList());
+    List<Object[]> expected =
+        expectedRecords.stream()
+            .map(record -> new Object[] {record.get(0), record.get(1), record.get(2)})
+            .collect(Collectors.toList());
 
     // x goes 2.00, 1.99, 1.98, ...
-    assertEquals("Iceberg table contains correct data",
+    assertEquals(
+        "Iceberg table contains correct data",
         expected,
         sql("SELECT * FROM %s ORDER BY x DESC", tableName));
 
-    List<Object[]> actualRecordCount = sql("select %s from %s.files",
-        DataFile.RECORD_COUNT.name(),
-        tableName);
+    List<Object[]> actualRecordCount =
+        sql("select %s from %s.files", DataFile.RECORD_COUNT.name(), tableName);
     List<Object[]> expectedRecordCount = Lists.newArrayList();
-    expectedRecordCount.add(new Object[]{(long) numRows});
-    assertEquals("Iceberg file metadata should have correct metadata count",
-        expectedRecordCount, actualRecordCount);
+    expectedRecordCount.add(new Object[] {(long) numRows});
+    assertEquals(
+        "Iceberg file metadata should have correct metadata count",
+        expectedRecordCount,
+        actualRecordCount);
   }
 
   @Test
@@ -740,21 +833,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     sql(createIceberg, tableName);
 
     // Empty path based import
-    Object pathResult = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Object pathResult =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
     Assert.assertEquals(0L, pathResult);
-    assertEquals("Iceberg table contains no added data when importing from an empty path",
+    assertEquals(
+        "Iceberg table contains no added data when importing from an empty path",
         emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Empty table based import
-    String createHive = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
+    String createHive =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
     sql(createHive, sourceTableName);
 
-    Object tableResult = scalarSql("CALL %s.system.add_files('%s', '%s')",
-        catalogName, tableName, sourceTableName);
+    Object tableResult =
+        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
     Assert.assertEquals(0L, tableResult);
-    assertEquals("Iceberg table contains no added data when importing from an empty table",
+    assertEquals(
+        "Iceberg table contains no added data when importing from an empty table",
         emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -765,22 +863,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     final int emptyPartitionId = 999;
     // Add an empty partition to the hive table
-    sql("ALTER TABLE %s ADD PARTITION (id = '%d') LOCATION '%d'", sourceTableName,
-        emptyPartitionId, emptyPartitionId);
+    sql(
+        "ALTER TABLE %s ADD PARTITION (id = '%d') LOCATION '%d'",
+        sourceTableName, emptyPartitionId, emptyPartitionId);
 
     String createIceberg =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
 
     sql(createIceberg, tableName);
 
-    Object tableResult = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "partition_filter => map('id', %d))",
-        catalogName, tableName, sourceTableName, emptyPartitionId);
+    Object tableResult =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "partition_filter => map('id', %d))",
+            catalogName, tableName, sourceTableName, emptyPartitionId);
 
     Assert.assertEquals(0L, tableResult);
-    assertEquals("Iceberg table contains no added data when importing from an empty table",
+    assertEquals(
+        "Iceberg table contains no added data when importing from an empty table",
         emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -788,26 +890,28 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
 
   private static final StructField[] struct = {
-      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
-      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
-      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-      new StructField("subdept", DataTypes.StringType, true, Metadata.empty())
+    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("subdept", DataTypes.StringType, true, Metadata.empty())
   };
 
   private static final Dataset<Row> unpartitionedDF =
-      spark.createDataFrame(
-          ImmutableList.of(
-              RowFactory.create(1, "John Doe", "hr", "communications"),
-              RowFactory.create(2, "Jane Doe", "hr", "salary"),
-              RowFactory.create(3, "Matt Doe", "hr", "communications"),
-              RowFactory.create(4, "Will Doe", "facilities", "all")),
-          new StructType(struct)).repartition(1);
+      spark
+          .createDataFrame(
+              ImmutableList.of(
+                  RowFactory.create(1, "John Doe", "hr", "communications"),
+                  RowFactory.create(2, "Jane Doe", "hr", "salary"),
+                  RowFactory.create(3, "Matt Doe", "hr", "communications"),
+                  RowFactory.create(4, "Will Doe", "facilities", "all")),
+              new StructType(struct))
+          .repartition(1);
 
   private static final Dataset<Row> singleNullRecordDF =
-      spark.createDataFrame(
-          ImmutableList.of(
-              RowFactory.create(null, null, null, null)),
-          new StructType(struct)).repartition(1);
+      spark
+          .createDataFrame(
+              ImmutableList.of(RowFactory.create(null, null, null, null)), new StructType(struct))
+          .repartition(1);
 
   private static final Dataset<Row> partitionedDF =
       unpartitionedDF.select("name", "dept", "subdept", "id");
@@ -825,8 +929,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
           unpartitionedDF.col("dept"),
           unpartitionedDF.col("name").as("naMe"));
 
-
-  private void  createUnpartitionedFileTable(String format) {
+  private void createUnpartitionedFileTable(String format) {
     String createParquet =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s LOCATION '%s'";
 
@@ -835,10 +938,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     unpartitionedDF.write().insertInto(sourceTableName);
   }
 
-  private void  createPartitionedFileTable(String format) {
+  private void createPartitionedFileTable(String format) {
     String createParquet =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s PARTITIONED BY (id) " +
-            "LOCATION '%s'";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s PARTITIONED BY (id) "
+            + "LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
@@ -847,8 +950,9 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private void createCompositePartitionedTable(String format) {
-    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s " +
-        "PARTITIONED BY (id, dept) LOCATION '%s'";
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (id, dept) LOCATION '%s'";
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
     compositePartitionedDF.write().insertInto(sourceTableName);
@@ -856,13 +960,16 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private void createCompositePartitionedTableWithNullValueInPartitionColumn(String format) {
-    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s " +
-        "PARTITIONED BY (id, dept) LOCATION '%s'";
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (id, dept) LOCATION '%s'";
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
-    Dataset<Row> unionedDF = compositePartitionedDF.unionAll(compositePartitionedNullRecordDF)
-        .select("name", "subdept", "id", "dept")
-        .repartition(1);
+    Dataset<Row> unionedDF =
+        compositePartitionedDF
+            .unionAll(compositePartitionedNullRecordDF)
+            .select("name", "subdept", "id", "dept")
+            .repartition(1);
 
     unionedDF.write().insertInto(sourceTableName);
     unionedDF.write().insertInto(sourceTableName);
@@ -870,18 +977,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createWeirdCaseTable() {
     String createParquet =
-        "CREATE TABLE %s (id Integer, subdept String, dept String) " +
-            "PARTITIONED BY (`naMe` String) STORED AS parquet";
+        "CREATE TABLE %s (id Integer, subdept String, dept String) "
+            + "PARTITIONED BY (`naMe` String) STORED AS parquet";
 
     sql(createParquet, sourceTableName);
 
     weirdColumnNamesDF.write().insertInto(sourceTableName);
     weirdColumnNamesDF.write().insertInto(sourceTableName);
-
   }
 
   private void createUnpartitionedHiveTable() {
-    String createHive = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
+    String createHive =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
 
     sql(createHive, sourceTableName);
 
@@ -890,8 +997,9 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private void createPartitionedHiveTable() {
-    String createHive = "CREATE TABLE %s (name String, dept String, subdept String) " +
-        "PARTITIONED BY (id Integer) STORED AS parquet";
+    String createHive =
+        "CREATE TABLE %s (name String, dept String, subdept String) "
+            + "PARTITIONED BY (id Integer) STORED AS parquet";
 
     sql(createHive, sourceTableName);
 
@@ -905,11 +1013,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     if (orcFile.exists()) {
       orcFile.delete();
     }
-    final org.apache.iceberg.Schema icebergSchema = new org.apache.iceberg.Schema(
-        optional(1, "x", Types.FloatType.get()),
-        optional(2, "y", Types.DoubleType.get()),
-        optional(3, "z", Types.LongType.get())
-    );
+    final org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            optional(1, "x", Types.FloatType.get()),
+            optional(2, "y", Types.DoubleType.get()),
+            optional(3, "z", Types.LongType.get()));
 
     List<Record> records = Lists.newArrayListWithExpectedSize(numRows);
     for (int i = 0; i < numRows; i += 1) {
@@ -921,11 +1029,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     }
 
     OutputFile outFile = Files.localOutput(orcFile);
-    try (FileAppender<Record> appender = org.apache.iceberg.orc.ORC.write(outFile)
-        .schema(icebergSchema)
-        .metricsConfig(MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")))
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        org.apache
+            .iceberg
+            .orc
+            .ORC
+            .write(outFile)
+            .schema(icebergSchema)
+            .metricsConfig(
+                MetricsConfig.fromProperties(
+                    ImmutableMap.of("write.metadata.metrics.default", "none")))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       appender.addAll(records);
     }
     return records;

@@ -16,27 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A struct of partition values.
- * <p>
- * Instances of this class can produce partition values from a data row passed to {@link #partition(StructLike)}.
+ *
+ * <p>Instances of this class can produce partition values from a data row passed to {@link
+ * #partition(StructLike)}.
  */
 public class PartitionKey implements StructLike, Serializable {
 
   private final PartitionSpec spec;
   private final int size;
   private final Object[] partitionTuple;
-  private final Transform[] transforms;
+  private final SerializableFunction[] transforms;
   private final Accessor<StructLike>[] accessors;
 
   @SuppressWarnings("unchecked")
@@ -46,17 +47,18 @@ public class PartitionKey implements StructLike, Serializable {
     List<PartitionField> fields = spec.fields();
     this.size = fields.size();
     this.partitionTuple = new Object[size];
-    this.transforms = new Transform[size];
+    this.transforms = new SerializableFunction[size];
     this.accessors = (Accessor<StructLike>[]) Array.newInstance(Accessor.class, size);
 
     Schema schema = spec.schema();
     for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
       Accessor<StructLike> accessor = inputSchema.accessorForField(field.sourceId());
-      Preconditions.checkArgument(accessor != null,
+      Preconditions.checkArgument(
+          accessor != null,
           "Cannot build accessor for field: " + schema.findField(field.sourceId()));
       this.accessors[i] = accessor;
-      this.transforms[i] = field.transform();
+      this.transforms[i] = field.transform().bind(accessor.type());
     }
   }
 
@@ -100,7 +102,7 @@ public class PartitionKey implements StructLike, Serializable {
   @SuppressWarnings("unchecked")
   public void partition(StructLike row) {
     for (int i = 0; i < partitionTuple.length; i += 1) {
-      Transform<Object, Object> transform = transforms[i];
+      Function<Object, Object> transform = transforms[i];
       partitionTuple[i] = transform.apply(accessors[i].get(row));
     }
   }

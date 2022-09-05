@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
 
 import org.apache.hadoop.conf.Configuration;
@@ -34,10 +33,19 @@ import org.apache.thrift.transport.TTransportException;
 
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
-  private static final DynMethods.StaticMethod GET_CLIENT = DynMethods.builder("getProxy")
-      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 1 and 2
-      .impl(RetryingMetaStoreClient.class, Configuration.class, HiveMetaHookLoader.class, String.class) // Hive 3
-      .buildStatic();
+  private static final DynMethods.StaticMethod GET_CLIENT =
+      DynMethods.builder("getProxy")
+          .impl(
+              RetryingMetaStoreClient.class,
+              HiveConf.class,
+              HiveMetaHookLoader.class,
+              String.class) // Hive 1 and 2
+          .impl(
+              RetryingMetaStoreClient.class,
+              Configuration.class,
+              HiveMetaHookLoader.class,
+              String.class) // Hive 3
+          .buildStatic();
 
   private final HiveConf hiveConf;
 
@@ -49,12 +57,14 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   }
 
   @Override
-  protected IMetaStoreClient newClient()  {
+  protected IMetaStoreClient newClient() {
     try {
       try {
-        return GET_CLIENT.invoke(hiveConf, (HiveMetaHookLoader) tbl -> null, HiveMetaStoreClient.class.getName());
+        return GET_CLIENT.invoke(
+            hiveConf, (HiveMetaHookLoader) tbl -> null, HiveMetaStoreClient.class.getName());
       } catch (RuntimeException e) {
-        // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
+        // any MetaException would be wrapped into RuntimeException during reflection, so let's
+        // double-check type here
         if (e.getCause() instanceof MetaException) {
           throw (MetaException) e.getCause();
         }
@@ -64,9 +74,11 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
     } catch (Throwable t) {
       if (t.getMessage().contains("Another instance of Derby may have already booted")) {
-        throw new RuntimeMetaException(t, "Failed to start an embedded metastore because embedded " +
-            "Derby supports only one client at a time. To fix this, use a metastore that supports " +
-            "multiple clients.");
+        throw new RuntimeMetaException(
+            t,
+            "Failed to start an embedded metastore because embedded "
+                + "Derby supports only one client at a time. To fix this, use a metastore that supports "
+                + "multiple clients.");
       }
 
       throw new RuntimeMetaException(t, "Failed to connect to Hive Metastore");
@@ -86,8 +98,11 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
 
   @Override
   protected boolean isConnectionException(Exception e) {
-    return super.isConnectionException(e) || (e != null && e instanceof MetaException &&
-        e.getMessage().contains("Got exception: org.apache.thrift.transport.TTransportException"));
+    return super.isConnectionException(e)
+        || (e != null
+            && e instanceof MetaException
+            && e.getMessage()
+                .contains("Got exception: org.apache.thrift.transport.TTransportException"));
   }
 
   @Override

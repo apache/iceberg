@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -48,7 +47,8 @@ public class ManualSource implements WriteSupport, DataSourceRegister, DataSourc
   private Configuration lazyConf = null;
 
   public static void setTable(String name, Table table) {
-    Preconditions.checkArgument(!tableMap.containsKey(name), "Cannot set " + name + ". It is already set");
+    Preconditions.checkArgument(
+        !tableMap.containsKey(name), "Cannot set " + name + ". It is already set");
     tableMap.put(name, table);
   }
 
@@ -62,25 +62,35 @@ public class ManualSource implements WriteSupport, DataSourceRegister, DataSourc
   }
 
   @Override
-  public Optional<DataSourceWriter> createWriter(String writeUUID, StructType dsStruct, SaveMode mode,
-                                                 DataSourceOptions options) {
+  public Optional<DataSourceWriter> createWriter(
+      String writeUUID, StructType dsStruct, SaveMode mode, DataSourceOptions options) {
 
     Map<String, String> properties = options.asMap();
-    Preconditions.checkArgument(properties.containsKey(TABLE_NAME), "Missing property " + TABLE_NAME);
+    Preconditions.checkArgument(
+        properties.containsKey(TABLE_NAME), "Missing property " + TABLE_NAME);
     String tableName = properties.get(TABLE_NAME);
     Preconditions.checkArgument(tableMap.containsKey(tableName), "Table missing " + tableName);
     Table table = tableMap.get(tableName);
 
     SparkWriteConf writeConf = new SparkWriteConf(lazySparkSession(), table, options.asMap());
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = writeConf.wapId();
     boolean replacePartitions = mode == SaveMode.Overwrite;
 
-    return Optional.of(new Writer(
-        lazySparkSession(), table, writeConf, replacePartitions, appId, wapId, writeSchema, dsStruct));
+    return Optional.of(
+        new Writer(
+            lazySparkSession(),
+            table,
+            writeConf,
+            replacePartitions,
+            appId,
+            wapId,
+            writeSchema,
+            dsStruct));
   }
 
   private SparkSession lazySparkSession() {

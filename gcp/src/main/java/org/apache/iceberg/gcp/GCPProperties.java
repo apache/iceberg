@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp;
 
 import java.io.Serializable;
@@ -48,8 +47,7 @@ public class GCPProperties implements Serializable {
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
 
-  public GCPProperties() {
-  }
+  public GCPProperties() {}
 
   public GCPProperties(Map<String, String> properties) {
     projectId = properties.get(GCS_PROJECT_ID);

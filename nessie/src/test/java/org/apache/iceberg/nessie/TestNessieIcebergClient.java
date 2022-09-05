@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
 import org.apache.iceberg.catalog.Namespace;
@@ -67,7 +66,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
-  public void testWithReferenceAfterRecreatingBranch() throws NessieConflictException, NessieNotFoundException {
+  public void testWithReferenceAfterRecreatingBranch()
+      throws NessieConflictException, NessieNotFoundException {
     String branch = "branchToBeDropped";
     createBranch(branch, null);
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, ImmutableMap.of());
@@ -76,12 +76,17 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     Namespace namespace = Namespace.of("a");
     client.createNamespace(namespace, ImmutableMap.of());
     Assertions.assertThat(client.listNamespaces(namespace)).isNotNull();
-    client.getApi().deleteBranch().branch((Branch) client.getApi().getReference().refName(branch).get()).delete();
+    client
+        .getApi()
+        .deleteBranch()
+        .branch((Branch) client.getApi().getReference().refName(branch).get())
+        .delete();
     createBranch(branch, null);
 
     // make sure the client uses the re-created branch
     Reference ref = client.getApi().getReference().refName(branch).get();
-    Assertions.assertThat(client.withReference(branch, null).getRef().getReference()).isEqualTo(ref);
+    Assertions.assertThat(client.withReference(branch, null).getRef().getReference())
+        .isEqualTo(ref);
     Assertions.assertThat(client.withReference(branch, null)).isNotEqualTo(client);
   }
 }

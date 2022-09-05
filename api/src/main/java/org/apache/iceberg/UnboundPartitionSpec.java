@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 
 public class UnboundPartitionSpec {
 
@@ -53,9 +54,9 @@ public class UnboundPartitionSpec {
 
     for (UnboundPartitionField field : fields) {
       if (field.partitionId != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, field.transformAsString);
+        builder.add(field.sourceId, field.partitionId, field.name, field.transform);
       } else {
-        builder.add(field.sourceId, field.name, field.transformAsString);
+        builder.add(field.sourceId, field.name, field.transform);
       }
     }
 
@@ -95,13 +96,17 @@ public class UnboundPartitionSpec {
   }
 
   static class UnboundPartitionField {
-    private final String transformAsString;
+    private final Transform<?, ?> transform;
     private final int sourceId;
     private final Integer partitionId;
     private final String name;
 
+    public Transform<?, ?> transform() {
+      return transform;
+    }
+
     public String transformAsString() {
-      return transformAsString;
+      return transform.toString();
     }
 
     public int sourceId() {
@@ -116,8 +121,9 @@ public class UnboundPartitionSpec {
       return name;
     }
 
-    private UnboundPartitionField(String transformAsString, int sourceId, Integer partitionId, String name) {
-      this.transformAsString = transformAsString;
+    private UnboundPartitionField(
+        String transformAsString, int sourceId, Integer partitionId, String name) {
+      this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
       this.partitionId = partitionId;
       this.name = name;

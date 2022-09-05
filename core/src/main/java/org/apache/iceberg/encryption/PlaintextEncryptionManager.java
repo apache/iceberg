@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
@@ -31,7 +30,8 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
     if (encrypted.keyMetadata().buffer() != null) {
-      LOG.warn("File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
+      LOG.warn(
+          "File encryption key metadata is present, but currently using PlaintextEncryptionManager.");
     }
     return encrypted.encryptedInputFile();
   }

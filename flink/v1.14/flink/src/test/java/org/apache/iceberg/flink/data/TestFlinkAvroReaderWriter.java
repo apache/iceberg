@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.io.File;
@@ -52,17 +51,17 @@ public class TestFlinkAvroReaderWriter extends DataTest {
 
   private static final int NUM_RECORDS = 100;
 
-  private static final Schema SCHEMA_NUM_TYPE = new Schema(
-      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-      Types.NestedField.optional(2, "int", Types.IntegerType.get()),
-      Types.NestedField.optional(3, "float", Types.FloatType.get()),
-      Types.NestedField.optional(4, "double", Types.DoubleType.get()),
-      Types.NestedField.optional(5, "date", Types.DateType.get()),
-      Types.NestedField.optional(6, "time", Types.TimeType.get()),
-      Types.NestedField.optional(7, "timestamp", Types.TimestampType.withoutZone()),
-      Types.NestedField.optional(8, "bigint", Types.LongType.get()),
-      Types.NestedField.optional(9, "decimal", Types.DecimalType.of(4, 2))
-  );
+  private static final Schema SCHEMA_NUM_TYPE =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "int", Types.IntegerType.get()),
+          Types.NestedField.optional(3, "float", Types.FloatType.get()),
+          Types.NestedField.optional(4, "double", Types.DoubleType.get()),
+          Types.NestedField.optional(5, "date", Types.DateType.get()),
+          Types.NestedField.optional(6, "time", Types.TimeType.get()),
+          Types.NestedField.optional(7, "timestamp", Types.TimestampType.withoutZone()),
+          Types.NestedField.optional(8, "bigint", Types.LongType.get()),
+          Types.NestedField.optional(9, "decimal", Types.DecimalType.of(4, 2)));
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -70,25 +69,29 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     writeAndValidate(schema, expectedRecords, NUM_RECORDS);
   }
 
-  private void writeAndValidate(Schema schema, List<Record> expectedRecords, int numRecord) throws IOException {
+  private void writeAndValidate(Schema schema, List<Record> expectedRecords, int numRecord)
+      throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
     File recordsFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", recordsFile.delete());
 
-    // Write the expected records into AVRO file, then read them into RowData and assert with the expected Record list.
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(recordsFile))
-        .schema(schema)
-        .createWriterFunc(DataWriter::create)
-        .build()) {
+    // Write the expected records into AVRO file, then read them into RowData and assert with the
+    // expected Record list.
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(recordsFile))
+            .schema(schema)
+            .createWriterFunc(DataWriter::create)
+            .build()) {
       writer.addAll(expectedRecords);
     }
 
-    try (CloseableIterable<RowData> reader = Avro.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createReaderFunc(FlinkAvroReader::new)
-        .build()) {
+    try (CloseableIterable<RowData> reader =
+        Avro.read(Files.localInput(recordsFile))
+            .project(schema)
+            .createReaderFunc(FlinkAvroReader::new)
+            .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < numRecord; i++) {
@@ -101,18 +104,21 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     File rowDataFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", rowDataFile.delete());
 
-    // Write the expected RowData into AVRO file, then read them into Record and assert with the expected RowData list.
-    try (FileAppender<RowData> writer = Avro.write(Files.localOutput(rowDataFile))
-        .schema(schema)
-        .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
-        .build()) {
+    // Write the expected RowData into AVRO file, then read them into Record and assert with the
+    // expected RowData list.
+    try (FileAppender<RowData> writer =
+        Avro.write(Files.localOutput(rowDataFile))
+            .schema(schema)
+            .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
+            .build()) {
       writer.addAll(expectedRows);
     }
 
-    try (CloseableIterable<Record> reader = Avro.read(Files.localInput(rowDataFile))
-        .project(schema)
-        .createReaderFunc(DataReader::create)
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Avro.read(Files.localInput(rowDataFile))
+            .project(schema)
+            .createReaderFunc(DataReader::create)
+            .build()) {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < numRecord; i += 1) {
@@ -124,14 +130,22 @@ public class TestFlinkAvroReaderWriter extends DataTest {
   }
 
   private Record recordNumType(
-      int id, int intV, float floatV, double doubleV, long date, long time, long timestamp,
-      long bigint, double decimal) {
+      int id,
+      int intV,
+      float floatV,
+      double doubleV,
+      long date,
+      long time,
+      long timestamp,
+      long bigint,
+      double decimal) {
     Record record = GenericRecord.create(SCHEMA_NUM_TYPE);
     record.setField("id", id);
     record.setField("int", intV);
     record.setField("float", floatV);
     record.setField("double", doubleV);
-    record.setField("date", DateTimeUtil.dateFromDays((int) new Date(date).toLocalDate().toEpochDay()));
+    record.setField(
+        "date", DateTimeUtil.dateFromDays((int) new Date(date).toLocalDate().toEpochDay()));
     record.setField("time", new Time(time).toLocalTime());
     record.setField("timestamp", DateTimeUtil.timestampFromMicros(timestamp * 1000));
     record.setField("bigint", bigint);
@@ -142,11 +156,28 @@ public class TestFlinkAvroReaderWriter extends DataTest {
   @Test
   public void testNumericTypes() throws IOException {
 
-    List<Record> expected = ImmutableList.of(
-        recordNumType(2, Integer.MAX_VALUE, Float.MAX_VALUE, Double.MAX_VALUE, Long.MAX_VALUE,
-            1643811742000L, 1643811742000L, 1643811742000L, 10.24d),
-        recordNumType(2, Integer.MIN_VALUE, Float.MIN_VALUE, Double.MIN_VALUE, Long.MIN_VALUE,
-            1643811742000L, 1643811742000L, 1643811742000L, 10.24d));
+    List<Record> expected =
+        ImmutableList.of(
+            recordNumType(
+                2,
+                Integer.MAX_VALUE,
+                Float.MAX_VALUE,
+                Double.MAX_VALUE,
+                Long.MAX_VALUE,
+                1643811742000L,
+                1643811742000L,
+                1643811742000L,
+                10.24d),
+            recordNumType(
+                2,
+                Integer.MIN_VALUE,
+                Float.MIN_VALUE,
+                Double.MIN_VALUE,
+                Long.MIN_VALUE,
+                1643811742000L,
+                1643811742000L,
+                1643811742000L,
+                10.24d));
 
     writeAndValidate(SCHEMA_NUM_TYPE, expected, 2);
   }

@@ -16,15 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.spark.package$;
 
 public class Spark3VersionUtil {
 
-  private Spark3VersionUtil() {
-  }
+  private Spark3VersionUtil() {}
 
   public static boolean isSpark30() {
     return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("3.0");

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import java.util.Map;
@@ -45,10 +44,9 @@ import scala.Some;
 import scala.collection.JavaConverters;
 
 /**
- * Takes a Spark table in the source catalog and attempts to transform it into an Iceberg
- * table in the same location with the same identifier. Once complete the identifier which
- * previously referred to a non-Iceberg table will refer to the newly migrated Iceberg
- * table.
+ * Takes a Spark table in the source catalog and attempts to transform it into an Iceberg table in
+ * the same location with the same identifier. Once complete the identifier which previously
+ * referred to a non-Iceberg table will refer to the newly migrated Iceberg table.
  */
 public class BaseMigrateTableSparkAction
     extends BaseTableCreationSparkAction<MigrateTable, MigrateTable.Result>
@@ -61,7 +59,8 @@ public class BaseMigrateTableSparkAction
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
-  public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  public BaseMigrateTableSparkAction(
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
@@ -132,7 +131,8 @@ public class BaseMigrateTableSparkAction
       threw = false;
     } finally {
       if (threw) {
-        LOG.error("Failed to perform the migration, aborting table creation and restoring the original table");
+        LOG.error(
+            "Failed to perform the migration, aborting table creation and restoring the original table");
 
         restoreSourceTable();
 
@@ -147,8 +147,12 @@ public class BaseMigrateTableSparkAction
     }
 
     Snapshot snapshot = icebergTable.currentSnapshot();
-    long migratedDataFilesCount = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files to {}", migratedDataFilesCount, destTableIdent());
+    long migratedDataFilesCount =
+        Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    LOG.info(
+        "Successfully loaded Iceberg metadata for {} files to {}",
+        migratedDataFilesCount,
+        destTableIdent());
     return new BaseMigrateTableActionResult(migratedDataFilesCount);
   }
 
@@ -176,9 +180,11 @@ public class BaseMigrateTableSparkAction
   @Override
   protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
     // currently the import code relies on being able to look up the table in the session catalog
-    Preconditions.checkArgument(catalog instanceof SparkSessionCatalog,
+    Preconditions.checkArgument(
+        catalog instanceof SparkSessionCatalog,
         "Cannot migrate a table from a non-Iceberg Spark Session Catalog. Found %s of class %s as the source catalog.",
-        catalog.name(), catalog.getClass().getName());
+        catalog.name(),
+        catalog.getClass().getName());
 
     return (TableCatalog) catalog;
   }
@@ -204,11 +210,15 @@ public class BaseMigrateTableSparkAction
       destCatalog().renameTable(backupIdent, sourceTableIdent());
 
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
-      LOG.error("Cannot restore the original table, the backup table {} cannot be found", backupIdent, e);
+      LOG.error(
+          "Cannot restore the original table, the backup table {} cannot be found", backupIdent, e);
 
     } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
-      LOG.error("Cannot restore the original table, a table with the original name exists. " +
-          "Use the backup table {} to restore the original table manually.", backupIdent, e);
+      LOG.error(
+          "Cannot restore the original table, a table with the original name exists. "
+              + "Use the backup table {} to restore the original table manually.",
+          backupIdent,
+          e);
     }
   }
 }

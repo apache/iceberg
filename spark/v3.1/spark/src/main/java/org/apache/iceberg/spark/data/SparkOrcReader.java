@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.util.List;
@@ -34,10 +33,9 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 /**
- * Converts the OrcIterator, which returns ORC's VectorizedRowBatch to a
- * set of Spark's UnsafeRows.
+ * Converts the OrcIterator, which returns ORC's VectorizedRowBatch to a set of Spark's UnsafeRows.
  *
- * It minimizes allocations by reusing most of the objects in the implementation.
+ * <p>It minimizes allocations by reusing most of the objects in the implementation.
  */
 public class SparkOrcReader implements OrcRowReader<InternalRow> {
   private final OrcValueReader<?> reader;
@@ -48,8 +46,12 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
 
   @SuppressWarnings("unchecked")
   public SparkOrcReader(
-      org.apache.iceberg.Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
-    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+      org.apache.iceberg.Schema expectedSchema,
+      TypeDescription readOrcSchema,
+      Map<Integer, ?> idToConstant) {
+    this.reader =
+        OrcSchemaWithTypeVisitor.visit(
+            expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
   }
 
   @Override
@@ -71,18 +73,25 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
 
     @Override
     public OrcValueReader<?> record(
-        Types.StructType expected, TypeDescription record, List<String> names, List<OrcValueReader<?>> fields) {
+        Types.StructType expected,
+        TypeDescription record,
+        List<String> names,
+        List<OrcValueReader<?>> fields) {
       return SparkOrcValueReaders.struct(fields, expected, idToConstant);
     }
 
     @Override
-    public OrcValueReader<?> list(Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
+    public OrcValueReader<?> list(
+        Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
       return SparkOrcValueReaders.array(elementReader);
     }
 
     @Override
     public OrcValueReader<?> map(
-        Types.MapType iMap, TypeDescription map, OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
+        Types.MapType iMap,
+        TypeDescription map,
+        OrcValueReader<?> keyReader,
+        OrcValueReader<?> valueReader) {
       return SparkOrcValueReaders.map(keyReader, valueReader);
     }
 

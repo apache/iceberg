@@ -16,58 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
-import java.io.File;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.junit.Assert;
-import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
 
-public class HadoopTableResource extends ExternalResource {
-  private final TemporaryFolder temporaryFolder;
-  private final String database;
-  private final String tableName;
+public class HadoopTableResource extends HadoopCatalogResource {
   private final Schema schema;
   private final PartitionSpec partitionSpec;
 
-  private HadoopCatalog catalog;
-  private TableLoader tableLoader;
   private Table table;
 
-  public HadoopTableResource(TemporaryFolder temporaryFolder, String database, String tableName, Schema schema) {
+  public HadoopTableResource(
+      TemporaryFolder temporaryFolder, String database, String tableName, Schema schema) {
     this(temporaryFolder, database, tableName, schema, null);
   }
 
-  public HadoopTableResource(TemporaryFolder temporaryFolder, String database, String tableName,
-                             Schema schema, PartitionSpec partitionSpec) {
-    this.temporaryFolder = temporaryFolder;
-    this.database = database;
-    this.tableName = tableName;
+  public HadoopTableResource(
+      TemporaryFolder temporaryFolder,
+      String database,
+      String tableName,
+      Schema schema,
+      PartitionSpec partitionSpec) {
+    super(temporaryFolder, database, tableName);
     this.schema = schema;
     this.partitionSpec = partitionSpec;
   }
 
   @Override
   protected void before() throws Throwable {
-    File warehouseFile = temporaryFolder.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    // before variables
-    String warehouse = "file:" + warehouseFile;
-    Configuration hadoopConf = new Configuration();
-    this.catalog = new HadoopCatalog(hadoopConf, warehouse);
-    String location = String.format("%s/%s/%s", warehouse, database, tableName);
-    this.tableLoader = TableLoader.fromHadoopTable(location);
+    super.before();
     if (partitionSpec == null) {
       this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema);
     } else {
-      this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
+      this.table =
+          catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
     }
     tableLoader.open();
   }
@@ -81,10 +67,7 @@ public class HadoopTableResource extends ExternalResource {
     } catch (Exception e) {
       throw new RuntimeException("Failed to close catalog resource");
     }
-  }
-
-  public TableLoader tableLoader() {
-    return tableLoader;
+    super.after();
   }
 
   public Table table() {

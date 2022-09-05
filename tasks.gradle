@@ -54,3 +54,4 @@ task deploySite(type: Exec) {
   workingDir 'site'
   commandLine('./deploy.sh')
 }
+

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.Objects;
@@ -24,28 +23,32 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 public class UnknownTransform<S, T> implements Transform<S, T> {
 
-  private final Type sourceType;
   private final String transform;
 
-  UnknownTransform(Type sourceType, String transform) {
-    this.sourceType
-        = sourceType;
+  UnknownTransform(String transform) {
     this.transform = transform;
   }
 
   @Override
   public T apply(S value) {
-    throw new UnsupportedOperationException(String.format("Cannot apply unsupported transform: %s", transform));
+    throw new UnsupportedOperationException(
+        String.format("Cannot apply unsupported transform: %s", transform));
+  }
+
+  @Override
+  public SerializableFunction<S, T> bind(Type type) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot bind unsupported transform: %s", transform));
   }
 
   @Override
   public boolean canTransform(Type type) {
-    // assume the transform function can be applied for this type because unknown transform is only used when parsing
-    // a transform in an existing table. a different Iceberg version must have already validated it.
-    return this.sourceType.equals(type);
+    // assume the transform function can be applied for any type
+    return true;
   }
 
   @Override
@@ -78,11 +81,11 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
     }
 
     UnknownTransform<?, ?> that = (UnknownTransform<?, ?>) other;
-    return sourceType.equals(that.sourceType) && transform.equals(that.transform);
+    return transform.equals(that.transform);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(sourceType, transform);
+    return Objects.hash(transform);
   }
 }

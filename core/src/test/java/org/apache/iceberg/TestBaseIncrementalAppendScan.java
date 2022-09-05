@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
-
 
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppendScan> {
+public class TestBaseIncrementalAppendScan
+    extends ScanTestBase<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
   public TestBaseIncrementalAppendScan(int formatVersion) {
     super(formatVersion);
   }
@@ -43,13 +42,11 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
 
-    IncrementalAppendScan scan = newScan()
-        .fromSnapshotInclusive(snapshotAId);
+    IncrementalAppendScan scan = newScan().fromSnapshotInclusive(snapshotAId);
     Assert.assertEquals(3, Iterables.size(scan.planFiles()));
 
-    IncrementalAppendScan scanWithToSnapshot = newScan()
-        .fromSnapshotInclusive(snapshotAId)
-        .toSnapshot(snapshotCId);
+    IncrementalAppendScan scanWithToSnapshot =
+        newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotCId);
     Assert.assertEquals(3, Iterables.size(scanWithToSnapshot.planFiles()));
   }
 
@@ -62,13 +59,11 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
 
-    IncrementalAppendScan scan = newScan()
-        .fromSnapshotExclusive(snapshotAId);
+    IncrementalAppendScan scan = newScan().fromSnapshotExclusive(snapshotAId);
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
 
-    IncrementalAppendScan scanWithToSnapshot = newScan()
-        .fromSnapshotExclusive(snapshotAId)
-        .toSnapshot(snapshotBId);
+    IncrementalAppendScan scanWithToSnapshot =
+        newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(snapshotBId);
     Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
   }
 
@@ -76,20 +71,19 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
   public void testFromSnapshotExclusiveForExpiredParent() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
-    long expireTimestampSnapshotA = TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
+    long expireTimestampSnapshotA =
+        TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
     table.expireSnapshots().expireOlderThan(expireTimestampSnapshotA).commit();
 
-    IncrementalAppendScan scan = newScan()
-        .fromSnapshotExclusive(snapshotAId);
+    IncrementalAppendScan scan = newScan().fromSnapshotExclusive(snapshotAId);
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
 
-    IncrementalAppendScan scanWithToSnapshot = newScan()
-        .fromSnapshotExclusive(snapshotAId)
-        .toSnapshot(snapshotBId);
+    IncrementalAppendScan scanWithToSnapshot =
+        newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(snapshotBId);
     Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
   }
 
@@ -102,8 +96,7 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
 
-    IncrementalAppendScan scan = newScan()
-        .toSnapshot(snapshotBId);
+    IncrementalAppendScan scan = newScan().toSnapshot(snapshotBId);
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
   }
 
@@ -111,7 +104,8 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
   public void testMultipleRootSnapshots() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
-    long expireTimestampSnapshotA = TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
+    long expireTimestampSnapshotA =
+        TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // append file B in a staged branch
     AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_B).stageOnly();
@@ -127,27 +121,28 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     table.expireSnapshots().expireOlderThan(expireTimestampSnapshotA).commit();
 
     // scan should discover snapshot C and D
-    IncrementalAppendScan scan = newScan()
-        .toSnapshot(snapshotDId);
+    IncrementalAppendScan scan = newScan().toSnapshot(snapshotDId);
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
 
     // scan should fail because snapshot B is not an ancestor of snapshot D
-    IncrementalAppendScan scanShouldFail = newScan()
-        .fromSnapshotExclusive(snapshotBId)
-        .toSnapshot(snapshotDId);
-    AssertHelpers.assertThrows("Should throw exception",
+    IncrementalAppendScan scanShouldFail =
+        newScan().fromSnapshotExclusive(snapshotBId).toSnapshot(snapshotDId);
+    AssertHelpers.assertThrows(
+        "Should throw exception",
         IllegalArgumentException.class,
-        String.format("Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
+        String.format(
+            "Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
             snapshotBId, snapshotDId),
         () -> Iterables.size(scanShouldFail.planFiles()));
 
     // scan should fail because snapshot B is not an ancestor of snapshot D
-    IncrementalAppendScan scanShouldFailInclusive = newScan()
-        .fromSnapshotInclusive(snapshotBId)
-        .toSnapshot(snapshotDId);
-    AssertHelpers.assertThrows("Should throw exception",
+    IncrementalAppendScan scanShouldFailInclusive =
+        newScan().fromSnapshotInclusive(snapshotBId).toSnapshot(snapshotDId);
+    AssertHelpers.assertThrows(
+        "Should throw exception",
         IllegalArgumentException.class,
-        String.format("Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
+        String.format(
+            "Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
             snapshotBId, snapshotDId),
         () -> Iterables.size(scanShouldFailInclusive.planFiles()));
   }

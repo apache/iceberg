@@ -7,15 +7,15 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.mr.hive.vector;
 
 import java.io.IOException;
@@ -39,8 +39,11 @@ public final class VectorizedRowBatchIterator implements CloseableIterator<Vecto
   private final Object[] partitionValues;
   private boolean advanced = false;
 
-  VectorizedRowBatchIterator(RecordReader<NullWritable, VectorizedRowBatch> recordReader, JobConf job,
-                             int[] partitionColIndices, Object[] partitionValues) {
+  VectorizedRowBatchIterator(
+      RecordReader<NullWritable, VectorizedRowBatch> recordReader,
+      JobConf job,
+      int[] partitionColIndices,
+      Object[] partitionValues) {
     this.recordReader = recordReader;
     this.key = recordReader.createKey();
     this.batch = recordReader.createValue();
@@ -65,8 +68,11 @@ public final class VectorizedRowBatchIterator implements CloseableIterator<Vecto
         if (partitionColIndices != null) {
           for (int i = 0; i < partitionColIndices.length; ++i) {
             int colIdx = partitionColIndices[i];
-            CompatibilityHiveVectorUtils.addPartitionColsToBatch(batch.cols[colIdx], partitionValues[i],
-                    vrbCtx.getRowColumnNames()[colIdx], vrbCtx.getRowColumnTypeInfos()[colIdx]);
+            CompatibilityHiveVectorUtils.addPartitionColsToBatch(
+                batch.cols[colIdx],
+                partitionValues[i],
+                vrbCtx.getRowColumnNames()[colIdx],
+                vrbCtx.getRowColumnTypeInfos()[colIdx]);
           }
         }
       } catch (IOException ioe) {

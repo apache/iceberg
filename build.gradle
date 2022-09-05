@@ -28,21 +28,27 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.2.2'
-    classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.10.0'
+    classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.15.0'
+    classpath ('org.eclipse.jgit:org.eclipse.jgit:5.13.1.202206130422-r') {
+      // gradle-git-version automatically uses a jgit version that requires JDK11
+      // so we need to enforce the latest jgit version that works with JDK8
+      force = true
+    }
   }
 }
 
 plugins {
-  id 'nebula.dependency-recommender' version '9.0.2'
+  id 'nebula.dependency-recommender' version '11.0.0'
 }
 
 try {
-  // apply this plugin in a try-catch block so that we can handle cases without .git directory
+  // apply these plugins in a try-catch block so that we can handle cases without .git directory
   apply plugin: 'com.palantir.git-version'
 } catch (Exception e) {
   project.logger.error(e.getMessage())
@@ -53,16 +59,42 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11")
+  throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
+}
+
+apply plugin: 'com.gorylenko.gradle-git-properties'
+// git properties file for the root project for adding to the source tarball
+gitProperties {
+  gitPropertiesName = 'iceberg-build.properties'
+  gitPropertiesResourceDir = file("${rootDir}/build")
+  extProperty = 'gitProps'
+  failOnNoGitDirectory = true
+  keys = ['git.branch', 'git.build.version', 'git.closest.tag.name','git.commit.id.abbrev', 'git.commit.id',
+          'git.commit.message.short', 'git.commit.time', 'git.tags']
+}
+generateGitProperties.outputs.upToDateWhen { false }
+
+if (file("${rootDir}/iceberg-build.properties").exists()) {
+  tasks.register('buildInfo', Exec) {
+    project.logger.info('Using build info from iceberg-build.properties')
+    commandLine 'cp', "${rootDir}/iceberg-build.properties", 'build/iceberg-build.properties'
+  }
+} else {
+  tasks.register('buildInfo') {
+    project.logger.info('Generating iceberg-build.properties from git')
+    dependsOn generateGitProperties
+  }
 }
 
 dependencyRecommendations {
   propertiesFile file: file('versions.props')
 }
 
+def projectVersion = getProjectVersion()
+
 allprojects {
   group = "org.apache.iceberg"
-  version = getProjectVersion()
+  version = projectVersion
   repositories {
     mavenCentral()
     mavenLocal()
@@ -120,6 +152,7 @@ subprojects {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.slf4j:slf4j-simple'
     testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-inline'
     testImplementation 'org.assertj:assertj-core'
   }
 
@@ -198,6 +231,17 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
+    testImplementation "com.esotericsoftware:kryo"
+  }
+
+  tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+
+  sourceSets {
+    test {
+      resources {
+        srcDir "${rootDir}/build"
+      }
+    }
   }
 }
 
@@ -220,6 +264,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation 'io.airlift:aircompressor'
     implementation 'org.apache.httpcomponents.client5:httpclient5'
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
@@ -234,6 +279,7 @@ project(':iceberg-core') {
     testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
@@ -346,6 +392,7 @@ project(':iceberg-aws') {
       exclude module: "logback-classic"
       exclude group: 'junit'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 
   sourceSets {
@@ -388,6 +435,7 @@ project(':iceberg-gcp') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
@@ -640,9 +688,9 @@ String getProjectVersion() {
   }
 
   try {
-    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // we're fetching the version from the latest tag (prefixed with 'apache-iceberg-'),
     // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
-    String version = gitVersion(prefix: 'release-base-')
+    String version = gitVersion(prefix: 'apache-iceberg-')
     Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
     Matcher matcher = pattern.matcher(version)
     if (matcher.matches()) {

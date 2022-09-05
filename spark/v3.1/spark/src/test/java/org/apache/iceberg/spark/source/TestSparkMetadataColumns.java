@@ -16,14 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -48,41 +53,37 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
-import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
-import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
-
 @RunWith(Parameterized.class)
 public class TestSparkMetadataColumns extends SparkTestBase {
 
   private static final String TABLE_NAME = "test_table";
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "category", Types.StringType.get()),
-      Types.NestedField.optional(3, "data", Types.StringType.get())
-  );
-  private static final PartitionSpec UNKNOWN_SPEC = PartitionSpecParser.fromJson(SCHEMA,
-      "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "category", Types.StringType.get()),
+          Types.NestedField.optional(3, "data", Types.StringType.get()));
+  private static final PartitionSpec UNKNOWN_SPEC =
+      PartitionSpecParser.fromJson(
+          SCHEMA,
+          "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
 
   @Parameterized.Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { FileFormat.PARQUET, false, 1},
-        { FileFormat.PARQUET, true, 1},
-        { FileFormat.PARQUET, false, 2},
-        { FileFormat.PARQUET, true, 2},
-        { FileFormat.AVRO, false, 1},
-        { FileFormat.AVRO, false, 2},
-        { FileFormat.ORC, false, 1},
-        { FileFormat.ORC, true, 1},
-        { FileFormat.ORC, false, 2},
-        { FileFormat.ORC, true, 2},
+      {FileFormat.PARQUET, false, 1},
+      {FileFormat.PARQUET, true, 1},
+      {FileFormat.PARQUET, false, 2},
+      {FileFormat.PARQUET, true, 2},
+      {FileFormat.AVRO, false, 1},
+      {FileFormat.AVRO, false, 2},
+      {FileFormat.ORC, false, 1},
+      {FileFormat.ORC, true, 1},
+      {FileFormat.ORC, false, 2},
+      {FileFormat.ORC, true, 2},
     };
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final FileFormat fileFormat;
   private final boolean vectorized;
@@ -98,13 +99,16 @@ public class TestSparkMetadataColumns extends SparkTestBase {
 
   @BeforeClass
   public static void setupSpark() {
-    ImmutableMap<String, String> config = ImmutableMap.of(
-        "type", "hive",
-        "default-namespace", "default",
-        "cache-enabled", "true"
-    );
-    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
-    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
+    ImmutableMap<String, String> config =
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "cache-enabled", "true");
+    spark
+        .conf()
+        .set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
+    config.forEach(
+        (key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 
   @Before
@@ -117,8 +121,6 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TestTables.clearTables();
   }
 
-  // TODO: remove testing workarounds once we compile against Spark 3.2
-
   @Test
   public void testSpecAndPartitionMetadataColumns() {
     // TODO: support metadata structs in vectorized ORC reads
@@ -127,36 +129,30 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     table.refresh();
-    table.updateSpec()
-        .addField("data")
-        .commit();
+    table.updateSpec().addField("data").commit();
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     table.refresh();
-    table.updateSpec()
-        .addField(Expressions.bucket("category", 8))
-        .commit();
+    table.updateSpec().addField(Expressions.bucket("category", 8)).commit();
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     table.refresh();
-    table.updateSpec()
-        .removeField("data")
-        .commit();
+    table.updateSpec().removeField("data").commit();
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
 
     table.refresh();
-    table.updateSpec()
-        .renameField("category_bucket_8", "category_bucket_8_another_name")
-        .commit();
+    table.updateSpec().renameField("category_bucket_8", "category_bucket_8_another_name").commit();
 
-    List<Object[]> expected = ImmutableList.of(
-        row(0, row(null, null)),
-        row(1, row("b1", null)),
-        row(2, row("b1", 2)),
-        row(3, row(null, 2))
-    );
-    assertEquals("Rows must match", expected,
-        sql("SELECT _spec_id, _partition FROM `%s$_spec_id,_partition` ORDER BY _spec_id", TABLE_NAME));
+    List<Object[]> expected =
+        ImmutableList.of(
+            row(0, row(null, null)),
+            row(1, row("b1", null)),
+            row(2, row("b1", 2)),
+            row(3, row(null, 2)));
+    assertEquals(
+        "Rows must match",
+        expected,
+        sql("SELECT _spec_id, _partition FROM %s ORDER BY _spec_id", TABLE_NAME));
   }
 
   @Test
@@ -166,13 +162,52 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TableMetadata base = ops.current();
     ops.commit(base, base.updatePartitionSpec(UNKNOWN_SPEC));
 
-    AssertHelpers.assertThrows("Should fail to query the partition metadata column",
-        ValidationException.class, "Cannot build table partition type, unknown transforms",
-        () -> sql("SELECT _partition FROM `%s$_partition`", TABLE_NAME));
+    AssertHelpers.assertThrows(
+        "Should fail to query the partition metadata column",
+        ValidationException.class,
+        "Cannot build table partition type, unknown transforms",
+        () -> sql("SELECT _partition FROM %s", TABLE_NAME));
+  }
+
+  @Test
+  public void testConflictingColumns() {
+    table
+        .updateSchema()
+        .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
+        .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
+        .commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1', -1, 'path/to/file')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, "a1")),
+        sql("SELECT id, category FROM %s", TABLE_NAME));
+
+    AssertHelpers.assertThrows(
+        "Should fail to query conflicting columns",
+        ValidationException.class,
+        "column names conflict",
+        () -> sql("SELECT * FROM %s", TABLE_NAME));
+
+    table.refresh();
+
+    table
+        .updateSchema()
+        .renameColumn(MetadataColumns.SPEC_ID.name(), "_renamed" + MetadataColumns.SPEC_ID.name())
+        .renameColumn(
+            MetadataColumns.FILE_PATH.name(), "_renamed" + MetadataColumns.FILE_PATH.name())
+        .commit();
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(0, null, -1)),
+        sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
   private void createAndInitTable() throws IOException {
-    this.table = TestTables.create(temp.newFolder(), TABLE_NAME, SCHEMA, PartitionSpec.unpartitioned());
+    this.table =
+        TestTables.create(temp.newFolder(), TABLE_NAME, SCHEMA, PartitionSpec.unpartitioned());
 
     UpdateProperties updateProperties = table.updateProperties();
     updateProperties.set(FORMAT_VERSION, String.valueOf(formatVersion));
@@ -186,7 +221,8 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         updateProperties.set(ORC_VECTORIZATION_ENABLED, String.valueOf(vectorized));
         break;
       default:
-        Preconditions.checkState(!vectorized, "File format %s does not support vectorized reads", fileFormat);
+        Preconditions.checkState(
+            !vectorized, "File format %s does not support vectorized reads", fileFormat);
     }
 
     updateProperties.commit();

@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-/**
- * API for configuring a table scan.
- */
-public interface TableScan extends Scan<TableScan> {
+/** API for configuring a table scan. */
+public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTask> {
   /**
    * Returns the {@link Table} from which this scan loads data.
    *
@@ -66,50 +62,43 @@ public interface TableScan extends Scan<TableScan> {
   }
 
   /**
-   * Returns this scan's filter {@link Expression}.
-   *
-   * @return this scan's filter expression
-   */
-  Expression filter();
-
-  /**
-   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
-   * inclusive.
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to
+   * {@code toSnapshotId} inclusive.
    *
    * @param fromSnapshotId the last snapshot id read by the user, exclusive
    * @param toSnapshotId read append data up to this snapshot id
-   * @return a table scan which can read append data from {@code fromSnapshotId}
-   * exclusive and up to {@code toSnapshotId} inclusive
+   * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
+   *     {@code toSnapshotId} inclusive
+   * @deprecated since 1.0.0, will be removed in 2.0.0; use {@link Table#newIncrementalAppendScan()}
+   *     instead.
    */
+  @Deprecated
   default TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 
   /**
-   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot
-   * inclusive.
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to
+   * the current snapshot inclusive.
    *
    * @param fromSnapshotId - the last snapshot id read by the user, exclusive
-   * @return a table scan which can read append data from {@code fromSnapshotId}
-   * exclusive and up to current snapshot inclusive
+   * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
+   *     current snapshot inclusive
+   * @deprecated since 1.0.0, will be removed in 2.0.0; use {@link Table#newIncrementalAppendScan()}
+   *     instead.
    */
+  @Deprecated
   default TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 
   /**
    * Returns the {@link Snapshot} that will be used by this scan.
-   * <p>
-   * If the snapshot was not configured using {@link #asOfTime(long)} or {@link #useSnapshot(long)}, the current table
-   * snapshot will be used.
+   *
+   * <p>If the snapshot was not configured using {@link #asOfTime(long)} or {@link
+   * #useSnapshot(long)}, the current table snapshot will be used.
    *
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
-
-  /**
-   * Returns whether this scan should apply column name case sensitiveness as per {@link Scan#caseSensitive(boolean)}.
-   * @return true if case sensitive, false otherwise.
-   */
-  boolean isCaseSensitive();
 }

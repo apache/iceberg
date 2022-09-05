@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
 
 import java.util.Map;
@@ -40,7 +39,8 @@ public class ObjectMetadata {
 
   private String metaFile;
 
-  // The following getters and setters are required for Jackson ObjectMapper serialization and deserialization.
+  // The following getters and setters are required for Jackson ObjectMapper serialization and
+  // deserialization.
 
   public long getContentLength() {
     return contentLength;
