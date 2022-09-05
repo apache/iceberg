@@ -127,7 +127,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     schemas: List[Schema] = Field(default_factory=list)
     """A list of schemas, stored as objects with schema-id."""
 
-    current_schema_id: int = Field(alias="current-schema-id", default=INITIAL_SCHEMA_ID)
+    current_schema_id: Optional[int] = Field(alias="current-schema-id", default=None)
     """ID of the table’s current schema."""
 
     partition_specs: List[PartitionSpec] = Field(alias="partition-specs", default_factory=list)
@@ -239,6 +239,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if not data.get("schemas"):
             schema = data["schema_"]
             data["schemas"] = [schema]
+            data["current_schema_id"] = INITIAL_SCHEMA_ID
+
         check_schemas(data)
         return data
 

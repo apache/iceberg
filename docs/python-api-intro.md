@@ -29,7 +29,7 @@ menu:
 
 Much of the python api conforms to the Java API. You can get more info about the java api [here](../api).
 
-## Instal
+## Installing
 
 You can install the latest release version from pypi:
 
