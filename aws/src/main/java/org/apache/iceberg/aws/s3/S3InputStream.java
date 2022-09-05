@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -184,7 +186,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
     closeStream();
-    stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+
+    try {
+      stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+    } catch (NoSuchKeyException e) {
+      throw new NotFoundException(e, "Location does not exist: %s", location);
+    }
   }
 
   private void closeStream() throws IOException {
