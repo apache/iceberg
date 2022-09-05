@@ -148,10 +148,10 @@ Here are the catalog properties related to locking. They are used by some catalo
 | --------------------------------- | ------------------ | ------------------------------------------------------ |
 | lock-impl                         | null               | a custom implementation of the lock manager, the actual interface depends on the catalog used  |
 | lock.table                        | null               | an auxiliary table for locking, such as in [AWS DynamoDB lock manager](../aws/#dynamodb-for-commit-locking)  |
-| lock.acquire-interval-ms          | 5 seconds          | the interval to wait between each attempt to acquire a lock  |
-| lock.acquire-timeout-ms           | 3 minutes          | the maximum time to try acquiring a lock               |
-| lock.heartbeat-interval-ms        | 3 seconds          | the interval to wait between each heartbeat after acquiring a lock  |
-| lock.heartbeat-timeout-ms         | 15 seconds         | the maximum time without a heartbeat to consider a lock expired  |
+| lock.acquire-interval-ms          | 5000 (5 s)         | the interval to wait between each attempt to acquire a lock  |
+| lock.acquire-timeout-ms           | 180000 (3 min)     | the maximum time to try acquiring a lock               |
+| lock.heartbeat-interval-ms        | 3000 (3 s)         | the interval to wait between each heartbeat after acquiring a lock  |
+| lock.heartbeat-timeout-ms         | 15000 (15 s)       | the maximum time without a heartbeat to consider a lock expired  |
 
 
 ## Hadoop configuration
