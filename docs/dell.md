@@ -59,25 +59,23 @@ Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-ja
 
 To use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
 
-```python
-from pyspark.sql import SparkSession
+```bash
+ICEBERG_VERSION=0.15.0
+SPARK_VERSION=3.2_2.12
+ECS_CLIENT_VERSION=3.3.2
 
-jars = ",".join([
-    "org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.15.0",
-    "org.apache.iceberg:iceberg-dell:0.15.0",
-    "com.emc.ecs:object-client-bundle:3.3.2"
-])
+DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-${SPARK_VERSION}:${ICEBERG_VERSION},\
+org.apache.iceberg:iceberg-dell:${ICEBERG_VERSION},\
+com.emc.ecs:object-client-bundle:${ECS_CLIENT_VERSION}"
 
-spark = SparkSession.builder
-    .config("spark.jars.packages", jars)
-    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
-    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a")
-    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>")
-    .getOrCreate()
+spark-sql --packages ${DEPENDENCIES} \
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=ecs://bucket-a/namespace-a \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.dell.ecs.EcsCatalog \
+    --conf spark.sql.catalog.my_catalog.ecs.s3.endpoint=http://10.x.x.x:9020 \
+    --conf spark.sql.catalog.my_catalog.ecs.s3.access-key-id=<Your-ecs-s3-access-key> \
+    --conf spark.sql.catalog.my_catalog.ecs.s3.secret-access-key=<Your-ecs-s3-secret-access-key>
 ```
 
 Then, use `my_catalog` to access the data in ECS. You can use `SHOW NAMESPACES IN my_catalog` and `SHOW TABLES IN my_catalog` to fetch the namespaces and tables of the catalog.
@@ -91,31 +89,27 @@ The related problems of catalog usage:
 
 Use the Dell ECS catalog with Flink, you first must create a Flink environment.
 
-```python
-import requests
-from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import StreamTableEnvironment
+```bash
+# HADOOP_HOME is your hadoop root directory after unpack the binary package.
+export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
-# Set your workspace
-work_space = "<your_work_space>"
+# download Iceberg dependency
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_VERSION=0.15.0
+FLINK_VERSION=1.14
+wget ${MAVEN_URL}/org/apache/iceberg/iceberg-flink-runtime-${FLINK_VERSION}/${ICEBERG_VERSION}/iceberg-flink-runtime-${FLINK_VERSION}-${ICEBERG_VERSION}.jar
+wget ${MAVEN_URL}/org/apache/iceberg/iceberg-dell/${ICEBERG_VERSION}/iceberg-dell-${ICEBERG_VERSION}.jar
 
-jars = {
-    "iceberg-flink-runtime-1.14-0.15.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.15.0/iceberg-flink-runtime-1.14-0.15.0.jar",
-    "iceberg-dell.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-dell/0.15.0/iceberg-dell-0.15.0.jar",
-    "object-client-bundle-3.3.2.jar" : "https://repo1.maven.org/maven2/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar",
-}
+# download ECS object client
+ECS_CLIENT_VERSION=3.3.2
+wget ${MAVEN_URL}/com/emc/ecs/object-client-bundle/${ECS_CLIENT_VERSION}/object-client-bundle-${ECS_CLIENT_VERSION}.jar
 
-# Download libraries
-for jar, link in jars.items():
-    with open(f"{work_space}/{jar}", "wb") as f:
-        f.write(requests.get(link).content)
-
-pipeline_jars = [f"file://{work_space}/{jar}" for jar in jars]
-
-# Setup Flink session
-env = StreamExecutionEnvironment.get_execution_environment()
-env.add_jars(*pipeline_jars)
-t_env = StreamTableEnvironment.create(env)
+# open the SQL client.
+/path/to/bin/sql-client.sh embedded \
+    -j iceberg-flink-runtime-${FLINK_VERSION}-${ICEBERG_VERSION}.jar \
+    -j iceberg-dell-${ICEBERG_VERSION}.jar \
+    -j object-client-bundle-${ECS_CLIENT_VERSION}.jar \
+    shell
 ```
 
 Then, use Flink SQL to create a catalog named `my_catalog`:
