@@ -1,6 +1,10 @@
 ---
 title: "Dell"
 url: dell
+menu:
+    main:
+        parent: Integrations
+        weight: 0
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
