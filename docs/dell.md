@@ -84,7 +84,7 @@ Then, use `my_catalog` to access the data in ECS. You can use `SHOW NAMESPACES I
 
 The related problems of catalog usage:
 
-1. The [pyspark.sql.SparkSession.catalog](https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.SparkSession.catalog.html#pyspark.sql.SparkSession.catalog) won't access the 3rd-party catalog of Spark, so please use DDL SQL to list all tables and namespaces.
+1. The `pyspark.sql.SparkSession.catalog` won't access the 3rd-party catalog of Spark, so please use DDL SQL to list all tables and namespaces.
 
 
 ### Flink
