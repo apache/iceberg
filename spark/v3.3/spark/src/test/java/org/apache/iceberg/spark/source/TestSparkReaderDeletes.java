@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
+import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -78,15 +80,22 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
+  private final String format;
   private final boolean vectorized;
 
-  public TestSparkReaderDeletes(boolean vectorized) {
+  public TestSparkReaderDeletes(String format, boolean vectorized) {
+    this.format = format;
     this.vectorized = vectorized;
   }
 
-  @Parameterized.Parameters(name = "vectorized = {0}")
-  public static Object[] parameters() {
-    return new Object[] {false, true};
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {"parquet", false},
+      new Object[] {"parquet", true},
+      new Object[] {"orc", false},
+      new Object[] {"avro", false}
+    };
   }
 
   @BeforeClass
@@ -98,6 +107,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     spark =
         SparkSession.builder()
             .master("local[2]")
+            .config("spark.appStateStore.asyncTracking.enable", false)
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .enableHiveSupport()
@@ -130,16 +140,21 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
-    if (vectorized) {
-      table
-          .updateProperties()
-          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true")
-          .set(
-              TableProperties.PARQUET_BATCH_SIZE,
-              "4") // split 7 records to two batches to cover more code paths
-          .commit();
-    } else {
-      table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false").commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    if (format.equals("parquet") || format.equals("orc")) {
+      String vectorizationEnabled =
+          format.equals("parquet")
+              ? TableProperties.PARQUET_VECTORIZATION_ENABLED
+              : TableProperties.ORC_VECTORIZATION_ENABLED;
+      String batchSize =
+          format.equals("parquet")
+              ? TableProperties.PARQUET_BATCH_SIZE
+              : TableProperties.ORC_BATCH_SIZE;
+      table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();
+      if (vectorized) {
+        // split 7 records to two batches to cover more code paths
+        table.updateProperties().set(batchSize, "4").commit();
+      }
     }
     return table;
   }
@@ -147,6 +162,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Override
   protected void dropTable(String name) {
     catalog.dropTable(TableIdentifier.of("default", name));
+  }
+
+  protected boolean countDeletes() {
+    return true;
+  }
+
+  @Override
+  protected long deleteCount() {
+    return Long.parseLong(lastExecutedMetricValue(spark, NumDeletes.DISPLAY_STRING));
   }
 
   @Override
@@ -304,6 +328,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -333,6 +358,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -362,6 +388,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -405,6 +432,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -477,6 +505,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual =
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);
+    checkDeleteCount(0L);
   }
 
   private static final Schema PROJECTION_SCHEMA =

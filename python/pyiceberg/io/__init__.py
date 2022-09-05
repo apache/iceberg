@@ -239,11 +239,14 @@ LOCATION = "location"
 WAREHOUSE = "warehouse"
 
 ARROW_FILE_IO = "pyiceberg.io.pyarrow.PyArrowFileIO"
+FSSPEC_FILE_IO = "pyiceberg.io.fsspec.FsspecFileIO"
 
 # Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
 # If an implementation isn't installed, it will fall back to the next one.
 SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
-    "s3": [ARROW_FILE_IO],
+    "s3": [FSSPEC_FILE_IO, ARROW_FILE_IO],
+    "s3a": [FSSPEC_FILE_IO, ARROW_FILE_IO],
+    "s3n": [FSSPEC_FILE_IO, ARROW_FILE_IO],
     "gcs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
@@ -296,7 +299,12 @@ def load_file_io(properties: Properties, location: Optional[str] = None) -> File
         if file_io := _infer_file_io_from_schema(warehouse_location, properties):
             return file_io
 
-    # Default to PyArrow
-    from pyiceberg.io.pyarrow import PyArrowFileIO
+    try:
+        # Default to PyArrow
+        from pyiceberg.io.pyarrow import PyArrowFileIO
 
-    return PyArrowFileIO(properties)
+        return PyArrowFileIO(properties)
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            'Could not load a FileIO, please consider installing one: pip3 install "pyiceberg[s3fs]", for more options refer to the docs.'
+        ) from e

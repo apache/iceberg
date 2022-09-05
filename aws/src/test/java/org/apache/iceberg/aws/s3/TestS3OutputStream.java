@@ -183,7 +183,7 @@ public class TestS3OutputStream {
   }
 
   @Test
-  public void testCloseFailureShouldPersistOnFutureClose() throws IOException {
+  public void testDoubleClose() throws IOException {
     IllegalStateException mockException =
         new IllegalStateException("mock failure to completeUploads on close");
     Mockito.doThrow(mockException)
@@ -195,9 +195,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    Assertions.assertThatThrownBy(stream::close)
-        .isInstanceOf(IOException.class)
-        .hasCause(mockException);
+    Assertions.assertThatNoException().isThrownBy(stream::close);
   }
 
   private void writeTest() {

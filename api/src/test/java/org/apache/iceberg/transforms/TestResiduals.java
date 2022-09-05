@@ -33,6 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
 
+import java.util.function.Function;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -40,7 +41,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.Predicate;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
@@ -210,10 +210,10 @@ public class TestResiduals {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
 
-    Transform day = spec.getFieldsBySourceId(50).get(0).transform();
-    Integer tsDay = (Integer) day.apply(date20191201);
+    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withoutZone());
+    Integer tsDay = day.apply(date20191201);
 
-    Predicate pred = in("ts", date20191201, date20191202);
+    Expression pred = in("ts", date20191201, date20191202);
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, pred, true);
 
     Expression residual = resEval.residualFor(Row.of(tsDay));
@@ -318,10 +318,10 @@ public class TestResiduals {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
 
-    Transform day = spec.getFieldsBySourceId(50).get(0).transform();
-    Integer tsDay = (Integer) day.apply(date20191201);
+    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withoutZone());
+    Integer tsDay = day.apply(date20191201);
 
-    Predicate pred = notIn("ts", date20191201, date20191202);
+    Expression pred = notIn("ts", date20191201, date20191202);
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, pred, true);
 
     Expression residual = resEval.residualFor(Row.of(tsDay));

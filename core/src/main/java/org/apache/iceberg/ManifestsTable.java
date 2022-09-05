@@ -130,12 +130,14 @@ public class ManifestsTable extends BaseMetadataTable {
                   .get(i)
                   .transform()
                   .toHumanString(
+                      spec.partitionType().fields().get(i).type(),
                       Conversions.fromByteBuffer(
                           spec.partitionType().fields().get(i).type(), summary.lowerBound())),
               spec.fields()
                   .get(i)
                   .transform()
                   .toHumanString(
+                      spec.partitionType().fields().get(i).type(),
                       Conversions.fromByteBuffer(
                           spec.partitionType().fields().get(i).type(), summary.upperBound()))));
     }
