@@ -44,12 +44,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private int timeout;
   private String region;
   private AwsProperties awsProperties;
-  private AssumeRoleRequest assumeRoleRequest;
 
   @Override
   public S3Client s3() {
     return S3Client.builder()
-        .applyMutation(this::configure)
+        .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsProperties::applyS3EndpointConfigurations)
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .build();
@@ -57,18 +56,18 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   @Override
   public GlueClient glue() {
-    return GlueClient.builder().applyMutation(this::configure).build();
+    return GlueClient.builder().applyMutation(this::applyAssumeRoleConfigurations).build();
   }
 
   @Override
   public KmsClient kms() {
-    return KmsClient.builder().applyMutation(this::configure).build();
+    return KmsClient.builder().applyMutation(this::applyAssumeRoleConfigurations).build();
   }
 
   @Override
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
-        .applyMutation(this::configure)
+        .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
         .build();
   }
@@ -91,7 +90,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
     this.tags = toTags(properties);
-    this.assumeRoleRequest =
+  }
+
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
+      T clientBuilder) {
+    AssumeRoleRequest request =
         AssumeRoleRequest.builder()
             .roleArn(roleArn)
             .roleSessionName(genSessionName())
@@ -99,13 +102,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .externalId(externalId)
             .tags(tags)
             .build();
-  }
 
-  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
             .stsClient(sts())
-            .refreshRequest(assumeRoleRequest)
+            .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
