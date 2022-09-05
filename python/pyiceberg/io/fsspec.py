@@ -29,15 +29,7 @@ from pyiceberg.typedef import Properties
 def _s3(properties: Properties) -> AbstractFileSystem:
     from s3fs import S3FileSystem
 
-    client_kwargs = {
-        "endpoint_url": properties.get("s3.endpoint"),
-        "aws_access_key_id": properties.get("s3.access-key-id"),
-        "aws_secret_access_key": properties.get("s3.secret-access-key"),
-    }
-
-    config_kwargs = {"signature_version": properties.get("s3.signer")}
-
-    return S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
+    return S3FileSystem(**properties.get("s3", {}))
 
 
 SCHEME_TO_FS = {
@@ -137,8 +129,6 @@ class FsspecFileIO(FileIO):
     """A FileIO implementation that uses fsspec"""
 
     def __init__(self, properties: Properties):
-        self._scheme_to_fs = {}
-        self._scheme_to_fs.update(SCHEME_TO_FS)
         self.get_fs: Callable = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
@@ -187,6 +177,6 @@ class FsspecFileIO(FileIO):
 
     def _get_fs(self, scheme: str) -> AbstractFileSystem:
         """Get a filesystem for a specific scheme"""
-        if scheme not in self._scheme_to_fs:
+        if scheme not in SCHEME_TO_FS:
             raise ValueError(f"No registered filesystem for scheme: {scheme}")
-        return self._scheme_to_fs[scheme](self.properties)
+        return SCHEME_TO_FS[scheme](self.properties)
