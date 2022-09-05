@@ -49,6 +49,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyS3EndpointConfigurations)
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .build();
@@ -56,18 +57,25 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   @Override
   public GlueClient glue() {
-    return GlueClient.builder().applyMutation(this::applyAssumeRoleConfigurations).build();
+    return GlueClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
   }
 
   @Override
   public KmsClient kms() {
-    return KmsClient.builder().applyMutation(this::applyAssumeRoleConfigurations).build();
+    return KmsClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
   }
 
   @Override
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
         .build();
   }
@@ -110,7 +118,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .build());
 
     clientBuilder.region(Region.of(region));
-    awsProperties.applyHttpClientConfigurations(clientBuilder);
 
     return clientBuilder;
   }
