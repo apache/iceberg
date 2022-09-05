@@ -59,8 +59,11 @@ public class ExpressionParser {
 
   public static String toJson(Expression expression, boolean pretty) {
     Preconditions.checkArgument(expression != null, "Invalid expression: null");
-    return JsonUtil.generate(
-        gen -> ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen)), pretty);
+    return JsonUtil.generate(gen -> toJson(expression, gen), pretty);
+  }
+
+  public static void toJson(Expression expression, JsonGenerator gen) {
+    ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen));
   }
 
   private static class JsonGeneratorVisitor
