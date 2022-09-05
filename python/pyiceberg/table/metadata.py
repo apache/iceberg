@@ -224,9 +224,6 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if data.get("schema") and "schema_id" not in data["schema"]:
             data["schema"]["schema_id"] = DEFAULT_SCHEMA_ID
 
-        if data.get("partition_spec") and "last_partition_id" not in data:
-            data["last_partition_id"] = max(spec["field-id"] for spec in data["partition_spec"])
-
         return data
 
     @root_validator(skip_on_failure=True)
@@ -269,6 +266,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             data[PARTITION_SPECS] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
         else:
             check_partition_specs(data)
+
+        if partition_specs := data.get(PARTITION_SPECS):
+            data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
+
         return data
 
     @root_validator(skip_on_failure=True)
