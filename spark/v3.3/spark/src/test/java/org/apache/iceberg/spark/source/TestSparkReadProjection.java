@@ -81,7 +81,8 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   @BeforeClass
   public static void startSpark() {
-    TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkReadProjection.spark =
+        SparkSession.builder().master("local[2]").enableHiveSupport().getOrCreate();
     ImmutableMap<String, String> config =
         ImmutableMap.of(
             "type", "hive",
