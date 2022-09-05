@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.io.Serializable;
+import java.net.URI;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -36,8 +37,11 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
+import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -623,10 +627,6 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
   }
 
-  public String httpClientType() {
-    return httpClientType;
-  }
-
   public String s3FileIoSseType() {
     return s3FileIoSseType;
   }
@@ -659,10 +659,6 @@ public class AwsProperties implements Serializable {
     this.s3FileIoSseMd5 = sseMd5;
   }
 
-  public String glueEndpoint() {
-    return glueEndpoint;
-  }
-
   public String glueCatalogId() {
     return glueCatalogId;
   }
@@ -693,10 +689,6 @@ public class AwsProperties implements Serializable {
 
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
-  }
-
-  public String s3Endpoint() {
-    return s3Endpoint;
   }
 
   public int s3FileIoMultipartUploadThreads() {
@@ -745,10 +737,6 @@ public class AwsProperties implements Serializable {
 
   public boolean s3PreloadClientEnabled() {
     return s3PreloadClientEnabled;
-  }
-
-  public String dynamodbEndpoint() {
-    return dynamoDbEndpoint;
   }
 
   public String dynamoDbTableName() {
@@ -836,7 +824,7 @@ public class AwsProperties implements Serializable {
                 .build());
   }
 
-  public <T extends AwsSyncClientBuilder> void applyHttpClientConfiguration(T builder) {
+  public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
@@ -850,5 +838,23 @@ public class AwsProperties implements Serializable {
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }
+  }
+
+  private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
+    if (endpoint != null) {
+      builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  public <T extends S3ClientBuilder> void applyS3EndpointConfigurations(T builder) {
+    configureEndpoint(builder, s3Endpoint);
+  }
+
+  public <T extends GlueClientBuilder> void applyGlueEndpointConfigurations(T builder) {
+    configureEndpoint(builder, glueEndpoint);
+  }
+
+  public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
+    configureEndpoint(builder, dynamoDbEndpoint);
   }
 }
