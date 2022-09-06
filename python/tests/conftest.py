@@ -1127,11 +1127,12 @@ def iceberg_manifest_entry_schema() -> Schema:
 @pytest.fixture
 def fsspec_fileio(request):
     properties = {
-        "key": request.config.getoption("--s3.access-key-id", "admin"),
-        "secret": request.config.getoption("--s3.secret-access-key", "password"),
-        "client_kwargs": {
-            "endpoint_url": request.config.getoption("--s3.endpoint", "http://localhost:9000"),
-            "region_name": "us-east-1"
-        },
+        "s3": {
+            "key": request.config.getoption("--s3.access-key-id", "admin"),
+            "secret": request.config.getoption("--s3.secret-access-key", "password"),
+            "client_kwargs": {
+                "endpoint_url": request.config.getoption("--s3.endpoint", "http://localhost:9000"),
+            },
+        }
     }
     return fsspec.FsspecFileIO(properties=properties)

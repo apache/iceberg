@@ -29,6 +29,7 @@ from pyiceberg.typedef import Properties
 def _s3(properties: Properties) -> AbstractFileSystem:
     from s3fs import S3FileSystem
 
+    print(f"{properties}")
     return S3FileSystem(**properties.get("s3", {}))
 
 
