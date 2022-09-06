@@ -18,11 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -112,5 +117,57 @@ public class ReachableFileUtil {
       }
     }
     return manifestListLocations;
+  }
+
+  /**
+   * Emits a human-readable metadata graph of the Iceberg table's current snapshot
+   * @param table Iceberg table
+   * @param out output stream to emit to
+   */
+  public static void printTable(Table table, PrintStream out) {
+    out.println("Table " + table.name());
+    printSnapshot(table, table.currentSnapshot(), out);
+  }
+
+  public static void printAllTable(Table table, PrintStream out) {
+    out.println("Table " + table.name());
+    for (Snapshot snapshot : table.snapshots()) {
+      printSnapshot(table, snapshot, out);
+    }
+  }
+
+  /**
+   * Emits a human-readable metadata graph of the given snapshot
+   * @param table Iceberg table
+   * @param snapshot Iceberg table snapshot
+   * @param out output print stream to emit to
+   */
+  private static void printSnapshot(Table table, Snapshot snapshot, PrintStream out) {
+    out.println(String.format("+- %s", snapshot));
+    Iterator<ManifestFile> allManifests = snapshot.allManifests().iterator();
+    while (allManifests.hasNext()) {
+      ManifestFile mf = allManifests.next();
+      out.println(String.format("   \\- %s", mf));
+
+      if (mf.content().equals(ManifestContent.DATA)) {
+        ManifestReader<DataFile> dataManifestReader = ManifestFiles.read(mf, table.io(), table.specs());
+        printManifest(dataManifestReader, out);
+
+      } else if (mf.content().equals(ManifestContent.DELETES)) {
+        ManifestReader<DeleteFile> deleteManifestReader = ManifestFiles.readDeleteManifest(mf, table.io(),
+            table.specs());
+        printManifest(deleteManifestReader, out);
+      }
+    }
+  }
+
+  private static <T extends ContentFile<T>> void printManifest(ManifestReader<T> reader, PrintStream out) {
+    try (CloseableIterator<ManifestEntry<T>> dataEntries = reader.entries().iterator()) {
+      while (dataEntries.hasNext()) {
+        out.println(String.format("      \\- %s", dataEntries.next()));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }
