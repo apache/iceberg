@@ -209,13 +209,19 @@ public interface ManifestFile {
     return null;
   }
 
-  /** Returns the size of data files with status ADDED in the manifest file. */
+  /**
+   * Returns the size of data files with status ADDED in the manifest file.
+   */
   Long addedFileSizeInBytes();
 
-  /** Returns the size of data files with status EXISTING in the manifest file. */
+  /**
+   * Returns the size of data files with status ADDED in the manifest file.
+   */
   Long existingFileSizeInBytes();
 
-  /** Returns the size of data files with status DELETED in the manifest file. */
+  /**
+   * Returns the size of data files with status ADDED in the manifest file.
+   */
   Long deletedFileSizeInBytes();
 
   /**
