@@ -60,6 +60,7 @@ public class GenericManifestFile
   private Long deletedRowsCount = null;
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
+  private Long fileSizeInBytes = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -102,6 +103,7 @@ public class GenericManifestFile
     this.partitions = null;
     this.fromProjectionPos = null;
     this.keyMetadata = null;
+    this.fileSizeInBytes = null;
   }
 
   public GenericManifestFile(
@@ -119,7 +121,8 @@ public class GenericManifestFile
       int deletedFilesCount,
       long deletedRowsCount,
       List<PartitionFieldSummary> partitions,
-      ByteBuffer keyMetadata) {
+      ByteBuffer keyMetadata,
+      long fileSizeInBytes) {
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
     this.length = length;
@@ -137,6 +140,7 @@ public class GenericManifestFile
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.fromProjectionPos = null;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.fileSizeInBytes = fileSizeInBytes;
   }
 
   /**
@@ -172,6 +176,7 @@ public class GenericManifestFile
         toCopy.keyMetadata == null
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
+    this.fileSizeInBytes = toCopy.fileSizeInBytes;
   }
 
   /** Constructor for Java serialization. */
@@ -266,6 +271,11 @@ public class GenericManifestFile
   }
 
   @Override
+  public Long fileSizeInBytes() {
+    return fileSizeInBytes;
+  }
+
+  @Override
   public int size() {
     return ManifestFile.schema().columns().size();
   }
@@ -313,6 +323,8 @@ public class GenericManifestFile
         return partitions();
       case 14:
         return keyMetadata();
+      case 15:
+        return fileSizeInBytes;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -377,6 +389,9 @@ public class GenericManifestFile
       case 14:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
+      case 15:
+        this.fileSizeInBytes = (Long) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -431,6 +446,7 @@ public class GenericManifestFile
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("sequence_number", sequenceNumber)
         .add("min_sequence_number", minSequenceNumber)
+        .add("fileSizeInBytes", fileSizeInBytes)
         .toString();
   }
 
@@ -461,7 +477,8 @@ public class GenericManifestFile
                 toCopy.deletedFilesCount(),
                 toCopy.deletedRowsCount(),
                 copyList(toCopy.partitions(), PartitionFieldSummary::copy),
-                toCopy.keyMetadata());
+                toCopy.keyMetadata(),
+                toCopy.fileSizeInBytes());
       }
     }
 

@@ -150,6 +150,11 @@ public class ManifestFileBean implements ManifestFile {
   }
 
   @Override
+  public Long fileSizeInBytes() {
+    return null;
+  }
+
+  @Override
   public ManifestFile copy() {
     throw new UnsupportedOperationException("Cannot copy");
   }

@@ -139,6 +139,8 @@ class V2Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          return wrapped.fileSizeInBytes();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -232,6 +234,11 @@ class V2Metadata {
     @Override
     public ByteBuffer keyMetadata() {
       return wrapped.keyMetadata();
+    }
+
+    @Override
+    public Long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
     }
 
     @Override

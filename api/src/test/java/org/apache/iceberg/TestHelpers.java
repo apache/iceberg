@@ -270,6 +270,7 @@ public class TestHelpers {
     private final Long deletedRows;
     private final List<PartitionFieldSummary> partitions;
     private final byte[] keyMetadata;
+    private final Long fileSizeInBytes;
 
     public TestManifestFile(
         String path,
@@ -294,6 +295,7 @@ public class TestHelpers {
       this.deletedRows = null;
       this.partitions = partitions;
       this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+      this.fileSizeInBytes = null;
     }
 
     public TestManifestFile(
@@ -309,7 +311,8 @@ public class TestHelpers {
         Integer deletedFiles,
         Long deletedRows,
         List<PartitionFieldSummary> partitions,
-        ByteBuffer keyMetadata) {
+        ByteBuffer keyMetadata,
+        Long fileSizeInBytes) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -323,6 +326,7 @@ public class TestHelpers {
       this.deletedRows = deletedRows;
       this.partitions = partitions;
       this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+      this.fileSizeInBytes = fileSizeInBytes;
     }
 
     @Override
@@ -398,6 +402,11 @@ public class TestHelpers {
     @Override
     public ByteBuffer keyMetadata() {
       return keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata);
+    }
+
+    @Override
+    public Long fileSizeInBytes() {
+      return fileSizeInBytes;
     }
 
     @Override

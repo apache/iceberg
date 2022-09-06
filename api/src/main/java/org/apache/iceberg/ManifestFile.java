@@ -87,7 +87,9 @@ public interface ManifestFile {
           "Summary for each partition");
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField FILE_SIZE_IN_BYTES =
+          optional(520, "file_size_in_bytes", Types.LongType.get(), "file size in bytes");
+  // next ID to assign: 521
 
   Schema SCHEMA =
       new Schema(
@@ -105,7 +107,8 @@ public interface ManifestFile {
           EXISTING_ROWS_COUNT,
           DELETED_ROWS_COUNT,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          FILE_SIZE_IN_BYTES);
 
   static Schema schema() {
     return SCHEMA;
@@ -199,6 +202,8 @@ public interface ManifestFile {
   default ByteBuffer keyMetadata() {
     return null;
   }
+
+  Long fileSizeInBytes();
 
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use

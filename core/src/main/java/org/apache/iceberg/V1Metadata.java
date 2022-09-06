@@ -182,6 +182,11 @@ class V1Metadata {
     }
 
     @Override
+    public Long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
     public List<PartitionFieldSummary> partitions() {
       return wrapped.partitions();
     }
