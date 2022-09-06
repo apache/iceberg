@@ -90,9 +90,11 @@ public interface ManifestFile {
   Types.NestedField ADDED_FILE_SIZE_IN_BYTES =
       optional(520, "added_files_size_in_bytes", Types.LongType.get(), "Added File Size In Bytes");
   Types.NestedField EXISTING_FILE_SIZE_IN_BYTES =
-      optional(521, "existing_files_size_in_bytes", Types.LongType.get(), "Existing File Size In Bytes");
+      optional(
+          521, "existing_files_size_in_bytes", Types.LongType.get(), "Existing File Size In Bytes");
   Types.NestedField DELETED_FILE_SIZE_IN_BYTES =
-      optional(522, "deleted_files_size_in_bytes", Types.LongType.get(), "Deleted File Size In Bytes");
+      optional(
+          522, "deleted_files_size_in_bytes", Types.LongType.get(), "Deleted File Size In Bytes");
   // next ID to assign: 523
 
   Schema SCHEMA =
@@ -209,19 +211,13 @@ public interface ManifestFile {
     return null;
   }
 
-  /**
-   * Returns the size of data files with status ADDED in the manifest file.
-   */
+  /** Returns the size of data files with status ADDED in the manifest file. */
   Long addedFileSizeInBytes();
 
-  /**
-   * Returns the size of data files with status ADDED in the manifest file.
-   */
+  /** Returns the size of data files with status ADDED in the manifest file. */
   Long existingFileSizeInBytes();
 
-  /**
-   * Returns the size of data files with status ADDED in the manifest file.
-   */
+  /** Returns the size of data files with status ADDED in the manifest file. */
   Long deletedFileSizeInBytes();
 
   /**
