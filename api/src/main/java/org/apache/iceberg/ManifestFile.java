@@ -18,16 +18,14 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
-/**
- * Represents a manifest file that can be scanned to find data files in a table.
- */
+/** Represents a manifest file that can be scanned to find data files in a table. */
 public interface ManifestFile {
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
@@ -122,39 +120,25 @@ public interface ManifestFile {
     return SCHEMA;
   }
 
-  /**
-   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
-   */
+  /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
   String path();
 
-  /**
-   * Returns length of the manifest file.
-   */
+  /** Returns length of the manifest file. */
   long length();
 
-  /**
-   * Returns iD of the {@link PartitionSpec} used to write the manifest file.
-   */
+  /** Returns iD of the {@link PartitionSpec} used to write the manifest file. */
   int partitionSpecId();
 
-  /**
-   * Returns the content stored in the manifest; either DATA or DELETES.
-   */
+  /** Returns the content stored in the manifest; either DATA or DELETES. */
   ManifestContent content();
 
-  /**
-   * Returns the sequence number of the commit that added the manifest file.
-   */
+  /** Returns the sequence number of the commit that added the manifest file. */
   long sequenceNumber();
 
-  /**
-   * Returns the lowest sequence number of any data file in the manifest.
-   */
+  /** Returns the lowest sequence number of any data file in the manifest. */
   long minSequenceNumber();
 
-  /**
-   * Returns iD of the snapshot that added the manifest file to table metadata.
-   */
+  /** Returns iD of the snapshot that added the manifest file to table metadata. */
   Long snapshotId();
 
   /**
@@ -166,14 +150,10 @@ public interface ManifestFile {
     return addedFilesCount() == null || addedFilesCount() > 0;
   }
 
-  /**
-   * Returns the number of data files with status ADDED in the manifest file.
-   */
+  /** Returns the number of data files with status ADDED in the manifest file. */
   Integer addedFilesCount();
 
-  /**
-   * Returns the total number of rows in all data files with status ADDED in the manifest file.
-   */
+  /** Returns the total number of rows in all data files with status ADDED in the manifest file. */
   Long addedRowsCount();
 
   /**
@@ -185,9 +165,7 @@ public interface ManifestFile {
     return existingFilesCount() == null || existingFilesCount() > 0;
   }
 
-  /**
-   * Returns the number of data files with status EXISTING in the manifest file.
-   */
+  /** Returns the number of data files with status EXISTING in the manifest file. */
   Integer existingFilesCount();
 
   /**
@@ -204,9 +182,7 @@ public interface ManifestFile {
     return deletedFilesCount() == null || deletedFilesCount() > 0;
   }
 
-  /**
-   * Returns the number of data files with status DELETED in the manifest file.
-   */
+  /** Returns the number of data files with status DELETED in the manifest file. */
   Integer deletedFilesCount();
 
   /**
@@ -233,19 +209,13 @@ public interface ManifestFile {
     return null;
   }
 
-  /**
-   * Returns the size of data files with status ADDED in the manifest file.
-   */
+  /** Returns the size of data files with status ADDED in the manifest file. */
   Long addedFileSizeInBytes();
 
-  /**
-   * Returns the size of data files with status EXISTING in the manifest file.
-   */
+  /** Returns the size of data files with status EXISTING in the manifest file. */
   Long existingFileSizeInBytes();
 
-  /**
-   * Returns the size of data files with status DELETED in the manifest file.
-   */
+  /** Returns the size of data files with status DELETED in the manifest file. */
   Long deletedFileSizeInBytes();
 
   /**
@@ -256,17 +226,13 @@ public interface ManifestFile {
    */
   ManifestFile copy();
 
-  /**
-   * Summarizes the values of one partition field stored in a manifest file.
-   */
+  /** Summarizes the values of one partition field stored in a manifest file. */
   interface PartitionFieldSummary {
     static Types.StructType getType() {
       return PARTITION_SUMMARY_TYPE;
     }
 
-    /**
-     * Returns true if at least one data file in the manifest has a null value for the field.
-     */
+    /** Returns true if at least one data file in the manifest has a null value for the field. */
     boolean containsNull();
 
     /**
@@ -279,9 +245,7 @@ public interface ManifestFile {
       return null;
     }
 
-    /**
-     * Returns a ByteBuffer that contains a serialized bound lower than all values of the field.
-     */
+    /** Returns a ByteBuffer that contains a serialized bound lower than all values of the field. */
     ByteBuffer lowerBound();
 
     /**
