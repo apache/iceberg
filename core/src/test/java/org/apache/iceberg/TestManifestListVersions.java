@@ -132,6 +132,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    Assert.assertEquals("Deleted rows count", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
   }
 
   @Test
@@ -153,6 +154,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    Assert.assertEquals("Deleted rows count", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
   }
 
   @Test
