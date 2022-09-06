@@ -88,7 +88,7 @@ public interface ManifestFile {
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");
   Types.NestedField ADDED_FILE_SIZE_IN_BYTES =
-          optional(520, "added_files_size_in_bytes", Types.LongType.get(), "Added File Size In Bytes");
+      optional(520, "added_files_size_in_bytes", Types.LongType.get(), "Added File Size In Bytes");
   Types.NestedField EXISTING_FILE_SIZE_IN_BYTES =
       optional(521, "existing_files_size_in_bytes", Types.LongType.get(), "Existing File Size In Bytes");
   Types.NestedField DELETED_FILE_SIZE_IN_BYTES =
