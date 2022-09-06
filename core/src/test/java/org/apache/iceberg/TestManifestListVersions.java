@@ -132,7 +132,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
-    Assert.assertEquals("Deleted rows count", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
+    Assert.assertEquals("File Size In Bytes", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
   }
 
   @Test
@@ -154,7 +154,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
-    Assert.assertEquals("Deleted rows count", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
+    Assert.assertEquals("File Size In Bytes", FILE_SIZE_IN_BYTES, (long) manifest.fileSizeInBytes());
   }
 
   @Test
@@ -178,6 +178,8 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    Assert.assertEquals(
+        "File Size In Bytes", FILE_SIZE_IN_BYTES, (long) generic.get("file_size_in_bytes"));
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
@@ -206,6 +208,8 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    Assert.assertEquals(
+        "File Size In Bytes", FILE_SIZE_IN_BYTES, (long) generic.get("file_size_in_bytes"));
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
