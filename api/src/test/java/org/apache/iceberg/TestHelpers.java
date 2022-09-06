@@ -270,7 +270,9 @@ public class TestHelpers {
     private final Long deletedRows;
     private final List<PartitionFieldSummary> partitions;
     private final byte[] keyMetadata;
-    private final Long fileSizeInBytes;
+    private final Long addedFileSizeInBytes;
+    private final Long existingFileSizeInBytes;
+    private final Long deletedFileSizeInBytes;
 
     public TestManifestFile(
         String path,
@@ -295,7 +297,9 @@ public class TestHelpers {
       this.deletedRows = null;
       this.partitions = partitions;
       this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-      this.fileSizeInBytes = null;
+      this.addedFileSizeInBytes = null;
+      this.existingFileSizeInBytes = null;
+      this.deletedFileSizeInBytes = null;
     }
 
     public TestManifestFile(
@@ -312,7 +316,9 @@ public class TestHelpers {
         Long deletedRows,
         List<PartitionFieldSummary> partitions,
         ByteBuffer keyMetadata,
-        Long fileSizeInBytes) {
+        Long addedFileSizeInBytes,
+        Long existingFileSizeInBytes,
+        Long deletedFileSizeInBytes) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -326,7 +332,9 @@ public class TestHelpers {
       this.deletedRows = deletedRows;
       this.partitions = partitions;
       this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-      this.fileSizeInBytes = fileSizeInBytes;
+      this.addedFileSizeInBytes = addedFileSizeInBytes;
+      this.existingFileSizeInBytes = existingFileSizeInBytes;
+      this.deletedFileSizeInBytes = deletedFileSizeInBytes;
     }
 
     @Override
@@ -405,8 +413,18 @@ public class TestHelpers {
     }
 
     @Override
-    public Long fileSizeInBytes() {
-      return fileSizeInBytes;
+    public Long addedFileSizeInBytes() {
+      return addedFileSizeInBytes;
+    }
+
+    @Override
+    public Long existingFileSizeInBytes() {
+      return existingFileSizeInBytes;
+    }
+
+    @Override
+    public Long deletedFileSizeInBytes() {
+      return deletedFileSizeInBytes;
     }
 
     @Override

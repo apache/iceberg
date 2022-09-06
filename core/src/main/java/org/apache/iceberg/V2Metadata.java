@@ -48,7 +48,9 @@ class V2Metadata {
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
           ManifestFile.PARTITION_SUMMARIES,
           ManifestFile.KEY_METADATA,
-          ManifestFile.FILE_SIZE_IN_BYTES.asRequired());
+          ManifestFile.ADDED_FILE_SIZE_IN_BYTES.asRequired(),
+          ManifestFile.EXISTING_FILE_SIZE_IN_BYTES.asRequired(),
+          ManifestFile.DELETED_FILE_SIZE_IN_BYTES.asRequired());
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v2 write schema.
@@ -142,7 +144,11 @@ class V2Metadata {
         case 14:
           return wrapped.keyMetadata();
         case 15:
-          return wrapped.fileSizeInBytes();
+          return wrapped.addedFileSizeInBytes();
+        case 16:
+          return wrapped.existingFileSizeInBytes();
+        case 17:
+          return wrapped.deletedFileSizeInBytes();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -239,8 +245,18 @@ class V2Metadata {
     }
 
     @Override
-    public Long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
+    public Long addedFileSizeInBytes() {
+      return wrapped.addedFileSizeInBytes();
+    }
+
+    @Override
+    public Long existingFileSizeInBytes() {
+      return wrapped.existingFileSizeInBytes();
+    }
+
+    @Override
+    public Long deletedFileSizeInBytes() {
+      return wrapped.deletedFileSizeInBytes();
     }
 
     @Override

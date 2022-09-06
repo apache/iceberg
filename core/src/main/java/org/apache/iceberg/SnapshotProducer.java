@@ -499,7 +499,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       long existingRows = 0L;
       int deletedFiles = 0;
       long deletedRows = 0L;
-      long fileSizeInBytes = 0L;
+      long addedFileSizeInBytes = 0L;
+      long existingFileSizeInBytes = 0L;
+      long deletedFileSizeInBytes = 0L;
 
       Long snapshotId = null;
       long maxSnapshotId = Long.MIN_VALUE;
@@ -512,7 +514,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           case ADDED:
             addedFiles += 1;
             addedRows += entry.file().recordCount();
-            fileSizeInBytes += entry.file().fileSizeInBytes();
+            addedFileSizeInBytes += entry.file().fileSizeInBytes();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
@@ -520,12 +522,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           case EXISTING:
             existingFiles += 1;
             existingRows += entry.file().recordCount();
-            fileSizeInBytes += entry.file().fileSizeInBytes();
+            existingFileSizeInBytes += entry.file().fileSizeInBytes();
             break;
           case DELETED:
             deletedFiles += 1;
             deletedRows += entry.file().recordCount();
-            fileSizeInBytes += entry.file().fileSizeInBytes();
+            deletedFileSizeInBytes += entry.file().fileSizeInBytes();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
@@ -556,7 +558,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           deletedRows,
           stats.summaries(),
           null,
-          fileSizeInBytes);
+          addedFileSizeInBytes,
+          existingFileSizeInBytes,
+          deletedFileSizeInBytes);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());

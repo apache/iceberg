@@ -51,8 +51,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private int deletedFiles = 0;
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
-  private Long fileSizeInBytes = 0L;
-
+  private Long addedFileSizeInBytes = 0L;
+  private Long existingFileSizeInBytes = 0L;
+  private Long deletedFileSizeInBytes = 0L;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
@@ -77,17 +78,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       case ADDED:
         addedFiles += 1;
         addedRows += entry.file().recordCount();
-        fileSizeInBytes += entry.file().fileSizeInBytes();
+        addedFileSizeInBytes += entry.file().fileSizeInBytes();
         break;
       case EXISTING:
         existingFiles += 1;
         existingRows += entry.file().recordCount();
-        fileSizeInBytes += entry.file().fileSizeInBytes();
+        existingFileSizeInBytes += entry.file().fileSizeInBytes();
         break;
       case DELETED:
         deletedFiles += 1;
         deletedRows += entry.file().recordCount();
-        fileSizeInBytes += entry.file().fileSizeInBytes();
+        deletedFileSizeInBytes += entry.file().fileSizeInBytes();
         break;
     }
     stats.update(entry.file().partition());
@@ -196,7 +197,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedRows,
         stats.summaries(),
         null,
-        fileSizeInBytes);
+        addedFileSizeInBytes,
+        existingFileSizeInBytes,
+        deletedFileSizeInBytes);
   }
 
   @Override
