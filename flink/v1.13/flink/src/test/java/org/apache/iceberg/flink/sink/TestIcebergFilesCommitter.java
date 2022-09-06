@@ -787,7 +787,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         0,
         0,
         null,
-        null);
+        null,
+        0,
+        0,
+        0);
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
