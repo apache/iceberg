@@ -53,7 +53,6 @@ REFS = "refs"
 INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
-DEFAULT_LAST_PARTITION_ID = 1000
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -144,7 +143,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: int = Field(alias="last-partition-id", default=DEFAULT_LAST_PARTITION_ID)
+    last_partition_id: Optional[int] = Field(alias="last-partition-id")
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
@@ -267,8 +266,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         else:
             check_partition_specs(data)
 
-        if partition_specs := data.get(PARTITION_SPECS):
-            data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
+        if "last_partition_id" not in data or data.get("last_partition_id") is None:
+            if partition_specs := data.get(PARTITION_SPECS):
+                data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
 
         return data
 
