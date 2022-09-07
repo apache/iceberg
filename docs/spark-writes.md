@@ -381,6 +381,18 @@ import org.apache.spark.sql.types.DataTypes
 IcebergSpark.registerBucketUDF(spark, "iceberg_bucket16", DataTypes.LongType, 16)
 ```
 
+For pyspark:
+```python
+from py4j.java_gateway import java_import
+
+gateway = spark.sparkContext._gateway
+jvm = gateway.jvm
+java_import(gateway.jvm,'org.apache.iceberg.spark.IcebergSpark')
+java_import(gateway.jvm,'org.apache.spark.sql.types.DataTypes')
+
+gateway.jvm.IcebergSpark.registerBucketUDF(spark._jsparkSession, "iceberg_bucket_16", sc._gateway.jvm.DataTypes.StringType, 16)
+```
+
 {{< hint info >}}
 Explicit registration of the function is necessary because Spark doesn't allow Iceberg to provide functions.
 [SPARK-27658](https://issues.apache.org/jira/browse/SPARK-27658) is filed to enable Iceberg to provide functions
