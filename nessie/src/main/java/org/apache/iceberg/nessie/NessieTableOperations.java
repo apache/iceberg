@@ -24,6 +24,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -84,6 +85,12 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         NessieUtil.tableMetadataFromIcebergTable(io(), table, metadataLocation);
     Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
     newProperties.put(NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
+    // To prevent accidental deletion of files that are still referenced by other branches/tags,
+    // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
+    // remove_orphan_files, drop_table with purge will fail with an error.
+    // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
+    // files.
+    newProperties.put(TableProperties.GC_ENABLED, "false");
     TableMetadata.Builder builder =
         TableMetadata.buildFrom(deserialized)
             .setPreviousFileLocation(null)
