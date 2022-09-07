@@ -138,9 +138,18 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
-    Assert.assertEquals("Added File Size In Bytes", ADDED_FILE_SIZE_IN_BYTES, (long) manifest.addedFileSizeInBytes());
-    Assert.assertEquals("Existing File Size In Bytes", EXISTING_FILE_SIZE_IN_BYTES, (long) manifest.existingFileSizeInBytes());
-    Assert.assertEquals("Deleted File Size In Bytes", DELETED_FILE_SIZE_IN_BYTES, (long) manifest.deletedFileSizeInBytes());
+    Assert.assertEquals(
+        "Added File Size In Bytes",
+        ADDED_FILE_SIZE_IN_BYTES,
+        (long) manifest.addedFileSizeInBytes());
+    Assert.assertEquals(
+        "Existing File Size In Bytes",
+        EXISTING_FILE_SIZE_IN_BYTES,
+        (long) manifest.existingFileSizeInBytes());
+    Assert.assertEquals(
+        "Deleted File Size In Bytes",
+        DELETED_FILE_SIZE_IN_BYTES,
+        (long) manifest.deletedFileSizeInBytes());
   }
 
   @Test
@@ -162,9 +171,18 @@ public class TestManifestListVersions {
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
-    Assert.assertEquals("Added File Size In Bytes", ADDED_FILE_SIZE_IN_BYTES, (long) manifest.addedFileSizeInBytes());
-    Assert.assertEquals("Existing File Size In Bytes", EXISTING_FILE_SIZE_IN_BYTES, (long) manifest.existingFileSizeInBytes());
-    Assert.assertEquals("Deleted File Size In Bytes", DELETED_FILE_SIZE_IN_BYTES, (long) manifest.deletedFileSizeInBytes());
+    Assert.assertEquals(
+        "Added File Size In Bytes",
+        ADDED_FILE_SIZE_IN_BYTES,
+        (long) manifest.addedFileSizeInBytes());
+    Assert.assertEquals(
+        "Existing File Size In Bytes",
+        EXISTING_FILE_SIZE_IN_BYTES,
+        (long) manifest.existingFileSizeInBytes());
+    Assert.assertEquals(
+        "Deleted File Size In Bytes",
+        DELETED_FILE_SIZE_IN_BYTES,
+        (long) manifest.deletedFileSizeInBytes());
   }
 
   @Test
@@ -188,9 +206,18 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    Assert.assertEquals("Added File Size In Bytes", ADDED_FILE_SIZE_IN_BYTES, (long) generic.get("added_files_size_in_bytes"));
-    Assert.assertEquals("Existing File Size In Bytes", EXISTING_FILE_SIZE_IN_BYTES, (long) generic.get("existing_files_size_in_bytes"));
-    Assert.assertEquals("Deleted File Size In Bytes", DELETED_FILE_SIZE_IN_BYTES, (long) generic.get("deleted_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Added File Size In Bytes",
+        ADDED_FILE_SIZE_IN_BYTES,
+        (long) generic.get("added_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Existing File Size In Bytes",
+        EXISTING_FILE_SIZE_IN_BYTES,
+        (long) generic.get("existing_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Deleted File Size In Bytes",
+        DELETED_FILE_SIZE_IN_BYTES,
+        (long) generic.get("deleted_files_size_in_bytes"));
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
@@ -219,9 +246,18 @@ public class TestManifestListVersions {
         "Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals(
         "Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    Assert.assertEquals("Added File Size In Bytes", ADDED_FILE_SIZE_IN_BYTES, (long) generic.get("added_files_size_in_bytes"));
-    Assert.assertEquals("Existing File Size In Bytes", EXISTING_FILE_SIZE_IN_BYTES, (long) generic.get("existing_files_size_in_bytes"));
-    Assert.assertEquals("Deleted File Size In Bytes", DELETED_FILE_SIZE_IN_BYTES, (long) generic.get("deleted_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Added File Size In Bytes",
+        ADDED_FILE_SIZE_IN_BYTES,
+        (long) generic.get("added_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Existing File Size In Bytes",
+        EXISTING_FILE_SIZE_IN_BYTES,
+        (long) generic.get("existing_files_size_in_bytes"));
+    Assert.assertEquals(
+        "Deleted File Size In Bytes",
+        DELETED_FILE_SIZE_IN_BYTES,
+        (long) generic.get("deleted_files_size_in_bytes"));
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
@@ -281,18 +317,21 @@ public class TestManifestListVersions {
     Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
     Assert.assertEquals("Added files count should match", 2, (int) manifest.addedFilesCount());
     Assert.assertNull("Added rows count should be null", manifest.addedRowsCount());
-    Assert.assertEquals("Added file size count should match", 6, (long)manifest.addedFileSizeInBytes());
+    Assert.assertEquals(
+        "Added file size count should match", 6, (long) manifest.addedFileSizeInBytes());
 
     Assert.assertTrue("Existing files should be present", manifest.hasExistingFiles());
     Assert.assertEquals(
         "Existing files count should match", 3, (int) manifest.existingFilesCount());
     Assert.assertNull("Existing rows count should be null", manifest.existingRowsCount());
-    Assert.assertEquals("Existing file size count should match", 7, (long)manifest.existingFileSizeInBytes());
+    Assert.assertEquals(
+        "Existing file size count should match", 7, (long) manifest.existingFileSizeInBytes());
 
     Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
     Assert.assertEquals("Deleted files count should match", 4, (int) manifest.deletedFilesCount());
     Assert.assertNull("Deleted rows count should be null", manifest.deletedRowsCount());
-    Assert.assertEquals("Deleted file size count should match", 8, (long)manifest.deletedFileSizeInBytes());
+    Assert.assertEquals(
+        "Deleted file size count should match", 8, (long) manifest.deletedFileSizeInBytes());
   }
 
   @Test
