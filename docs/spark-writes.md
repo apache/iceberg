@@ -312,17 +312,13 @@ data.writeTo("prod.db.table")
 
 ## Writing to partitioned tables
 
-Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
+Iceberg requires the data to be clustered according to the partition spec per task (Spark partition) in prior to write
 against partitioned table. This applies both Writing with SQL and Writing with DataFrames.
 
 {{< hint info >}}
-Explicit sort is necessary because Spark doesn't allow Iceberg to request a sort before writing as of Spark 3.0.
+As of Spark 3.2 and Iceberg 0.14.0, the sort order is automatically chosen to produce a correct clustering and explicit sort is no longer necessary. Before, explicit sort is necessary because Spark doesn't allow Iceberg to request a sort before writing.
 [SPARK-23889](https://issues.apache.org/jira/browse/SPARK-23889) is filed to enable Iceberg to require specific
 distribution & sort order to Spark.
-{{< /hint >}}
-
-{{< hint info >}}
-Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) work for the requirement.
 {{< /hint >}}
 
 Let's go through writing the data against below sample table:
@@ -337,24 +333,28 @@ USING iceberg
 PARTITIONED BY (days(ts), category)
 ```
 
-To write data to the sample table, your data needs to be sorted by `days(ts), category`.
+To write data to the sample table, your data needs to be clustered by partition, which can be achieved by global sort (`orderBy`/`sort`) or local sort (`sortWithinPartitions`).
 
 If you're inserting data with SQL statement, you can use `ORDER BY` to achieve it, like below:
 
 ```sql
 INSERT INTO prod.db.sample
 SELECT id, data, category, ts FROM another_table
-ORDER BY ts, category
+ORDER BY category, ts
 ```
 
 If you're inserting data with DataFrame, you can use either `orderBy`/`sort` to trigger global sort, or `sortWithinPartitions`
 to trigger local sort. Local sort for example:
 
 ```scala
-data.sortWithinPartitions("ts", "category")
+data.sortWithinPartitions("category", "ts")
     .writeTo("prod.db.sample")
     .append()
 ```
+
+{{< hint info >}}
+In this case, it is incorrect to sort by `ts, category`. See [here](https://github.com/apache/iceberg/pull/5131) for details.
+{{< /hint >}}
 
 You can simply add the original column to the sort condition for the most partition transformations, except `bucket`.
 
