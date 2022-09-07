@@ -66,6 +66,10 @@ subprojects {
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:Slf4jLogsafeArgs:OFF',
           '-Xep:RawTypes:OFF',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
+          '-Xep:PreferStaticLoggers:ERROR',
+          '-Xep:Slf4jThrowable:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // prefer method references over lambdas

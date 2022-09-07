@@ -16,23 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.util;
 
-class RollbackToSnapshot extends SnapshotManager implements Rollback {
+import java.io.Serializable;
+import java.util.function.Function;
 
-  RollbackToSnapshot(String tableName, TableOperations ops) {
-    super(tableName, ops);
-  }
-
-  @Override
-  public Rollback toSnapshotId(long snapshotId) {
-    super.setCurrentSnapshot(snapshotId);
-    return this;
-  }
-
-  @Override
-  public Rollback toSnapshotAtTime(long timestampMillis) {
-    super.rollbackToTime(timestampMillis);
-    return this;
-  }
-}
+/**
+ * A concrete transform function that applies a transform to values of a certain type.
+ *
+ * @param <S> Java class of source values
+ * @param <T> Java class of transformed values
+ */
+public interface SerializableFunction<S, T> extends Function<S, T>, Serializable {}

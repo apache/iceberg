@@ -52,20 +52,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
  * <p>In case the value of catalog type is null, iceberg.catalog.<code>catalogName</code>
  * .catalog-impl config is used to determine the catalog implementation class.
  *
- * <p>If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG
- * iceberg.mr.catalog} config:
+ * <p>If catalog name is null, get the catalog type from {@link CatalogUtil#ICEBERG_CATALOG_TYPE
+ * catalog type} config:
  *
  * <ul>
  *   <li>hive: HiveCatalog
  *   <li>location: HadoopTables
  *   <li>hadoop: HadoopCatalog
  * </ul>
- *
- * <p>In case the value of catalog type is null, {@link InputFormatConfig#CATALOG_LOADER_CLASS
- * iceberg.mr.catalog.loader.class} is used to determine the catalog implementation class.
- *
- * <p>Note: null catalog name mode is only supported for backwards compatibility. Using this mode is
- * NOT RECOMMENDED.
  */
 public final class Catalogs {
 
@@ -259,41 +253,12 @@ public final class Catalogs {
   private static Map<String, String> getCatalogProperties(
       Configuration conf, String catalogName, String catalogType) {
     String keyPrefix = InputFormatConfig.CATALOG_CONFIG_PREFIX + catalogName;
-    Map<String, String> catalogProperties =
-        Streams.stream(conf.iterator())
-            .filter(e -> e.getKey().startsWith(keyPrefix))
-            .collect(
-                Collectors.toMap(
-                    e -> e.getKey().substring(keyPrefix.length() + 1), Map.Entry::getValue));
-    return addCatalogPropertiesIfMissing(conf, catalogType, catalogProperties);
-  }
 
-  /**
-   * This method is used for backward-compatible catalog configuration. Collect all the catalog
-   * specific configuration from the global hive configuration. Note: this should be removed when
-   * the old catalog configuration is deprecated.
-   *
-   * @param conf global hive configuration
-   * @param catalogType type of the catalog
-   * @param catalogProperties pre-populated catalog properties
-   * @return complete map of catalog properties
-   */
-  private static Map<String, String> addCatalogPropertiesIfMissing(
-      Configuration conf, String catalogType, Map<String, String> catalogProperties) {
-    if (catalogType != null) {
-      catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
-    }
-
-    String legacyCatalogImpl = conf.get(InputFormatConfig.CATALOG_LOADER_CLASS);
-    if (legacyCatalogImpl != null) {
-      catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, legacyCatalogImpl);
-    }
-
-    String legacyWarehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
-    if (legacyWarehouseLocation != null) {
-      catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, legacyWarehouseLocation);
-    }
-    return catalogProperties;
+    return Streams.stream(conf.iterator())
+        .filter(e -> e.getKey().startsWith(keyPrefix))
+        .collect(
+            Collectors.toMap(
+                e -> e.getKey().substring(keyPrefix.length() + 1), Map.Entry::getValue));
   }
 
   /**
@@ -317,7 +282,7 @@ public final class Catalogs {
         return catalogType;
       }
     } else {
-      String catalogType = conf.get(InputFormatConfig.CATALOG);
+      String catalogType = conf.get(CatalogUtil.ICEBERG_CATALOG_TYPE);
       if (catalogType != null && catalogType.equals(LOCATION)) {
         return NO_CATALOG_TYPE;
       } else {

@@ -168,6 +168,7 @@ class DecimalType(PrimitiveType):
         super().__init__(
             __root__=f"decimal({precision}, {scale})",
         )
+        # assert precision < scale, "precision should be smaller than scale"
         self._precision = precision
         self._scale = scale
 

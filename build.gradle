@@ -28,9 +28,9 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.9.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.10.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.7'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
@@ -231,6 +231,7 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
+    testImplementation "com.esotericsoftware:kryo"
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -278,6 +279,7 @@ project(':iceberg-core') {
     testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
@@ -390,6 +392,8 @@ project(':iceberg-aws') {
       exclude module: "logback-classic"
       exclude group: 'junit'
     }
+    testImplementation "com.esotericsoftware:kryo"
+    testImplementation "org.xerial:sqlite-jdbc"
   }
 
   sourceSets {
@@ -432,6 +436,7 @@ project(':iceberg-gcp') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 

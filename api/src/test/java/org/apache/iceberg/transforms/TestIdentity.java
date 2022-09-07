@@ -29,59 +29,62 @@ public class TestIdentity {
   @Test
   public void testNullHumanString() {
     Types.LongType longType = Types.LongType.get();
-    Transform<Long, Long> identity = Transforms.identity(longType);
+    Transform<Long, Long> identity = Transforms.identity();
 
-    Assert.assertEquals("Should produce \"null\" for null", "null", identity.toHumanString(null));
+    Assert.assertEquals(
+        "Should produce \"null\" for null", "null", identity.toHumanString(longType, null));
   }
 
   @Test
   public void testBinaryHumanString() {
     Types.BinaryType binary = Types.BinaryType.get();
-    Transform<ByteBuffer, ByteBuffer> identity = Transforms.identity(binary);
+    Transform<ByteBuffer, ByteBuffer> identity = Transforms.identity();
 
     Assert.assertEquals(
         "Should base64-encode binary",
         "AQID",
-        identity.toHumanString(ByteBuffer.wrap(new byte[] {1, 2, 3})));
+        identity.toHumanString(binary, ByteBuffer.wrap(new byte[] {1, 2, 3})));
   }
 
   @Test
   public void testFixedHumanString() {
     Types.FixedType fixed3 = Types.FixedType.ofLength(3);
-    Transform<byte[], byte[]> identity = Transforms.identity(fixed3);
+    Transform<byte[], byte[]> identity = Transforms.identity();
 
     Assert.assertEquals(
-        "Should base64-encode binary", "AQID", identity.toHumanString(new byte[] {1, 2, 3}));
+        "Should base64-encode binary",
+        "AQID",
+        identity.toHumanString(fixed3, new byte[] {1, 2, 3}));
   }
 
   @Test
   public void testDateHumanString() {
     Types.DateType date = Types.DateType.get();
-    Transform<Integer, Integer> identity = Transforms.identity(date);
+    Transform<Integer, Integer> identity = Transforms.identity();
 
     String dateString = "2017-12-01";
     Literal<Integer> dateLit = Literal.of(dateString).to(date);
 
     Assert.assertEquals(
-        "Should produce identical date", dateString, identity.toHumanString(dateLit.value()));
+        "Should produce identical date", dateString, identity.toHumanString(date, dateLit.value()));
   }
 
   @Test
   public void testTimeHumanString() {
     Types.TimeType time = Types.TimeType.get();
-    Transform<Long, Long> identity = Transforms.identity(time);
+    Transform<Long, Long> identity = Transforms.identity();
 
     String timeString = "10:12:55.038194";
     Literal<Long> timeLit = Literal.of(timeString).to(time);
 
     Assert.assertEquals(
-        "Should produce identical time", timeString, identity.toHumanString(timeLit.value()));
+        "Should produce identical time", timeString, identity.toHumanString(time, timeLit.value()));
   }
 
   @Test
   public void testTimestampWithZoneHumanString() {
     Types.TimestampType timestamptz = Types.TimestampType.withZone();
-    Transform<Long, Long> identity = Transforms.identity(timestamptz);
+    Transform<Long, Long> identity = Transforms.identity();
 
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194-08:00").to(timestamptz);
 
@@ -89,13 +92,13 @@ public class TestIdentity {
     Assert.assertEquals(
         "Should produce timestamp with time zone adjusted to UTC",
         "2017-12-01T18:12:55.038194Z",
-        identity.toHumanString(ts.value()));
+        identity.toHumanString(timestamptz, ts.value()));
   }
 
   @Test
   public void testTimestampWithoutZoneHumanString() {
     Types.TimestampType timestamp = Types.TimestampType.withoutZone();
-    Transform<Long, Long> identity = Transforms.identity(timestamp);
+    Transform<Long, Long> identity = Transforms.identity();
 
     String tsString = "2017-12-01T10:12:55.038194";
     Literal<Long> ts = Literal.of(tsString).to(timestamp);
@@ -104,35 +107,38 @@ public class TestIdentity {
     Assert.assertEquals(
         "Should produce identical timestamp without time zone",
         tsString,
-        identity.toHumanString(ts.value()));
+        identity.toHumanString(timestamp, ts.value()));
   }
 
   @Test
   public void testLongToHumanString() {
     Types.LongType longType = Types.LongType.get();
-    Transform<Long, Long> identity = Transforms.identity(longType);
+    Transform<Long, Long> identity = Transforms.identity();
 
     Assert.assertEquals(
-        "Should use Long toString", "-1234567890000", identity.toHumanString(-1234567890000L));
+        "Should use Long toString",
+        "-1234567890000",
+        identity.toHumanString(longType, -1234567890000L));
   }
 
   @Test
   public void testStringToHumanString() {
     Types.StringType string = Types.StringType.get();
-    Transform<String, String> identity = Transforms.identity(string);
+    Transform<String, String> identity = Transforms.identity();
 
     String withSlash = "a/b/c=d";
-    Assert.assertEquals("Should not modify Strings", withSlash, identity.toHumanString(withSlash));
+    Assert.assertEquals(
+        "Should not modify Strings", withSlash, identity.toHumanString(string, withSlash));
   }
 
   @Test
   public void testBigDecimalToHumanString() {
     Types.DecimalType decimal = Types.DecimalType.of(9, 2);
-    Transform<BigDecimal, BigDecimal> identity = Transforms.identity(decimal);
+    Transform<BigDecimal, BigDecimal> identity = Transforms.identity();
 
     String decimalString = "-1.50";
     BigDecimal bigDecimal = new BigDecimal(decimalString);
     Assert.assertEquals(
-        "Should not modify Strings", decimalString, identity.toHumanString(bigDecimal));
+        "Should not modify Strings", decimalString, identity.toHumanString(decimal, bigDecimal));
   }
 }

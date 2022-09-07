@@ -102,6 +102,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    return wrapped.updateStatistics();
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return wrapped.expireSnapshots();
   }

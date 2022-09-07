@@ -264,20 +264,22 @@ public interface Table {
   DeleteFiles newDelete();
 
   /**
+   * Create a new {@link UpdateStatistics update table statistics API} to add or remove statistics
+   * files in this table.
+   *
+   * @return a new {@link UpdateStatistics}
+   */
+  default UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException(
+        "Updating statistics is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}
    */
   ExpireSnapshots expireSnapshots();
-
-  /**
-   * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
-   *
-   * @return a new {@link Rollback}
-   * @deprecated Replaced by {@link #manageSnapshots()}
-   */
-  @Deprecated
-  Rollback rollback();
 
   /**
    * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and

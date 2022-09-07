@@ -35,7 +35,7 @@ ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\
 
 def micros_to_days(timestamp: int) -> int:
     """Converts a timestamp in microseconds to a date in days"""
-    return (datetime.fromtimestamp(timestamp / 1_000_000) - EPOCH_TIMESTAMP).days
+    return timedelta(microseconds=timestamp).days
 
 
 def micros_to_time(micros: int) -> time:
@@ -98,9 +98,24 @@ def micros_to_timestamptz(micros: int):
     return EPOCH_TIMESTAMPTZ + dt
 
 
+def to_human_year(year_ordinal: int) -> str:
+    """Converts a DateType value to human string"""
+    return f"{EPOCH_TIMESTAMP.year + year_ordinal:0=4d}"
+
+
+def to_human_month(month_ordinal: int) -> str:
+    """Converts a DateType value to human string"""
+    return f"{EPOCH_TIMESTAMP.year + month_ordinal // 12:0=4d}-{1 + month_ordinal % 12:0=2d}"
+
+
 def to_human_day(day_ordinal: int) -> str:
     """Converts a DateType value to human string"""
     return (EPOCH_DATE + timedelta(days=day_ordinal)).isoformat()
+
+
+def to_human_hour(hour_ordinal: int) -> str:
+    """Converts a DateType value to human string"""
+    return (EPOCH_TIMESTAMP + timedelta(hours=hour_ordinal)).isoformat("-", "hours")
 
 
 def to_human_time(micros_from_midnight: int) -> str:
@@ -116,3 +131,26 @@ def to_human_timestamptz(timestamp_micros: int) -> str:
 def to_human_timestamp(timestamp_micros: int) -> str:
     """Converts a TimestampType value to human string"""
     return (EPOCH_TIMESTAMP + timedelta(microseconds=timestamp_micros)).isoformat()
+
+
+def micros_to_hours(micros: int) -> int:
+    """Converts a timestamp in microseconds to hours from 1970-01-01T00:00"""
+    return micros // 3_600_000_000
+
+
+def days_to_months(days: int) -> int:
+    d = days_to_date(days)
+    return (d.year - EPOCH_DATE.year) * 12 + (d.month - EPOCH_DATE.month)
+
+
+def micros_to_months(micros: int) -> int:
+    dt = micros_to_timestamp(micros)
+    return (dt.year - EPOCH_TIMESTAMP.year) * 12 + (dt.month - EPOCH_TIMESTAMP.month)
+
+
+def days_to_years(days: int) -> int:
+    return days_to_date(days).year - EPOCH_DATE.year
+
+
+def micros_to_years(micros: int) -> int:
+    return micros_to_timestamp(micros).year - EPOCH_TIMESTAMP.year

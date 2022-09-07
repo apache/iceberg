@@ -171,6 +171,26 @@ public abstract class DeleteReadTests {
     return true;
   }
 
+  protected boolean countDeletes() {
+    return false;
+  }
+
+  /**
+   * This will only be called after calling rowSet(String, Table, String...), and only if
+   * countDeletes() is true.
+   */
+  protected long deleteCount() {
+    return 0L;
+  }
+
+  protected void checkDeleteCount(long expectedDeletes) {
+    if (countDeletes()) {
+      long actualDeletes = deleteCount();
+      Assert.assertEquals(
+          "Table should contain expected number of deletes", expectedDeletes, actualDeletes);
+    }
+  }
+
   @Test
   public void testEqualityDeletes() throws IOException {
     Schema deleteRowSchema = table.schema().select("data");
@@ -192,6 +212,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -240,6 +261,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(dateTableName, dateTable, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -270,6 +292,8 @@ public abstract class DeleteReadTests {
       Assert.assertEquals(
           "Table should contain expected rows", expected, selectColumns(actual, "id"));
     }
+
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -281,6 +305,8 @@ public abstract class DeleteReadTests {
     this.dataFile =
         FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
 
+    // At this point, the table has two data files, with 7 and 8 rows respectively, of which all but
+    // one are in duplicate.
     table.newAppend().appendFile(dataFile).commit();
 
     Schema deleteRowSchema = table.schema().select("data");
@@ -296,12 +322,14 @@ public abstract class DeleteReadTests {
         FileHelpers.writeDeleteFile(
             table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
+    // At this point, 3 rows in the first data file and 4 rows in the second data file are deleted.
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122, 144);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(7L);
   }
 
   @Test
@@ -326,6 +354,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -363,6 +392,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -400,6 +430,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -435,6 +466,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
@@ -471,6 +503,7 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(1L);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {

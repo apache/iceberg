@@ -385,6 +385,16 @@ public class AwsProperties implements Serializable {
   public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
 
   /**
+   * Determines if S3 client will use the Dualstack Mode, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
+   */
+  public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
+
+  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
    * pass a catalog property.
    *
@@ -393,11 +403,6 @@ public class AwsProperties implements Serializable {
    * <p>Example: s3.access-points.my-bucket=access-point
    */
   public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
-
-  /**
-   * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
-   */
-  @Deprecated public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
   /**
    * This flag controls whether the S3 client will be initialized during the S3FileIO

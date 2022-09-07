@@ -87,8 +87,10 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
     setupSpark();
 
     List<InternalRow> data = Lists.newArrayList(RandomData.generateSpark(SCHEMA, NUM_ROWS, 0L));
-    Transform<Integer, Integer> transform = Transforms.bucket(Types.IntegerType.get(), 32);
-    data.sort(Comparator.comparingInt(row -> transform.apply(row.getInt(1))));
+    Transform<Integer, Integer> transform = Transforms.bucket(32);
+    data.sort(
+        Comparator.comparingInt(
+            row -> transform.bind(Types.IntegerType.get()).apply(row.getInt(1))));
     this.rows = data;
 
     this.positionDeleteRows =

@@ -33,6 +33,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expressions;
@@ -52,8 +53,11 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class DeleteFilter<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
   private static final long DEFAULT_SET_FILTER_THRESHOLD = 100_000L;
   private static final Schema POS_DELETE_SCHEMA =
       new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
@@ -66,24 +70,32 @@ public abstract class DeleteFilter<T> {
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
+  private final DeleteCounter counter;
 
   private PositionDeleteIndex deleteRowPositions = null;
   private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(
-      String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
+      String filePath,
+      List<DeleteFile> deletes,
+      Schema tableSchema,
+      Schema requestedSchema,
+      DeleteCounter counter) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
     this.filePath = filePath;
+    this.counter = counter;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
     for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
+          LOG.debug("Adding position delete file {} to filter", delete.path());
           posDeleteBuilder.add(delete);
           break;
         case EQUALITY_DELETES:
+          LOG.debug("Adding equality delete file {} to filter", delete.path());
           eqDeleteBuilder.add(delete);
           break;
         default:
@@ -101,6 +113,11 @@ public abstract class DeleteFilter<T> {
     this.isDeletedColumnPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
   }
 
+  protected DeleteFilter(
+      String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
+    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter());
+  }
+
   protected int columnIsDeletedPosition() {
     return isDeletedColumnPosition;
   }
@@ -115,6 +132,10 @@ public abstract class DeleteFilter<T> {
 
   public boolean hasEqDeletes() {
     return !eqDeletes.isEmpty();
+  }
+
+  public void incrementDeleteCount() {
+    counter.increment();
   }
 
   Accessor<StructLike> posAccessor() {
@@ -234,14 +255,15 @@ public abstract class DeleteFilter<T> {
     return hasIsDeletedColumn
         ? Deletes.streamingMarker(
             records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted)
-        : Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+        : Deletes.streamingFilter(
+            records, this::pos, Deletes.deletePositions(filePath, deletes), counter);
   }
 
   private CloseableIterable<T> createDeleteIterable(
       CloseableIterable<T> records, Predicate<T> isDeleted) {
     return hasIsDeletedColumn
         ? Deletes.markDeleted(records, isDeleted, this::markRowDeleted)
-        : Deletes.filterDeleted(records, isDeleted);
+        : Deletes.filterDeleted(records, isDeleted, counter);
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
@@ -249,6 +271,7 @@ public abstract class DeleteFilter<T> {
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema deleteSchema) {
+    LOG.trace("Opening delete file {}", deleteFile.path());
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:

@@ -37,6 +37,7 @@ from pyiceberg.io import (
     InputFile,
     OutputFile,
     OutputStream,
+    fsspec,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
@@ -54,6 +55,16 @@ from pyiceberg.types import (
 )
 from tests.catalog.test_base import InMemoryCatalog
 from tests.io.test_io import LocalInputFile
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
+    )
+    parser.addoption("--s3.access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
+    parser.addoption(
+        "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
+    )
 
 
 class FooStruct:
@@ -1111,3 +1122,13 @@ def iceberg_manifest_entry_schema() -> Schema:
         schema_id=1,
         identifier_field_ids=[],
     )
+
+
+@pytest.fixture
+def fsspec_fileio(request):
+    properties = {
+        "s3.endpoint": request.config.getoption("--s3.endpoint"),
+        "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
+        "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)

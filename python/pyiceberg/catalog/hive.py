@@ -61,7 +61,7 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
-from pyiceberg.table.metadata import DEFAULT_LAST_PARTITION_ID, TableMetadataV1, TableMetadataV2
+from pyiceberg.table.metadata import TableMetadata, new_table_metadata
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -257,10 +257,10 @@ class HiveCatalog(Catalog):
         metadata = FromInputFile.table_metadata(file)
         return Table(identifier=(table.dbName, table.tableName), metadata=metadata, metadata_location=metadata_location)
 
-    def _write_metadata(self, metadata: Union[TableMetadataV1, TableMetadataV2], io: FileIO, metadata_path: str):
+    def _write_metadata(self, metadata: TableMetadata, io: FileIO, metadata_path: str):
         ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
 
-    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str):
+    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str) -> str:
         if not location:
             database_properties = self.load_namespace_properties(database_name)
             if database_location := database_properties.get(LOCATION):
@@ -305,20 +305,8 @@ class HiveCatalog(Catalog):
         location = self._resolve_table_location(location, database_name, table_name)
 
         metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
-        metadata = TableMetadataV2(
-            location=location,
-            schemas=[schema],
-            current_schema_id=schema.schema_id,
-            partition_specs=[partition_spec],
-            default_spec_id=partition_spec.spec_id,
-            sort_orders=[sort_order],
-            default_sort_order_id=sort_order.order_id,
-            properties=properties or {},
-            last_updated_ms=current_time_millis,
-            last_column_id=schema.highest_field_id,
-            last_partition_id=max(field.field_id for field in partition_spec.fields)
-            if partition_spec.fields
-            else DEFAULT_LAST_PARTITION_ID,
+        metadata = new_table_metadata(
+            location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
         )
         io = load_file_io({**self.properties, **properties}, location=location)
         self._write_metadata(metadata, io, metadata_location)
@@ -364,7 +352,7 @@ class HiveCatalog(Catalog):
         except NoSuchObjectException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
 
-        io = load_file_io({**self.properties, **hive_table.parameters})
+        io = load_file_io({**self.properties, **hive_table.parameters}, hive_table.sd.location)
         return self._convert_hive_into_iceberg(hive_table, io)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:

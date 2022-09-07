@@ -22,6 +22,7 @@ package org.apache.spark.sql.catalyst.expressions
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
+import java.util.function
 import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.transforms.Transform
 import org.apache.iceberg.transforms.Transforms
@@ -48,7 +49,7 @@ abstract class IcebergTransformExpression
 abstract class IcebergTimeTransform
   extends IcebergTransformExpression with ImplicitCastInputTypes {
 
-  def transform: Transform[Any, Integer]
+  def transform: function.Function[Any, Integer]
 
   override protected def nullSafeEval(value: Any): Any = {
     transform(value).toInt
@@ -62,7 +63,7 @@ abstract class IcebergTimeTransform
 case class IcebergYearTransform(child: Expression)
   extends IcebergTimeTransform {
 
-  @transient lazy val transform: Transform[Any, Integer] = Transforms.year[Any](icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] = Transforms.year[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
@@ -72,7 +73,7 @@ case class IcebergYearTransform(child: Expression)
 case class IcebergMonthTransform(child: Expression)
   extends IcebergTimeTransform {
 
-  @transient lazy val transform: Transform[Any, Integer] = Transforms.month[Any](icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] = Transforms.month[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
@@ -82,7 +83,7 @@ case class IcebergMonthTransform(child: Expression)
 case class IcebergDayTransform(child: Expression)
   extends IcebergTimeTransform {
 
-  @transient lazy val transform: Transform[Any, Integer] = Transforms.day[Any](icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] = Transforms.day[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
@@ -92,7 +93,7 @@ case class IcebergDayTransform(child: Expression)
 case class IcebergHourTransform(child: Expression)
   extends IcebergTimeTransform {
 
-  @transient lazy val transform: Transform[Any, Integer] = Transforms.hour[Any](icebergInputType)
+  @transient lazy val transform: function.Function[Any, Integer] = Transforms.hour[Any]().bind(icebergInputType)
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
@@ -103,15 +104,15 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
 
   @transient lazy val bucketFunc: Any => Int = child.dataType match {
     case _: DecimalType =>
-      val t = Transforms.bucket[Any](icebergInputType, numBuckets)
+      val t = Transforms.bucket[Any](numBuckets).bind(icebergInputType)
       d: Any => t(d.asInstanceOf[Decimal].toJavaBigDecimal).toInt
     case _: StringType =>
       // the spec requires that the hash of a string is equal to the hash of its UTF-8 encoded bytes
       // TODO: pass bytes without the copy out of the InternalRow
-      val t = Transforms.bucket[ByteBuffer](Types.BinaryType.get(), numBuckets)
+      val t = Transforms.bucket[ByteBuffer](numBuckets).bind(Types.BinaryType.get())
       s: Any => t(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)).toInt
     case _ =>
-      val t = Transforms.bucket[Any](icebergInputType, numBuckets)
+      val t = Transforms.bucket[Any](numBuckets).bind(icebergInputType)
       a: Any => t(a).toInt
   }
 
@@ -130,20 +131,20 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
 
   @transient lazy val truncateFunc: Any => Any = child.dataType match {
     case _: DecimalType =>
-      val t = Transforms.truncate[java.math.BigDecimal](icebergInputType, width)
+      val t = Transforms.truncate[java.math.BigDecimal](width).bind(icebergInputType)
       d: Any => Decimal.apply(t(d.asInstanceOf[Decimal].toJavaBigDecimal))
     case _: StringType =>
-      val t = Transforms.truncate[CharSequence](icebergInputType, width)
+      val t = Transforms.truncate[CharSequence](width).bind(icebergInputType)
       s: Any => {
         val charSequence = t(StandardCharsets.UTF_8.decode(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)))
         val bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(charSequence));
         UTF8String.fromBytes(ByteBuffers.toByteArray(bb))
       }
     case _: BinaryType =>
-      val t = Transforms.truncate[ByteBuffer](icebergInputType, width)
+      val t = Transforms.truncate[ByteBuffer](width).bind(icebergInputType)
       s: Any => ByteBuffers.toByteArray(t(ByteBuffer.wrap(s.asInstanceOf[Array[Byte]])))
     case _ =>
-      val t = Transforms.truncate[Any](icebergInputType, width)
+      val t = Transforms.truncate[Any](width).bind(icebergInputType)
       a: Any => t(a)
   }
 
