@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,38 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
 
-# The format of this file is documented at
-# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
-
-github:
-  description: "Apache Iceberg"
-  homepage: https://iceberg.apache.org/
-  labels:
-    - iceberg
-    - apache
-    - hacktoberfest
-  features:
-    wiki: true
-    issues: true
-    projects: true
-  collaborators:  # Note: the number of collaborators is limited to 20
-    - chenjunjiedada
-    - kbendick
-    - jun-he
-    - marton-bod
-    - nastra
-    - samarthjain
-    - findepi
-    - SreeramGarlapati
-    - samredai
-    - Fokko
-  ghp_branch: gh-pages
-  ghp_path: ~
-
-notifications:
-    commits:      commits@iceberg.apache.org
-    issues:       issues@iceberg.apache.org
-    pullrequests: issues@iceberg.apache.org
-    jira_options: link label link label
+mkdocs==1.3.1
+jinja2==3.0.3
