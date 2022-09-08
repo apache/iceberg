@@ -348,7 +348,7 @@ public class MetadataUpdateParser {
   private static void writeAddSnapshot(MetadataUpdate.AddSnapshot update, JsonGenerator gen)
       throws IOException {
     gen.writeFieldName(SNAPSHOT);
-    SnapshotParser.toJson(update.snapshot(), gen);
+    SnapshotParser.toJson(update.snapshot(), null, gen);
   }
 
   // TODO - Reconcile the spec's set-based removal with the current class implementation that only

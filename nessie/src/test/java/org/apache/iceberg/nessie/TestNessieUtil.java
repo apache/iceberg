@@ -55,7 +55,7 @@ public class TestNessieUtil {
             properties);
 
     // Produce a generic JsonNode from the TableMetadata
-    JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata);
+    JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata, null);
     Assertions.assertThat(jsonNode)
         .asInstanceOf(InstanceOfAssertFactories.type(JsonNode.class))
         .extracting(
@@ -79,7 +79,7 @@ public class TestNessieUtil {
     // (Could compare tableMetadata against deserializedMetadata, but TableMetadata has no equals())
 
     // Produce a JsonNode from the deserializedMetadata and compare that against jsonNode
-    JsonNode deserializedJsonNode = NessieUtil.tableMetadataAsJsonNode(deserializedMetadata);
+    JsonNode deserializedJsonNode = NessieUtil.tableMetadataAsJsonNode(deserializedMetadata, null);
     Assertions.assertThat(deserializedJsonNode).isEqualTo(jsonNode);
   }
 

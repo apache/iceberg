@@ -129,7 +129,7 @@ public class SnapshotFunctionalityTest {
   @Test
   public void getInfoAboutFilesAddedFromSnapshot() {
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedFiles = snapshot.addedFiles();
+    Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
 
     for (DataFile dataFile : addedFiles) {
       log.info("File path: " + dataFile.path());

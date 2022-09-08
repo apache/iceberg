@@ -152,7 +152,7 @@ public class HadoopTableOperations implements TableOperations {
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    TableMetadataParser.write(metadata, io(), io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);

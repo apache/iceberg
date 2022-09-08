@@ -44,7 +44,7 @@ public class TestSnapshotJson {
             1,
             "file:/tmp/manifest1.avro",
             "file:/tmp/manifest2.avro");
-    String json = SnapshotParser.toJson(expected);
+    String json = SnapshotParser.toJson(expected, ops.io());
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
@@ -64,7 +64,7 @@ public class TestSnapshotJson {
             null,
             "file:/tmp/manifest1.avro",
             "file:/tmp/manifest2.avro");
-    String json = SnapshotParser.toJson(expected);
+    String json = SnapshotParser.toJson(expected, ops.io());
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
@@ -86,7 +86,6 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
             id,
             parentId,
             System.currentTimeMillis(),
@@ -95,7 +94,7 @@ public class TestSnapshotJson {
             3,
             manifests);
 
-    String json = SnapshotParser.toJson(expected);
+    String json = SnapshotParser.toJson(expected, ops.io());
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
     Assert.assertEquals("Sequence number should default to 0 for v1", 0, snapshot.sequenceNumber());
@@ -134,7 +133,6 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
             id,
             34,
             parentId,
@@ -144,15 +142,14 @@ public class TestSnapshotJson {
             4,
             localInput(manifestList).location());
     Snapshot inMemory =
-        new BaseSnapshot(
-            ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests);
+        new BaseSnapshot(id, parentId, expected.timestampMillis(), null, null, 4, manifests);
 
     Assert.assertEquals(
         "Files should match in memory list",
         inMemory.allManifests(ops.io()),
         expected.allManifests(ops.io()));
 
-    String json = SnapshotParser.toJson(expected);
+    String json = SnapshotParser.toJson(expected, ops.io());
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
     Assert.assertEquals(

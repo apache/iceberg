@@ -360,7 +360,6 @@ public class TestMetadataUpdateParser {
 
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
@@ -368,7 +367,7 @@ public class TestMetadataUpdateParser {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
             manifests);
-    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, null, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
     String actual = MetadataUpdateParser.toJson(update);
@@ -389,7 +388,6 @@ public class TestMetadataUpdateParser {
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
@@ -397,7 +395,7 @@ public class TestMetadataUpdateParser {
             summary,
             schemaId,
             manifests);
-    String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, null, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));

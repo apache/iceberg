@@ -160,7 +160,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     // write the new metadata
     // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
     // always unique because it includes a UUID.
-    TableMetadataParser.overwrite(metadata, newMetadataLocation);
+    TableMetadataParser.overwrite(metadata, io(), newMetadataLocation);
 
     return newMetadataLocation.location();
   }

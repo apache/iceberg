@@ -48,6 +48,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -93,7 +94,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -105,7 +105,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -158,7 +157,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of());
 
-    String asJson = TableMetadataParser.toJson(expected);
+    String asJson = TableMetadataParser.toJson(expected, ops.io());
     TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
 
     Assert.assertEquals(
@@ -232,7 +231,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -244,7 +242,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -279,7 +276,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of());
 
-    String asJson = toJsonWithoutSpecAndSchemaList(expected);
+    String asJson = toJsonWithoutSpecAndSchemaList(expected, ops.io());
     TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
 
     Assert.assertEquals(
@@ -357,7 +354,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -369,7 +365,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -429,7 +424,6 @@ public class TestTableMetadata {
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot snapshot =
         new BaseSnapshot(
-            ops.io(),
             snapshotId,
             null,
             snapshotId,
@@ -513,7 +507,7 @@ public class TestTableMetadata {
                 ImmutableList.of()));
   }
 
-  private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata) {
+  private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata, FileIO io) {
     StringWriter writer = new StringWriter();
     try {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
@@ -545,7 +539,7 @@ public class TestTableMetadata {
 
       generator.writeArrayFieldStart(SNAPSHOTS);
       for (Snapshot snapshot : metadata.snapshots()) {
-        SnapshotParser.toJson(snapshot, generator);
+        SnapshotParser.toJson(snapshot, io, generator);
       }
       generator.writeEndArray();
       // skip the snapshot log
@@ -564,7 +558,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -576,7 +569,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -618,7 +610,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of());
 
-    String asJson = TableMetadataParser.toJson(base);
+    String asJson = TableMetadataParser.toJson(base, ops.io());
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), asJson);
 
     Assert.assertEquals(
@@ -630,7 +622,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -642,7 +633,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -716,7 +706,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -728,7 +717,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -820,7 +808,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -832,7 +819,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,

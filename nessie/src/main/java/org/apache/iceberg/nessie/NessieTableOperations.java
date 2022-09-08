@@ -170,7 +170,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       Snapshot snapshot = metadata.currentSnapshot();
       long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
 
-      JsonNode newMetadata = NessieUtil.tableMetadataAsJsonNode(metadata);
+      JsonNode newMetadata = NessieUtil.tableMetadataAsJsonNode(metadata, io());
       IcebergTable newTable =
           newTableBuilder
               .snapshotId(snapshotId)

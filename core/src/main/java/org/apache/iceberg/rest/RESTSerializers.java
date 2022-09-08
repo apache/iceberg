@@ -110,7 +110,7 @@ public class RESTSerializers {
     @Override
     public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      TableMetadataParser.toJson(metadata, gen);
+      TableMetadataParser.toJson(metadata, null, gen);
     }
   }
 

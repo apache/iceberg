@@ -46,7 +46,7 @@ public class SnapshotParser {
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
 
-  static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
+  static void toJson(Snapshot snapshot, FileIO io, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
       generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
@@ -80,7 +80,7 @@ public class SnapshotParser {
     } else {
       // embed the manifest list in the JSON, v1 only
       generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.allManifests()) {
+      for (ManifestFile file : snapshot.allManifests(io)) {
         generator.writeString(file.path());
       }
       generator.writeEndArray();
@@ -94,19 +94,19 @@ public class SnapshotParser {
     generator.writeEndObject();
   }
 
-  public static String toJson(Snapshot snapshot) {
+  public static String toJson(Snapshot snapshot, FileIO io) {
     // Use true as default value of pretty for backwards compatibility
-    return toJson(snapshot, true);
+    return toJson(snapshot, io, true);
   }
 
-  public static String toJson(Snapshot snapshot, boolean pretty) {
+  public static String toJson(Snapshot snapshot, FileIO io, boolean pretty) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
-      toJson(snapshot, generator);
+      toJson(snapshot, io, generator);
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
@@ -157,7 +157,6 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io,
           sequenceNumber,
           snapshotId,
           parentId,
@@ -175,7 +174,7 @@ public class SnapshotParser {
               JsonUtil.getStringList(MANIFESTS, node),
               location -> new GenericManifestFile(io.newInputFile(location), 0));
       return new BaseSnapshot(
-          io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
+          snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
     }
   }
 

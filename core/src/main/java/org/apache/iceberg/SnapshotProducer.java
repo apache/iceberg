@@ -227,7 +227,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new BaseSnapshot(
-          ops.io(),
           sequenceNumber,
           snapshotId(),
           parentSnapshotId,
@@ -239,7 +238,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     } else {
       return new BaseSnapshot(
-          ops.io(),
           snapshotId(),
           parentSnapshotId,
           System.currentTimeMillis(),

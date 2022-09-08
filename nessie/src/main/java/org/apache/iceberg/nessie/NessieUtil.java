@@ -120,10 +120,10 @@ public final class NessieUtil {
     return deserialized;
   }
 
-  static JsonNode tableMetadataAsJsonNode(TableMetadata metadata) {
+  static JsonNode tableMetadataAsJsonNode(TableMetadata metadata, FileIO io) {
     JsonNode newMetadata;
     try {
-      String jsonString = TableMetadataParser.toJson(metadata);
+      String jsonString = TableMetadataParser.toJson(metadata, io);
       try (JsonParser parser = JsonUtil.factory().createParser(jsonString)) {
         newMetadata = parser.readValueAs(JsonNode.class);
       }

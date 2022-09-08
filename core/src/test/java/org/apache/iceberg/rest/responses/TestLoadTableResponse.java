@@ -116,7 +116,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata, null));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v1Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);
@@ -144,7 +144,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata, null));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v2Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);

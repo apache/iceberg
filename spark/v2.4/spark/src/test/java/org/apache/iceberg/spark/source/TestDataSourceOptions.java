@@ -198,7 +198,8 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<DataFile> files = Lists.newArrayList(icebergTable.currentSnapshot().addedFiles());
+    List<DataFile> files =
+        Lists.newArrayList(icebergTable.currentSnapshot().addedDataFiles(icebergTable.io()));
     Assert.assertEquals("Should have written 1 file", 1, files.size());
 
     long fileSize = files.get(0).fileSizeInBytes();
@@ -325,7 +326,7 @@ public class TestDataSourceOptions {
     // produce 2nd manifest
     originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
     Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
 
@@ -355,7 +356,7 @@ public class TestDataSourceOptions {
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
-    tables.create(SCHEMA, spec, options, tableLocation);
+    Table table = tables.create(SCHEMA, spec, options, tableLocation);
 
     List<SimpleRecord> expectedRecords =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
@@ -369,7 +370,7 @@ public class TestDataSourceOptions {
                     tables
                         .load(tableLocation + "#entries")
                         .currentSnapshot()
-                        .allManifests()
+                        .allManifests(table.io())
                         .get(0)
                         .length()
                 + splitSize

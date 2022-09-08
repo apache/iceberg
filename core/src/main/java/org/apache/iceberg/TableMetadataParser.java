@@ -107,23 +107,23 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
 
-  public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, true);
+  public static void overwrite(TableMetadata metadata, FileIO io, OutputFile outputFile) {
+    internalWrite(metadata, io, outputFile, true);
   }
 
-  public static void write(TableMetadata metadata, OutputFile outputFile) {
-    internalWrite(metadata, outputFile, false);
+  public static void write(TableMetadata metadata, FileIO io, OutputFile outputFile) {
+    internalWrite(metadata, io, outputFile, false);
   }
 
   public static void internalWrite(
-      TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
+      TableMetadata metadata, FileIO io, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      toJson(metadata, generator);
+      toJson(metadata, io, generator);
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
@@ -143,10 +143,10 @@ public class TableMetadataParser {
     return ".metadata.json" + codec.extension;
   }
 
-  public static String toJson(TableMetadata metadata) {
+  public static String toJson(TableMetadata metadata, FileIO io) {
     try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(metadata, generator);
+      toJson(metadata, io, generator);
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
@@ -154,7 +154,8 @@ public class TableMetadataParser {
     }
   }
 
-  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(TableMetadata metadata, FileIO io, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
@@ -218,10 +219,9 @@ public class TableMetadataParser {
         metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
 
     toJson(metadata.refs(), generator);
-
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
-      SnapshotParser.toJson(snapshot, generator);
+      SnapshotParser.toJson(snapshot, io, generator);
     }
     generator.writeEndArray();
 
