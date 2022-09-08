@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
@@ -151,18 +152,9 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
-    long numRows = 0L;
-
-    for (CombinedScanTask task : tasks()) {
-      for (FileScanTask file : task.files()) {
-        // TODO: if possible, take deletes also into consideration.
-        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
-        numRows += (fractionOfFileScanned * file.file().recordCount());
-      }
-    }
-
-    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), numRows);
-    return new Stats(sizeInBytes, numRows);
+    long rowsCount = tasks().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    return new Stats(sizeInBytes, rowsCount);
   }
 
   @Override
