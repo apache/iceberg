@@ -51,18 +51,18 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
     DeleteFile deleteFile2 = newDeleteFile("data_bucket=1");
     table.newRowDelta().addDeletes(deleteFile2).commit();
 
-    TableScan scan = table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(50));
+    TableScan scan = table.newScan().option(TableProperties.SPLIT_SIZE, "50");
 
     List<FileScanTask> fileScanTasks = Lists.newArrayList(scan.planFiles());
     Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
     for (FileScanTask task : fileScanTasks) {
-      Assert.assertEquals("Rows count must match", 10, task.rowsCount());
+      Assert.assertEquals("Rows count must match", 10, task.estimatedRowsCount());
     }
 
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(scan.planTasks());
     Assert.assertEquals("Must have 4 CombinedScanTask", 4, combinedScanTasks.size());
     for (CombinedScanTask task : combinedScanTasks) {
-      Assert.assertEquals("Rows count must match", 5, task.rowsCount());
+      Assert.assertEquals("Rows count must match", 5, task.estimatedRowsCount());
     }
   }
 

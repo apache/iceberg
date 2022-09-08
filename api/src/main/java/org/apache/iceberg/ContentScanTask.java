@@ -65,7 +65,7 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
   Expression residual();
 
   @Override
-  default long rowsCount() {
+  default long estimatedRowsCount() {
     double scannedFileFraction = ((double) length()) / file().fileSizeInBytes();
     return (long) (scannedFileFraction * file().recordCount());
   }

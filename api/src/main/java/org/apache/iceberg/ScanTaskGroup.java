@@ -35,8 +35,8 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
   }
 
   @Override
-  default long rowsCount() {
-    return tasks().stream().mapToLong(ScanTask::rowsCount).sum();
+  default long estimatedRowsCount() {
+    return tasks().stream().mapToLong(ScanTask::estimatedRowsCount).sum();
   }
 
   @Override
