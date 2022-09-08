@@ -1680,7 +1680,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
     Snapshot snapshot1 = table.currentSnapshot();
     snapshotIdToManifests.addAll(
-        snapshot1.allManifests().stream()
+        snapshot1.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot1.snapshotId(), manifest))
             .collect(Collectors.toList()));
 
@@ -1692,9 +1692,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
     Snapshot snapshot2 = table.currentSnapshot();
-    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests().size());
+    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests(table.io()).size());
     snapshotIdToManifests.addAll(
-        snapshot2.allManifests().stream()
+        snapshot2.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
             .collect(Collectors.toList()));
 

@@ -36,12 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
 
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; {@link FileIO} should be passed to methods
-   *     which require it
-   */
-  @Deprecated private final FileIO io;
-
   private final long snapshotId;
   private final Long parentId;
   private final long sequenceNumber;
@@ -50,6 +44,7 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
+  private final String[] v1ManifestLocations;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -60,42 +55,6 @@ class BaseSnapshot implements Snapshot {
   private transient List<DeleteFile> addedDeleteFiles = null;
   private transient List<DeleteFile> removedDeleteFiles = null;
 
-  /** For testing only. */
-  BaseSnapshot(FileIO io, long snapshotId, Integer schemaId, String... manifestFiles) {
-    this(
-        io,
-        snapshotId,
-        null,
-        System.currentTimeMillis(),
-        null,
-        null,
-        schemaId,
-        Lists.transform(
-            Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)));
-  }
-
-  BaseSnapshot(
-      FileIO io,
-      long sequenceNumber,
-      long snapshotId,
-      Long parentId,
-      long timestampMillis,
-      String operation,
-      Map<String, String> summary,
-      Integer schemaId,
-      String manifestList) {
-    this.io = io;
-    this.sequenceNumber = sequenceNumber;
-    this.snapshotId = snapshotId;
-    this.parentId = parentId;
-    this.timestampMillis = timestampMillis;
-    this.operation = operation;
-    this.summary = summary;
-    this.schemaId = schemaId;
-    this.manifestListLocation = manifestList;
-  }
-
   BaseSnapshot(
       long sequenceNumber,
       long snapshotId,
@@ -105,7 +64,6 @@ class BaseSnapshot implements Snapshot {
       Map<String, String> summary,
       Integer schemaId,
       String manifestList) {
-    this.io = null;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -114,10 +72,10 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
+    this.v1ManifestLocations = null;
   }
 
   BaseSnapshot(
-      FileIO io,
       long snapshotId,
       Long parentId,
       long timestampMillis,
@@ -126,7 +84,6 @@ class BaseSnapshot implements Snapshot {
       Integer schemaId,
       List<ManifestFile> dataManifests) {
     this(
-        io,
         INITIAL_SEQUENCE_NUMBER,
         snapshotId,
         parentId,
@@ -134,8 +91,28 @@ class BaseSnapshot implements Snapshot {
         operation,
         summary,
         schemaId,
-        null);
+        dataManifests.stream().map(ManifestFile::path).toArray(String[]::new));
     this.allManifests = dataManifests;
+  }
+
+  BaseSnapshot(
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String[] v1ManifestLocations) {
+    this.sequenceNumber = sequenceNumber;
+    this.snapshotId = snapshotId;
+    this.parentId = parentId;
+    this.timestampMillis = timestampMillis;
+    this.operation = operation;
+    this.summary = summary;
+    this.schemaId = schemaId;
+    this.manifestListLocation = null;
+    this.v1ManifestLocations = v1ManifestLocations;
   }
 
   @Override
@@ -178,6 +155,14 @@ class BaseSnapshot implements Snapshot {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
     }
 
+    if (allManifests == null && v1ManifestLocations != null) {
+      // if we have a collection of manifest locations, then we need to load them here
+      allManifests =
+          Lists.transform(
+              Arrays.asList(v1ManifestLocations),
+              location -> new GenericManifestFile(fileIO.newInputFile(location), 0));
+    }
+
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       this.allManifests = ManifestLists.read(fileIO.newInputFile(manifestListLocation));
@@ -203,36 +188,10 @@ class BaseSnapshot implements Snapshot {
     return allManifests;
   }
 
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)}
-   *     instead.
-   */
-  @Override
-  @Deprecated
-  public List<ManifestFile> allManifests() {
-    if (allManifests == null) {
-      cacheManifests(io);
-    }
-    return allManifests;
-  }
-
   @Override
   public List<ManifestFile> dataManifests(FileIO fileIO) {
     if (dataManifests == null) {
       cacheManifests(fileIO);
-    }
-    return dataManifests;
-  }
-
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)}
-   *     instead.
-   */
-  @Override
-  @Deprecated
-  public List<ManifestFile> dataManifests() {
-    if (dataManifests == null) {
-      cacheManifests(io);
     }
     return dataManifests;
   }
@@ -245,19 +204,6 @@ class BaseSnapshot implements Snapshot {
     return deleteManifests;
   }
 
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
-   *     Snapshot#deleteManifests(FileIO)} instead.
-   */
-  @Override
-  @Deprecated
-  public List<ManifestFile> deleteManifests() {
-    if (deleteManifests == null) {
-      cacheManifests(io);
-    }
-    return deleteManifests;
-  }
-
   @Override
   public List<DataFile> addedDataFiles(FileIO fileIO) {
     if (addedDataFiles == null) {
@@ -266,36 +212,10 @@ class BaseSnapshot implements Snapshot {
     return addedDataFiles;
   }
 
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedDataFiles(FileIO)}
-   *     instead.
-   */
-  @Override
-  @Deprecated
-  public List<DataFile> addedFiles() {
-    if (addedDataFiles == null) {
-      cacheDataFileChanges(io);
-    }
-    return addedDataFiles;
-  }
-
   @Override
   public List<DataFile> removedDataFiles(FileIO fileIO) {
     if (removedDataFiles == null) {
       cacheDataFileChanges(fileIO);
-    }
-    return removedDataFiles;
-  }
-
-  /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
-   *     Snapshot#removedDataFiles(FileIO)} instead.
-   */
-  @Override
-  @Deprecated
-  public List<DataFile> deletedFiles() {
-    if (removedDataFiles == null) {
-      cacheDataFileChanges(io);
     }
     return removedDataFiles;
   }
@@ -319,6 +239,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public String[] v1ManifestLocations() {
+    return v1ManifestLocations;
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {
