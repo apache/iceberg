@@ -27,7 +27,7 @@ menu:
 
 # Feature Support
 
-The goal is that the python library will provide a functional, performant subset of the Java library. The initial focus has been on reading table metadata and provide a convenient CLI to go through the catalog.
+The goal is that the python library will provide a functional, performant subset of the java library. The initial focus has been on reading table metadata as well as providing the capability to both plan and execute a scan.
 
 ## Feature Comparison
 
@@ -35,20 +35,44 @@ The goal is that the python library will provide a functional, performant subset
 
 | Operation               | Java  | Python |
 |:------------------------|:-----:|:------:|
-| Get Schema              |    X  |   X    |
-| Get Snapshots           |    X  |   X    |
-| Plan Scan               |    X  |        |
-| Plan Scan for Snapshot  |    X  |        |
+| Get Schema              |    X  |    X   |
+| Get Snapshots           |    X  |    X   |
+| Plan Scan               |    X  |    X   |
+| Plan Scan for Snapshot  |    X  |    X   |
 | Update Current Snapshot |    X  |        |
-| Set Table Properties    |    X  |   X    |
-| Create Table            |    X  |   X    |
-| Drop Table              |    X  |   X    |
+| Set Table Properties    |    X  |        |
+| Create Table            |    X  |    X   |
+| Drop Table              |    X  |    X   |
 | Alter Table             |    X  |        |
 
 
 ### Read Support
 
 Pyarrow is used for reading parquet files, so read support is limited to what is currently supported in the pyarrow.parquet package.
+
+#### Primitive Types
+
+
+| Data Type               | Java | Python |
+|:------------------------|:----:|:------:|
+| BooleanType             |   X  |    X   |
+| DateType                |   X  |    X   |
+| DecimalType             |   X  |    X   |
+| FloatType               |   X  |    X   |
+| IntegerType             |   X  |    X   |
+| LongType                |   X  |    X   |
+| TimeType                |   X  |    X   |
+| TimestampType           |   X  |    X   |
+
+#### Nested Types
+
+| Data Type               | Java | Python |
+|:------------------------|:----:|:------:|
+| ListType of primitives  |   X  |    X   |
+| MapType of primitives   |   X  |    X   |
+| StructType of primitives|   X  |    X   |
+| ListType of Nested Types|   X  |        |
+| MapType of Nested Types |   X  |        |
 
 ### Write Support
 

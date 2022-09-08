@@ -26,235 +26,45 @@ menu:
  -->
 
 
-# Python CLI Quickstart
+# Python API Quickstart
 
-Pyiceberg ships with a CLI that's available after installing the package.
+## Installation
 
-```sh
-➜  pyiceberg --help
-Usage: pyiceberg [OPTIONS] COMMAND [ARGS]...
-
-Options:
-  --catalog TEXT
-  --verbose BOOLEAN
-  --output [text|json]
-  --uri TEXT
-  --credential TEXT
-  --help                Show this message and exit.
-
-Commands:
-  describe    Describes a namespace xor table
-  drop        Operations to drop a namespace or table
-  list        Lists tables or namespaces
-  location    Returns the location of the table
-  properties  Properties on tables/namespaces
-  rename      Renames a table
-  schema      Gets the schema of the table
-  spec        Returns the partition spec of the table
-  uuid        Returns the UUID of the table
+Iceberg python is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
+```
+git clone https://github.com/apache/iceberg.git
+cd iceberg/python
+pip install -e .
 ```
 
+## Testing
+Testing is done using tox. The config can be found in `tox.ini` within the python directory of the iceberg project.
 
-# Configuration
-
-There are three ways of setting the configuration.
-
-For the CLI you can pass it in using `--uri` and `--credential` and it will automatically detect the type based on the scheme (`http(s)` for rest, `thrift` for Hive).
-
-Secondly, YAML based configuration is supported `cat ~/.pyiceberg.yaml`:
-
-```yaml
-catalog:
-    default:  
-        uri: thrift://localhost:9083
-
-    rest:
-        uri: http://rest-catalog/ws/
-        credential: t-1234:secret
+```
+# simply run tox from within the python dir
+tox
 ```
 
-Lastly, you can also set it using environment variables:
+# Examples
 
-```sh
-export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
+## Inspect Table Metadata
+``` python
 
-export PYICEBERG_CATALOG__REST__URI=http://rest-catalog/ws/
-export PYICEBERG_CATALOG__REST__CREDENTIAL=t-1234:secret
-```
+from iceberg.hive import HiveTables
 
-Where the structure is equivalent to the YAML. The levels are separated using a double underscore (`__`).
+# instantiate Hive Tables
+conf = {"hive.metastore.uris": 'thrift://{hms_host}:{hms_port}'}
+tables = HiveTables(conf)
 
-# Browsing the catalog
+# load table
+tbl = tables.load("iceberg_db.iceberg_test_table")
 
-This example assumes that you have a default catalog set. If you want to load another catalog, for example, the rest example above. Then you need to set `--catalog rest`.
+# inspect metadata
+print(tbl.schema())
+print(tbl.spec())
+print(tbl.location())
 
-## Listing global namespaces
-
-```sh
-➜  pyiceberg list                       
-default
-nyc  
-```
-
-## Listing tables in a namespace
-
-```sh
-➜  pyiceberg list nyc
-nyc.taxis
-```
-
-## Describing a table
-
-```sh
-pyiceberg describe nyc.taxis
-Table format version  1                                                                                                                                                                                                 
-Metadata location     file:/.../nyc.db/taxis/metadata/00000-aa3a3eac-ea08-4255-b890-383a64a94e42.metadata.json                                                        
-Table UUID            6cdfda33-bfa3-48a7-a09e-7abb462e3460                                                                                                                                                              
-Last Updated          1661783158061                                                                                                                                                                                     
-Partition spec        []                                                                                                                                                                                                
-Sort order            []                                                                                                                                                                                                
-Current schema        Schema, id=0                                                                                                                                                                                      
-                      ├── 1: VendorID: optional long                                                                                                                                                                    
-                      ├── 2: tpep_pickup_datetime: optional timestamptz                                                                                                                                                 
-                      ├── 3: tpep_dropoff_datetime: optional timestamptz                                                                                                                                                
-                      ├── 4: passenger_count: optional double                                                                                                                                                           
-                      ├── 5: trip_distance: optional double                                                                                                                                                             
-                      ├── 6: RatecodeID: optional double                                                                                                                                                                
-                      ├── 7: store_and_fwd_flag: optional string                                                                                                                                                        
-                      ├── 8: PULocationID: optional long                                                                                                                                                                
-                      ├── 9: DOLocationID: optional long                                                                                                                                                                
-                      ├── 10: payment_type: optional long                                                                                                                                                               
-                      ├── 11: fare_amount: optional double                                                                                                                                                              
-                      ├── 12: extra: optional double                                                                                                                                                                    
-                      ├── 13: mta_tax: optional double                                                                                                                                                                  
-                      ├── 14: tip_amount: optional double                                                                                                                                                               
-                      ├── 15: tolls_amount: optional double                                                                                                                                                             
-                      ├── 16: improvement_surcharge: optional double                                                                                                                                                    
-                      ├── 17: total_amount: optional double                                                                                                                                                             
-                      ├── 18: congestion_surcharge: optional double                                                                                                                                                     
-                      └── 19: airport_fee: optional double                                                                                                                                                              
-Current snapshot      Operation.APPEND: id=5937117119577207079, schema_id=0                                                                                                                                             
-Snapshots             Snapshots                                                                                                                                                                                         
-                      └── Snapshot 5937117119577207079, schema 0: file:/.../nyc.db/taxis/metadata/snap-5937117119577207079-1-94656c4f-4c66-4600-a4ca-f30377300527.avro
-Properties            owner                 root                                                                                                                                                                        
-                      write.format.default  parquet
-```
-
-Or output in JSON for automation:
-
-```sh
-pyiceberg --output json describe nyc.taxis | jq
-{
-  "identifier": [
-    "nyc",
-    "taxis"
-  ],
-  "metadata_location": "file:/.../nyc.db/taxis/metadata/00000-aa3a3eac-ea08-4255-b890-383a64a94e42.metadata.json",
-  "metadata": {
-    "location": "file:/.../nyc.db/taxis",
-    "table-uuid": "6cdfda33-bfa3-48a7-a09e-7abb462e3460",
-    "last-updated-ms": 1661783158061,
-    "last-column-id": 19,
-    "schemas": [
-      {
-        "type": "struct",
-        "fields": [
-          {
-            "id": 1,
-            "name": "VendorID",
-            "type": "long",
-            "required": false
-          },
-...
-          {
-            "id": 19,
-            "name": "airport_fee",
-            "type": "double",
-            "required": false
-          }
-        ],
-        "schema-id": 0,
-        "identifier-field-ids": []
-      }
-    ],
-    "current-schema-id": 0,
-    "partition-specs": [
-      {
-        "spec-id": 0,
-        "fields": []
-      }
-    ],
-    "default-spec-id": 0,
-    "last-partition-id": 999,
-    "properties": {
-      "owner": "root",
-      "write.format.default": "parquet"
-    },
-    "current-snapshot-id": 5937117119577207000,
-    "snapshots": [
-      {
-        "snapshot-id": 5937117119577207000,
-        "timestamp-ms": 1661783158061,
-        "manifest-list": "file:/.../nyc.db/taxis/metadata/snap-5937117119577207079-1-94656c4f-4c66-4600-a4ca-f30377300527.avro",
-        "summary": {
-          "operation": "append",
-          "spark.app.id": "local-1661783139151",
-          "added-data-files": "1",
-          "added-records": "2979431",
-          "added-files-size": "46600777",
-          "changed-partition-count": "1",
-          "total-records": "2979431",
-          "total-files-size": "46600777",
-          "total-data-files": "1",
-          "total-delete-files": "0",
-          "total-position-deletes": "0",
-          "total-equality-deletes": "0"
-        },
-        "schema-id": 0
-      }
-    ],
-    "snapshot-log": [
-      {
-        "snapshot-id": "5937117119577207079",
-        "timestamp-ms": 1661783158061
-      }
-    ],
-    "metadata-log": [],
-    "sort-orders": [
-      {
-        "order-id": 0,
-        "fields": []
-      }
-    ],
-    "default-sort-order-id": 0,
-    "refs": {
-      "main": {
-        "snapshot-id": 5937117119577207000,
-        "type": "branch"
-      }
-    },
-    "format-version": 1,
-    "schema": {
-      "type": "struct",
-      "fields": [
-        {
-          "id": 1,
-          "name": "VendorID",
-          "type": "long",
-          "required": false
-        },
-...
-        {
-          "id": 19,
-          "name": "airport_fee",
-          "type": "double",
-          "required": false
-        }
-      ],
-      "schema-id": 0,
-      "identifier-field-ids": []
-    },
-    "partition-spec": []
-  }
-}
+# get table level record count
+from pprint import pprint
+pprint(int(tbl.current_snapshot().summary.get("total-records")))
 ```
