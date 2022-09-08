@@ -23,10 +23,16 @@ with the pyarrow library.
 """
 
 import os
-from typing import Union
+from functools import lru_cache
+from typing import Callable, Tuple, Union
 from urllib.parse import urlparse
 
-from pyarrow.fs import FileInfo, FileSystem, FileType
+from pyarrow.fs import (
+    FileInfo,
+    FileSystem,
+    FileType,
+    S3FileSystem,
+)
 
 from pyiceberg.io import (
     FileIO,
@@ -35,6 +41,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.typedef import EMPTY_DICT, Properties
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -59,12 +66,9 @@ class PyArrowFile(InputFile, OutputFile):
         >>> # output_file.create().write(b'foobytes')
     """
 
-    def __init__(self, location: str):
-        parsed_location = urlparse(location)  # Create a ParseResult from the URI
-        if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
-            self._filesystem, self._path = FileSystem.from_uri(os.path.abspath(location))
-        else:
-            self._filesystem, self._path = FileSystem.from_uri(location)  # Infer the proper filesystem
+    def __init__(self, location: str, path: str, fs: FileSystem):
+        self._filesystem = fs
+        self._path = path
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
@@ -165,6 +169,24 @@ class PyArrowFile(InputFile, OutputFile):
 
 
 class PyArrowFileIO(FileIO):
+    def __init__(self, properties: Properties = EMPTY_DICT):
+        self.get_fs_and_path: Callable = lru_cache(self._get_fs_and_path)
+        super().__init__(properties=properties)
+
+    def _get_fs_and_path(self, location: str) -> Tuple[FileSystem, str]:
+        uri = urlparse(location)  # Create a ParseResult from the URI
+        if not uri.scheme:  # If no scheme, assume the path is to a local file
+            return FileSystem.from_uri(os.path.abspath(location))
+        elif uri.scheme in {"s3", "s3a", "s3n"}:
+            client_kwargs = {
+                "endpoint_override": self.properties.get("s3.endpoint"),
+                "access_key": self.properties.get("s3.access-key-id"),
+                "secret_key": self.properties.get("s3.secret-access-key"),
+            }
+            return (S3FileSystem(**client_kwargs), uri.netloc + uri.path)
+        else:
+            return FileSystem.from_uri(location)  # Infer the proper filesystem
+
     def new_input(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to read bytes from the file at the given location
 
@@ -174,7 +196,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        return PyArrowFile(location)
+        fs, path = self.get_fs_and_path(location)
+        return PyArrowFile(fs=fs, location=location, path=path)
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location
@@ -185,7 +208,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        return PyArrowFile(location)
+        fs, path = self.get_fs_and_path(location)
+        return PyArrowFile(fs=fs, location=location, path=path)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
@@ -201,9 +225,10 @@ class PyArrowFileIO(FileIO):
                 an AWS error code 15
         """
         str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
+        fs, path = self.get_fs_and_path(str_path)
+
         try:
-            filesystem.delete_file(path)
+            fs.delete_file(path)
         except FileNotFoundError:
             raise
         except PermissionError:
