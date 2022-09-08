@@ -125,6 +125,12 @@ public interface ScanReport {
     @Nullable
     CounterResult totalDeleteFileSizeInBytes();
 
+    @Nullable
+    CounterResult skippedDataFiles();
+
+    @Nullable
+    CounterResult skippedDeleteFiles();
+
     static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
       Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
       return ImmutableScanMetricsResult.builder()
@@ -138,6 +144,8 @@ public interface ScanReport {
           .totalFileSizeInBytes(CounterResult.fromCounter(scanMetrics.totalFileSizeInBytes()))
           .totalDeleteFileSizeInBytes(
               CounterResult.fromCounter(scanMetrics.totalDeleteFileSizeInBytes()))
+          .skippedDataFiles(CounterResult.fromCounter(scanMetrics.skippedDataFiles()))
+          .skippedDeleteFiles(CounterResult.fromCounter(scanMetrics.skippedDeleteFiles()))
           .build();
     }
   }
@@ -154,6 +162,8 @@ public interface ScanReport {
     public static final String TOTAL_FILE_SIZE_IN_BYTES = "total-file-size-in-bytes";
     public static final String TOTAL_DELETE_FILE_SIZE_IN_BYTES = "total-delete-file-size-in-bytes";
     public static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
+    public static final String SKIPPED_DATA_FILES = "skipped-data-files";
+    public static final String SKIPPED_DELETE_FILES = "skipped-delete-files";
 
     public static ScanMetrics noop() {
       return ScanMetrics.of(MetricsContext.nullMetrics());
@@ -204,6 +214,16 @@ public interface ScanReport {
     @Value.Derived
     public Counter skippedDataManifests() {
       return metricsContext().counter(SKIPPED_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter skippedDataFiles() {
+      return metricsContext().counter(SKIPPED_DATA_FILES, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter skippedDeleteFiles() {
+      return metricsContext().counter(SKIPPED_DELETE_FILES, MetricsContext.Unit.COUNT);
     }
 
     public static ScanMetrics of(MetricsContext metricsContext) {

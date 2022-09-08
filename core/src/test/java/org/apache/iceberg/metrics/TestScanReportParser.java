@@ -80,6 +80,8 @@ public class TestScanReportParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     String tableName = "roundTripTableName";
     Schema projection =
@@ -106,6 +108,8 @@ public class TestScanReportParser {
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
+                    + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .usingRecursiveComparison()
@@ -162,6 +166,8 @@ public class TestScanReportParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     String tableName = "roundTripTableName";
     Schema projection =
@@ -228,6 +234,14 @@ public class TestScanReportParser {
             + "    \"total-delete-file-size-in-bytes\" : {\n"
             + "      \"unit\" : \"bytes\",\n"
             + "      \"value\" : 23\n"
+            + "    },\n"
+            + "    \"skipped-data-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"skipped-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
             + "    }\n"
             + "  }\n"
             + "}";

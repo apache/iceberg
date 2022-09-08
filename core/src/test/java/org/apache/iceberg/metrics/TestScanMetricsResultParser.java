@@ -42,6 +42,7 @@ public class TestScanMetricsResultParser {
         .hasMessage("Invalid scan metrics: null");
   }
 
+  @SuppressWarnings("MethodLength")
   @Test
   public void missingFields() {
     Assertions.assertThat(ScanMetricsResultParser.fromJson("{}"))
@@ -129,6 +130,36 @@ public class TestScanMetricsResultParser {
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069}}"))
         .isEqualTo(scanMetricsResult);
+
+    scanMetricsResult =
+        scanMetricsResult.withTotalDeleteFileSizeInBytes(CounterResult.of(Unit.BYTES, 1023L));
+    Assertions.assertThat(
+            ScanMetricsResultParser.fromJson(
+                "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
+                    + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
+                    + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1023}}"))
+        .isEqualTo(scanMetricsResult);
+
+    scanMetricsResult = scanMetricsResult.withSkippedDataFiles(CounterResult.of(Unit.COUNT, 23L));
+    Assertions.assertThat(
+            ScanMetricsResultParser.fromJson(
+                "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
+                    + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
+                    + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1023},"
+                    + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":23}}"))
+        .isEqualTo(scanMetricsResult);
   }
 
   @Test
@@ -143,6 +174,8 @@ public class TestScanMetricsResultParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
     Assertions.assertThat(
@@ -156,6 +189,8 @@ public class TestScanMetricsResultParser {
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
+                    + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"extra\": \"value\",\"extra2\":23}"))
         .isEqualTo(scanMetricsResult);
   }
@@ -193,6 +228,8 @@ public class TestScanMetricsResultParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
 
@@ -234,6 +271,14 @@ public class TestScanMetricsResultParser {
             + "  \"total-delete-file-size-in-bytes\" : {\n"
             + "    \"unit\" : \"bytes\",\n"
             + "    \"value\" : 23\n"
+            + "  },\n"
+            + "  \"skipped-data-files\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 3\n"
+            + "  },\n"
+            + "  \"skipped-delete-files\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 3\n"
             + "  }\n"
             + "}";
 
