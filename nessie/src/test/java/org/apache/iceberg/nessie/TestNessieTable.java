@@ -40,11 +40,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -546,6 +548,22 @@ public class TestNessieTable extends BaseTestIceberg {
 
     Assertions.assertThat(expectedIdents).hasSize(1);
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
+  }
+
+  @Test
+  public void testGCEnabled() {
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+
+    Assertions.assertThat(icebergTable.properties().get(TableProperties.GC_ENABLED))
+        .isNotNull()
+        .isEqualTo("false");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
   }
 
   private String getTableBasePath(String tableName) {
