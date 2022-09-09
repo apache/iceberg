@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -44,16 +46,24 @@ public class VectorizedSparkParquetReaders {
       MessageType fileSchema,
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new VectorizedReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new));
+    BufferAllocator rootAllocator =
+        ArrowAllocation.rootAllocator().newChildAllocator("ColumnarBatchReader", 0, Long.MAX_VALUE);
+    try {
+      return (ColumnarBatchReader)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new VectorizedReaderBuilder(
+                  expectedSchema,
+                  fileSchema,
+                  setArrowValidityVector,
+                  idToConstant,
+                  rootAllocator,
+                  readers -> new ColumnarBatchReader(readers, rootAllocator)));
+    } catch (Throwable t) {
+      rootAllocator.close();
+      throw t;
+    }
   }
 
   public static ColumnarBatchReader buildReader(
@@ -62,17 +72,26 @@ public class VectorizedSparkParquetReaders {
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant,
       DeleteFilter<InternalRow> deleteFilter) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new ReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new,
-                deleteFilter));
+    BufferAllocator rootAllocator =
+        ArrowAllocation.rootAllocator().newChildAllocator("ColumnarBatchReader", 0, Long.MAX_VALUE);
+    try {
+      // We'll transfer the ownership of rootAllocator to the ColumnarBatchReader object.
+      return (ColumnarBatchReader)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReaderBuilder(
+                  expectedSchema,
+                  fileSchema,
+                  setArrowValidityVector,
+                  idToConstant,
+                  rootAllocator,
+                  readers -> new ColumnarBatchReader(readers, rootAllocator),
+                  deleteFilter));
+    } catch (Throwable t) {
+      rootAllocator.close();
+      throw t;
+    }
   }
 
   private static class ReaderBuilder extends VectorizedReaderBuilder {
@@ -83,9 +102,16 @@ public class VectorizedSparkParquetReaders {
         MessageType parquetSchema,
         boolean setArrowValidityVector,
         Map<Integer, ?> idToConstant,
+        BufferAllocator bufferAllocator,
         Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
         DeleteFilter<InternalRow> deleteFilter) {
-      super(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
+      super(
+          expectedSchema,
+          parquetSchema,
+          setArrowValidityVector,
+          idToConstant,
+          bufferAllocator,
+          readerFactory);
       this.deleteFilter = deleteFilter;
     }
 

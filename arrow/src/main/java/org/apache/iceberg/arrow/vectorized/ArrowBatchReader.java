@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -28,8 +29,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
-  ArrowBatchReader(List<VectorizedReader<?>> readers) {
+  private final BufferAllocator bufferAllocator;
+
+  ArrowBatchReader(List<VectorizedReader<?>> readers, BufferAllocator allocator) {
     super(readers);
+    this.bufferAllocator = allocator;
   }
 
   @Override
@@ -54,5 +58,11 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
     return new ColumnarBatch(numRowsToRead, columnVectors);
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    this.bufferAllocator.close();
   }
 }

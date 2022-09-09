@@ -24,7 +24,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 
 /** Interface for vectorized Iceberg readers. */
-public interface VectorizedReader<T> {
+public interface VectorizedReader<T> extends AutoCloseable {
 
   /**
    * Reads a batch of type @param &lt;T&gt; and of size numRows
@@ -48,5 +48,6 @@ public interface VectorizedReader<T> {
       PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition);
 
   /** Release any resources allocated. */
+  @Override
   void close();
 }
