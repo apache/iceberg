@@ -67,10 +67,7 @@ public class PartitionSpec implements Serializable {
       Schema schema, int specId, List<PartitionField> fields, int lastAssignedFieldId) {
     this.schema = schema;
     this.specId = specId;
-    this.fields = new PartitionField[fields.size()];
-    for (int i = 0; i < this.fields.length; i += 1) {
-      this.fields[i] = fields.get(i);
-    }
+    this.fields = fields.toArray(new PartitionField[fields.size()]);
     this.lastAssignedFieldId = lastAssignedFieldId;
   }
 
