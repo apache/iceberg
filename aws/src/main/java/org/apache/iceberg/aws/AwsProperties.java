@@ -441,6 +441,7 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -477,6 +478,7 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -517,6 +519,7 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -609,8 +612,8 @@ public class AwsProperties implements Serializable {
         String.format(
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
-    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
-    this.s3DeleteTags = toTags(properties, S3_DELETE_TAGS_PREFIX);
+    this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3DeleteTags = toS3Tags(properties, S3_DELETE_TAGS_PREFIX);
     this.s3FileIoDeleteThreads =
         PropertyUtil.propertyAsInt(
             properties, S3FILEIO_DELETE_THREADS, Runtime.getRuntime().availableProcessors());
@@ -625,6 +628,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+  }
+
+  public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
+    return stsClientAssumeRoleTags;
   }
 
   public String s3FileIoSseType() {
@@ -779,9 +786,21 @@ public class AwsProperties implements Serializable {
     this.isS3DeleteEnabled = s3DeleteEnabled;
   }
 
-  private Set<Tag> toTags(Map<String, String> properties, String prefix) {
+  private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
+  }
+
+  private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
+      Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
+        .map(
+            e ->
+                software.amazon.awssdk.services.sts.model.Tag.builder()
+                    .key(e.getKey())
+                    .value(e.getValue())
+                    .build())
         .collect(Collectors.toSet());
   }
 
