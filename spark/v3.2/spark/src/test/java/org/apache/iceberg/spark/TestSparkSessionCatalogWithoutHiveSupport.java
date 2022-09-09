@@ -39,9 +39,11 @@ public class TestSparkSessionCatalogWithoutHiveSupport {
               () -> sparkWithoutHiveSupport.sessionState().catalogManager().v2SessionCatalog());
       String errorMessage =
           String.format(
-              "Please enable hive support for Spark. "
+              "Please enable hive support for Spark"
+                  + "by calling enableHiveSupport() or setting '%s=hive'. "
                   + "Using Spark's built-in %s catalog with Iceberg's hive catalog "
                   + "might result in inconsistent behavior of SparkSessionCatalog. ",
+              StaticSQLConf.CATALOG_IMPLEMENTATION().key(),
               StaticSQLConf.CATALOG_IMPLEMENTATION().defaultValue().get());
       Assert.assertEquals(errorMessage, exception.getMessage());
     }

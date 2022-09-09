@@ -294,13 +294,16 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
 
   private void checkHiveSupport() {
     RuntimeConfig runtimeConfig = SparkSession.active().conf();
-    String sparkCatalogImpl = runtimeConfig.get(StaticSQLConf.CATALOG_IMPLEMENTATION().key());
+    String sparkCatalogKey = StaticSQLConf.CATALOG_IMPLEMENTATION().key();
+    String sparkCatalogImpl = runtimeConfig.get(sparkCatalogKey);
     if (sparkCatalogImpl != null) {
       Preconditions.checkArgument(
           sparkCatalogImpl.equals("hive"),
-          "Please enable hive support for Spark. "
+          "Please enable hive support for Spark"
+              + "by calling enableHiveSupport() or setting '%s=hive'. "
               + "Using Spark's built-in %s catalog with Iceberg's hive catalog "
               + "might result in inconsistent behavior of SparkSessionCatalog. ",
+          sparkCatalogKey,
           sparkCatalogImpl);
     }
   }
