@@ -406,6 +406,7 @@ def test_properties_get_namespace_specific_property(_):
     assert result.exit_code == 0
     assert result.output == "s3://warehouse/database/location\n"
 
+
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_namespace_does_not_exist(_):
@@ -413,7 +414,6 @@ def test_properties_get_namespace_does_not_exist(_):
     result = runner.invoke(run, ["properties", "get", "namespace", "doesnotexist"])
     assert result.exit_code == 1
     assert result.output == "Namespace does not exist: doesnotexist\n"
-
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)

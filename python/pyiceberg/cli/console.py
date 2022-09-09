@@ -226,16 +226,18 @@ def rename(ctx, from_identifier: str, to_identifier: str):
 def properties():
     """Properties on tables/namespaces"""
 
+
 @properties.group()
 def get():
     """Fetch properties on tables/namespaces"""
 
-@get.command()
+
+@get.command("namespace")
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
 @catch_exception()
-def namespace(ctx: Context, identifier: str, property_name: str):
+def get_namespace(ctx: Context, identifier: str, property_name: str):
     """Fetch properties on a namespace"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
@@ -252,12 +254,12 @@ def namespace(ctx: Context, identifier: str, property_name: str):
         output.describe_properties(namespace_properties)
 
 
-@get.command()
+@get.command("table")
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
 @catch_exception()
-def table(ctx: Context, identifier: str, property_name: str):
+def get_table(ctx: Context, identifier: str, property_name: str):
     """Fetch properties on a table"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
