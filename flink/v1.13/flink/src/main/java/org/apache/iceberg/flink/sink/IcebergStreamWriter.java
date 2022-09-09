@@ -82,6 +82,10 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void endInput() throws IOException {
+    if(writer == null){
+      return;
+    }
+
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
     // remaining completed files to downstream before closing the writer so that we won't miss any
     // of them.
