@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -37,6 +38,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestMetadataUpdateParser {
+
+  private static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   private static final Schema ID_DATA_SCHEMA =
       new Schema(
@@ -367,7 +370,7 @@ public class TestMetadataUpdateParser {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
             manifests);
-    String snapshotJson = SnapshotParser.toJson(snapshot, null, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, FILE_IO, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
     String actual = MetadataUpdateParser.toJson(update);
@@ -395,7 +398,7 @@ public class TestMetadataUpdateParser {
             summary,
             schemaId,
             manifests);
-    String snapshotJson = SnapshotParser.toJson(snapshot, null, /* pretty */ false);
+    String snapshotJson = SnapshotParser.toJson(snapshot, FILE_IO, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));

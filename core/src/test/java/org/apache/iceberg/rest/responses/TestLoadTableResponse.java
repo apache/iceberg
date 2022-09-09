@@ -32,7 +32,9 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
@@ -41,6 +43,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResponse> {
+
+  private static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   private static final String TEST_METADATA_LOCATION =
       "s3://bucket/test/location/metadata/v1.metadata.json";
@@ -116,7 +120,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata, null));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata, FILE_IO));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v1Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);
@@ -144,7 +148,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata, null));
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata, FILE_IO));
     LoadTableResponse resp =
         LoadTableResponse.builder().withTableMetadata(v2Metadata).addAllConfig(CONFIG).build();
     assertRoundTripSerializesEquallyFrom(json, resp);

@@ -219,6 +219,7 @@ public class TableMetadataParser {
         metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
 
     toJson(metadata.refs(), generator);
+
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, io, generator);

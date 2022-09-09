@@ -26,6 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.NestedField;
@@ -41,6 +42,8 @@ import org.projectnessie.model.ImmutableIcebergTable;
 
 public class TestNessieUtil {
 
+  private static final FileIO FILE_IO = new TestTables.LocalFileIO();
+
   @Test
   public void testTableMetadataJsonRoundtrip() {
     // Construct a dummy TableMetadata object
@@ -55,7 +58,7 @@ public class TestNessieUtil {
             properties);
 
     // Produce a generic JsonNode from the TableMetadata
-    JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata, null);
+    JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata, FILE_IO);
     Assertions.assertThat(jsonNode)
         .asInstanceOf(InstanceOfAssertFactories.type(JsonNode.class))
         .extracting(
@@ -79,7 +82,8 @@ public class TestNessieUtil {
     // (Could compare tableMetadata against deserializedMetadata, but TableMetadata has no equals())
 
     // Produce a JsonNode from the deserializedMetadata and compare that against jsonNode
-    JsonNode deserializedJsonNode = NessieUtil.tableMetadataAsJsonNode(deserializedMetadata, null);
+    JsonNode deserializedJsonNode =
+        NessieUtil.tableMetadataAsJsonNode(deserializedMetadata, FILE_IO);
     Assertions.assertThat(deserializedJsonNode).isEqualTo(jsonNode);
   }
 

@@ -300,7 +300,7 @@ public class TestTables {
     }
   }
 
-  static class LocalFileIO implements FileIO {
+  public static class LocalFileIO implements FileIO {
 
     @Override
     public InputFile newInputFile(String path) {

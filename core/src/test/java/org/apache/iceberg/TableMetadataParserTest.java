@@ -46,6 +46,8 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TableMetadataParserTest {
 
+  private static final FileIO FILE_IO = new TestTables.LocalFileIO();
+
   private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
 
   @Parameterized.Parameters(name = "codecName = {0}")
@@ -69,7 +71,7 @@ public class TableMetadataParserTest {
     properties.put(TableProperties.METADATA_COMPRESSION, codecName);
     String location = "file://tmp/db/table";
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
-    TableMetadataParser.write(metadata, null, outputFile);
+    TableMetadataParser.write(metadata, FILE_IO, outputFile);
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
     TableMetadata actualMetadata =
         TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
