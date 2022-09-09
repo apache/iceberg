@@ -100,7 +100,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   /** close all open files and emit files to downstream committer operator */
   private void flush() throws IOException {
-    if(writer == null ){
+    if (writer == null) {
       return;
     }
 
