@@ -49,6 +49,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
@@ -59,6 +60,8 @@ import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
+import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
@@ -69,7 +72,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
+public abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
@@ -201,7 +204,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     }
   }
 
-  protected static Object convertConstant(Type type, Object value) {
+  public static Object convertConstant(Type type, Object value) {
     if (value == null) {
       return null;
     }
@@ -224,6 +227,21 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         return ByteBuffers.toByteArray((ByteBuffer) value);
       case BINARY:
         return ByteBuffers.toByteArray((ByteBuffer) value);
+      case UUID:
+        return UTF8String.fromString(value.toString());
+      case LIST:
+        return new GenericArrayData(
+            ((List<?>) value)
+                .stream().map(e -> convertConstant(type.asListType().elementType(), e)).toArray());
+      case MAP:
+        List<Object> keyList = Lists.newArrayList();
+        List<Object> valueList = Lists.newArrayList();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+          keyList.add(convertConstant(type.asMapType().keyType(), entry.getKey()));
+          valueList.add(convertConstant(type.asMapType().valueType(), entry.getValue()));
+        }
+        return new ArrayBasedMapData(
+            new GenericArrayData(keyList.toArray()), new GenericArrayData(valueList.toArray()));
       case STRUCT:
         StructType structType = (StructType) type;
 
