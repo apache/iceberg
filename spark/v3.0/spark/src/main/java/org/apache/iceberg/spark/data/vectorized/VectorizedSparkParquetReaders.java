@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.Map;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -39,15 +41,24 @@ public class VectorizedSparkParquetReaders {
       MessageType fileSchema,
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new VectorizedReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new));
+    BufferAllocator rootAllocator =
+        ArrowAllocation.rootAllocator().newChildAllocator("ColumnarBatchReader", 0, Long.MAX_VALUE);
+    try {
+      // We'll transfer the ownership of rootAllocator to the ColumnarBatchReader object.
+      return (ColumnarBatchReader)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new VectorizedReaderBuilder(
+                  expectedSchema,
+                  fileSchema,
+                  setArrowValidityVector,
+                  idToConstant,
+                  rootAllocator,
+                  readers -> new ColumnarBatchReader(readers, rootAllocator)));
+    } catch (Throwable t) {
+      rootAllocator.close();
+      throw t;
+    }
   }
 }

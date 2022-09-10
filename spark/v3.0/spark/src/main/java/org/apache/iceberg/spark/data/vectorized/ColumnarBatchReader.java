@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -33,8 +34,11 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
-  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
+  private final BufferAllocator bufferAllocator;
+
+  public ColumnarBatchReader(List<VectorizedReader<?>> readers, BufferAllocator allocator) {
     super(readers);
+    this.bufferAllocator = allocator;
   }
 
   @Override
@@ -60,5 +64,11 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
     batch.setNumRows(numRowsToRead);
     return batch;
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    this.bufferAllocator.close();
   }
 }

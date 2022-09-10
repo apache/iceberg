@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
@@ -45,11 +46,13 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
+  private final BufferAllocator bufferAllocator;
 
-  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
+  public ColumnarBatchReader(List<VectorizedReader<?>> readers, BufferAllocator allocator) {
     super(readers);
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
+    this.bufferAllocator = allocator;
   }
 
   @Override
@@ -72,6 +75,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnarBatch columnarBatch = new ColumnBatchLoader(numRowsToRead).loadDataToColumnBatch();
     rowStartPosInBatch += numRowsToRead;
     return columnarBatch;
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    this.bufferAllocator.close();
   }
 
   private class ColumnBatchLoader {

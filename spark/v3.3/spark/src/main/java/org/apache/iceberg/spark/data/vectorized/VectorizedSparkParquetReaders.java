@@ -49,6 +49,7 @@ public class VectorizedSparkParquetReaders {
     BufferAllocator rootAllocator =
         ArrowAllocation.rootAllocator().newChildAllocator("ColumnarBatchReader", 0, Long.MAX_VALUE);
     try {
+      // We'll transfer the ownership of rootAllocator to the ColumnarBatchReader object.
       return (ColumnarBatchReader)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(),
@@ -75,7 +76,6 @@ public class VectorizedSparkParquetReaders {
     BufferAllocator rootAllocator =
         ArrowAllocation.rootAllocator().newChildAllocator("ColumnarBatchReader", 0, Long.MAX_VALUE);
     try {
-      // We'll transfer the ownership of rootAllocator to the ColumnarBatchReader object.
       return (ColumnarBatchReader)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(),
