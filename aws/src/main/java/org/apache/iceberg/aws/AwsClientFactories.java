@@ -88,7 +88,9 @@ public class AwsClientFactories {
   static class DefaultAwsClientFactory implements AwsClientFactory {
     private AwsProperties awsProperties;
 
-    DefaultAwsClientFactory() {}
+    DefaultAwsClientFactory() {
+      awsProperties = new AwsProperties();
+    }
 
     @Override
     public S3Client s3() {
