@@ -35,7 +35,7 @@ buildscript {
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.15.0'
-    classpath ('org.eclipse.jgit:org.eclipse.jgit:5.13.1.202206130422-r') {
+    classpath ('org.eclipse.jgit:org.eclipse.jgit:6.3.0.202209071007-r') {
       // gradle-git-version automatically uses a jgit version that requires JDK11
       // so we need to enforce the latest jgit version that works with JDK8
       force = true
