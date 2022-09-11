@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -514,6 +515,10 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
+
+    ValidationException.check(
+        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        "S3 client access key ID and secret access key must be set at the same time");
   }
 
   public AwsProperties(Map<String, String> properties) {
@@ -628,6 +633,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+
+    ValidationException.check(
+        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        "S3 client access key ID and secret access key must be set at the same time");
   }
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
@@ -806,10 +815,6 @@ public class AwsProperties implements Serializable {
 
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
-  }
-
-  public boolean s3KeyIdAccessKeyConfigured() {
-    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
   }
 
   /** Build an AwsBasicCredential object using the provided keys and tokens */

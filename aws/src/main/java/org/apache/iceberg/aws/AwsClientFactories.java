@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -128,10 +127,6 @@ public class AwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
-
-      ValidationException.check(
-          awsProperties.s3KeyIdAccessKeyConfigured(),
-          "S3 client access key ID and secret access key must be set at the same time");
     }
   }
 
