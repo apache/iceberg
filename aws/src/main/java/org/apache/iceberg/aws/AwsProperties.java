@@ -517,7 +517,7 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
 
     ValidationException.check(
-        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
   }
 
@@ -635,7 +635,7 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
 
     ValidationException.check(
-        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
   }
 
@@ -815,6 +815,10 @@ public class AwsProperties implements Serializable {
 
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
+  }
+
+  private boolean s3KeyIdAccessKeyBothConfigured() {
+    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
   }
 
   private AwsCredentialsProvider credentialsProvider(
