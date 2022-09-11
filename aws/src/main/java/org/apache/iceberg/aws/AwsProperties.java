@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -441,6 +442,7 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -477,6 +479,7 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -512,11 +515,16 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
+
+    ValidationException.check(
+        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        "S3 client access key ID and secret access key must be set at the same time");
   }
 
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -609,8 +617,8 @@ public class AwsProperties implements Serializable {
         String.format(
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
-    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
-    this.s3DeleteTags = toTags(properties, S3_DELETE_TAGS_PREFIX);
+    this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3DeleteTags = toS3Tags(properties, S3_DELETE_TAGS_PREFIX);
     this.s3FileIoDeleteThreads =
         PropertyUtil.propertyAsInt(
             properties, S3FILEIO_DELETE_THREADS, Runtime.getRuntime().availableProcessors());
@@ -625,6 +633,14 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+
+    ValidationException.check(
+        (s3AccessKeyId == null) == (s3SecretAccessKey == null),
+        "S3 client access key ID and secret access key must be set at the same time");
+  }
+
+  public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
+    return stsClientAssumeRoleTags;
   }
 
   public String s3FileIoSseType() {
@@ -779,9 +795,21 @@ public class AwsProperties implements Serializable {
     this.isS3DeleteEnabled = s3DeleteEnabled;
   }
 
-  private Set<Tag> toTags(Map<String, String> properties, String prefix) {
+  private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
+  }
+
+  private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
+      Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
+        .map(
+            e ->
+                software.amazon.awssdk.services.sts.model.Tag.builder()
+                    .key(e.getKey())
+                    .value(e.getValue())
+                    .build())
         .collect(Collectors.toSet());
   }
 
@@ -789,11 +817,7 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
-  public boolean s3KeyIdAccessKeyConfigured() {
-    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
-  }
-
-  public static AwsCredentialsProvider credentialsProvider(
+  private AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {
       if (sessionToken == null) {
@@ -808,11 +832,23 @@ public class AwsProperties implements Serializable {
     }
   }
 
+  /**
+   * Configure the credentials for an S3 client.
+   *
+   * <p>Sample usage:
+   * S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
+   */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
         credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
 
+  /**
+   * Configure services settings for an S3 client. The settings include: s3DualStack,
+   * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   *
+   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
+   */
   public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(s3DualStackEnabled)
@@ -824,6 +860,12 @@ public class AwsProperties implements Serializable {
                 .build());
   }
 
+  /**
+   * Configure the httpClient for a client according to the HttpClientType. The two supported
+   * HttpClientTypes are urlconnection and apache
+   *
+   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
+   */
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
@@ -846,14 +888,31 @@ public class AwsProperties implements Serializable {
     }
   }
 
+  /**
+   * Override the endpoint for an S3 client.
+   *
+   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   */
   public <T extends S3ClientBuilder> void applyS3EndpointConfigurations(T builder) {
     configureEndpoint(builder, s3Endpoint);
   }
 
+  /**
+   * Override the endpoint for a glue client.
+   *
+   * <p>Sample usage:
+   * GlueClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   */
   public <T extends GlueClientBuilder> void applyGlueEndpointConfigurations(T builder) {
     configureEndpoint(builder, glueEndpoint);
   }
 
+  /**
+   * Override the endpoint for a dynamoDb client.
+   *
+   * <p>Sample usage:
+   * DynamoDbClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   */
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);
   }

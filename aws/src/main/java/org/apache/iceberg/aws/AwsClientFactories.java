@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -88,7 +87,9 @@ public class AwsClientFactories {
   static class DefaultAwsClientFactory implements AwsClientFactory {
     private AwsProperties awsProperties;
 
-    DefaultAwsClientFactory() {}
+    DefaultAwsClientFactory() {
+      awsProperties = new AwsProperties();
+    }
 
     @Override
     public S3Client s3() {
@@ -126,13 +127,15 @@ public class AwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
-
-      ValidationException.check(
-          awsProperties.s3KeyIdAccessKeyConfigured(),
-          "S3 client access key ID and secret access key must be set at the same time");
     }
   }
 
+  /**
+   * Build a httpClientBuilder object
+   *
+   * @deprecated Not for public use. To configure the httpClient for a client, please use
+   *     awsProperties::applyHttpClientConfigurations. It will be removed in 2.0.0
+   */
   @Deprecated
   public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
@@ -149,6 +152,14 @@ public class AwsClientFactories {
     }
   }
 
+  /**
+   * Configure the endpoint setting for a client
+   *
+   * @deprecated Not for public use. To configure the endpoint for a client, please use
+   *     applyS3EndpointConfigurations, applyGlueEndpointConfigurations, or
+   *     applyDynamoDbEndpointConfigurations in AwsProperties accordingly. It will be removed in
+   *     2.0.0
+   */
   @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
@@ -171,6 +182,13 @@ public class AwsClientFactories {
         .build();
   }
 
+  /**
+   * Build an AwsBasicCredential object
+   *
+   * @deprecated Not for public use. To configure the credentials for a s3 client, please use
+   *     applyS3CredentialConfigurations in AwsProperties. To create a credentialProvider object,
+   *     please use credentialsProvider in AwsProperties. It will be removed in 2.0.0.
+   */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {

@@ -19,9 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
@@ -34,13 +32,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
-import software.amazon.awssdk.services.sts.model.Tag;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   private String roleArn;
   private String externalId;
-  private Set<Tag> tags;
   private int timeout;
   private String region;
   private AwsProperties awsProperties;
@@ -98,14 +94,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     Preconditions.checkNotNull(
         region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
-    this.tags = toTags(properties);
     this.assumeRoleRequest =
         AssumeRoleRequest.builder()
             .roleArn(roleArn)
             .roleSessionName(genSessionName())
             .durationSeconds(timeout)
             .externalId(externalId)
-            .tags(tags)
+            .tags(awsProperties.stsClientAssumeRoleTags())
             .build();
   }
 
@@ -122,10 +117,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return clientBuilder;
   }
 
-  protected Set<Tag> tags() {
-    return tags;
-  }
-
   protected String region() {
     return region;
   }
@@ -140,13 +131,5 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   private String genSessionName() {
     return String.format("iceberg-aws-%s", UUID.randomUUID());
-  }
-
-  private static Set<Tag> toTags(Map<String, String> properties) {
-    return PropertyUtil.propertiesWithPrefix(
-            properties, AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX)
-        .entrySet().stream()
-        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
-        .collect(Collectors.toSet());
   }
 }
