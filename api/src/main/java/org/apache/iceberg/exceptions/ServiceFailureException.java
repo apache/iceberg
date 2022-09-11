@@ -21,14 +21,14 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception thrown on HTTP 5XX Server Error. */
-public class ServiceFailureException extends RuntimeException {
+public class ServiceFailureException extends RESTException {
   @FormatMethod
   public ServiceFailureException(String message, Object... args) {
-    super(String.format(message, args));
+    super(message, args);
   }
 
   @FormatMethod
   public ServiceFailureException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(cause, message, args);
   }
 }

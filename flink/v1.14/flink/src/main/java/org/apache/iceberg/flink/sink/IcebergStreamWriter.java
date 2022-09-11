@@ -86,6 +86,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
     // remaining completed files to downstream before closing the writer so that we won't miss any
     // of them.
+    // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
+    // causing files to be sent repeatedly, the writer is marked as null after the last file is sent
+    // to guard against duplicated writes.
     flush();
   }
 
@@ -100,10 +103,18 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   /** close all open files and emit files to downstream committer operator */
   private void flush() throws IOException {
+    if (writer == null) {
+      return;
+    }
+
     long startNano = System.nanoTime();
     WriteResult result = writer.complete();
     writerMetrics.updateFlushResult(result);
     output.collect(new StreamRecord<>(result));
     writerMetrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+
+    // Set writer to null to prevent duplicate flushes in the corner case of
+    // prepareSnapshotPreBarrier happening after endInput.
+    writer = null;
   }
 }

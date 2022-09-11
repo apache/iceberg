@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.iceberg.transforms.Transform;
+import java.util.function.Function;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.SparkSession;
@@ -32,7 +32,7 @@ public class IcebergSpark {
       SparkSession session, String funcName, DataType sourceType, int numBuckets) {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
-    Transform<Object, Integer> bucket = Transforms.bucket(sourceIcebergType, numBuckets);
+    Function<Object, Integer> bucket = Transforms.bucket(numBuckets).bind(sourceIcebergType);
     session
         .udf()
         .register(
@@ -45,7 +45,7 @@ public class IcebergSpark {
       SparkSession session, String funcName, DataType sourceType, int width) {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
-    Transform<Object, Object> truncate = Transforms.truncate(sourceIcebergType, width);
+    Function<Object, Object> truncate = Transforms.truncate(width).bind(sourceIcebergType);
     session
         .udf()
         .register(

@@ -45,6 +45,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -307,7 +308,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     try {
       TableOperations ops = newTableOps(identifier);
-      TableMetadata lastMetadata = ops.current();
+      TableMetadata lastMetadata = null;
+      if (purge) {
+        try {
+          lastMetadata = ops.current();
+        } catch (NotFoundException e) {
+          LOG.warn(
+              "Failed to load table metadata for table: {}, continuing drop without purge",
+              identifier,
+              e);
+        }
+      }
       glue.deleteTable(
           DeleteTableRequest.builder()
               .catalogId(awsProperties.glueCatalogId())

@@ -21,6 +21,7 @@ package org.apache.iceberg.metrics;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -32,12 +33,18 @@ public class ScanReport {
   private final String tableName;
   private final long snapshotId;
   private final Schema projection;
+  private final Expression filter;
   private final ScanMetricsResult scanMetrics;
 
   private ScanReport(
-      String tableName, long snapshotId, Schema projection, ScanMetricsResult scanMetrics) {
+      String tableName,
+      long snapshotId,
+      Expression filter,
+      Schema projection,
+      ScanMetricsResult scanMetrics) {
     this.tableName = tableName;
     this.snapshotId = snapshotId;
+    this.filter = filter;
     this.projection = projection;
     this.scanMetrics = scanMetrics;
   }
@@ -54,6 +61,10 @@ public class ScanReport {
     return projection;
   }
 
+  public Expression filter() {
+    return filter;
+  }
+
   public ScanMetricsResult scanMetrics() {
     return scanMetrics;
   }
@@ -67,6 +78,7 @@ public class ScanReport {
     return MoreObjects.toStringHelper(this)
         .add("tableName", tableName)
         .add("snapshotId", snapshotId)
+        .add("filter", filter)
         .add("projection", projection)
         .add("scanMetrics", scanMetrics)
         .toString();
@@ -86,6 +98,7 @@ public class ScanReport {
     return snapshotId == that.snapshotId
         && Objects.equal(tableName, that.tableName)
         && Objects.equal(projection, that.projection)
+        && Objects.equal(filter, that.filter)
         && Objects.equal(scanMetrics, that.scanMetrics);
   }
 
@@ -98,6 +111,7 @@ public class ScanReport {
     private String tableName;
     private long snapshotId = -1L;
     private Schema projection;
+    private Expression filter;
     private ScanMetricsResult scanMetrics;
 
     private Builder() {}
@@ -117,6 +131,11 @@ public class ScanReport {
       return this;
     }
 
+    public Builder withFilter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
     public Builder fromScanMetrics(ScanMetrics newScanMetrics) {
       this.scanMetrics = ScanMetricsResult.fromScanMetrics(newScanMetrics);
       return this;
@@ -129,9 +148,10 @@ public class ScanReport {
 
     public ScanReport build() {
       Preconditions.checkArgument(null != tableName, "Invalid table name: null");
+      Preconditions.checkArgument(null != filter, "Invalid expression filter: null");
       Preconditions.checkArgument(null != projection, "Invalid schema projection: null");
       Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
-      return new ScanReport(tableName, snapshotId, projection, scanMetrics);
+      return new ScanReport(tableName, snapshotId, filter, projection, scanMetrics);
     }
   }
 

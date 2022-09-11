@@ -352,7 +352,7 @@ class HiveCatalog(Catalog):
         except NoSuchObjectException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
 
-        io = load_file_io({**self.properties, **hive_table.parameters})
+        io = load_file_io({**self.properties, **hive_table.parameters}, hive_table.sd.location)
         return self._convert_hive_into_iceberg(hive_table, io)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:

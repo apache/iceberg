@@ -237,6 +237,6 @@ public class TestExpressionHelpers {
   }
 
   private <T> UnboundTerm<T> self(String name) {
-    return new UnboundTransform<>(ref(name), Transforms.identity(Types.DoubleType.get()));
+    return new UnboundTransform<>(ref(name), Transforms.identity());
   }
 }

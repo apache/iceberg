@@ -38,10 +38,16 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.source.metrics.NumDeletes;
+import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
+import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -166,6 +172,11 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
     return String.format("%s [filters=%s]", table, filters);
   }
 
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return new CustomMetric[] {new NumSplits(), new NumDeletes()};
+  }
+
   static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
@@ -198,15 +209,41 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
   }
 
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
+    private long numSplits;
+
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
+      numSplits = task.task.files().size();
+      LOG.debug(
+          "Reading {} file split(s) for table {} using RowReader", numSplits, task.table().name());
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] {
+        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      };
     }
   }
 
   private static class BatchReader extends BatchDataReader
       implements PartitionReader<ColumnarBatch> {
+    private long numSplits;
+
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
+      numSplits = task.task.files().size();
+      LOG.debug(
+          "Reading {} file split(s) for table {} using BatchReader",
+          numSplits,
+          task.table().name());
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] {
+        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      };
     }
   }
 

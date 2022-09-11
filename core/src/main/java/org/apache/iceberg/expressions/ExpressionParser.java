@@ -35,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -60,8 +59,11 @@ public class ExpressionParser {
 
   public static String toJson(Expression expression, boolean pretty) {
     Preconditions.checkArgument(expression != null, "Invalid expression: null");
-    return JsonUtil.generate(
-        gen -> ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen)), pretty);
+    return JsonUtil.generate(gen -> toJson(expression, gen), pretty);
+  }
+
+  public static void toJson(Expression expression, JsonGenerator gen) {
+    ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen));
   }
 
   private static class JsonGeneratorVisitor
@@ -316,7 +318,7 @@ public class ExpressionParser {
   @SuppressWarnings("unchecked")
   private static <T> UnboundPredicate<T> predicateFromJson(
       Expression.Operation op, JsonNode node, Schema schema) {
-    UnboundTerm<T> term = term(JsonUtil.get(TERM, node), schema);
+    UnboundTerm<T> term = term(JsonUtil.get(TERM, node));
 
     Function<JsonNode, T> convertValue;
     if (schema != null) {
@@ -399,7 +401,7 @@ public class ExpressionParser {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> UnboundTerm<T> term(JsonNode node, Schema schema) {
+  private static <T> UnboundTerm<T> term(JsonNode node) {
     if (node.isTextual()) {
       return Expressions.ref(node.asText());
     } else if (node.isObject()) {
@@ -408,11 +410,10 @@ public class ExpressionParser {
         case REFERENCE:
           return Expressions.ref(JsonUtil.getString(TERM, node));
         case TRANSFORM:
-          UnboundTerm<T> child = term(JsonUtil.get(TERM, node), schema);
-          Type termType = schema.findType(child.ref().name());
+          UnboundTerm<T> child = term(JsonUtil.get(TERM, node));
           String transform = JsonUtil.getString(TRANSFORM, node);
           return (UnboundTerm<T>)
-              Expressions.transform(child.ref().name(), Transforms.fromString(termType, transform));
+              Expressions.transform(child.ref().name(), Transforms.fromString(transform));
         default:
           throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
       }

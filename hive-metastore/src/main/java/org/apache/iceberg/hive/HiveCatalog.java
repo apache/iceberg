@@ -45,6 +45,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -168,11 +169,16 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String database = identifier.namespace().level(0);
 
     TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
+    TableMetadata lastMetadata = null;
+    if (purge) {
+      try {
+        lastMetadata = ops.current();
+      } catch (NotFoundException e) {
+        LOG.warn(
+            "Failed to load table metadata for table: {}, continuing drop without purge",
+            identifier,
+            e);
+      }
     }
 
     try {

@@ -21,6 +21,7 @@ package org.apache.iceberg.jdbc;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -249,7 +250,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
     Assert.assertEquals(
         "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
-    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Transform<?, ?> transform = Transforms.identity();
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
@@ -385,6 +386,19 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         () -> catalog.listTables(testTable2.namespace()));
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
+  }
+
+  @Test
+  public void testDropTableWithoutMetadataFile() {
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    String metadataFileLocation = catalog.newTableOps(testTable).current().metadataFileLocation();
+    TableOperations ops = catalog.newTableOps(testTable);
+    ops.io().deleteFile(metadataFileLocation);
+    Assert.assertTrue(catalog.dropTable(testTable));
+    assertThatThrownBy(() -> catalog.loadTable(testTable))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist:");
   }
 
   @Test

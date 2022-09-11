@@ -318,12 +318,15 @@ To show a table's current partitions:
 SELECT * FROM prod.db.table.partitions
 ```
 
-| partition | record_count | file_count |
-| -- | -- | -- |
-|  {20211001, 11}|           1|         1|
-|  {20211002, 11}|           1|         1|
-|  {20211001, 10}|           1|         1|
-|  {20211002, 10}|           1|         1|
+| partition | record_count | file_count | spec_id |
+| -- | -- | -- | -- |
+|  {20211001, 11}|           1|         1|         0|
+|  {20211002, 11}|           1|         1|         0|
+|  {20211001, 10}|           1|         1|         0|
+|  {20211002, 10}|           1|         1|         0|
+
+Note:
+For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
 
 ### All Metadata Tables
 
@@ -367,6 +370,19 @@ Note:
     - `upper_bound`
 2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
     This usually occurs when reading from V1 table, where `contains_nan` is not populated.
+
+### References
+
+To show a table's known snapshot references:
+
+```sql
+SELECT * FROM prod.db.table.refs
+```
+
+| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
+| -- | -- | -- | -- | -- | -- |
+| main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
+| testTag | TAG | 4686954189838128572 | 10 | null | null |
 
 ## Inspecting with DataFrames
 
