@@ -24,10 +24,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -54,25 +50,6 @@ public class TestAwsClientFactories {
     properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
     Assert.assertTrue(
         "should load custom class", AwsClientFactories.from(properties) instanceof CustomFactory);
-  }
-
-  @Test
-  @Deprecated
-  public void testS3FileIoCredentialsProviders() {
-    AwsCredentialsProvider basicCredentials =
-        AwsClientFactories.credentialsProvider("key", "secret", null);
-    Assert.assertTrue(
-        "Should use basic credentials if access key ID and secret access key are set",
-        basicCredentials.resolveCredentials() instanceof AwsBasicCredentials);
-    AwsCredentialsProvider sessionCredentials =
-        AwsClientFactories.credentialsProvider("key", "secret", "token");
-    Assert.assertTrue(
-        "Should use session credentials if session token is set",
-        sessionCredentials.resolveCredentials() instanceof AwsSessionCredentials);
-    Assert.assertTrue(
-        "Should use default credentials if nothing is set",
-        AwsClientFactories.credentialsProvider(null, null, null)
-            instanceof DefaultCredentialsProvider);
   }
 
   @Test
