@@ -313,6 +313,14 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname
+   */
+  public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
+
+  /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
@@ -425,6 +433,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  private String clientAssumeRoleSessionName;
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -450,6 +459,8 @@ public class AwsProperties implements Serializable {
   private String dynamoDbTableName;
 
   public AwsProperties() {
+    this.clientAssumeRoleSessionName = null;
+
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
@@ -477,6 +488,8 @@ public class AwsProperties implements Serializable {
   }
 
   public AwsProperties(Map<String, String> properties) {
+    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
+
     this.s3FileIoSseType =
         properties.getOrDefault(
             AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_NONE);
@@ -572,6 +585,10 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+  }
+
+  public String clientAssumeRoleSessionName() {
+    return clientAssumeRoleSessionName;
   }
 
   public String s3FileIoSseType() {

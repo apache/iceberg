@@ -47,6 +47,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private boolean s3UseArnRegionEnabled;
   private String dynamoDbEndpoint;
   private String httpClientType;
+  private AwsProperties awsProperties;
+  private AssumeRoleRequest assumeRoleRequest;
 
   @Override
   public S3Client s3() {
@@ -77,6 +79,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   @Override
   public void initialize(Map<String, String> properties) {
+    this.awsProperties = new AwsProperties(properties);
     this.roleArn = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_ARN);
     Preconditions.checkNotNull(
         roleArn, "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
@@ -102,10 +105,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.httpClientType =
         PropertyUtil.propertyAsString(
             properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
-  }
-
-  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
-    AssumeRoleRequest request =
+    this.assumeRoleRequest =
         AssumeRoleRequest.builder()
             .roleArn(roleArn)
             .roleSessionName(genSessionName())
@@ -113,11 +113,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .externalId(externalId)
             .tags(tags)
             .build();
+  }
 
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
             .stsClient(sts())
-            .refreshRequest(request)
+            .refreshRequest(assumeRoleRequest)
             .build());
 
     clientBuilder.region(Region.of(region));
@@ -153,6 +155,9 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private String genSessionName() {
+    if (awsProperties.clientAssumeRoleSessionName() != null) {
+      return awsProperties.clientAssumeRoleSessionName();
+    }
     return String.format("iceberg-aws-%s", UUID.randomUUID());
   }
 
