@@ -23,10 +23,6 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
 public class TestAwsProperties {
@@ -71,23 +67,6 @@ public class TestAwsProperties {
         IllegalArgumentException.class,
         "Cannot support S3 CannedACL bad-input",
         () -> new AwsProperties(map));
-  }
-
-  @Test
-  public void testS3FileIoCredentialsProviders() {
-    AwsCredentialsProvider basicCredentials =
-        AwsProperties.credentialsProvider("key", "secret", null);
-    Assert.assertTrue(
-        "Should use basic credentials if access key ID and secret access key are set",
-        basicCredentials.resolveCredentials() instanceof AwsBasicCredentials);
-    AwsCredentialsProvider sessionCredentials =
-        AwsProperties.credentialsProvider("key", "secret", "token");
-    Assert.assertTrue(
-        "Should use session credentials if session token is set",
-        sessionCredentials.resolveCredentials() instanceof AwsSessionCredentials);
-    Assert.assertTrue(
-        "Should use default credentials if nothing is set",
-        AwsProperties.credentialsProvider(null, null, null) instanceof DefaultCredentialsProvider);
   }
 
   @Test

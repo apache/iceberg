@@ -817,8 +817,7 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
-  /** Build an AwsBasicCredential object using the provided keys and tokens */
-  public static AwsCredentialsProvider credentialsProvider(
+  private AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {
       if (sessionToken == null) {
