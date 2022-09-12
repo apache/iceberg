@@ -1,3 +1,5 @@
+#!/bin/bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,23 +16,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
-install:
-	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs
+set -ex
 
-lint:
-	poetry run pre-commit run --all-files
-
-test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not s3" ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
-
-test-s3:
-	sh ./dev/run-minio.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
+if [[ $(docker ps -q --filter "name=pyiceberg-minio" --filter "status=running" ) ]]; then
+    echo "Minio backend running"
+else
+    docker-compose -f dev/docker-compose.yml kill
+    docker-compose -f dev/docker-compose.yml up -d
+    while [[ -z $(docker ps -q --filter "name=pyiceberg-minio" --filter "status=running" ) ]]
+    do
+      echo "Waiting for Minio"
+      sleep 1
+    done
+fi

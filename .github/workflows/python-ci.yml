@@ -54,4 +54,4 @@ jobs:
       run: make lint
     - name: Tests
       working-directory: ./python
-      run: make test
+      run: make test-s3
