@@ -86,6 +86,6 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
 
   @Override
   public int hashCode() {
-    return Objects.hash(transform);
+    return Objects.hashCode(transform);
   }
 }
