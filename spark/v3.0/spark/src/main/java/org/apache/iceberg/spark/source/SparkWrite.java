@@ -31,7 +31,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,8 +63,8 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
@@ -422,13 +421,8 @@ class SparkWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-
-      Set<DataFile> newDataFiles = Sets.newHashSetWithExpectedSize(messages.length);
-      for (DataFile file : files(messages)) {
-        newDataFiles.add(file);
-      }
-
-      coordinator.stageRewrite(table, fileSetID, Collections.unmodifiableSet(newDataFiles));
+      Set<DataFile> newDataFiles = ImmutableSet.copyOf(files(messages));
+      coordinator.stageRewrite(table, fileSetID, newDataFiles);
     }
   }
 
