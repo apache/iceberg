@@ -23,18 +23,13 @@ import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.lakeformation.LakeFormationClient;
-import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTableCredentialsRequest;
-import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTableCredentialsResponse;
-import software.amazon.awssdk.services.lakeformation.model.PermissionType;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
@@ -50,13 +45,17 @@ import software.amazon.awssdk.services.s3.S3Client;
  * https://docs.aws.amazon.com/lake-formation/latest/dg/register-query-engine.html
  */
 public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
-
   public static final String LF_AUTHORIZED_CALLER = "LakeFormationAuthorizedCaller";
 
   private String dbName;
   private String tableName;
   private String glueCatalogId;
   private String glueAccountId;
+  private int maxCacheSize;
+  private long cacheExpirationInMillis;
+
+  private long cacheExpiryLeadTimeInMillis;
+  private LakeFormationIdentity identity;
 
   public LakeFormationAwsClientFactory() {}
 
@@ -72,6 +71,24 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
     this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
     this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    this.maxCacheSize =
+        PropertyUtil.propertyAsInt(
+            catalogProperties,
+            AwsProperties.LAKE_FORMATION_CACHE_MAX_SIZE,
+            AwsProperties.LAKE_FORMATION_CACHE_MAX_SIZE_DEFAULT);
+    this.cacheExpirationInMillis =
+        PropertyUtil.propertyAsLong(
+            catalogProperties,
+            AwsProperties.LAKE_FORMATION_CACHE_EXPIRATION_INTERVAL_MS,
+            AwsProperties.LAKE_FORMATION_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+    this.cacheExpiryLeadTimeInMillis =
+        PropertyUtil.propertyAsLong(
+            catalogProperties,
+            AwsProperties.LAKE_FORMATION_CACHE_EXPIRY_LEAD_TIME_MS,
+            AwsProperties.LAKE_FORMATION_CACHE_EXPIRY_LEAD_TIME_MS_DEFAULT);
+    this.identity =
+        new LakeFormationIdentity(
+            roleArn(), sessionName(), externalId(), tags(), region(), timeout(), lakeFormation());
   }
 
   @Override
@@ -81,7 +98,12 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
           .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
           .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint()))
           .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+              new CachingLakeFormationCredentialsProvider(
+                  buildTableArn(),
+                  identity,
+                  maxCacheSize,
+                  cacheExpirationInMillis,
+                  cacheExpiryLeadTimeInMillis))
           .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled()).build())
           .region(Region.of(region()))
           .build();
@@ -96,7 +118,12 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
       return KmsClient.builder()
           .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
           .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+              new CachingLakeFormationCredentialsProvider(
+                  buildTableArn(),
+                  identity,
+                  maxCacheSize,
+                  cacheExpirationInMillis,
+                  cacheExpiryLeadTimeInMillis))
           .region(Region.of(region()))
           .build();
     } else {
@@ -133,31 +160,5 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
 
   private LakeFormationClient lakeFormation() {
     return LakeFormationClient.builder().applyMutation(this::configure).build();
-  }
-
-  static class LakeFormationCredentialsProvider implements AwsCredentialsProvider {
-    private LakeFormationClient client;
-    private String tableArn;
-
-    LakeFormationCredentialsProvider(LakeFormationClient lakeFormationClient, String tableArn) {
-      this.client = lakeFormationClient;
-      this.tableArn = tableArn;
-    }
-
-    @Override
-    public AwsCredentials resolveCredentials() {
-      GetTemporaryGlueTableCredentialsRequest getTemporaryGlueTableCredentialsRequest =
-          GetTemporaryGlueTableCredentialsRequest.builder()
-              .tableArn(tableArn)
-              // Now only two permission types (COLUMN_PERMISSION and CELL_FILTER_PERMISSION) are
-              // supported
-              // and Iceberg only supports COLUMN_PERMISSION at this time
-              .supportedPermissionTypes(PermissionType.COLUMN_PERMISSION)
-              .build();
-      GetTemporaryGlueTableCredentialsResponse response =
-          client.getTemporaryGlueTableCredentials(getTemporaryGlueTableCredentialsRequest);
-      return AwsSessionCredentials.create(
-          response.accessKeyId(), response.secretAccessKey(), response.sessionToken());
-    }
   }
 }
