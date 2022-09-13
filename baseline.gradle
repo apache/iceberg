@@ -81,6 +81,8 @@ subprojects {
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR'
       )
     }
   }
