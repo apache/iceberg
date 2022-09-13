@@ -25,14 +25,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -82,7 +80,7 @@ public class TestNessieTable extends BaseTestIceberg {
                   optional(2, "data", Types.LongType.get()))
               .fields());
 
-  private Path tableLocation;
+  private File tableLocation;
 
   public TestNessieTable() {
     super(BRANCH);
@@ -92,7 +90,7 @@ public class TestNessieTable extends BaseTestIceberg {
   @BeforeEach
   public void beforeEach(@NessieUri URI uri) throws IOException {
     super.beforeEach(uri);
-    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
+    this.tableLocation = new File(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
   @Override
@@ -100,7 +98,7 @@ public class TestNessieTable extends BaseTestIceberg {
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
-      tableLocation.getFileSystem(hadoopConfig).delete(tableLocation, true);
+      tableLocation.delete();
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -200,8 +198,8 @@ public class TestNessieTable extends BaseTestIceberg {
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
     getTable(KEY); // sanity, check table exists
     // check parameters are in expected state
-    String expected = (temp.toUri() + DB_NAME + "/" + tableName).replace("///", "/");
-    Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
+    String expected = (temp.toURI() + DB_NAME + "/" + tableName).replace("///", "/");
+    Assertions.assertThat(getTableBasePath(tableName)).isEqualTo(expected);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
     Assertions.assertThat(metadataVersionFiles(tableLocation)).isNotNull().hasSize(2);
@@ -567,37 +565,28 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private String getTableBasePath(String tableName) {
-    String databasePath = temp.toString() + "/" + DB_NAME;
-    return Paths.get(databasePath, tableName).toAbsolutePath().toString();
-  }
-
-  protected Path getTableLocationPath(String tableName) {
-    return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString());
-  }
-
-  protected String getTableLocation(String tableName) {
-    return getTableLocationPath(tableName).toString();
+    return temp.toURI() + DB_NAME + "/" + tableName;
   }
 
   @SuppressWarnings(
       "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
-  private List<String> metadataFiles(String tablePath) {
+  private List<String> metadataFiles(File tablePath) {
     return Arrays.stream(
-            Objects.requireNonNull(new File((tablePath + "/" + "metadata")).listFiles()))
+            Objects.requireNonNull(
+                new File((tablePath + "/" + "metadata").replace("file:", "")).listFiles()))
         .map(File::getAbsolutePath)
         .collect(Collectors.toList());
   }
 
-  protected List<String> metadataVersionFiles(Path tablePath) {
-    return filterByExtension(
-        tablePath.toUri().getPath(), getFileExtension(TableMetadataParser.Codec.NONE));
+  protected List<String> metadataVersionFiles(File tablePath) {
+    return filterByExtension(tablePath, getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
-  protected List<String> manifestFiles(Path tablePath) {
-    return filterByExtension(tablePath.toUri().getPath(), ".avro");
+  protected List<String> manifestFiles(File tablePath) {
+    return filterByExtension(tablePath, ".avro");
   }
 
-  private List<String> filterByExtension(String tablePath, String extension) {
+  private List<String> filterByExtension(File tablePath, String extension) {
     return metadataFiles(tablePath).stream()
         .filter(f -> f.endsWith(extension))
         .collect(Collectors.toList());

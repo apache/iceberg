@@ -46,7 +46,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
         "nessie",
         ImmutableMap.of(
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString(),
+            temp.toURI().toString(),
             CatalogProperties.URI,
             uri));
   }
@@ -58,7 +58,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
         "nessie",
         ImmutableMap.of(
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString(),
+            temp.toURI().toString(),
             CatalogProperties.URI,
             uri,
             NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
@@ -75,7 +75,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
                   "nessie",
                   ImmutableMap.of(
                       CatalogProperties.WAREHOUSE_LOCATION,
-                      temp.toUri().toString(),
+                      temp.toURI().toString(),
                       CatalogProperties.URI,
                       uri,
                       NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
@@ -94,7 +94,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
                   "nessie",
                   ImmutableMap.of(
                       CatalogProperties.WAREHOUSE_LOCATION,
-                      temp.toUri().toString(),
+                      temp.toURI().toString(),
                       CatalogProperties.URI,
                       uri,
                       NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,

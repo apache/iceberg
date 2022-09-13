@@ -20,9 +20,9 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
@@ -80,7 +80,7 @@ public abstract class BaseTestIceberg {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  @TempDir public Path temp;
+  @TempDir public File temp;
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
@@ -140,7 +140,7 @@ public abstract class BaseTestIceberg {
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toURI().toString());
     if (null != hash) {
       options.put("ref.hash", hash);
     }
