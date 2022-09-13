@@ -7,7 +7,6 @@ org.apache.hive:* = 2.3.8
 org.apache.httpcomponents.client5:* = 5.1
 org.apache.orc:* = 1.8.0
 org.apache.parquet:* = 1.12.3
-org.apache.spark:spark-hive_2.11 = 2.4.8
 org.apache.spark:spark-avro_2.11 = 2.4.8
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.11.4
