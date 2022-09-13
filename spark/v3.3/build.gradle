@@ -47,7 +47,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}") {
+      exclude group: 'org.scala-lang', module: 'scala-library'
+    }
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
@@ -123,7 +125,9 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   }
 
   dependencies {
-    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}") {
+      exclude group: 'org.scala-lang', module: 'scala-library'
+    }
 
     compileOnly "org.scala-lang:scala-library:${scalaVersion}"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
