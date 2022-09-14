@@ -37,6 +37,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -71,6 +72,7 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+  private boolean shouldRollbackCompaction;
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
@@ -271,6 +273,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  @Override
+  public void rollbackCompactionOnConflicts() {
+    this.shouldRollbackCompaction = true;
+  }
+
   private void commitCreateTransaction() {
     // this operation creates the table. if the commit fails, this cannot retry because another
     // process has created the same table.
@@ -467,10 +474,34 @@ public class BaseTransaction implements Transaction {
         // re-commit each update in the chain to apply it and update current
         try {
           update.commit();
-        } catch (CommitFailedException e) {
+        } catch (CommitFailedException ce) {
           // Cannot pass even with retry due to conflicting metadata changes. So, break the
           // retry-loop.
-          throw new PendingUpdateFailedException(e);
+          throw new PendingUpdateFailedException(ce);
+
+        } catch (ValidationException e) {
+
+          // if we have enabled rollback compaction required, check current snapshot
+          if (shouldRollbackCompaction) {
+            // check parent snapshot
+            Snapshot parentSnapshot = current.snapshot(current.currentSnapshot().parentId());
+            if (current.currentSnapshot().summary().containsKey("is_compacted")) {
+              // rollback to parent snapshot
+              SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(transactionOps);
+              setSnapshotOp.rollbackTo(parentSnapshot.snapshotId());
+              List<PendingUpdate> modifiedUpdates = Lists.newArrayList();
+              modifiedUpdates.add(setSnapshotOp);
+              modifiedUpdates.addAll(updates);
+
+              for (PendingUpdate pendingUpdate : modifiedUpdates) {
+                try {
+                  pendingUpdate.commit();
+                } catch (CommitFailedException ex) {
+                  throw new PendingUpdateFailedException(ex);
+                }
+              }
+            }
+          }
         }
       }
     }

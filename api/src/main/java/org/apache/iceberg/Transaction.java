@@ -162,4 +162,7 @@ public interface Transaction {
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
   void commitTransaction();
+
+  /** Rollbacks the commits created by compaction in case it causes conflict with the updates. */
+  void rollbackCompactionOnConflicts();
 }

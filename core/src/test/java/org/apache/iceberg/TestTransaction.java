@@ -27,10 +27,12 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -769,5 +771,51 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest file", 1, manifests.size());
     Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
     Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
+  }
+
+  @Test
+  public void testSimpleConcurrentTransaction() {
+    Assume.assumeTrue(formatVersion == 2);
+    Table table = load();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // enable rollback.
+    transaction.rollbackCompactionOnConflicts();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table
+        .newRewrite()
+        .set("is_compacted", "1") // mark this commit compacted explicitly for now
+        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
+        .commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    // assert no lineage of is_compacted true
+    Snapshot currentSnapshot = table.currentSnapshot();
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy should have is_compacted in snapshot summary
+      Assert.assertFalse(currentSnapshot.summary().containsKey("is_compacted"));
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    Assert.assertEquals(totalSnapshots, 2);
   }
 }
