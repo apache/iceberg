@@ -18,11 +18,6 @@
  */
 package org.apache.iceberg.jdbc;
 
-import static org.apache.iceberg.NullOrder.NULLS_FIRST;
-import static org.apache.iceberg.SortDirection.ASC;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,6 +64,11 @@ import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -628,6 +628,29 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         ImmutableMap.of("key_1", "value_1", "key_2", "value_2", "key_3", "value_3");
     catalog.createNamespace(testNamespace, testMetadata);
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
+  public void testNamespaceLocation() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+
+    // Test with location
+    Map<String, String> testMetadata = ImmutableMap.of();
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace)).containsKey("location");
+  }
+
+  @Test
+  public void testNamespaceCustomLocation() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    String namespaceLocation = "file:///tmp/warehouse/ns/path";
+
+    // Test with location
+    Map<String, String> testMetadata = ImmutableMap.of("location", namespaceLocation);
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace).get("location")).isEqualTo(namespaceLocation);
   }
 
   @Test
