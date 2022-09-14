@@ -28,14 +28,18 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
 public class AwsClientFactories {
@@ -133,8 +137,9 @@ public class AwsClientFactories {
   /**
    * Build a httpClientBuilder object
    *
-   * @deprecated Not for public use. To configure the httpClient for a client, please use
-   *     awsProperties::applyHttpClientConfigurations. It will be removed in 2.0.0
+   * @deprecated Not for public use. To configure the httpClient for a client, please use {@link
+   *     AwsProperties#applyHttpClientConfigurations(AwsSyncClientBuilder)}. It will be removed in
+   *     2.0.0
    */
   @Deprecated
   public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
@@ -155,10 +160,11 @@ public class AwsClientFactories {
   /**
    * Configure the endpoint setting for a client
    *
-   * @deprecated Not for public use. To configure the endpoint for a client, please use
-   *     applyS3EndpointConfigurations, applyGlueEndpointConfigurations, or
-   *     applyDynamoDbEndpointConfigurations in AwsProperties accordingly. It will be removed in
-   *     2.0.0
+   * @deprecated Not for public use. To configure the endpoint for a client, please use {@link
+   *     AwsProperties#applyS3EndpointConfigurations(S3ClientBuilder)}, {@link
+   *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
+   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)} accordingly. It
+   *     will be removed in 2.0.0
    */
   @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
@@ -185,9 +191,9 @@ public class AwsClientFactories {
   /**
    * Build an AwsBasicCredential object
    *
-   * @deprecated Not for public use. To configure the credentials for a s3 client, please use
-   *     applyS3CredentialConfigurations in AwsProperties. To create a credentialProvider object,
-   *     please use credentialsProvider in AwsProperties. It will be removed in 2.0.0.
+   * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
+   *     AwsProperties#applyS3CredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will
+   *     be removed in 2.0.0.
    */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(
