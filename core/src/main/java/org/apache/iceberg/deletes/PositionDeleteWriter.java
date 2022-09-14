@@ -66,29 +66,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
     appender.add(positionDelete);
   }
 
-  /**
-   * Writes a position delete.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(PositionDelete)}
-   *     instead.
-   */
-  @Deprecated
-  public void delete(CharSequence path, long pos) {
-    delete(path, pos, null);
-  }
-
-  /**
-   * Writes a position delete and persists the deleted row.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(PositionDelete)}
-   *     instead.
-   */
-  @Deprecated
-  public void delete(CharSequence path, long pos, T row) {
-    referencedDataFiles.add(path);
-    appender.add(delete.set(path, pos, row));
-  }
-
   @Override
   public long length() {
     return appender.length();

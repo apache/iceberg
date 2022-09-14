@@ -33,6 +33,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
@@ -86,7 +87,7 @@ public class TestParquetDeleteWriters {
             .buildEqualityWriter();
 
     try (EqualityDeleteWriter<Record> writer = deleteWriter) {
-      writer.deleteAll(records);
+      writer.write(records);
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
@@ -136,7 +137,8 @@ public class TestParquetDeleteWriters {
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, records.get(i));
+        PositionDelete<Record> positionDelete = PositionDelete.create();
+        writer.write(positionDelete.set(deletePath, pos, records.get(i)));
         expectedDeleteRecords.add(
             posDelete.copy(
                 ImmutableMap.of(
@@ -192,7 +194,8 @@ public class TestParquetDeleteWriters {
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, null);
+        PositionDelete<Void> positionDelete = PositionDelete.create();
+        writer.write(positionDelete.set(deletePath, pos, null));
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }
