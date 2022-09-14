@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -64,11 +69,6 @@ import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
-import static org.apache.iceberg.NullOrder.NULLS_FIRST;
-import static org.apache.iceberg.SortDirection.ASC;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -650,7 +650,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> testMetadata = ImmutableMap.of("location", namespaceLocation);
     catalog.createNamespace(testNamespace, testMetadata);
 
-    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace).get("location")).isEqualTo(namespaceLocation);
+    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace).get("location"))
+        .isEqualTo(namespaceLocation);
   }
 
   @Test
