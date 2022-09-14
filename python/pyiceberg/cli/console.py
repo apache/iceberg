@@ -227,55 +227,53 @@ def properties():
     """Properties on tables/namespaces"""
 
 
-@properties.command()
-@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
+@properties.group()
+def get():
+    """Fetch properties on tables/namespaces"""
+
+
+@get.command("namespace")
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
 @catch_exception()
-def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):
-    """Fetches a property of a namespace or table"""
+def get_namespace(ctx: Context, identifier: str, property_name: str):
+    """Fetch properties on a namespace"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    is_namespace = False
-    if entity in {"namespace", "any"}:
-        try:
-            namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    assert namespace_properties
 
-            if property_name:
-                if property_value := namespace_properties.get(property_name):
-                    output.text(property_value)
-                    is_namespace = True
-                else:
-                    raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
-            else:
-                output.describe_properties(namespace_properties)
-                is_namespace = True
-        except NoSuchNamespaceError as exc:
-            if entity != "any" or len(identifier_tuple) <= 1:  # type: ignore
-                raise exc
-    is_table = False
-    if is_namespace is False and len(identifier_tuple) > 1 and entity in {"table", "any"}:
-        metadata = catalog.load_table(identifier_tuple).metadata
-        assert metadata
-
-        if property_name:
-            if property_value := metadata.properties.get(property_name):
-                output.text(property_value)
-                is_table = True
-            else:
-                raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    if property_name:
+        if property_value := namespace_properties.get(property_name):
+            output.text(property_value)
         else:
-            output.describe_properties(metadata.properties)
-            is_table = True
+            raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
+    else:
+        output.describe_properties(namespace_properties)
 
-    if is_namespace is False and is_table is False:
-        property_err = ""
-        if property_name:
-            property_err = f" with property {property_name}"
 
-        raise NoSuchNamespaceError(f"Table or namespace does not exist: {identifier}{property_err}")
+@get.command("table")
+@click.argument("identifier")
+@click.argument("property_name", required=False)
+@click.pass_context
+@catch_exception()
+def get_table(ctx: Context, identifier: str, property_name: str):
+    """Fetch properties on a table"""
+    catalog, output = _catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    metadata = catalog.load_table(identifier_tuple).metadata
+    assert metadata
+
+    if property_name:
+        if property_value := metadata.properties.get(property_name):
+            output.text(property_value)
+        else:
+            raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    else:
+        output.describe_properties(metadata.properties)
 
 
 @properties.group()
