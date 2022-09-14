@@ -176,5 +176,9 @@ ignore_missing_imports = true
 module = "tests.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]   
+module = "botocore.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ['pyiceberg/']
