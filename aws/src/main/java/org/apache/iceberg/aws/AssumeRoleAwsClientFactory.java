@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
@@ -34,11 +33,6 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
-
-  private String roleArn;
-  private String externalId;
-  private int timeout;
-  private String region;
   private AwsProperties awsProperties;
   private AssumeRoleRequest assumeRoleRequest;
 
@@ -80,26 +74,19 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
-    this.roleArn = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_ARN);
     Preconditions.checkNotNull(
-        roleArn, "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
-    this.timeout =
-        PropertyUtil.propertyAsInt(
-            properties,
-            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC,
-            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
-    this.externalId = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_EXTERNAL_ID);
-
-    this.region = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_REGION);
+        awsProperties.clientAssumeRoleArn(),
+        "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
     Preconditions.checkNotNull(
-        region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
+        awsProperties.clientAssumeRoleRegion(),
+        "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
     this.assumeRoleRequest =
         AssumeRoleRequest.builder()
-            .roleArn(roleArn)
+            .roleArn(awsProperties.clientAssumeRoleArn())
             .roleSessionName(genSessionName())
-            .durationSeconds(timeout)
-            .externalId(externalId)
+            .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
+            .externalId(awsProperties.clientAssumeRoleExternalId())
             .tags(awsProperties.stsClientAssumeRoleTags())
             .build();
   }
@@ -112,13 +99,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .refreshRequest(assumeRoleRequest)
             .build());
 
-    clientBuilder.region(Region.of(region));
+    clientBuilder.region(Region.of(awsProperties.clientAssumeRoleRegion()));
 
     return clientBuilder;
   }
 
   protected String region() {
-    return region;
+    return awsProperties.clientAssumeRoleRegion();
   }
 
   protected AwsProperties awsProperties() {
