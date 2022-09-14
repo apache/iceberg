@@ -874,7 +874,10 @@ public class AwsProperties implements Serializable {
    * Configure the credentials for an S3 client.
    *
    * <p>Sample usage:
-   * S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
+   * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
@@ -885,7 +888,11 @@ public class AwsProperties implements Serializable {
    * Configure services settings for an S3 client. The settings include: s3DualStack,
    * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
    *
-   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
+   * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
@@ -902,7 +909,11 @@ public class AwsProperties implements Serializable {
    * Configure the httpClient for a client according to the HttpClientType. The two supported
    * HttpClientTypes are urlconnection and apache
    *
-   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
+   * </pre>
    */
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
@@ -929,7 +940,11 @@ public class AwsProperties implements Serializable {
   /**
    * Override the endpoint for an S3 client.
    *
-   * <p>Sample usage: S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3EndpointConfigurations(T builder) {
     configureEndpoint(builder, s3Endpoint);
@@ -939,7 +954,10 @@ public class AwsProperties implements Serializable {
    * Override the endpoint for a glue client.
    *
    * <p>Sample usage:
-   * GlueClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   *
+   * <pre>
+   *     GlueClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * </pre>
    */
   public <T extends GlueClientBuilder> void applyGlueEndpointConfigurations(T builder) {
     configureEndpoint(builder, glueEndpoint);
@@ -949,7 +967,10 @@ public class AwsProperties implements Serializable {
    * Override the endpoint for a dynamoDb client.
    *
    * <p>Sample usage:
-   * DynamoDbClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   *
+   * <pre>
+   *     DynamoDbClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * </pre>
    */
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);

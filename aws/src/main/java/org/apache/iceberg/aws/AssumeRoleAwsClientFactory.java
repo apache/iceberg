@@ -93,14 +93,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
       T clientBuilder) {
-    clientBuilder.credentialsProvider(
-        StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(sts())
-            .refreshRequest(assumeRoleRequest)
-            .build());
-
-    clientBuilder.region(Region.of(awsProperties.clientAssumeRoleRegion()));
-
+    clientBuilder
+        .credentialsProvider(
+            StsAssumeRoleCredentialsProvider.builder()
+                .stsClient(sts())
+                .refreshRequest(assumeRoleRequest)
+                .build())
+        .region(Region.of(awsProperties.clientAssumeRoleRegion()));
     return clientBuilder;
   }
 
