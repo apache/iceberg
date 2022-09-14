@@ -443,6 +443,12 @@ public class AwsProperties implements Serializable {
 
   private String httpClientType;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
+
+  private String clientAssumeRoleArn;
+  private String clientAssumeRoleExternalId;
+  private int clientAssumeRoleTimeoutSec;
+  private String clientAssumeRoleRegion;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -480,6 +486,11 @@ public class AwsProperties implements Serializable {
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
+
+    this.clientAssumeRoleArn = null;
+    this.clientAssumeRoleTimeoutSec = CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT;
+    this.clientAssumeRoleExternalId = null;
+    this.clientAssumeRoleRegion = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -525,6 +536,13 @@ public class AwsProperties implements Serializable {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
+
+    this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
+    this.clientAssumeRoleTimeoutSec =
+        PropertyUtil.propertyAsInt(
+            properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
+    this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
+    this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -641,6 +659,22 @@ public class AwsProperties implements Serializable {
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
     return stsClientAssumeRoleTags;
+  }
+
+  public String clientAssumeRoleArn() {
+    return clientAssumeRoleArn;
+  }
+
+  public int clientAssumeRoleTimeoutSec() {
+    return clientAssumeRoleTimeoutSec;
+  }
+
+  public String clientAssumeRoleExternalId() {
+    return clientAssumeRoleExternalId;
+  }
+
+  public String clientAssumeRoleRegion() {
+    return clientAssumeRoleRegion;
   }
 
   public String s3FileIoSseType() {
