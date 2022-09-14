@@ -121,4 +121,9 @@ class CommitCallbackTransaction implements Transaction {
     wrapped.commitTransaction();
     callback.run();
   }
+
+  @Override
+  public void rollbackCompactionOnConflicts() {
+    wrapped.rollbackCompactionOnConflicts();
+  }
 }
