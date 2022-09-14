@@ -123,4 +123,9 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
           "Cannot commit file that conflicts with existing partition: %s", e.partition());
     }
   }
+
+  @Override
+  protected Long startingSnapshotId() {
+    return startingSnapshotId;
+  }
 }

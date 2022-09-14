@@ -162,6 +162,11 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     }
   }
 
+  @Override
+  protected Long startingSnapshotId() {
+    return null;
+  }
+
   private boolean isFastForward(TableMetadata base) {
     if (base.currentSnapshot() != null) {
       // can fast-forward if the cherry-picked snapshot's parent is the current snapshot

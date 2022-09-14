@@ -45,6 +45,11 @@ public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implem
   }
 
   @Override
+  protected Long startingSnapshotId() {
+    return null;
+  }
+
+  @Override
   public StreamingDelete deleteFile(CharSequence path) {
     delete(path);
     return this;

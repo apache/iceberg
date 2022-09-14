@@ -43,6 +43,11 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
   }
 
   @Override
+  protected Long startingSnapshotId() {
+    return null;
+  }
+
+  @Override
   public MergeAppend appendFile(DataFile file) {
     add(file);
     return this;
