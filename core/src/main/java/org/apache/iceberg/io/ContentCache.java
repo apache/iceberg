@@ -32,6 +32,7 @@ import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
@@ -64,11 +65,28 @@ public class ContentCache {
             CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH,
             CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
 
-    if (enabled && durationMs >= 0 && totalBytes > 0 && contentLength > 0) {
-      return new ContentCache(durationMs, totalBytes, contentLength);
+    if (!enabled) {
+      LOG.debug("No ContentCache created. {} is false.", CatalogProperties.IO_CACHE_ENABLED);
+    } else if (durationMs < 0) {
+      LOG.debug(
+          "No ContentCache created. {} ({}) is less than 0.",
+          CatalogProperties.IO_CACHE_EXPIRATION_INTERVAL_MS,
+          durationMs);
+    } else if (totalBytes <= 0) {
+      LOG.debug(
+          "No ContentCache created. {} ({}) is equal or less than 0.",
+          CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES,
+          totalBytes);
+    } else if (contentLength <= 0) {
+      LOG.debug(
+          "No ContentCache created. {} ({}) is equal or less than 0.",
+          CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH,
+          contentLength);
     } else {
-      return null;
+      return new ContentCache(durationMs, totalBytes, contentLength);
     }
+
+    return null;
   }
 
   private final long expireAfterAccessMs;
@@ -145,20 +163,12 @@ public class ContentCache {
 
   @Override
   public String toString() {
-    return getClass().getSimpleName()
-        + '{'
-        + "expireAfterAccessMs="
-        + expireAfterAccessMs
-        + ", "
-        + "maxContentLength="
-        + maxContentLength
-        + ", "
-        + "maxTotalBytes="
-        + maxTotalBytes
-        + ", "
-        + "cacheStats="
-        + cache.stats()
-        + '}';
+    return MoreObjects.toStringHelper(this)
+        .add("expireAfterAccessMs", expireAfterAccessMs)
+        .add("maxContentLength", maxContentLength)
+        .add("maxTotalBytes", maxTotalBytes)
+        .add("cacheStats", cache.stats())
+        .toString();
   }
 
   private static class CacheEntry {
