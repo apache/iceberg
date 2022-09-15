@@ -37,7 +37,6 @@ class MigrateTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
         ProcedureParameter.optional("properties", STRING_MAP)
       };
 
@@ -73,14 +72,13 @@ class MigrateTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String tableName = args.getString(0);
-    Boolean dropBackup = args.isNullAt(1) ? false : args.getBoolean(1);
     Preconditions.checkArgument(
         tableName != null && !tableName.isEmpty(),
         "Cannot handle an empty identifier for argument table");
 
     Map<String, String> properties = Maps.newHashMap();
-    if (!args.isNullAt(2)) {
-      args.getMap(2)
+    if (!args.isNullAt(1)) {
+      args.getMap(1)
           .foreach(
               DataTypes.StringType,
               DataTypes.StringType,
@@ -91,10 +89,7 @@ class MigrateTableProcedure extends BaseProcedure {
     }
 
     MigrateTable.Result result =
-        SparkActions.get()
-            .migrateTable(tableName, dropBackup)
-            .tableProperties(properties)
-            .execute();
+        SparkActions.get().migrateTable(tableName).tableProperties(properties).execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

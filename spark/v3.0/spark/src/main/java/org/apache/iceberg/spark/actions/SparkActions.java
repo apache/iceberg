@@ -59,13 +59,13 @@ public class SparkActions extends BaseSparkActions {
   }
 
   @Override
-  public MigrateTable migrateTable(String tableIdent, Boolean dropBackup) {
+  public MigrateTable migrateTable(String tableIdent) {
     String ctx = "migrate target";
     CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark(), tableIdent, defaultCatalog);
     return new BaseMigrateTableSparkAction(
-        spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier(), dropBackup);
+        spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override

@@ -71,7 +71,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    sql("DROP TABLE IF EXISTS %s", tableName + "_BACKUP_");
+    sql("DROP TABLE %s", tableName + "_BACKUP_");
   }
 
   @Test
@@ -84,7 +84,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     Object result =
-        scalarSql("CALL %s.system.migrate('%s', false, map('foo', 'bar'))", catalogName, tableName);
+        scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -115,7 +115,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    Object result = scalarSql("CALL %s.system.migrate('%s', true)", catalogName, tableName);
+    Object result = scalarSql("CALL %s.system.migrate('%s', map('dropBackup', 'true'))", catalogName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
     Assert.assertFalse(spark.catalog().tableExists(tableName + "_BACKUP_"));
   }
@@ -135,7 +135,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "Invalid metrics config",
         () -> {
           String props = "map('write.metadata.metrics.column.x', 'X')";
-          sql("CALL %s.system.migrate('%s', false, %s)", catalogName, tableName, props);
+          sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
         });
   }
 
@@ -150,9 +150,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     Object result =
-        scalarSql(
-            "CALL %s.system.migrate('%s', false, map('migrated', 'false'))",
-            catalogName, tableName);
+        scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
 
     assertEquals(

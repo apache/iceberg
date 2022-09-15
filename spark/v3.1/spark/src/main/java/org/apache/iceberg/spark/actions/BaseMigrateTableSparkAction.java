@@ -59,19 +59,13 @@ public class BaseMigrateTableSparkAction
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
-  private final Boolean dropBackup;
-
   public BaseMigrateTableSparkAction(
-      SparkSession spark,
-      CatalogPlugin sourceCatalog,
-      Identifier sourceTableIdent,
-      Boolean dropBackup) {
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
     String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
-    this.dropBackup = dropBackup;
   }
 
   @Override
@@ -118,6 +112,8 @@ public class BaseMigrateTableSparkAction
     StagedSparkTable stagedTable = null;
     Table icebergTable;
     boolean threw = true;
+    boolean dropBackup = Boolean.parseBoolean(additionalProperties()
+            .getOrDefault("dropBackup", "false"));
     try {
       LOG.info("Staging a new Iceberg table {}", destTableIdent());
       stagedTable = stageDestTable();
