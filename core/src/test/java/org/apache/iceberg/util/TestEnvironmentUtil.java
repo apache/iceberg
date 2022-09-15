@@ -19,28 +19,24 @@
 package org.apache.iceberg.util;
 
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class TestEnvironmentUtil {
   @Test
   public void testEnvironmentSubstitution() {
-    String userFromEnv = System.getenv().get("USER");
+    Optional<Map.Entry<String, String>> envEntry = System.getenv().entrySet().stream().findFirst();
+    Assumptions.assumeTrue(
+        envEntry.isPresent(), "Expecting at least one env. variable to be present");
     Map<String, String> resolvedProps =
-        EnvironmentUtil.resolveAll(ImmutableMap.of("user-test", "env:USER"));
-    if (userFromEnv == null) {
-      // some build env may not have the USER env variable set
-      Assertions.assertEquals(
-          ImmutableMap.of(),
-          resolvedProps,
-          "Resolved properties should be empty if not exist from environment variables");
-    } else {
-      Assertions.assertEquals(
-          ImmutableMap.of("user-test", userFromEnv),
-          resolvedProps,
-          "Should get the user from the environment");
-    }
+        EnvironmentUtil.resolveAll(ImmutableMap.of("env-test", "env:" + envEntry.get().getKey()));
+    Assertions.assertEquals(
+        ImmutableMap.of("env-test", envEntry.get().getValue()),
+        resolvedProps,
+        "Should get the user from the environment");
   }
 
   @Test
