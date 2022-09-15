@@ -19,8 +19,6 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED
-import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT
 import org.apache.iceberg.util.PropertyUtil
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Alias
@@ -201,10 +199,9 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
       cond: Expression,
       matchedActions: Seq[MergeAction]): LogicalPlan = {
     // Construct the plan to prune target based on join condition between source and target.
-    val table = target.table
     val output = target.output
     val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
-    val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
+    val runCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
     buildDynamicFilterScanPlan(spark, target, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
   }
 
@@ -227,13 +224,6 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
       // one "catch all" action will always match, prune the actions after it
       (startMatchedConditions.take(catchAllIndex + 1), outputs.take(catchAllIndex + 1))
     }
-  }
-
-  private def isCardinalityCheckEnabled(table: Table): Boolean = {
-    PropertyUtil.propertyAsBoolean(
-      table.properties(),
-      MERGE_CARDINALITY_CHECK_ENABLED,
-      MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT)
   }
 
   private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = {
