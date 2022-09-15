@@ -174,7 +174,7 @@ public class TestAwsProperties {
             .secretAccessKey()
             .equals("secret"));
 
-    // set access key id, secret access, and token
+    // set access key id, secret access key, and session token
     properties.put(AwsProperties.S3FILEIO_SESSION_TOKEN, "token");
     AwsProperties testAwsPropertiesThreeSet = new AwsProperties(properties);
     S3ClientBuilder mockS3ClientBuilderThreeSet = Mockito.mock(S3ClientBuilder.class);
