@@ -64,7 +64,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     super.initialize(catalogProperties);
     Preconditions.checkArgument(
         awsProperties().stsClientAssumeRoleTags().stream()
-            .anyMatch(t -> t.key().equals(LF_AUTHORIZED_CALLER)),
+            .anyMatch(t -> LF_AUTHORIZED_CALLER.equals(t.key())),
         "STS assume role session tag %s must be set using %s to use LakeFormation client factory",
         LF_AUTHORIZED_CALLER,
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
