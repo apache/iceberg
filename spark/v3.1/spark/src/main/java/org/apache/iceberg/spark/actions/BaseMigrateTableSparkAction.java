@@ -112,8 +112,8 @@ public class BaseMigrateTableSparkAction
     StagedSparkTable stagedTable = null;
     Table icebergTable;
     boolean threw = true;
-    boolean dropBackup = Boolean.parseBoolean(additionalProperties()
-            .getOrDefault("dropBackup", "false"));
+    boolean dropBackup =
+        Boolean.parseBoolean(additionalProperties().getOrDefault("dropBackup", "false"));
     try {
       LOG.info("Staging a new Iceberg table {}", destTableIdent());
       stagedTable = stageDestTable();
