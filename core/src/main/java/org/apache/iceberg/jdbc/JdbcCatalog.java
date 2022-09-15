@@ -353,7 +353,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
     Map<String, String> properties = Maps.newHashMap();
     properties.putAll(fetchProperties(namespace));
-    properties.put("location", defaultNamespaceLocation(namespace));
+    if (!properties.containsKey("location")) {
+      properties.put("location", defaultNamespaceLocation(namespace));
+    }
     properties.remove(NAMESPACE_EXISTS_PROPERTY); // do not return reserved existence property
 
     return ImmutableMap.copyOf(properties);
