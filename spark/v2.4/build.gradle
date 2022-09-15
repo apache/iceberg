@@ -27,6 +27,10 @@ def sparkProjects = [
 ]
 
 configure(sparkProjects) {
+  project.ext {
+    sparkVersion = '2.4.8'
+  }
+
   configurations {
     all {
       resolutionStrategy {
@@ -64,7 +68,7 @@ project(':iceberg-spark:iceberg-spark-2.4') {
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.11") {
+    compileOnly("org.apache.spark:spark-hive_2.11:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.roaringbitmap'
     }
