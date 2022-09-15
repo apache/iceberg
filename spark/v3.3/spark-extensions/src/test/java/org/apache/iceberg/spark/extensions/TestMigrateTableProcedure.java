@@ -107,7 +107,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMigrateWithDropTable() throws IOException {
+  public void testMigrateWithDropBackup() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
     sql(
