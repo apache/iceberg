@@ -829,45 +829,8 @@ public class AwsProperties implements Serializable {
     this.isS3DeleteEnabled = s3DeleteEnabled;
   }
 
-  private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
-    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
-        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
-        .collect(Collectors.toSet());
-  }
-
-  private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
-      Map<String, String> properties, String prefix) {
-    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
-        .map(
-            e ->
-                software.amazon.awssdk.services.sts.model.Tag.builder()
-                    .key(e.getKey())
-                    .value(e.getValue())
-                    .build())
-        .collect(Collectors.toSet());
-  }
-
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
-  }
-
-  private boolean s3KeyIdAccessKeyBothConfigured() {
-    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
-  }
-
-  private AwsCredentialsProvider credentialsProvider(
-      String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (accessKeyId != null) {
-      if (sessionToken == null) {
-        return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
-      } else {
-        return StaticCredentialsProvider.create(
-            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
-      }
-    } else {
-      return DefaultCredentialsProvider.create();
-    }
   }
 
   /**
@@ -931,12 +894,6 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
-    if (endpoint != null) {
-      builder.endpointOverride(URI.create(endpoint));
-    }
-  }
-
   /**
    * Override the endpoint for an S3 client.
    *
@@ -974,5 +931,48 @@ public class AwsProperties implements Serializable {
    */
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);
+  }
+
+  private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
+        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
+  }
+
+  private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
+      Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
+        .map(
+            e ->
+                software.amazon.awssdk.services.sts.model.Tag.builder()
+                    .key(e.getKey())
+                    .value(e.getValue())
+                    .build())
+        .collect(Collectors.toSet());
+  }
+
+  private boolean s3KeyIdAccessKeyBothConfigured() {
+    return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
+  }
+
+  private AwsCredentialsProvider credentialsProvider(
+      String accessKeyId, String secretAccessKey, String sessionToken) {
+    if (accessKeyId != null) {
+      if (sessionToken == null) {
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+      } else {
+        return StaticCredentialsProvider.create(
+            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
+      }
+    } else {
+      return DefaultCredentialsProvider.create();
+    }
+  }
+
+  private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
+    if (endpoint != null) {
+      builder.endpointOverride(URI.create(endpoint));
+    }
   }
 }
