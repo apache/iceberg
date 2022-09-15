@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  tox:
+  lint-and-test:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
