@@ -145,14 +145,7 @@ public class SparkTable
 
   @Override
   public String name() {
-    Map<String, String> properties = properties();
-    String tableFormatVersion = properties.get(FORMAT_VERSION);
-    String prefix = "Iceberg";
-    if (tableFormatVersion != null) {
-      return String.format("%s/v%s %s", prefix, tableFormatVersion, icebergTable.name());
-    } else {
-      return String.format("%s %s", prefix, icebergTable.name());
-    }
+    return String.format("Iceberg %s", icebergTable.name());
   }
 
   private Schema snapshotSchema() {

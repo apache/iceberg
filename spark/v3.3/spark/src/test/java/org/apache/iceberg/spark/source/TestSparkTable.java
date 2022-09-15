@@ -92,9 +92,7 @@ public class TestSparkTable extends SparkCatalogTestBase {
                 // does not expect any exceptions to be thrown, thus it wrapped inside
                 // RuntimeException.
                 String actualTableName = catalog.loadTable(sparkIdentifier).name();
-                String expectedTableName =
-                    String.format(
-                        "Iceberg/v%s %s.%s", tableFormatVersion, catalogName, icebergIdentifier);
+                String expectedTableName = String.format("Iceberg %s.%s", catalogName, icebergIdentifier);
                 Assert.assertEquals(
                     "Table name mismatched for (%s file format, %s table format version)",
                     expectedTableName, actualTableName);
