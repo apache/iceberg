@@ -24,6 +24,7 @@ from click import Context
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
+from pyiceberg.io import load_file_io
 
 
 def catch_exception():
@@ -134,6 +135,20 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 
     if is_namespace is False and is_table is False:
         raise NoSuchTableError(f"Table or namespace does not exist: {identifier}")
+
+
+@run.command()
+@click.argument("identifier")
+@click.option("--history", is_flag=True)
+@click.pass_context
+@catch_exception()
+def files(ctx: Context, identifier: str, history: bool):
+    """Lists all the files of the table"""
+    catalog, output = _catalog_and_output(ctx)
+
+    catalog_table = catalog.load_table(identifier)
+    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
+    output.files(catalog_table, io, history)
 
 
 @run.command()
