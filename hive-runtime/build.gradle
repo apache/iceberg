@@ -74,6 +74,7 @@ project(':iceberg-hive-runtime') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
     // relocate OrcSplit in order to avoid the conflict from Hive's OrcSplit
     relocate 'org.apache.hadoop.hive.ql.io.orc.OrcSplit', 'org.apache.iceberg.shaded.org.apache.hadoop.hive.ql.io.orc.OrcSplit'
 
