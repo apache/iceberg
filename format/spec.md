@@ -964,7 +964,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`int`**          | `hashLong(long(v))`			[1]          | `34` ￫ `2017239379`                        |
 | **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
 | **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
-| **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
+| **`date`**         | `hashLong(daysFromUnixEpoch(v))`          | `2017-11-16` ￫ `-653330422`                |
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
 | **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`      |
 | **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00`￫ `-2047944441` |
@@ -977,7 +977,7 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
-| **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
+| **`boolean`**      | `false: hashLong(0)`, `true: hashLong(1)` | `true` ￫ `1392991556`                      |
 | **`float`**        | `hashDouble(double(v))`         [4]       | `1.0F` ￫ `-142385009`                      |
 | **`double`**       | `hashLong(doubleToLongBits(v))`           | `1.0D` ￫ `-142385009`                      |
 
