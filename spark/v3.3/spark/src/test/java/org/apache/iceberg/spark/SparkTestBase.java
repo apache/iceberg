@@ -252,16 +252,6 @@ public abstract class SparkTestBase {
     }
   }
 
-  protected void withTables(Action action, String... tables) {
-    try {
-      action.invoke();
-    } finally {
-      for (String table : tables) {
-        sql(String.format("DROP TABLE IF EXISTS %s", table));
-      }
-    }
-  }
-
   protected Dataset<Row> jsonToDF(String schema, String... records) {
     Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
     return spark.read().schema(schema).json(jsonDF);

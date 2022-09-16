@@ -19,10 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -63,46 +59,12 @@ public class TestSparkTable extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testTableName() {
+  public void testTableName() throws NoSuchTableException {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
     TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
-
-    for (String fileFormat : Lists.newArrayList("parquet", "orc", "avro")) {
-      for (String tableFormatVersion : Lists.newArrayList("1", "2")) {
-        String testTableName =
-            String.format("table_name_test_%s_v%s", fileFormat, tableFormatVersion);
-        withTables(
-            () -> {
-              sql(
-                  String.format(
-                      "CREATE TABLE %s USING iceberg TBLPROPERTIES ('%s'='%s', '%s'='%s')",
-                      tableName(testTableName),
-                      TableProperties.DEFAULT_FILE_FORMAT,
-                      fileFormat,
-                      TableProperties.FORMAT_VERSION,
-                      tableFormatVersion));
-
-              TableIdentifier icebergIdentifier =
-                  TableIdentifier.of(Namespace.of("default"), testTableName);
-              Identifier sparkIdentifier =
-                  Identifier.of(icebergIdentifier.namespace().levels(), icebergIdentifier.name());
-
-              try {
-                // Catalog#loadTable throw NoSuchTableException, however, the Action#invoke
-                // does not expect any exceptions to be thrown, thus it wrapped inside
-                // RuntimeException.
-                String actualTableName = catalog.loadTable(sparkIdentifier).name();
-                String expectedTableName =
-                    String.format("Iceberg %s.%s", catalogName, icebergIdentifier);
-                Assert.assertEquals(
-                    "Table name mismatched for (%s file format, %s table format version)",
-                    expectedTableName, actualTableName);
-              } catch (NoSuchTableException e) {
-                throw new RuntimeException(e);
-              }
-            },
-            tableName(testTableName));
-      }
-    }
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+    String actualTableName = catalog.loadTable(identifier).name();
+    String expectedTableName = String.format("Iceberg %s.%s", catalogName, tableIdent);
+    Assert.assertEquals("Table name mismatched", expectedTableName, actualTableName);
   }
 }
