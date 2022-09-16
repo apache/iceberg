@@ -29,7 +29,7 @@ from pydantic import Field
 
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import AvroStruct
-from pyiceberg.io import InputFile
+from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     IcebergType,
@@ -127,6 +127,10 @@ class ManifestFile(IcebergBaseModel):
     deleted_rows_count: Optional[int] = Field()
     partitions: Optional[List[FieldSummary]] = Field()
     key_metadata: Optional[bytes] = Field()
+
+    def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
+        file = io.new_input(self.manifest_path)
+        return list(read_manifest_entry(file))
 
 
 def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:

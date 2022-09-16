@@ -26,7 +26,12 @@ retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Union
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    Union,
+)
 from urllib.parse import urlparse
 
 import pytest
@@ -932,7 +937,7 @@ def LocalFileIOFixture():
 
 
 @pytest.fixture(scope="session")
-def generated_manifest_entry_file(avro_schema_manifest_entry):
+def generated_manifest_entry_file(avro_schema_manifest_entry: Dict[str, Any]) -> Generator[str, None, None]:
     from fastavro import parse_schema, writer
 
     parsed_schema = parse_schema(avro_schema_manifest_entry)
@@ -945,10 +950,15 @@ def generated_manifest_entry_file(avro_schema_manifest_entry):
 
 
 @pytest.fixture(scope="session")
-def generated_manifest_file_file(avro_schema_manifest_file):
+def generated_manifest_file_file(
+    avro_schema_manifest_file: Dict[str, Any], generated_manifest_entry_file: str
+) -> Generator[str, None, None]:
     from fastavro import parse_schema, writer
 
     parsed_schema = parse_schema(avro_schema_manifest_file)
+
+    # Make sure that a valid manifest_path is set
+    manifest_file_records[0]["manifest_path"] = generated_manifest_entry_file
 
     with TemporaryDirectory() as tmpdir:
         tmp_avro_file = tmpdir + "/manifest.avro"
