@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -59,10 +60,9 @@ public class TestOAuthErrorResponseParser {
 
   @Test
   public void testOAuthErrorResponseBuilderMissingError() {
-    Assert.assertThrows(
-        "Missing error should throw exception",
-        IllegalArgumentException.class,
-        () -> OAuthErrorResponse.builder().build());
+    Assertions.assertThatThrownBy(() -> OAuthErrorResponse.builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response, missing field: error");
   }
 
   @Test
@@ -101,10 +101,9 @@ public class TestOAuthErrorResponseParser {
     String uri = "http://iceberg.apache.org";
     String json =
         String.format("{\"error_description\":\"%s\",\"error_uri\":\"%s\"}", description, uri);
-    Assert.assertThrows(
-        "Missing error should throw exception",
-        IllegalArgumentException.class,
-        () -> OAuthErrorResponseParser.fromJson(json));
+    Assertions.assertThatThrownBy(() -> OAuthErrorResponseParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: error");
   }
 
   public void assertEquals(OAuthErrorResponse expected, OAuthErrorResponse actual) {
