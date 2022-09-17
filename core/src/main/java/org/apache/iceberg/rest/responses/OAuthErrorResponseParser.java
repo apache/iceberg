@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -39,19 +38,7 @@ public class OAuthErrorResponseParser {
   }
 
   public static String toJson(OAuthErrorResponse errorResponse, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(errorResponse, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to write error response json for: %s", errorResponse), e);
-    }
+    return JsonUtil.generate(gen -> toJson(errorResponse, gen), pretty);
   }
 
   public static void toJson(OAuthErrorResponse errorResponse, JsonGenerator generator)

@@ -58,7 +58,7 @@ public class TestOAuthErrorResponseParser {
   }
 
   @Test
-  public void testOAuthErrorResponseBuilderMIssingError() {
+  public void testOAuthErrorResponseBuilderMissingError() {
     Assert.assertThrows(
         "Missing error should throw exception",
         IllegalArgumentException.class,
