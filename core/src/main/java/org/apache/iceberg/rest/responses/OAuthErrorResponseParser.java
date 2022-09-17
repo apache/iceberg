@@ -71,7 +71,6 @@ public class OAuthErrorResponseParser {
         jsonNode != null && jsonNode.isObject(),
         "Cannot parse error response from non-object value: %s",
         jsonNode);
-    Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
     String error = JsonUtil.getString(ERROR, jsonNode);
     String errorDescription = JsonUtil.getStringOrNull(ERROR_DESCRIPTION, jsonNode);
     String errorUri = JsonUtil.getStringOrNull(ERROR_URI, jsonNode);
