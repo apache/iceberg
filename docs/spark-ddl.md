@@ -149,7 +149,7 @@ DROP TABLE prod.db.sample
 
 ### `DROP TABLE PURGE`
 
-To delete a table, run:
+To drop the table from the catalog and delete the table's contents, run:
 
 ```sql
 DROP TABLE prod.db.sample PURGE
