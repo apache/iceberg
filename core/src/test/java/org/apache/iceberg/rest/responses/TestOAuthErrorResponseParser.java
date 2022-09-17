@@ -107,9 +107,8 @@ public class TestOAuthErrorResponseParser {
   }
 
   public void assertEquals(OAuthErrorResponse expected, OAuthErrorResponse actual) {
-    Assert.assertEquals("Error should be equal", expected.error(), actual.error());
-    Assert.assertEquals(
-        "Description should be equal", expected.errorDescription(), actual.errorDescription());
-    Assert.assertEquals("URI should be equal", expected.errorUri(), actual.errorUri());
+    Assertions.assertThat(actual.error()).isEqualTo(expected.error());
+    Assertions.assertThat(actual.errorDescription()).isEqualTo(expected.errorDescription());
+    Assertions.assertThat(actual.errorUri()).isEqualTo(expected.errorUri());
   }
 }
