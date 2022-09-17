@@ -16,31 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.aws.s3;
 
-import java.util.Collection;
+import java.util.Map;
+import org.apache.iceberg.aws.AwsClientFactory;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3Client;
 
-/**
- * A scan task that may include partial input files, multiple input files or both.
- *
- * @param <T> the type of scan tasks
- */
-public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
-  /** Returns scan tasks in this group. */
-  Collection<T> tasks();
+class StaticClientFactory implements AwsClientFactory {
+  static S3Client client;
 
   @Override
-  default long sizeBytes() {
-    return tasks().stream().mapToLong(ScanTask::sizeBytes).sum();
+  public S3Client s3() {
+    return client;
   }
 
   @Override
-  default long estimatedRowsCount() {
-    return tasks().stream().mapToLong(ScanTask::estimatedRowsCount).sum();
+  public GlueClient glue() {
+    return null;
   }
 
   @Override
-  default int filesCount() {
-    return tasks().stream().mapToInt(ScanTask::filesCount).sum();
+  public KmsClient kms() {
+    return null;
   }
+
+  @Override
+  public DynamoDbClient dynamo() {
+    return null;
+  }
+
+  @Override
+  public void initialize(Map<String, String> properties) {}
 }

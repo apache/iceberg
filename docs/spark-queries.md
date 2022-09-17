@@ -371,6 +371,19 @@ Note:
 2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
     This usually occurs when reading from V1 table, where `contains_nan` is not populated.
 
+### References
+
+To show a table's known snapshot references:
+
+```sql
+SELECT * FROM prod.db.table.refs
+```
+
+| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
+| -- | -- | -- | -- | -- | -- |
+| main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
+| testTag | TAG | 4686954189838128572 | 10 | null | null |
+
 ## Inspecting with DataFrames
 
 Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:

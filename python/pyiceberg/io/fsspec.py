@@ -21,14 +21,13 @@ from typing import Callable, Union
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
+from s3fs import S3FileSystem
 
 from pyiceberg.io import FileIO, InputFile, OutputFile
 from pyiceberg.typedef import Properties
 
 
-def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
-    from s3fs import S3FileSystem
-
+def _s3(properties: Properties) -> AbstractFileSystem:
     client_kwargs = {
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),
@@ -37,7 +36,7 @@ def _s3(properties: Properties, **fs_properties) -> AbstractFileSystem:
 
     config_kwargs = {"signature_version": properties.get("s3.signer")}
 
-    return S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs, **fs_properties)
+    return S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 
 
 SCHEME_TO_FS = {
@@ -189,8 +188,4 @@ class FsspecFileIO(FileIO):
         """Get a filesystem for a specific scheme"""
         if scheme not in self._scheme_to_fs:
             raise ValueError(f"No registered filesystem for scheme: {scheme}")
-        return self._scheme_to_fs[scheme](self.properties, **self._fs_properties())
-
-    def _fs_properties(self):
-        """Get fs properties from the file-io property map"""
-        return {k[3:]: v for k, v in self.properties.items() if k.startswith("fs_")}
+        return self._scheme_to_fs[scheme](self.properties)

@@ -36,20 +36,30 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
 import org.junit.Before;
@@ -95,6 +105,7 @@ public class TestS3FileIO {
           .createBucket(
               CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
     }
+    StaticClientFactory.client = s3mock;
   }
 
   @Test
@@ -248,6 +259,53 @@ public class TestS3FileIO {
           s3FileIO.deletePrefix(scalePrefix);
           assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
         });
+  }
+
+  @Test
+  public void testReadMissingLocation() {
+    String location = "s3://bucket/path/to/data.parquet";
+    InputFile in = s3FileIO.newInputFile(location);
+    AssertHelpers.assertThrows(
+        "Should fail with NotFoundException",
+        NotFoundException.class,
+        "Location does not exist",
+        () -> in.newStream().read());
+  }
+
+  @Test
+  public void testMissingTableMetadata() {
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(
+        CatalogProperties.URI,
+        "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
+    conf.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
+    conf.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
+    conf.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/warehouse");
+    conf.put(CatalogProperties.FILE_IO_IMPL, S3FileIO.class.getName());
+    conf.put(AwsProperties.CLIENT_FACTORY, StaticClientFactory.class.getName());
+
+    try (JdbcCatalog catalog = new JdbcCatalog()) {
+      catalog.initialize("test_jdbc_catalog", conf);
+
+      Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+      TableIdentifier ident = TableIdentifier.of("table_name");
+      BaseTable table = (BaseTable) catalog.createTable(ident, schema);
+
+      // delete the current metadata
+      s3FileIO.deleteFile(table.operations().current().metadataFileLocation());
+
+      long start = System.currentTimeMillis();
+      // to test NotFoundException, load the table again. refreshing the existing table doesn't
+      // require reading metadata
+      AssertHelpers.assertThrows(
+          "Should fail to refresh",
+          NotFoundException.class,
+          "Location does not exist",
+          () -> catalog.loadTable(ident));
+      long duration = System.currentTimeMillis() - start;
+
+      Assert.assertTrue("Should take less than 10 seconds", duration < 10_000);
+    }
   }
 
   @Test
