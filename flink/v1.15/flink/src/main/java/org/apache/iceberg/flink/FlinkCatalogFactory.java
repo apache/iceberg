@@ -167,6 +167,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
         newConf.addResource(configFile);
       }
     }
+
     if (!Strings.isNullOrEmpty(hadoopConfDir)) {
       Preconditions.checkState(
           Files.exists(Paths.get(hadoopConfDir, "hdfs-site.xml")),
@@ -179,6 +180,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
           Paths.get(hadoopConfDir, "core-site.xml"));
       newConf.addResource(new Path(hadoopConfDir, "core-site.xml"));
     }
+
     return newConf;
   }
 
