@@ -456,8 +456,8 @@ public class AwsProperties implements Serializable {
   private String clientAssumeRoleExternalId;
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
-
   private String clientAssumeRoleSessionName;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -493,8 +493,6 @@ public class AwsProperties implements Serializable {
   private String dynamoDbEndpoint;
 
   public AwsProperties() {
-    this.clientAssumeRoleSessionName = null;
-
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
@@ -502,6 +500,7 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleTimeoutSec = CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT;
     this.clientAssumeRoleExternalId = null;
     this.clientAssumeRoleRegion = null;
+    this.clientAssumeRoleSessionName = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -544,14 +543,6 @@ public class AwsProperties implements Serializable {
   }
 
   public AwsProperties(Map<String, String> properties) {
-    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
-
-    this.s3FileIoSseType =
-        properties.getOrDefault(
-            AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_NONE);
-    this.s3FileIoSseKey = properties.get(AwsProperties.S3FILEIO_SSE_KEY);
-    this.s3FileIoSseMd5 = properties.get(AwsProperties.S3FILEIO_SSE_MD5);
-    if (AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
@@ -562,6 +553,7 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
+    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
