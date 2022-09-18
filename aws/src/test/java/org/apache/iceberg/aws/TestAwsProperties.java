@@ -231,8 +231,6 @@ public class TestAwsProperties {
   public void testApacheHttpClientConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.HTTP_CLIENT_TYPE, "apache");
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, "100");
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, "200");
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
     ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
