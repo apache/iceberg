@@ -67,7 +67,7 @@ public class TestDefaultAwsClientFactory {
     AssertHelpers.assertThrows("Should fail request because of bad access key",
         S3Exception.class,
         "The AWS Access Key Id you provided does not exist in our records",
-        () -> s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()));
+        () -> s3Client.getObject(GetObjectRequest.builder().bucket(AwsIntegTestUtil.testBucketName()).key("key").build()));
   }
 
   @Test
