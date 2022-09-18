@@ -20,8 +20,10 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -361,6 +363,33 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
   /**
+   * Used to configure the connection timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
+      "apache.connection-timeout-ms";
+
+  public static final long APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT =
+      TimeUnit.SECONDS.toMillis(30);
+
+  /**
+   * Used to configure the socket timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS = "apache.socket-timeout-ms";
+
+  public static final long APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT =
+      TimeUnit.SECONDS.toMillis(30);
+
+  /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
    * <p>For more details, see
@@ -450,6 +479,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private long apacheHttpClientConnectionTimeout;
+  private long apacheHttpClientSocketTimeout;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -494,6 +525,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.apacheHttpClientConnectionTimeout = APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
+    this.apacheHttpClientSocketTimeout = APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -545,6 +578,16 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.apacheHttpClientConnectionTimeout =
+        PropertyUtil.propertyAsLong(
+            properties,
+            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS,
+            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT);
+    this.apacheHttpClientSocketTimeout =
+        PropertyUtil.propertyAsLong(
+            properties,
+            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS,
+            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
@@ -902,7 +945,10 @@ public class AwsProperties implements Serializable {
         builder.httpClientBuilder(UrlConnectionHttpClient.builder());
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(ApacheHttpClient.builder());
+        builder.httpClientBuilder(
+            ApacheHttpClient.builder()
+                .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
+                .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout)));
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
