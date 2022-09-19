@@ -17,6 +17,8 @@
 # pylint:disable=redefined-outer-name,eval-used
 import pytest
 
+from pyiceberg.io.pyarrow import PyArrowFileIO
+from pyiceberg.manifest import FieldSummary, ManifestContent, ManifestFile
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
 
 
@@ -119,3 +121,40 @@ def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot):
         == """Snapshot(snapshot_id=25, parent_snapshot_id=19, sequence_number=200, timestamp_ms=1602638573590, manifest_list='s3:/a/b/c.avro', summary=Summary(Operation.APPEND, **{'foo': 'bar'}), schema_id=3)"""
     )
     assert snapshot_with_properties == eval(repr(snapshot_with_properties))
+
+
+def test_fetch_manifest_list(generated_manifest_file_file: str):
+    snapshot = Snapshot(
+        snapshot_id=25,
+        parent_snapshot_id=19,
+        sequence_number=200,
+        timestamp_ms=1602638573590,
+        manifest_list=generated_manifest_file_file,
+        summary=Summary(Operation.APPEND),
+        schema_id=3,
+    )
+    io = PyArrowFileIO()
+    actual = snapshot.fetch_manifest_list(io)
+    assert actual == [
+        ManifestFile(
+            manifest_path=actual[0].manifest_path,  # Is a temp path that changes every time
+            manifest_length=7989,
+            partition_spec_id=0,
+            content=ManifestContent.DATA,
+            sequence_number=0,
+            min_sequence_number=0,
+            added_snapshot_id=9182715666859759686,
+            added_data_files_count=3,
+            existing_data_files_count=0,
+            deleted_data_files_count=0,
+            added_rows_count=237993,
+            existing_rows_counts=None,
+            deleted_rows_count=0,
+            partitions=[
+                FieldSummary(
+                    contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
+                )
+            ],
+            key_metadata=None,
+        )
+    ]

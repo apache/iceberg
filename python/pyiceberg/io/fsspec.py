@@ -21,14 +21,13 @@ from typing import Callable, Union
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
+from s3fs import S3FileSystem
 
 from pyiceberg.io import FileIO, InputFile, OutputFile
 from pyiceberg.typedef import Properties
 
 
 def _s3(properties: Properties) -> AbstractFileSystem:
-    from s3fs import S3FileSystem
-
     client_kwargs = {
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),

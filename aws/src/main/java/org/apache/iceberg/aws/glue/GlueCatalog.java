@@ -36,7 +36,6 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -136,7 +135,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       catalogFileIO = null;
     } else {
       awsClientFactory = AwsClientFactories.from(properties);
-      catalogFileIO = initializeFileIO(properties);
+      catalogFileIO = GlueTableOperations.initializeFileIO(properties, hadoopConf);
     }
 
     initialize(
@@ -155,17 +154,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
       return LockManagers.defaultLockManager();
     }
     return null;
-  }
-
-  private FileIO initializeFileIO(Map<String, String> properties) {
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    if (fileIOImpl == null) {
-      FileIO io = new S3FileIO();
-      io.initialize(properties);
-      return io;
-    } else {
-      return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
-    }
   }
 
   @VisibleForTesting
@@ -210,7 +198,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     if (catalogProperties != null) {
-      Map<String, String> tableSpecificCatalogProperties =
+      ImmutableMap.Builder<String, String> tableSpecificCatalogPropertiesBuilder =
           ImmutableMap.<String, String>builder()
               .putAll(catalogProperties)
               .put(
@@ -220,8 +208,13 @@ public class GlueCatalog extends BaseMetastoreCatalog
               .put(
                   AwsProperties.LAKE_FORMATION_TABLE_NAME,
                   IcebergToGlueConverter.getTableName(
-                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
-              .build();
+                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()));
+
+      if (awsProperties.glueLakeFormationEnabled()) {
+        tableSpecificCatalogPropertiesBuilder.put(
+            AwsProperties.S3_PRELOAD_CLIENT_ENABLED, String.valueOf(true));
+      }
+
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
       // initialized each time
       return new GlueTableOperations(
@@ -229,12 +222,19 @@ public class GlueCatalog extends BaseMetastoreCatalog
           lockManager,
           catalogName,
           awsProperties,
-          initializeFileIO(tableSpecificCatalogProperties),
+          tableSpecificCatalogPropertiesBuilder.build(),
+          hadoopConf,
           tableIdentifier);
     }
 
     return new GlueTableOperations(
-        glue, lockManager, catalogName, awsProperties, fileIO, tableIdentifier);
+        glue,
+        lockManager,
+        catalogName,
+        awsProperties,
+        catalogProperties,
+        hadoopConf,
+        tableIdentifier);
   }
 
   /**

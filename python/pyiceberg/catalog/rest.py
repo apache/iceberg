@@ -58,6 +58,8 @@ from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
+ICEBERG_REST_SPEC_VERSION = "0.14.1"
+
 
 class Endpoints:
     get_config: str = "config"
@@ -195,7 +197,8 @@ class RestCatalog(Catalog):
     def headers(self) -> Properties:
         headers = {
             "Content-type": "application/json",
-            "X-Client-Version": __version__,
+            "X-Client-Version": ICEBERG_REST_SPEC_VERSION,
+            "User-Agent": f"PyIceberg/{__version__}",
         }
         if token := self.properties.get("token"):
             headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"

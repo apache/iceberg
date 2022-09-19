@@ -376,9 +376,10 @@ def test_read_manifest_file_file(generated_manifest_file_file: str):
         records = list(reader)
 
     assert len(records) == 1, f"Expected 1 records, got {len(records)}"
-    assert records[0] == AvroStruct(
+    actual = records[0]
+    expected = AvroStruct(
         _data=[
-            "/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro",
+            actual.get(0),
             7989,
             0,
             9182715666859759686,
@@ -391,6 +392,7 @@ def test_read_manifest_file_file(generated_manifest_file_file: str):
             0,
         ]
     )
+    assert actual == expected
 
 
 def test_fixed_reader():

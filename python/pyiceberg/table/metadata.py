@@ -43,15 +43,25 @@ from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.utils.datetime import datetime_to_micros
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
+CURRENT_SNAPSHOT_ID = "current_snapshot_id"
+CURRENT_SCHEMA_ID = "current_schema_id"
+SCHEMAS = "schemas"
+DEFAULT_SPEC_ID = "default_spec_id"
+PARTITION_SPEC = "partition_spec"
+PARTITION_SPECS = "partition_specs"
+SORT_ORDERS = "sort_orders"
+REFS = "refs"
+
 INITIAL_SEQUENCE_NUMBER = 0
 DEFAULT_LAST_PARTITION_ID = 1000
+INITIAL_SPEC_ID = 0
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the current-schema-id is actually present in schemas"""
-    current_schema_id = values["current_schema_id"]
+    current_schema_id = values[CURRENT_SCHEMA_ID]
 
-    for schema in values["schemas"]:
+    for schema in values[SCHEMAS]:
         if schema.schema_id == current_schema_id:
             return values
 
@@ -60,7 +70,7 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
-    default_spec_id = values["default_spec_id"]
+    default_spec_id = values[DEFAULT_SPEC_ID]
     if default_spec_id is not None:
         partition_specs: List[PartitionSpec] = values["partition_specs"]
         for spec in partition_specs:
@@ -76,7 +86,7 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     default_sort_order_id: int = values["default_sort_order_id"]
 
     if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
-        sort_orders: List[SortOrder] = values["sort_orders"]
+        sort_orders: List[SortOrder] = values[SORT_ORDERS]
         for sort_order in sort_orders:
             if sort_order.order_id == default_sort_order_id:
                 return values
@@ -89,20 +99,20 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
-    @root_validator(pre=True)
+    @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
-        if data.get("current-snapshot-id") == -1:
+        if data[CURRENT_SNAPSHOT_ID] == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
-            data["current-snapshot-id"] = None
+            data[CURRENT_SNAPSHOT_ID] = None
         return data
 
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as refs is an actual pydantic object
-        if current_snapshot_id := data.get("current_snapshot_id"):
-            if MAIN_BRANCH not in data["refs"]:
-                data["refs"][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
+        if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
+            if MAIN_BRANCH not in data[REFS]:
+                data[REFS][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
         return data
 
     location: str = Field()
@@ -136,7 +146,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: Optional[int] = Field(alias="default-spec-id", default=None)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: int = Field(alias="last-partition-id")
+    last_partition_id: Optional[int] = Field(alias="last-partition-id")
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
@@ -202,13 +212,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
 
-    @root_validator(pre=True)
+    @root_validator
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2
-
-        Set some sensible defaults for V1, so we comply with the schema
-        this is in pre=True, meaning that this will be done before validation.
-        We don't want to make the fields optional, since they are required for V2
 
         Args:
             data: The raw arguments when initializing a V1 TableMetadata
@@ -216,10 +222,12 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the defaults applied
         """
+        # When the schema doesn't have an ID
         if data.get("schema") and "schema-id" not in data["schema"]:
             data["schema"]["schema-id"] = INITIAL_SCHEMA_ID
         if data.get("partition-spec") and "last-partition-id" not in data:
             data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
+
         return data
 
     @root_validator(skip_on_failure=True)
@@ -258,13 +266,18 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the partition_specs set, if not provided
         """
-        if not data.get("partition_specs"):
-            fields = data["partition_spec"]
+        if not data.get(PARTITION_SPECS):
+            fields = data[PARTITION_SPEC]
             migrated_spec = PartitionSpec(*fields)
-            data["partition_specs"] = [migrated_spec]
-            data["default_spec_id"] = migrated_spec.spec_id
+            data[PARTITION_SPECS] = [migrated_spec]
+            data[DEFAULT_SPEC_ID] = migrated_spec.spec_id
         else:
             check_partition_specs(data)
+
+        if "last_partition_id" not in data or data.get("last_partition_id") is None:
+            if partition_specs := data.get(PARTITION_SPECS):
+                data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
+
         return data
 
     @root_validator(skip_on_failure=True)
@@ -280,8 +293,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the sort_orders set, if not provided
         """
-        if not data.get("sort_orders"):
-            data["sort_orders"] = [UNSORTED_SORT_ORDER]
+        if not data.get(SORT_ORDERS):
+            data[SORT_ORDERS] = [UNSORTED_SORT_ORDER]
         else:
             check_sort_orders(data)
         return data

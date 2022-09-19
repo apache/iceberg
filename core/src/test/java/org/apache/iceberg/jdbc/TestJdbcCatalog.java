@@ -631,6 +631,30 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testNamespaceLocation() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+
+    // Test with location
+    Map<String, String> testMetadata = ImmutableMap.of();
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace)).containsKey("location");
+  }
+
+  @Test
+  public void testNamespaceCustomLocation() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    String namespaceLocation = "file:///tmp/warehouse/ns/path";
+
+    // Test with location
+    Map<String, String> testMetadata = ImmutableMap.of("location", namespaceLocation);
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace).get("location"))
+        .isEqualTo(namespaceLocation);
+  }
+
+  @Test
   public void testSetProperties() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     Map<String, String> testMetadata =
