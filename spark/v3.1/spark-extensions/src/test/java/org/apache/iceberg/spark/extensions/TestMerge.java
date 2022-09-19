@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
@@ -367,48 +366,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
-  }
-
-  @Test
-  public void testMergeWithDisabledCardinalityCheck() {
-    createAndInitTable(
-        "id INT, dep STRING",
-        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-
-    createOrReplaceView(
-        "source",
-        "id INT, dep STRING",
-        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
-            + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
-            + "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
-            + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-
-    try {
-      // disable the cardinality check
-      sql(
-          "ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')",
-          tableName, MERGE_CARDINALITY_CHECK_ENABLED, false);
-
-      sql(
-          "MERGE INTO %s AS t USING source AS s "
-              + "ON t.id == s.id "
-              + "WHEN MATCHED AND t.id = 1 THEN "
-              + "  UPDATE SET * "
-              + "WHEN MATCHED AND t.id = 6 THEN "
-              + "  DELETE "
-              + "WHEN NOT MATCHED AND s.id = 2 THEN "
-              + "  INSERT *",
-          tableName);
-    } finally {
-      sql(
-          "ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')",
-          tableName, MERGE_CARDINALITY_CHECK_ENABLED, true);
-    }
-
-    assertEquals(
-        "Should have expected rows",
-        ImmutableList.of(row(1, "emp-id-1"), row(1, "emp-id-1"), row(2, "emp-id-2")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 

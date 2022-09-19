@@ -231,23 +231,6 @@ public class TestLocationProvider extends TableTestBase {
         "default data location should be used when object storage path not set",
         table.locationProvider().newDataLocation("file").contains(table.location() + "/data"));
 
-    String folderPath = "s3://random/folder/location";
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
-        .commit();
-
-    Assert.assertTrue(
-        "folder storage path should be used when set",
-        table.locationProvider().newDataLocation("file").contains(folderPath));
-
-    String objectPath = "s3://random/object/location";
-    table.updateProperties().set(TableProperties.OBJECT_STORE_PATH, objectPath).commit();
-
-    Assert.assertTrue(
-        "object storage path should be used when set",
-        table.locationProvider().newDataLocation("file").contains(objectPath));
-
     String dataPath = "s3://random/data/location";
     table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
 
@@ -263,16 +246,6 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertTrue(
         "default data location should be used when object storage path not set",
         table.locationProvider().newDataLocation("file").contains(table.location() + "/data"));
-
-    String folderPath = "s3://random/folder/location";
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
-        .commit();
-
-    Assert.assertTrue(
-        "folder storage path should be used when set",
-        table.locationProvider().newDataLocation("file").contains(folderPath));
 
     String dataPath = "s3://random/data/location";
     table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();

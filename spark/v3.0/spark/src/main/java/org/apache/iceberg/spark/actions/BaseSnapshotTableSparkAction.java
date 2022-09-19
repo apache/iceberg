@@ -177,8 +177,6 @@ public class BaseSnapshotTableSparkAction
     // remove any possible location properties from origin properties
     properties.remove(LOCATION);
     properties.remove(TableProperties.WRITE_METADATA_LOCATION);
-    properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-    properties.remove(TableProperties.OBJECT_STORE_PATH);
     properties.remove(TableProperties.WRITE_DATA_LOCATION);
 
     // set default and user-provided props

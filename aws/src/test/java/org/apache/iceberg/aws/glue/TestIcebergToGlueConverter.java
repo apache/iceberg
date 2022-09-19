@@ -45,8 +45,7 @@ public class TestIcebergToGlueConverter {
   private final Map<String, String> tableLocationProperties =
       ImmutableMap.of(
           TableProperties.WRITE_DATA_LOCATION, "s3://writeDataLoc",
-          TableProperties.WRITE_METADATA_LOCATION, "s3://writeMetaDataLoc",
-          TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "s3://writeFolderStorageLoc");
+          TableProperties.WRITE_METADATA_LOCATION, "s3://writeMetaDataLoc");
 
   @Test
   public void testToDatabaseName() {

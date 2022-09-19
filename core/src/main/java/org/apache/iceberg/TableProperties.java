@@ -224,14 +224,7 @@ public class TableProperties {
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
-  /** @deprecated Use {@link #WRITE_DATA_LOCATION} instead. */
-  @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
-
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
-
-  /** @deprecated Use {@link #WRITE_DATA_LOCATION} instead. */
-  @Deprecated
-  public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
@@ -331,19 +324,6 @@ public class TableProperties {
 
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = "copy-on-write";
-
-  /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
-   */
-  @Deprecated
-  public static final String MERGE_CARDINALITY_CHECK_ENABLED =
-      "write.merge.cardinality-check.enabled";
-  /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
-   */
-  @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 

@@ -65,8 +65,6 @@ class TableProperties(object):
     OBJECT_STORE_ENABLED = "write.object-storage.enabled"
     OBJECT_STORE_ENABLED_DEFAULT = False
 
-    OBJECT_STORE_PATH = "write.object-storage.path"
-
     WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl"
 
     WRITE_NEW_DATA_LOCATION = "write.folder-storage.path"

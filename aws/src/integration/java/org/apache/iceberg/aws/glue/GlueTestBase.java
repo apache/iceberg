@@ -70,8 +70,7 @@ public class GlueTestBase {
   // table location properties
   static final Map<String, String> tableLocationProperties = ImmutableMap.of(
       TableProperties.WRITE_DATA_LOCATION, "s3://" + testBucketName + "/writeDataLoc",
-      TableProperties.WRITE_METADATA_LOCATION, "s3://" + testBucketName + "/writeMetaDataLoc",
-      TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "s3://" + testBucketName + "/writeFolderStorageLoc");
+      TableProperties.WRITE_METADATA_LOCATION, "s3://" + testBucketName + "/writeMetaDataLoc");
 
   @BeforeClass
   public static void beforeClass() {

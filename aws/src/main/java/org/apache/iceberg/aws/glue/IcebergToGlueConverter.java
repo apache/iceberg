@@ -65,10 +65,7 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
   private static final List<String> ADDITIONAL_LOCATION_PROPERTIES =
       ImmutableList.of(
-          TableProperties.WRITE_DATA_LOCATION,
-          TableProperties.WRITE_METADATA_LOCATION,
-          TableProperties.OBJECT_STORE_PATH,
-          TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+          TableProperties.WRITE_DATA_LOCATION, TableProperties.WRITE_METADATA_LOCATION);
 
   // Attempt to set additionalLocations if available on the given AWS SDK version
   private static final DynMethods.UnboundMethod SET_ADDITIONAL_LOCATIONS =
