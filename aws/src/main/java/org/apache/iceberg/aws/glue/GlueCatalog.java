@@ -228,13 +228,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
 
     return new GlueTableOperations(
-        glue,
-        lockManager,
-        catalogName,
-        awsProperties,
-        properties(),
-        hadoopConf,
-        tableIdentifier);
+        glue, lockManager, catalogName, awsProperties, properties(), hadoopConf, tableIdentifier);
   }
 
   /**
