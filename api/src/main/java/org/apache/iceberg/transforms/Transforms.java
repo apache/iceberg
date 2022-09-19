@@ -252,6 +252,16 @@ public class Transforms {
   }
 
   /**
+   * Returns a week {@link Transform} for date or timestamp types.
+   *
+   * @param <T> Java type passed to this transform
+   * @return a week transform
+   */
+  public static <T> Transform<T, Integer> week() {
+    return Weeks.get();
+  }
+
+  /**
    * Returns a year {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform

@@ -460,6 +460,20 @@ public class PartitionSpec implements Serializable {
       return month(sourceName, sourceName + "_month");
     }
 
+    public Builder week(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      PartitionField field =
+              new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.week());
+      checkForRedundantPartitions(field);
+      fields.add(field);
+      return this;
+    }
+
+    public Builder week(String sourceName) {
+      return week(sourceName, sourceName + "_week");
+    }
+
     public Builder day(String sourceName, String targetName) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);

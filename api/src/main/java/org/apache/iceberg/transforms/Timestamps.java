@@ -35,6 +35,7 @@ import org.apache.iceberg.util.SerializableFunction;
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
   MONTH(ChronoUnit.MONTHS, "month"),
+  WEEK(ChronoUnit.WEEKS, "week"),
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
@@ -185,6 +186,8 @@ enum Timestamps implements Transform<Long, Integer> {
         return TransformUtil.humanYear(value);
       case MONTHS:
         return TransformUtil.humanMonth(value);
+      case WEEKS:
+        return TransformUtil.humanWeek(value);
       case DAYS:
         return TransformUtil.humanDay(value);
       case HOURS:

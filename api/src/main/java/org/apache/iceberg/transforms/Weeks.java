@@ -22,32 +22,30 @@ import java.io.ObjectStreamException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class Hours<T> extends TimeTransform<T> {
-  private static final Hours<?> INSTANCE = new Hours<>();
+public class Weeks<T> extends TimeTransform<T> {
+  private static final Weeks<?> INSTANCE = new Weeks<>();
 
   @SuppressWarnings("unchecked")
-  static <T> Hours<T> get() {
-    return (Hours<T>) INSTANCE;
+  static <T> Weeks<T> get() {
+    return (Weeks<T>) INSTANCE;
   }
 
   @Override
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
-    if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return (Transform<T, Integer>) Timestamps.HOUR;
+    switch (type.typeId()) {
+      case DATE:
+        return (Transform<T, Integer>) Dates.WEEK;
+      case TIMESTAMP:
+        return (Transform<T, Integer>) Timestamps.WEEK;
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
-
-    throw new IllegalArgumentException("Unsupported type: " + type);
-  }
-
-  @Override
-  public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
   }
 
   @Override
   public Type getResultType(Type sourceType) {
-    return Types.IntegerType.get();
+    return Types.DateType.get();
   }
 
   @Override
@@ -57,12 +55,10 @@ public class Hours<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return other == Timestamps.HOUR;
-    } else if (other instanceof Hours
-        || other instanceof Days
-        || other instanceof Weeks
-        || other instanceof Months
-        || other instanceof Years) {
+      return Timestamps.WEEK.satisfiesOrderOf(other);
+    } else if (other instanceof Dates) {
+      return Dates.WEEK.satisfiesOrderOf(other);
+    } else if (other instanceof Weeks || other instanceof Years) {
       return true;
     }
 
@@ -70,16 +66,16 @@ public class Hours<T> extends TimeTransform<T> {
   }
 
   @Override
-  public String toHumanString(Type alwaysInt, Integer value) {
-    return value != null ? TransformUtil.humanHour(value) : "null";
+  public String toHumanString(Type alwaysDate, Integer value) {
+    return value != null ? TransformUtil.humanWeek(value) : "null";
   }
 
   @Override
   public String toString() {
-    return "hour";
+    return "week";
   }
 
   Object writeReplace() throws ObjectStreamException {
-    return SerializationProxies.HoursTransformProxy.get();
+    return SerializationProxies.WeeksTransformProxy.get();
   }
 }

@@ -35,6 +35,7 @@ import org.apache.iceberg.util.SerializableFunction;
 enum Dates implements Transform<Integer, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
   MONTH(ChronoUnit.MONTHS, "month"),
+  WEEK(ChronoUnit.WEEKS, "week"),
   DAY(ChronoUnit.DAYS, "day");
 
   static class Apply implements SerializableFunction<Integer, Integer> {
