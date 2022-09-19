@@ -146,6 +146,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, false));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    otherMetadataFiles.addAll(ReachableFileUtil.statisticsFilesLocations(table));
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 
