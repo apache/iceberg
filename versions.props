@@ -28,6 +28,7 @@ org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.immutables:value = 2.9.2
+com.huaweicloud:esdk-obs-java-bundle = 3.22.3
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2
