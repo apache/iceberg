@@ -232,7 +232,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         lockManager,
         catalogName,
         awsProperties,
-        catalogProperties,
+        properties(),
         hadoopConf,
         tableIdentifier);
   }
