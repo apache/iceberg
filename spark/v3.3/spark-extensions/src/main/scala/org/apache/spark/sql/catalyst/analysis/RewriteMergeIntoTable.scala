@@ -269,16 +269,25 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
 
     val matchedConditions = matchedActions.map(actionCondition)
     val matchedOutputs = matchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val matchedActionsIgnoringDeletes = matchedActions.filter(filterDeleteAction)
+    val matchedOutputsIgnoringDeletes = matchedActionsIgnoringDeletes.
+      map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val notMatchedConditions = notMatchedActions.map(actionCondition)
     val notMatchedOutputs = notMatchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val notMatchedActionsIgnoringDeletes = notMatchedActions.filter(filterDeleteAction)
+    val notMatchedOutputsIgnoringDeletes = notMatchedActionsIgnoringDeletes.
+      map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
     // merged rows must contain values for the operation type and all read attrs
-    val mergeRowsOutput = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, operationTypeAttr +: readAttrs)
+    val mergeRowsOutput = buildMergeRowsOutput(
+      matchedOutputsIgnoringDeletes,
+      notMatchedOutputsIgnoringDeletes,
+      operationTypeAttr +: readAttrs)
 
     val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
@@ -303,6 +312,13 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
 
   private def actionCondition(action: MergeAction): Expression = {
     action.condition.getOrElse(TrueLiteral)
+  }
+
+  private def filterDeleteAction(action: MergeAction) = {
+    action match {
+      case _: DeleteAction => false
+      case _ => true
+    }
   }
 
   private def actionOutput(
@@ -360,7 +376,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     }.toMap
 
     attrs.zipWithIndex.map { case (attr, index) =>
-      attr.withNullability(nullabilityMap(index))
+      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)()
     }
   }
 
