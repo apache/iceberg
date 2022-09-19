@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -307,8 +306,10 @@ public class RESTCatalogAdapter implements RESTClient {
       Object body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
+    // Note: we only handle catalog API errors as OAuth calls are mocked
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
+
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
@@ -332,7 +333,7 @@ public class RESTCatalogAdapter implements RESTClient {
     }
 
     ErrorResponse error = errorBuilder.build();
-    errorHandler.accept(error);
+    errorHandler.handle(error);
 
     // if the error handler doesn't throw an exception, throw a generic one
     throw new RESTException("Unhandled error: %s", error);
@@ -340,10 +341,7 @@ public class RESTCatalogAdapter implements RESTClient {
 
   @Override
   public <T extends RESTResponse> T delete(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      String path, Class<T> responseType, Map<String, String> headers, ErrorHandler errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
@@ -353,7 +351,7 @@ public class RESTCatalogAdapter implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(HTTPMethod.POST, path, null, body, responseType, headers, errorHandler);
   }
 
@@ -363,12 +361,12 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(HTTPMethod.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public void head(String path, Map<String, String> headers, ErrorHandler errorHandler) {
     execute(HTTPMethod.HEAD, path, null, null, null, headers, errorHandler);
   }
 
@@ -378,7 +376,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return execute(HTTPMethod.POST, path, null, formData, responseType, headers, errorHandler);
   }
 

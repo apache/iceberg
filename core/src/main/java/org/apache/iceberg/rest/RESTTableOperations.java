@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
@@ -35,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
-import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 
 class RESTTableOperations implements TableOperations {
@@ -102,7 +100,7 @@ class RESTTableOperations implements TableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     UpdateTableRequest.Builder requestBuilder;
     List<MetadataUpdate> baseChanges;
-    Consumer<ErrorResponse> errorHandler;
+    ErrorHandler errorHandler;
     switch (updateType) {
       case CREATE:
         Preconditions.checkState(

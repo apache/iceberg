@@ -20,48 +20,39 @@ package org.apache.iceberg.rest;
 
 import java.io.Closeable;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.responses.ErrorResponse;
 
 /** Interface for a basic HTTP Client for interfacing with the REST catalog. */
 public interface RESTClient extends Closeable {
 
-  default void head(
-      String path, Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {
+  default void head(String path, Supplier<Map<String, String>> headers, ErrorHandler errorHandler) {
     head(path, headers.get(), errorHandler);
   }
 
-  void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler);
+  void head(String path, Map<String, String> headers, ErrorHandler errorHandler);
 
   default <T extends RESTResponse> T delete(
       String path,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return delete(path, responseType, headers.get(), errorHandler);
   }
 
   <T extends RESTResponse> T delete(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler);
+      String path, Class<T> responseType, Map<String, String> headers, ErrorHandler errorHandler);
 
   default <T extends RESTResponse> T get(
       String path,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
   }
 
   default <T extends RESTResponse> T get(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      String path, Class<T> responseType, Map<String, String> headers, ErrorHandler errorHandler) {
     return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
   }
 
@@ -70,7 +61,7 @@ public interface RESTClient extends Closeable {
       Map<String, String> queryParams,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return get(path, queryParams, responseType, headers.get(), errorHandler);
   }
 
@@ -79,14 +70,14 @@ public interface RESTClient extends Closeable {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler);
+      ErrorHandler errorHandler);
 
   default <T extends RESTResponse> T post(
       String path,
       RESTRequest body,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return post(path, body, responseType, headers.get(), errorHandler);
   }
 
@@ -95,14 +86,14 @@ public interface RESTClient extends Closeable {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler);
+      ErrorHandler errorHandler);
 
   default <T extends RESTResponse> T postForm(
       String path,
       Map<String, String> formData,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      ErrorHandler errorHandler) {
     return postForm(path, formData, responseType, headers.get(), errorHandler);
   }
 
@@ -111,5 +102,5 @@ public interface RESTClient extends Closeable {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler);
+      ErrorHandler errorHandler);
 }

@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -43,7 +42,6 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
-import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
@@ -98,7 +96,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Object body,
               Class<T> responseType,
               Map<String, String> headers,
-              Consumer<ErrorResponse> errorHandler) {
+              ErrorHandler errorHandler) {
             // this doesn't use a Mockito spy because this is used for catalog tests, which have
             // different method calls
             if (!"v1/oauth/tokens".equals(path)) {
@@ -193,7 +191,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Map<String, String> queryParams,
               Class<T> responseType,
               Map<String, String> headers,
-              Consumer<ErrorResponse> errorHandler) {
+              ErrorHandler errorHandler) {
             if ("v1/config".equals(path)) {
               return castResponse(
                   responseType,

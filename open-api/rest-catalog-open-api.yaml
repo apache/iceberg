@@ -173,11 +173,7 @@ paths:
         400:
           $ref: '#/components/responses/OAuthErrorResponse'
         401:
-          $ref: '#/components/responses/UnauthorizedResponse'
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
-          $ref: '#/components/responses/ServerErrorResponse'
+          $ref: '#/components/responses/OAuthErrorResponse'
 
   /v1/{prefix}/namespaces:
     parameters:

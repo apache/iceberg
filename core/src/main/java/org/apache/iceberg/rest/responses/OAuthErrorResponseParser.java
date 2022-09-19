@@ -22,57 +22,43 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class ErrorResponseParser {
+public class OAuthErrorResponseParser {
 
-  private ErrorResponseParser() {}
+  private OAuthErrorResponseParser() {}
 
   private static final String ERROR = "error";
-  private static final String MESSAGE = "message";
-  private static final String TYPE = "type";
-  private static final String CODE = "code";
-  private static final String STACK = "stack";
+  private static final String ERROR_DESCRIPTION = "error_description";
+  private static final String ERROR_URI = "error_uri";
 
-  public static String toJson(ErrorResponse errorResponse) {
+  public static String toJson(OAuthErrorResponse errorResponse) {
     return toJson(errorResponse, false);
   }
 
-  public static String toJson(ErrorResponse errorResponse, boolean pretty) {
+  public static String toJson(OAuthErrorResponse errorResponse, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(errorResponse, gen), pretty);
   }
 
-  public static void toJson(ErrorResponse errorResponse, JsonGenerator generator)
+  public static void toJson(OAuthErrorResponse errorResponse, JsonGenerator generator)
       throws IOException {
     generator.writeStartObject();
 
-    generator.writeObjectFieldStart(ERROR);
-
-    generator.writeStringField(MESSAGE, errorResponse.message());
-    generator.writeStringField(TYPE, errorResponse.type());
-    generator.writeNumberField(CODE, errorResponse.code());
-    if (errorResponse.stack() != null) {
-      generator.writeArrayFieldStart(STACK);
-      for (String line : errorResponse.stack()) {
-        generator.writeString(line);
-      }
-      generator.writeEndArray();
-    }
-
-    generator.writeEndObject();
+    generator.writeStringField(ERROR, errorResponse.error());
+    generator.writeStringField(ERROR_DESCRIPTION, errorResponse.errorDescription());
+    generator.writeStringField(ERROR_URI, errorResponse.errorUri());
 
     generator.writeEndObject();
   }
 
   /**
-   * Read ErrorResponse from a JSON string.
+   * Read OAuthErrorResponse from a JSON string.
    *
-   * @param json a JSON string of an ErrorResponse
-   * @return an ErrorResponse object
+   * @param json a JSON string of an OAuthErrorResponse
+   * @return an OAuthErrorResponse object
    */
-  public static ErrorResponse fromJson(String json) {
+  public static OAuthErrorResponse fromJson(String json) {
     try {
       return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
@@ -80,21 +66,18 @@ public class ErrorResponseParser {
     }
   }
 
-  public static ErrorResponse fromJson(JsonNode jsonNode) {
+  public static OAuthErrorResponse fromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(
         jsonNode != null && jsonNode.isObject(),
         "Cannot parse error response from non-object value: %s",
         jsonNode);
-    JsonNode error = JsonUtil.get(ERROR, jsonNode);
-    String message = JsonUtil.getStringOrNull(MESSAGE, error);
-    String type = JsonUtil.getStringOrNull(TYPE, error);
-    Integer code = JsonUtil.getIntOrNull(CODE, error);
-    List<String> stack = JsonUtil.getStringListOrNull(STACK, error);
-    return ErrorResponse.builder()
-        .withMessage(message)
-        .withType(type)
-        .responseCode(code)
-        .withStackTrace(stack)
+    String error = JsonUtil.getString(ERROR, jsonNode);
+    String errorDescription = JsonUtil.getStringOrNull(ERROR_DESCRIPTION, jsonNode);
+    String errorUri = JsonUtil.getStringOrNull(ERROR_URI, jsonNode);
+    return OAuthErrorResponse.builder()
+        .withError(error)
+        .withErrorDescription(errorDescription)
+        .withErrorUri(errorUri)
         .build();
   }
 }
