@@ -309,6 +309,13 @@ public interface Table {
   LocationProvider locationProvider();
 
   /**
+   * Returns the current statistics files for the table
+   *
+   * @return the current statistics files for the table
+   */
+  List<StatisticsFile> statisticsFiles();
+
+  /**
    * Returns the current refs for the table
    *
    * @return the current refs for the table
