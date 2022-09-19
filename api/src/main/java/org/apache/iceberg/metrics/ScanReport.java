@@ -131,6 +131,12 @@ public interface ScanReport {
     @Nullable
     CounterResult skippedDeleteFiles();
 
+    @Nullable
+    CounterResult scannedDeleteManifests();
+
+    @Nullable
+    CounterResult skippedDeleteManifests();
+
     static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
       Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
       return ImmutableScanMetricsResult.builder()
@@ -146,6 +152,8 @@ public interface ScanReport {
               CounterResult.fromCounter(scanMetrics.totalDeleteFileSizeInBytes()))
           .skippedDataFiles(CounterResult.fromCounter(scanMetrics.skippedDataFiles()))
           .skippedDeleteFiles(CounterResult.fromCounter(scanMetrics.skippedDeleteFiles()))
+          .scannedDeleteManifests(CounterResult.fromCounter(scanMetrics.scannedDeleteManifests()))
+          .skippedDeleteManifests(CounterResult.fromCounter(scanMetrics.skippedDeleteManifests()))
           .build();
     }
   }
@@ -157,11 +165,13 @@ public interface ScanReport {
     public static final String RESULT_DATA_FILES = "result-data-files";
     public static final String RESULT_DELETE_FILES = "result-delete-files";
     public static final String SCANNED_DATA_MANIFESTS = "scanned-data-manifests";
+    public static final String SCANNED_DELETE_MANIFESTS = "scanned-delete-manifests";
     public static final String TOTAL_DATA_MANIFESTS = "total-data-manifests";
     public static final String TOTAL_DELETE_MANIFESTS = "total-delete-manifests";
     public static final String TOTAL_FILE_SIZE_IN_BYTES = "total-file-size-in-bytes";
     public static final String TOTAL_DELETE_FILE_SIZE_IN_BYTES = "total-delete-file-size-in-bytes";
     public static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
+    public static final String SKIPPED_DELETE_MANIFESTS = "skipped-delete-manifests";
     public static final String SKIPPED_DATA_FILES = "skipped-data-files";
     public static final String SKIPPED_DELETE_FILES = "skipped-delete-files";
 
@@ -224,6 +234,16 @@ public interface ScanReport {
     @Value.Derived
     public Counter skippedDeleteFiles() {
       return metricsContext().counter(SKIPPED_DELETE_FILES, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter scannedDeleteManifests() {
+      return metricsContext().counter(SCANNED_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter skippedDeleteManifests() {
+      return metricsContext().counter(SKIPPED_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
     }
 
     public static ScanMetrics of(MetricsContext metricsContext) {

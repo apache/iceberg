@@ -529,16 +529,21 @@ class DeleteFileIndex {
                             caseSensitive);
                       });
 
-      Iterable<ManifestFile> matchingManifests =
+      CloseableIterable<ManifestFile> closeableDeleteManifests =
+          CloseableIterable.withNoopClose(deleteManifests);
+      CloseableIterable<ManifestFile> matchingManifests =
           evalCache == null
-              ? deleteManifests
-              : Iterables.filter(
-                  deleteManifests,
+              ? closeableDeleteManifests
+              : CloseableIterable.filter(
+                  scanMetrics.skippedDeleteManifests(),
+                  closeableDeleteManifests,
                   manifest ->
                       manifest.content() == ManifestContent.DELETES
                           && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
                           && evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
+      matchingManifests =
+          CloseableIterable.count(scanMetrics.scannedDeleteManifests(), matchingManifests);
       return Iterables.transform(
           matchingManifests,
           manifest ->
