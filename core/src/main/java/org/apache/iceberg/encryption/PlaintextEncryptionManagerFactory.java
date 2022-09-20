@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.io.IOException;
 import org.apache.iceberg.TableMetadata;
 
 public class PlaintextEncryptionManagerFactory implements EncryptionManagerFactory {
@@ -27,4 +28,7 @@ public class PlaintextEncryptionManagerFactory implements EncryptionManagerFacto
   public EncryptionManager create(TableMetadata tableMetadata) {
     return new PlaintextEncryptionManager();
   }
+
+  @Override
+  public void close() throws IOException {}
 }

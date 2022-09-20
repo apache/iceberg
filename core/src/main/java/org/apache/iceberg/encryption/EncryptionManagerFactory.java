@@ -19,7 +19,6 @@
 package org.apache.iceberg.encryption;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
 
@@ -31,6 +30,7 @@ public interface EncryptionManagerFactory extends Closeable {
    * @param properties catalog properties
    */
   default void initialize(Map<String, String> properties) {}
+
   /**
    * Create encryption manager from table metadata.
    *
@@ -38,14 +38,4 @@ public interface EncryptionManagerFactory extends Closeable {
    * @return created encryption manager instance.
    */
   EncryptionManager create(TableMetadata tableMetadata);
-
-  /**
-   * Close EncryptionManagerFactory to release underlying resources.
-   *
-   * <p>Calling this method is only required when this EncryptionManagerFactory instance is no
-   * longer expected to be used, and the resources it holds need to be explicitly released to avoid
-   * resource leaks.
-   */
-  @Override
-  default void close() throws IOException {}
 }
