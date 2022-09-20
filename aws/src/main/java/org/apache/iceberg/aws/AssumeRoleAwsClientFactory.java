@@ -116,6 +116,9 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private String genSessionName() {
+    if (awsProperties.clientAssumeRoleSessionName() != null) {
+      return awsProperties.clientAssumeRoleSessionName();
+    }
     return String.format("iceberg-aws-%s", UUID.randomUUID());
   }
 }
