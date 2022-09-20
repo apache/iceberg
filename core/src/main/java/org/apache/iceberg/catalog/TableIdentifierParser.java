@@ -21,7 +21,6 @@ package org.apache.iceberg.catalog;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,18 +53,7 @@ public class TableIdentifierParser {
   }
 
   public static String toJson(TableIdentifier identifier, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(identifier, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write json for: %s", identifier), e);
-    }
+    return JsonUtil.generate(gen -> toJson(identifier, gen), pretty);
   }
 
   public static void toJson(TableIdentifier identifier, JsonGenerator generator)
