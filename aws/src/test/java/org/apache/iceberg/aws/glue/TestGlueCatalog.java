@@ -80,7 +80,8 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null);
+        null,
+        ImmutableMap.of());
   }
 
   @Test
@@ -97,7 +98,8 @@ public class TestGlueCatalog {
               new AwsProperties(),
               glue,
               LockManagers.defaultLockManager(),
-              null);
+              null,
+              ImmutableMap.of());
         });
   }
 
@@ -110,7 +112,8 @@ public class TestGlueCatalog {
         new AwsProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        null);
+        null,
+        ImmutableMap.of());
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
         .when(glue)
@@ -582,7 +585,13 @@ public class TestGlueCatalog {
     AwsProperties props = new AwsProperties();
     props.setGlueCatalogSkipNameValidation(true);
     glueCatalog.initialize(
-        CATALOG_NAME, WAREHOUSE_PATH, props, glue, LockManagers.defaultLockManager(), null);
+        CATALOG_NAME,
+        WAREHOUSE_PATH,
+        props,
+        glue,
+        LockManagers.defaultLockManager(),
+        null,
+        ImmutableMap.of());
     Assert.assertEquals(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")), true);
   }
 }
