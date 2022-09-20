@@ -84,6 +84,9 @@ public class TestScanReportParser {
     scanMetrics.skippedDeleteFiles().increment(3L);
     scanMetrics.scannedDeleteManifests().increment(3L);
     scanMetrics.skippedDeleteManifests().increment(3L);
+    scanMetrics.indexedDeleteFiles().increment(10L);
+    scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.equalityDeleteFiles().increment(4L);
 
     String tableName = "roundTripTableName";
     Schema projection =
@@ -114,6 +117,9 @@ public class TestScanReportParser {
                     + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"scanned-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
                     + "\"skipped-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"indexed-delete-files\":{\"unit\":\"count\",\"value\":10},"
+                    + "\"equality-delete-files\":{\"unit\":\"count\",\"value\":4},"
+                    + "\"positional-delete-files\":{\"unit\":\"count\",\"value\":6},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .usingRecursiveComparison()
@@ -174,6 +180,9 @@ public class TestScanReportParser {
     scanMetrics.skippedDeleteFiles().increment(3L);
     scanMetrics.scannedDeleteManifests().increment(3L);
     scanMetrics.skippedDeleteManifests().increment(3L);
+    scanMetrics.indexedDeleteFiles().increment(10L);
+    scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.equalityDeleteFiles().increment(4L);
 
     String tableName = "roundTripTableName";
     Schema projection =
@@ -256,6 +265,18 @@ public class TestScanReportParser {
             + "    \"skipped-delete-manifests\" : {\n"
             + "      \"unit\" : \"count\",\n"
             + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"indexed-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 10\n"
+            + "    },\n"
+            + "    \"equality-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 4\n"
+            + "    },\n"
+            + "    \"positional-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 6\n"
             + "    }\n"
             + "  }\n"
             + "}";
