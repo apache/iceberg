@@ -173,22 +173,30 @@ def _(schema: Schema, struct: AvroStruct) -> Dict[str, Any]:
 @_convert_pos_to_dict.register
 def _(struct_type: StructType, values: AvroStruct) -> Dict[str, Any]:
     """Iterates over all the fields in the dict, and gets the data from the struct"""
-    return {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
+    return (
+        {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
+        if values is not None
+        else None
+    )
 
 
 @_convert_pos_to_dict.register
 def _(list_type: ListType, values: List[Any]) -> Any:
     """In the case of a list, we'll go over the elements in the list to handle complex types"""
-    return [_convert_pos_to_dict(list_type.element_type, value) for value in values]
+    return [_convert_pos_to_dict(list_type.element_type, value) for value in values] if values is not None else None
 
 
 @_convert_pos_to_dict.register
 def _(map_type: MapType, values: Dict) -> Dict:
     """In the case of a map, we both traverse over the key and value to handle complex types"""
-    return {
-        _convert_pos_to_dict(map_type.key_type, key): _convert_pos_to_dict(map_type.value_type, value)
-        for key, value in values.items()
-    }
+    return (
+        {
+            _convert_pos_to_dict(map_type.key_type, key): _convert_pos_to_dict(map_type.value_type, value)
+            for key, value in values.items()
+        }
+        if values is not None
+        else None
+    )
 
 
 @_convert_pos_to_dict.register
