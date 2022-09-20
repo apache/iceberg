@@ -46,6 +46,8 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 CURRENT_SNAPSHOT_ID = "current_snapshot_id"
 CURRENT_SCHEMA_ID = "current_schema_id"
 SCHEMAS = "schemas"
+DEFAULT_SPEC_ID = "default_spec_id"
+PARTITION_SPEC = "partition_spec"
 PARTITION_SPECS = "partition_specs"
 SORT_ORDERS = "sort_orders"
 REFS = "refs"
@@ -261,8 +263,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             The TableMetadata with the partition_specs set, if not provided
         """
         if not data.get(PARTITION_SPECS):
-            fields = data["partition_spec"]
-            data[PARTITION_SPECS] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
+            fields = data[PARTITION_SPEC]
+            migrated_spec = PartitionSpec(*fields)
+            data[PARTITION_SPECS] = [migrated_spec]
+            data[DEFAULT_SPEC_ID] = migrated_spec.spec_id
         else:
             check_partition_specs(data)
 
