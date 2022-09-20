@@ -20,7 +20,6 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Arrays;
 import java.util.List;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -124,9 +123,9 @@ public class TestErrorResponseParser {
   }
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
-    Assertions.assertThat(actual.message()).isEqualTo(expected.message());
-    Assertions.assertThat(actual.type()).isEqualTo(expected.type());
-    Assertions.assertThat(actual.code()).isEqualTo(expected.code());
-    Assertions.assertThat(actual.stack()).isEqualTo(expected.stack());
+    Assert.assertEquals("Message should be equal", expected.message(), actual.message());
+    Assert.assertEquals("Type should be equal", expected.type(), actual.type());
+    Assert.assertEquals("Response code should be equal", expected.code(), actual.code());
+    Assert.assertEquals("Stack should be equal", expected.stack(), actual.stack());
   }
 }

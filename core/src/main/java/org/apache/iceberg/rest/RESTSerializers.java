@@ -46,8 +46,6 @@ import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.apache.iceberg.rest.responses.OAuthErrorResponse;
-import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -60,8 +58,6 @@ public class RESTSerializers {
     module
         .addSerializer(ErrorResponse.class, new ErrorResponseSerializer())
         .addDeserializer(ErrorResponse.class, new ErrorResponseDeserializer())
-        .addSerializer(OAuthErrorResponse.class, new OAuthErrorResponseSerializer())
-        .addDeserializer(OAuthErrorResponse.class, new OAuthErrorResponseDeserializer())
         .addSerializer(TableIdentifier.class, new TableIdentifierSerializer())
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
@@ -150,24 +146,6 @@ public class RESTSerializers {
         ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       ErrorResponseParser.toJson(errorResponse, gen);
-    }
-  }
-
-  public static class OAuthErrorResponseDeserializer extends JsonDeserializer<OAuthErrorResponse> {
-    @Override
-    public OAuthErrorResponse deserialize(JsonParser p, DeserializationContext context)
-        throws IOException {
-      JsonNode node = p.getCodec().readTree(p);
-      return OAuthErrorResponseParser.fromJson(node);
-    }
-  }
-
-  public static class OAuthErrorResponseSerializer extends JsonSerializer<OAuthErrorResponse> {
-    @Override
-    public void serialize(
-        OAuthErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
-      OAuthErrorResponseParser.toJson(errorResponse, gen);
     }
   }
 

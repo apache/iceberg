@@ -18,11 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -33,6 +28,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.IcebergBuild;
@@ -120,9 +117,12 @@ public class TestHTTPClient {
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
-
-    ErrorHandler onError = mock(ErrorHandler.class);
-    doThrow(new RuntimeException("Failure response")).when(onError).handle(any());
+    AtomicInteger errorCounter = new AtomicInteger(0);
+    Consumer<ErrorResponse> onError =
+        (error) -> {
+          errorCounter.incrementAndGet();
+          throw new RuntimeException("Failure response");
+        };
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -134,22 +134,23 @@ public class TestHTTPClient {
           successResponse,
           body);
     }
-
-    verify(onError, never()).handle(any());
+    Assert.assertEquals(
+        "On a successful " + method + ", the error handler should not be called",
+        0,
+        errorCounter.get());
   }
 
   public static void testHttpMethodOnFailure(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 404;
-
-    ErrorHandler onError = mock(ErrorHandler.class);
-    doThrow(
-            new RuntimeException(
-                String.format(
-                    "Called error handler for method %s due to status code: %d",
-                    method, statusCode)))
-        .when(onError)
-        .handle(any());
+    AtomicInteger errorCounter = new AtomicInteger(0);
+    Consumer<ErrorResponse> onError =
+        error -> {
+          errorCounter.incrementAndGet();
+          throw new RuntimeException(
+              String.format(
+                  "Called error handler for method %s due to status code: %d", method, statusCode));
+        };
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -160,7 +161,10 @@ public class TestHTTPClient {
             "Called error handler for method %s due to status code: %d", method, statusCode),
         () -> doExecuteRequest(method, path, body, onError));
 
-    verify(onError).handle(any());
+    Assert.assertEquals(
+        "On an unsuccessful " + method + ", the error handler should be called",
+        1,
+        errorCounter.get());
   }
 
   // Adds a request that the mock-server can match against, based on the method, path, body, and
@@ -210,7 +214,7 @@ public class TestHTTPClient {
   }
 
   private static Item doExecuteRequest(
-      HttpMethod method, String path, Item body, ErrorHandler onError) {
+      HttpMethod method, String path, Item body, Consumer<ErrorResponse> onError) {
     Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
