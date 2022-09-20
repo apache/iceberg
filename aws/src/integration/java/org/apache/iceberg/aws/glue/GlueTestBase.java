@@ -79,18 +79,18 @@ public class GlueTestBase {
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     glueCatalog = new GlueCatalog();
     glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(), glue,
-            LockManagers.defaultLockManager(), fileIO);
+            LockManagers.defaultLockManager(), fileIO, ImmutableMap.of());
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(true);
     properties.setS3FileIoDeleteBatchSize(10);
     glueCatalogWithSkip = new GlueCatalog();
     glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue,
-            LockManagers.defaultLockManager(), fileIO);
+            LockManagers.defaultLockManager(), fileIO, ImmutableMap.of());
     glueCatalogWithSkipNameValidation = new GlueCatalog();
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
     glueCatalogWithSkipNameValidation.initialize(catalogName, testBucketPath, propertiesSkipNameValidation, glue,
-            LockManagers.defaultLockManager(), fileIO);
+            LockManagers.defaultLockManager(), fileIO, ImmutableMap.of());
   }
 
   @AfterClass
