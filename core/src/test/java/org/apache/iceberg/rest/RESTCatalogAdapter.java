@@ -46,8 +46,14 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
@@ -87,27 +93,54 @@ public class RESTCatalogAdapter implements RESTClient {
     DELETE
   }
 
-  private enum Route {
-    TOKENS(HTTPMethod.POST, "v1/oauth/tokens"),
-    CONFIG(HTTPMethod.GET, "v1/config"),
-    LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces"),
-    CREATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces"),
-    LOAD_NAMESPACE(HTTPMethod.GET, "v1/namespaces/{namespace}"),
+  enum Route {
+    TOKENS(HTTPMethod.POST, "v1/oauth/tokens", null, OAuthTokenResponse.class),
+    CONFIG(HTTPMethod.GET, "v1/config", null, ConfigResponse.class),
+    LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces", null, ListNamespacesResponse.class),
+    CREATE_NAMESPACE(
+        HTTPMethod.POST,
+        "v1/namespaces",
+        CreateNamespaceRequest.class,
+        CreateNamespaceResponse.class),
+    LOAD_NAMESPACE(HTTPMethod.GET, "v1/namespaces/{namespace}", null, GetNamespaceResponse.class),
     DROP_NAMESPACE(HTTPMethod.DELETE, "v1/namespaces/{namespace}"),
-    UPDATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces/{namespace}/properties"),
-    LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables"),
-    CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables"),
-    LOAD_TABLE(HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}"),
-    UPDATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables/{table}"),
+    UPDATE_NAMESPACE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/properties",
+        UpdateNamespacePropertiesRequest.class,
+        UpdateNamespacePropertiesResponse.class),
+    LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables", null, ListTablesResponse.class),
+    CREATE_TABLE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables",
+        CreateTableRequest.class,
+        LoadTableResponse.class),
+    LOAD_TABLE(
+        HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}", null, LoadTableResponse.class),
+    UPDATE_TABLE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables/{table}",
+        UpdateTableRequest.class,
+        LoadTableResponse.class),
     DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}"),
-    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename");
+    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename", RenameTableRequest.class, null);
 
     private final HTTPMethod method;
     private final int requriedLength;
     private final Map<Integer, String> requirements;
     private final Map<Integer, String> variables;
+    private final Class<? extends RESTRequest> requestClass;
+    private final Class<? extends RESTResponse> responseClass;
 
     Route(HTTPMethod method, String pattern) {
+      this(method, pattern, null, null);
+    }
+
+    Route(
+        HTTPMethod method,
+        String pattern,
+        Class<? extends RESTRequest> requestClass,
+        Class<? extends RESTResponse> responseClass) {
       this.method = method;
 
       // parse the pattern into requirements and variables
@@ -122,6 +155,9 @@ public class RESTCatalogAdapter implements RESTClient {
           requirementsBuilder.put(pos, part);
         }
       }
+
+      this.requestClass = requestClass;
+      this.responseClass = responseClass;
 
       this.requriedLength = parts.size();
       this.requirements = requirementsBuilder.build();
@@ -154,6 +190,14 @@ public class RESTCatalogAdapter implements RESTClient {
       }
 
       return null;
+    }
+
+    public Class<? extends RESTRequest> getRequestClass() {
+      return requestClass;
+    }
+
+    public Class<? extends RESTResponse> getResponseClass() {
+      return responseClass;
     }
   }
 
