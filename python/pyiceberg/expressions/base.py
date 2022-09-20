@@ -773,7 +773,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
 
 @singledispatch
 def visit_bound_predicate(obj, visitor: BooleanExpressionVisitor[T]) -> T:  # pylint: disable=unused-argument
-    pass
+    raise TypeError(f"Unknown predicate: {obj}")
 
 
 @visit_bound_predicate.register(BoundIn)
