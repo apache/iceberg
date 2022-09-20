@@ -687,16 +687,72 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
 
 class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     @abstractmethod
-    def visit_in(self, ref: BoundReference[T], literals: set[Literal[Any]]) -> T:
-        """Visit the ref and literals from an In boolean expression
-        Args:
-            ref (BoundReference[T]): The ref used in the In boolean expression
-            literals (Tuple[Literal[T], ...]): The literals used in the In boolean expression
-        Raises:
-            NotImplementedError: If the concrete bound boolean expression visitor does not override this method
-        Returns:
-            R: The return type defined by the concrete bound boolean expression visitor
-        """
+    def visit_in(self, term: BoundTerm[T], literals: set[Literal[Any]]) -> T:
+        """Visit a bound In predicate"""
+
+    @abstractmethod
+    def visit_not_in(self, term: BoundTerm[T], literals: set[Literal[Any]]) -> T:
+        """Visit a bound NotIn predicate"""
+
+    @abstractmethod
+    def visit_is_nan(self, term: BoundTerm[T]) -> T:
+        """Visit a bound IsNan predicate"""
+
+    @abstractmethod
+    def visit_not_nan(self, term: BoundTerm[T]) -> T:
+        """Visit a bound NotNan predicate"""
+
+    @abstractmethod
+    def visit_is_null(self, term: BoundTerm[T]) -> T:
+        """Visit a bound IsNull predicate"""
+
+    @abstractmethod
+    def visit_not_null(self, term: BoundTerm[T]) -> T:
+        """Visit a bound NotNull predicate"""
+
+    @abstractmethod
+    def visit_equal(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound Equal predicate"""
+
+    @abstractmethod
+    def visit_not_equal(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound NotEqual predicate"""
+
+    @abstractmethod
+    def visit_greater_than_or_equal(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound GreaterThanOrEqual predicate"""
+
+    @abstractmethod
+    def visit_greater_than(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound GreaterThan predicate"""
+
+    @abstractmethod
+    def visit_less_than(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound LessThan predicate"""
+
+    @abstractmethod
+    def visit_less_than_or_equal(self, term: BoundTerm[T], literal: Literal[Any]) -> T:
+        """Visit a bound LessThanOrEqual predicate"""
+
+    @abstractmethod
+    def visit_true(self) -> T:
+        """Visit a bound True predicate"""
+
+    @abstractmethod
+    def visit_false(self) -> T:
+        """Visit a bound False predicate"""
+
+    @abstractmethod
+    def visit_not(self, child_result: T) -> T:
+        """Visit a bound Not predicate"""
+
+    @abstractmethod
+    def visit_and(self, left_result: T, right_result: T) -> T:
+        """Visit a bound And predicate"""
+
+    @abstractmethod
+    def visit_or(self, left_result: T, right_result: T) -> T:
+        """Visit a bound Or predicate"""
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[T]):
         """Visit an unbound predicate
@@ -711,14 +767,82 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
         """Visit a bound predicate
         Args:
             predicate (BoundPredicate[T]): A bound predicate
-        Raises:
-            TypeError: When an unsupported predicate is found
-        Returns:
-            R: The return type defined by the concrete bound boolean expression visitor
         """
-        if not isinstance(predicate.term, BoundReference):
-            raise TypeError(f"{type(self).__name__} does not support non-reference: {predicate.term}")
-        elif isinstance(predicate, BoundIn):
-            return self.visit_in(ref=predicate.term, literals=predicate.literals)
+        return visit_bound_predicate(predicate, self)
 
-        raise TypeError(f"Unsupported predicate type: {predicate}")
+
+@singledispatch
+def visit_bound_predicate(obj, visitor: BooleanExpressionVisitor[T]) -> T:  # pylint: disable=unused-argument
+    pass
+
+
+@visit_bound_predicate.register(BoundIn)
+def _(obj: BoundIn, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound In predicate"""
+    return visitor.visit_in(term=obj.term, literals=obj.literals)
+
+
+@visit_bound_predicate.register(BoundNotIn)
+def _(obj: BoundNotIn, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound NotIn predicate"""
+    return visitor.visit_not_in(term=obj.term, literals=obj.literals)
+
+
+@visit_bound_predicate.register(BoundIsNaN)
+def _(obj: BoundIsNaN, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound IsNan predicate"""
+    return visitor.visit_is_nan(term=obj.term)
+
+
+@visit_bound_predicate.register(BoundNotNaN)
+def _(obj: BoundNotNaN, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound NotNan predicate"""
+    return visitor.visit_not_nan(term=obj.term)
+
+
+@visit_bound_predicate.register(BoundIsNull)
+def _(obj: BoundIsNull, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound IsNull predicate"""
+    return visitor.visit_is_null(term=obj.term)
+
+
+@visit_bound_predicate.register(BoundNotNull)
+def _(obj: BoundNotNull, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound NotNull predicate"""
+    return visitor.visit_not_null(term=obj.term)
+
+
+@visit_bound_predicate.register(BoundEqualTo)
+def _(obj: BoundEqualTo, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound EqualTo predicate"""
+    return visitor.visit_equal(term=obj.term, literal=obj.literal)
+
+
+@visit_bound_predicate.register(BoundNotEqualTo)
+def _(obj: BoundNotEqualTo, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound NotEqualTo predicate"""
+    return visitor.visit_not_equal(term=obj.term, literal=obj.literal)
+
+
+@visit_bound_predicate.register(BoundGreaterThanOrEqual)
+def _(obj: BoundGreaterThanOrEqual, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound GreaterThanOrEqual predicate"""
+    return visitor.visit_greater_than_or_equal(term=obj.term, literal=obj.literal)
+
+
+@visit_bound_predicate.register(BoundGreaterThan)
+def _(obj: BoundGreaterThan, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound GreaterThan predicate"""
+    return visitor.visit_greater_than(term=obj.term, literal=obj.literal)
+
+
+@visit_bound_predicate.register(BoundLessThan)
+def _(obj: BoundLessThan, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound LessThan predicate"""
+    return visitor.visit_less_than(term=obj.term, literal=obj.literal)
+
+
+@visit_bound_predicate.register(BoundLessThanOrEqual)
+def _(obj: BoundLessThanOrEqual, visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    """Visit a bound LessThanOrEqual predicate"""
+    return visitor.visit_less_than_or_equal(term=obj.term, literal=obj.literal)

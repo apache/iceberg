@@ -22,7 +22,12 @@ from typing import List, Set
 import pytest
 
 from pyiceberg.expressions import base
-from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
+from pyiceberg.expressions.literals import (
+    Literal,
+    LongLiteral,
+    StringLiteral,
+    literal,
+)
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
@@ -124,23 +129,72 @@ class FooBoundBooleanExpressionVisitor(base.BoundBooleanExpressionVisitor[List])
     def __init__(self):
         self.visit_history: List = []
 
+    def visit_in(self, term: base.BoundTerm, literals: Set) -> List:
+        self.visit_history.append("IN")
+        return self.visit_history
+
+    def visit_not_in(self, term: base.BoundTerm, literals: Set) -> List:
+        self.visit_history.append("NOT_IN")
+        return self.visit_history
+
+    def visit_is_nan(self, term: base.BoundTerm) -> List:
+        self.visit_history.append("IS_NAN")
+        return self.visit_history
+
+    def visit_not_nan(self, term: base.BoundTerm) -> List:
+        self.visit_history.append("NOT_NAN")
+        return self.visit_history
+
+    def visit_is_null(self, term: base.BoundTerm) -> List:
+        self.visit_history.append("IS_NULL")
+        return self.visit_history
+
+    def visit_not_null(self, term: base.BoundTerm) -> List:
+        self.visit_history.append("NOT_NULL")
+        return self.visit_history
+
+    def visit_equal(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("EQUAL")
+        return self.visit_history
+
+    def visit_not_equal(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("NOT_EQUAL")
+        return self.visit_history
+
+    def visit_greater_than_or_equal(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("GREATER_THAN_OR_EQUAL")
+        return self.visit_history
+
+    def visit_greater_than(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("GREATER_THAN")
+        return self.visit_history
+
+    def visit_less_than(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("LESS_THAN")
+        return self.visit_history
+
+    def visit_less_than_or_equal(self, term: base.BoundTerm, literal: Literal) -> List:  # pylint: disable=redefined-outer-name
+        self.visit_history.append("LESS_THAN_OR_EQUAL")
+        return self.visit_history
+
     def visit_true(self) -> List:
-        return []
+        self.visit_history.append("TRUE")
+        return self.visit_history
 
     def visit_false(self) -> List:
-        return []
+        self.visit_history.append("FALSE")
+        return self.visit_history
 
     def visit_not(self, child_result: List) -> List:
-        return []
+        self.visit_history.append("NOT")
+        return self.visit_history
 
     def visit_and(self, left_result: List, right_result: List) -> List:
-        return []
+        self.visit_history.append("AND")
+        return self.visit_history
 
     def visit_or(self, left_result: List, right_result: List) -> List:
-        return []
-
-    def visit_in(self, ref: base.BoundReference, literals: Set) -> List:
-        self.visit_history.append("IN")
+        self.visit_history.append("OR")
         return self.visit_history
 
 
@@ -872,7 +926,147 @@ def test_not_expression_binding(unbound_not_expression, expected_bound_expressio
     assert bound_expression == expected_bound_expression
 
 
-def test_bound_boolean_expression_visitor():
+def test_bound_boolean_expression_visitor_ignore_is_nan_for_string_type():
+    """Test ignoring IsNan expressions when the field type is a String"""
+    bound_expression = base.And(
+        base.BoundIn[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals=(StringLiteral("foo"), StringLiteral("bar")),
+        ),
+        base.Not(
+            base.BoundIsNaN[str](
+                term=base.BoundReference(
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+            )
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IN"]
+
+
+def test_bound_boolean_expression_visitor_and_in():
+    """Test visiting an And and In expression with a bound boolean expression visitor"""
+    bound_expression = base.And(
+        base.BoundIn[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals=(StringLiteral("foo"), StringLiteral("bar")),
+        ),
+        base.BoundIn[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
+                accessor=Accessor(position=1, inner=None),
+            ),
+            literals=(StringLiteral("baz"), StringLiteral("qux")),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IN", "IN", "AND"]
+
+
+def test_bound_boolean_expression_visitor_or():
+    """Test visiting an Or expression with a bound boolean expression visitor"""
+    bound_expression = base.Or(
+        base.Not(
+            base.BoundIn[str](
+                base.BoundReference[str](
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+                {StringLiteral("foo"), StringLiteral("bar")},
+            )
+        ),
+        base.Not(
+            base.BoundIn[str](
+                base.BoundReference[str](
+                    field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
+                    accessor=Accessor(position=1, inner=None),
+                ),
+                {StringLiteral("baz"), StringLiteral("qux")},
+            )
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IN", "NOT", "IN", "NOT", "OR"]
+
+
+def test_bound_boolean_expression_visitor_equal_and_not_equal():
+    """Test visiting an And expression with a bound boolean expression visitor"""
+    bound_expression = base.And(
+        base.BoundNotEqualTo[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=StringLiteral("foo"),
+        ),
+        base.BoundEqualTo[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
+                accessor=Accessor(position=1, inner=None),
+            ),
+            literal=StringLiteral("foo"),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_EQUAL", "EQUAL", "AND"]
+
+
+def test_bound_boolean_expression_visitor_always_true():
+    """Test visiting an And expression with a bound boolean expression visitor that resolves to AlwaysTrue"""
+    bound_expression = base.Or(
+        base.BoundIsNaN[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        base.BoundNotNaN[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["TRUE"]
+
+
+def test_bound_boolean_expression_visitor_always_false():
+    """Test visiting an And expression with a bound boolean expression visitor that resolves to AlwaysFalse"""
+    bound_expression = base.And(
+        base.BoundIsNaN[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        base.BoundNotNaN[str](
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["FALSE"]
+
+
+def test_bound_boolean_expression_visitor_in():
+    """Test visiting a bound In predicate with a bound boolean expression visitor"""
     bound_expression = base.BoundIn[str](
         term=base.BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -883,3 +1077,137 @@ def test_bound_boolean_expression_visitor():
     visitor = FooBoundBooleanExpressionVisitor()
     result = base.visit(bound_expression, visitor=visitor)
     assert result == ["IN"]
+
+
+def test_bound_boolean_expression_visitor_not_in():
+    """Test visiting a bound NotIn predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundNotIn[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals=(StringLiteral("foo"), StringLiteral("bar")),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_IN"]
+
+
+def test_bound_boolean_expression_visitor_is_nan():
+    """Test visiting a bound IsNaN predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundIsNaN[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IS_NAN"]
+
+
+def test_bound_boolean_expression_visitor_not_nan():
+    """Test visiting a bound NotNaN predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundNotNaN[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_NAN"]
+
+
+def test_bound_boolean_expression_visitor_is_null():
+    """Test visiting a bound IsNull predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundIsNull[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["IS_NULL"]
+
+
+def test_bound_boolean_expression_visitor_not_null():
+    """Test visiting a bound NotNull predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundNotNull[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_NULL"]
+
+
+def test_bound_boolean_expression_visitor_greater_than():
+    """Test visiting a bound GreaterThan predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundGreaterThan[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["GREATER_THAN"]
+
+
+def test_bound_boolean_expression_visitor_greater_than_or_equal():
+    """Test visiting a bound GreaterThanOrEqual predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundGreaterThanOrEqual[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["GREATER_THAN_OR_EQUAL"]
+
+
+def test_bound_boolean_expression_visitor_less_than():
+    """Test visiting a bound LessThan predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundLessThan[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["LESS_THAN"]
+
+
+def test_bound_boolean_expression_visitor_less_than_or_equal():
+    """Test visiting a bound LessThanOrEqual predicate with a bound boolean expression visitor"""
+    bound_expression = base.BoundLessThanOrEqual[str](
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = base.visit(bound_expression, visitor=visitor)
+    assert result == ["LESS_THAN_OR_EQUAL"]
+
+
+def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
+    """Test raising a TypeError when an unbound predicate is visited by a bound boolean expression visitor"""
+    bound_expression = base.LessThanOrEqual[str](
+        term=base.Reference("foo"),
+        literal=StringLiteral("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    with pytest.raises(TypeError) as exc_info:
+        base.visit(bound_expression, visitor=visitor)
+    assert "Not a bound predicate" in str(exc_info.value)
