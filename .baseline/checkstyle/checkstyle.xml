@@ -383,6 +383,11 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="RegexpSinglelineJava">
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="@Json(S|Des)erialize"/>
+            <property name="message" value="Avoid using Jackson-related ser-de annotations"/>
+        </module>
         <module name="SimplifyBooleanExpression"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->
         <module name="SimplifyBooleanReturn"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->
         <module name="StaticVariableName"/> <!-- Java Style Guide: Naming -->

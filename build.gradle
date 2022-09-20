@@ -230,6 +230,8 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"
     testImplementation "com.esotericsoftware:kryo"
   }
@@ -259,6 +261,8 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported

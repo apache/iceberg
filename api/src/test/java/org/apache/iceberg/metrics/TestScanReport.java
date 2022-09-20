@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -30,34 +31,50 @@ public class TestScanReport {
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> ScanReport.builder().build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid table name: null");
+    Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot build ScanReport, some of required attributes are not set [tableName, snapshotId, filter, projection, scanMetrics]");
 
-    Assertions.assertThatThrownBy(() -> ScanReport.builder().withTableName("x").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid expression filter: null");
+    Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().tableName("x").build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot build ScanReport, some of required attributes are not set [snapshotId, filter, projection, scanMetrics]");
 
     Assertions.assertThatThrownBy(
             () ->
-                ScanReport.builder()
-                    .withTableName("x")
-                    .withFilter(Expressions.alwaysTrue())
+                ImmutableScanReport.builder()
+                    .tableName("x")
+                    .filter(Expressions.alwaysTrue())
                     .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid schema projection: null");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot build ScanReport, some of required attributes are not set [snapshotId, projection, scanMetrics]");
 
     Assertions.assertThatThrownBy(
             () ->
-                ScanReport.builder()
-                    .withTableName("x")
-                    .withFilter(Expressions.alwaysTrue())
-                    .withProjection(
+                ImmutableScanReport.builder()
+                    .tableName("x")
+                    .filter(Expressions.alwaysTrue())
+                    .snapshotId(23L)
+                    .build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot build ScanReport, some of required attributes are not set [projection, scanMetrics]");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ImmutableScanReport.builder()
+                    .tableName("x")
+                    .filter(Expressions.alwaysTrue())
+                    .snapshotId(23L)
+                    .projection(
                         new Schema(
                             Types.NestedField.required(1, "c1", Types.StringType.get(), "c1")))
                     .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid scan metrics: null");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot build ScanReport, some of required attributes are not set [scanMetrics]");
   }
 
   @Test
@@ -66,17 +83,18 @@ public class TestScanReport {
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withFilter(Expressions.alwaysTrue())
-            .fromScanMetrics(ScanReport.ScanMetrics.NOOP)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .projection(projection)
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanReport.ScanMetrics.noop()))
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
     Assertions.assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
-    Assertions.assertThat(scanReport.snapshotId()).isEqualTo(-1);
+    Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration()).isNull();
     Assertions.assertThat(scanReport.scanMetrics().resultDataFiles()).isNull();
     Assertions.assertThat(scanReport.scanMetrics().resultDeleteFiles()).isNull();
@@ -90,7 +108,7 @@ public class TestScanReport {
 
   @Test
   public void fromScanMetrics() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -101,13 +119,14 @@ public class TestScanReport {
     String tableName = "x";
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
+
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .withFilter(Expressions.alwaysTrue())
-            .fromScanMetrics(scanMetrics)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .projection(projection)
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
@@ -125,8 +144,8 @@ public class TestScanReport {
 
   @Test
   public void nullScanMetrics() {
-    Assertions.assertThatThrownBy(() -> new ScanReport.ScanMetrics(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid metrics context: null");
+    Assertions.assertThatThrownBy(() -> ScanReport.ScanMetrics.of(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("metricsContext");
   }
 }

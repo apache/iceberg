@@ -45,67 +45,43 @@ public class TestScanMetricsResultParser {
   @Test
   public void missingFields() {
     Assertions.assertThat(ScanMetricsResultParser.fromJson("{}"))
-        .isEqualTo(new ScanMetricsResult(null, null, null, null, null, null, null, null, null));
+        .isEqualTo(ImmutableScanMetricsResult.builder().build());
 
-    TimerResult totalPlanningDuration = new TimerResult(TimeUnit.HOURS, Duration.ofHours(10), 3L);
-    CounterResult resultDataFiles = new CounterResult(Unit.COUNT, 5L);
-    CounterResult resultDeleteFiles = new CounterResult(Unit.COUNT, 5L);
-    CounterResult totalDataManifests = new CounterResult(Unit.COUNT, 5L);
-    CounterResult totalDeleteManifests = new CounterResult(Unit.COUNT, 0L);
-    CounterResult scannedDataManifests = new CounterResult(Unit.COUNT, 5L);
-    CounterResult skippedDataManifests = new CounterResult(Unit.COUNT, 5L);
-    CounterResult totalFileSizeInBytes = new CounterResult(Unit.BYTES, 1069L);
-
+    ImmutableScanMetricsResult scanMetricsResult =
+        ImmutableScanMetricsResult.builder()
+            .totalPlanningDuration(TimerResult.of(TimeUnit.HOURS, Duration.ofHours(10), 3L))
+            .build();
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration, null, null, null, null, null, null, null, null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult = scanMetricsResult.withResultDataFiles(CounterResult.of(Unit.COUNT, 5L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration, resultDataFiles, null, null, null, null, null, null, null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult = scanMetricsResult.withResultDeleteFiles(CounterResult.of(Unit.COUNT, 5L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult = scanMetricsResult.withTotalDataManifests(CounterResult.of(Unit.COUNT, 5L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                totalDataManifests,
-                null,
-                null,
-                null,
-                null,
-                null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult =
+        scanMetricsResult.withTotalDeleteManifests(CounterResult.of(Unit.COUNT, 0L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
@@ -113,18 +89,10 @@ public class TestScanMetricsResultParser {
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                totalDataManifests,
-                totalDeleteManifests,
-                null,
-                null,
-                null,
-                null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult =
+        scanMetricsResult.withScannedDataManifests(CounterResult.of(Unit.COUNT, 5L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
@@ -133,18 +101,10 @@ public class TestScanMetricsResultParser {
                     + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
                     + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                totalDataManifests,
-                totalDeleteManifests,
-                scannedDataManifests,
-                null,
-                null,
-                null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult =
+        scanMetricsResult.withSkippedDataManifests(CounterResult.of(Unit.COUNT, 5L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
@@ -154,18 +114,10 @@ public class TestScanMetricsResultParser {
                     + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
                     + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                totalDataManifests,
-                totalDeleteManifests,
-                scannedDataManifests,
-                skippedDataManifests,
-                null,
-                null));
+        .isEqualTo(scanMetricsResult);
 
+    scanMetricsResult =
+        scanMetricsResult.withTotalFileSizeInBytes(CounterResult.of(Unit.BYTES, 1069L));
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
@@ -176,22 +128,12 @@ public class TestScanMetricsResultParser {
                     + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069}}"))
-        .isEqualTo(
-            new ScanMetricsResult(
-                totalPlanningDuration,
-                resultDataFiles,
-                resultDeleteFiles,
-                totalDataManifests,
-                totalDeleteManifests,
-                scannedDataManifests,
-                skippedDataManifests,
-                totalFileSizeInBytes,
-                null));
+        .isEqualTo(scanMetricsResult);
   }
 
   @Test
   public void extraFields() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -241,7 +183,7 @@ public class TestScanMetricsResultParser {
 
   @Test
   public void roundTripSerde() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.DAYS);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -302,13 +244,13 @@ public class TestScanMetricsResultParser {
 
   @Test
   public void roundTripSerdeNoopScanMetrics() {
-    ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(ScanMetrics.NOOP);
+    ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(ScanMetrics.noop());
     String expectedJson = "{ }";
 
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
     System.out.println(json);
     Assertions.assertThat(json).isEqualTo(expectedJson);
     Assertions.assertThat(ScanMetricsResultParser.fromJson(json))
-        .isEqualTo(new ScanMetricsResult(null, null, null, null, null, null, null, null, null));
+        .isEqualTo(ImmutableScanMetricsResult.builder().build());
   }
 }
