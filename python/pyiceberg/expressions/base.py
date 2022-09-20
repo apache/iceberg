@@ -545,7 +545,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """Visit method for a Not boolean expression
 
         Args:
-            result (T): The result of visiting the child of the Not boolean expression
+            child_result (T): The result of visiting the child of the Not boolean expression
         """
 
     @abstractmethod
