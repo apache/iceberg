@@ -22,9 +22,8 @@ on:
   push:
     branches:
       - 'master'
-  pull_request:
     paths:
-      - '.github/workflows/python-ci-docs.yml'
+      - 'python/docs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
