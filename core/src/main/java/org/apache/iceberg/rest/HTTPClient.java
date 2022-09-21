@@ -45,7 +45,6 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.responses.CatalogErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,7 +94,7 @@ public class HTTPClient implements RESTClient {
             ? responseReason
             : EnglishReasonPhraseCatalog.INSTANCE.getReason(response.getCode(), null /* ignored */);
     String type = "RESTException";
-    return CatalogErrorResponse.builder()
+    return ErrorResponse.builder()
         .responseCode(response.getCode())
         .withMessage(message)
         .withType(type)

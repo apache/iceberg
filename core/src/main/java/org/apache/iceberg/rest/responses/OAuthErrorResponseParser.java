@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest.responses;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,26 +30,6 @@ public class OAuthErrorResponseParser {
 
   private static final String ERROR = "error";
   private static final String ERROR_DESCRIPTION = "error_description";
-  private static final String ERROR_URI = "error_uri";
-
-  public static String toJson(OAuthErrorResponse errorResponse) {
-    return toJson(errorResponse, false);
-  }
-
-  public static String toJson(OAuthErrorResponse errorResponse, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(errorResponse, gen), pretty);
-  }
-
-  public static void toJson(OAuthErrorResponse errorResponse, JsonGenerator generator)
-      throws IOException {
-    generator.writeStartObject();
-
-    generator.writeStringField(ERROR, errorResponse.error());
-    generator.writeStringField(ERROR_DESCRIPTION, errorResponse.errorDescription());
-    generator.writeStringField(ERROR_URI, errorResponse.errorUri());
-
-    generator.writeEndObject();
-  }
 
   /**
    * Read OAuthErrorResponse from a JSON string.
@@ -58,26 +37,25 @@ public class OAuthErrorResponseParser {
    * @param json a JSON string of an OAuthErrorResponse
    * @return an OAuthErrorResponse object
    */
-  public static OAuthErrorResponse fromJson(String json) {
+  public static ErrorResponse fromJson(int code, String json) {
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(code, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read JSON string: " + json, e);
     }
   }
 
-  public static OAuthErrorResponse fromJson(JsonNode jsonNode) {
+  public static ErrorResponse fromJson(int code, JsonNode jsonNode) {
     Preconditions.checkArgument(
         jsonNode != null && jsonNode.isObject(),
         "Cannot parse error response from non-object value: %s",
         jsonNode);
     String error = JsonUtil.getString(ERROR, jsonNode);
     String errorDescription = JsonUtil.getStringOrNull(ERROR_DESCRIPTION, jsonNode);
-    String errorUri = JsonUtil.getStringOrNull(ERROR_URI, jsonNode);
-    return OAuthErrorResponse.builder()
-        .withError(error)
-        .withErrorDescription(errorDescription)
-        .withErrorUri(errorUri)
+    return ErrorResponse.builder()
+        .responseCode(code)
+        .withType(error)
+        .withMessage(errorDescription)
         .build();
   }
 }

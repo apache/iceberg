@@ -31,10 +31,8 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.apache.iceberg.rest.responses.CatalogErrorResponse;
-import org.apache.iceberg.rest.responses.CatalogErrorResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.OAuthErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
 
 /**
@@ -70,8 +68,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new CommitErrorHandler();
 
     @Override
-    public void accept(ErrorResponse restError) {
-      CatalogErrorResponse error = (CatalogErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchTableException("%s", error.message());
@@ -83,7 +80,7 @@ public class ErrorHandlers {
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
 
-      super.accept(restError);
+      super.accept(error);
     }
   }
 
@@ -92,8 +89,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new TableErrorHandler();
 
     @Override
-    public void accept(ErrorResponse restError) {
-      CatalogErrorResponse error = (CatalogErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
@@ -105,7 +101,7 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("%s", error.message());
       }
 
-      super.accept(restError);
+      super.accept(error);
     }
   }
 
@@ -114,8 +110,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new NamespaceErrorHandler();
 
     @Override
-    public void accept(ErrorResponse restError) {
-      CatalogErrorResponse error = (CatalogErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -125,7 +120,7 @@ public class ErrorHandlers {
           throw new RESTException("Unable to process: %s", error.message());
       }
 
-      super.accept(restError);
+      super.accept(error);
     }
   }
 
@@ -138,12 +133,11 @@ public class ErrorHandlers {
 
     @Override
     public ErrorResponse parseResponse(int code, String json) {
-      return CatalogErrorResponseParser.fromJson(json);
+      return ErrorResponseParser.fromJson(json);
     }
 
     @Override
-    public void accept(ErrorResponse restError) {
-      CatalogErrorResponse error = (CatalogErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 400:
           throw new BadRequestException("Malformed request: %s", error.message());
@@ -173,30 +167,28 @@ public class ErrorHandlers {
     @Override
     public ErrorResponse parseResponse(int code, String json) {
       if (code == 400 || code == 401) {
-        return OAuthErrorResponseParser.fromJson(json);
+        return OAuthErrorResponseParser.fromJson(code, json);
       }
-      return OAuthErrorResponse.builder()
-          .withError(SERVER_ERROR)
-          .withErrorDescription(json)
+      return ErrorResponse.builder()
+          .responseCode(code)
+          .withType(SERVER_ERROR)
+          .withMessage(json)
           .build();
     }
 
     @Override
-    public void accept(ErrorResponse restError) {
-      if (restError instanceof OAuthErrorResponse) {
-        OAuthErrorResponse error = (OAuthErrorResponse) restError;
-        switch (error.error()) {
-          case OAuth2Properties.INVALID_CLIENT_ERROR:
-            throw new NotAuthorizedException("Not authorized: %s", error.errorDescription());
-          case OAuth2Properties.INVALID_REQUEST_ERROR:
-          case OAuth2Properties.INVALID_GRANT_ERROR:
-          case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
-          case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
-          case OAuth2Properties.INVALID_SCOPE_ERROR:
-            throw new BadRequestException("Malformed request: %s", error.errorDescription());
-          default:
-            throw new RESTException("Unable to process: %s", error.errorDescription());
-        }
+    public void accept(ErrorResponse error) {
+      switch (error.type()) {
+        case OAuth2Properties.INVALID_CLIENT_ERROR:
+          throw new NotAuthorizedException("Not authorized: %s", error.message());
+        case OAuth2Properties.INVALID_REQUEST_ERROR:
+        case OAuth2Properties.INVALID_GRANT_ERROR:
+        case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
+        case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
+        case OAuth2Properties.INVALID_SCOPE_ERROR:
+          throw new BadRequestException("Malformed request: %s", error.message());
+        default:
+          throw new RESTException("Unable to process: %s", error.message());
       }
     }
   }

@@ -37,8 +37,8 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.responses.CatalogErrorResponse;
-import org.apache.iceberg.rest.responses.CatalogErrorResponseParser;
+import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -198,12 +198,9 @@ public class TestHTTPClient {
         // Simply return the passed in item in the success case.
         mockResponse = mockResponse.withBody(asJson);
       } else {
-        CatalogErrorResponse response =
-            CatalogErrorResponse.builder()
-                .responseCode(statusCode)
-                .withMessage("Not found")
-                .build();
-        mockResponse = mockResponse.withBody(CatalogErrorResponseParser.toJson(response));
+        ErrorResponse response =
+            ErrorResponse.builder().responseCode(statusCode).withMessage("Not found").build();
+        mockResponse = mockResponse.withBody(ErrorResponseParser.toJson(response));
       }
     }
 
