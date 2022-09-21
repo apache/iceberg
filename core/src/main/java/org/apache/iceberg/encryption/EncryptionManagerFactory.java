@@ -20,7 +20,7 @@ package org.apache.iceberg.encryption;
 
 import java.io.Closeable;
 import java.util.Map;
-import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.Schema;
 
 public interface EncryptionManagerFactory extends Closeable {
 
@@ -34,8 +34,9 @@ public interface EncryptionManagerFactory extends Closeable {
   /**
    * Create encryption manager from table metadata.
    *
-   * @param tableMetadata table metadata
-   * @return created encryption manager instance.
+   * @param tableProperties table properties
+   * @param schema table schema
+   * @return created encryption manager instance
    */
-  EncryptionManager create(TableMetadata tableMetadata);
+  EncryptionManager create(Map<String, String> tableProperties, Schema schema);
 }

@@ -246,7 +246,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     TableMetadata metadata = current();
     EncryptionManagerFactory factory = encryptionManagerFactory();
     if (null != metadata && null != factory) {
-      return factory.create(metadata);
+      return factory.create(metadata.properties(), metadata.schema());
     } else {
       return new PlaintextEncryptionManager();
     }

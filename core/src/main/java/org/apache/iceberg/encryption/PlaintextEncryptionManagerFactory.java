@@ -19,13 +19,14 @@
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
-import org.apache.iceberg.TableMetadata;
+import java.util.Map;
+import org.apache.iceberg.Schema;
 
 public class PlaintextEncryptionManagerFactory implements EncryptionManagerFactory {
   public static final EncryptionManagerFactory INSTANCE = new PlaintextEncryptionManagerFactory();
 
   @Override
-  public EncryptionManager create(TableMetadata tableMetadata) {
+  public EncryptionManager create(Map<String, String> tableProperties, Schema schema) {
     return new PlaintextEncryptionManager();
   }
 

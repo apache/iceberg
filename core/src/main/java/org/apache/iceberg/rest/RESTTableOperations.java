@@ -172,7 +172,7 @@ class RESTTableOperations implements TableOperations {
   public EncryptionManager encryption() {
     TableMetadata metadata = current();
     if (null != metadata) {
-      return encryptionManagerFactory.create(metadata);
+      return encryptionManagerFactory.create(metadata.properties(), metadata.schema());
     } else {
       return new PlaintextEncryptionManager();
     }

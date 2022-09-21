@@ -77,7 +77,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private FileIO fileIO;
   private final EncryptionManagerFactory encryptionManagerFactory;
 
-
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
       DynMethods.builder("versionId")
