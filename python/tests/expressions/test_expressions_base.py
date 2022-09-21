@@ -61,7 +61,7 @@ class ExpressionB(base.BooleanExpression, Singleton):
         return "testexprb"
 
 
-class FooBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
+class ExampleVisitor(base.BooleanExpressionVisitor[List]):
     """A test implementation of a BooleanExpressionVisitor
 
     As this visitor visits each node, it appends an element to a `visit_history` list. This enables testing that a given expression is
@@ -109,13 +109,13 @@ class FooBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
 
 
 @base.visit.register(ExpressionA)
-def _(obj: ExpressionA, visitor: FooBooleanExpressionVisitor) -> List:
+def _(obj: ExpressionA, visitor: ExampleVisitor) -> List:
     """Visit a ExpressionA with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_a()
 
 
 @base.visit.register(ExpressionB)
-def _(obj: ExpressionB, visitor: FooBooleanExpressionVisitor) -> List:
+def _(obj: ExpressionB, visitor: ExampleVisitor) -> List:
     """Visit a ExpressionB with a BooleanExpressionVisitor"""
     return visitor.visit_test_expression_b()
 
@@ -613,7 +613,7 @@ def test_boolean_expression_visitor():
         base.Not(ExpressionA()),
         ExpressionB(),
     )
-    visitor = FooBooleanExpressionVisitor()
+    visitor = ExampleVisitor()
     result = base.visit(expr, visitor=visitor)
     assert result == [
         "ExpressionA",
@@ -635,7 +635,7 @@ def test_boolean_expression_visitor():
 
 def test_boolean_expression_visit_raise_not_implemented_error():
     """Test raise NotImplementedError when visiting an unsupported object type"""
-    visitor = FooBooleanExpressionVisitor()
+    visitor = ExampleVisitor()
     with pytest.raises(NotImplementedError) as exc_info:
         base.visit("foo", visitor=visitor)
 
