@@ -18,7 +18,7 @@
 import pytest
 
 from pyiceberg.io.pyarrow import PyArrowFileIO
-from pyiceberg.manifest import FieldSummary, ManifestContent, ManifestFile
+from pyiceberg.manifest import ManifestContent, ManifestFile, PartitionFieldSummary
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
 
 
@@ -151,7 +151,7 @@ def test_fetch_manifest_list(generated_manifest_file_file: str):
             existing_rows_counts=None,
             deleted_rows_count=0,
             partitions=[
-                FieldSummary(
+                PartitionFieldSummary(
                     contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
                 )
             ],

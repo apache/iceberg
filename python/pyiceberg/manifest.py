@@ -104,7 +104,7 @@ class ManifestEntry(IcebergBaseModel):
     data_file: DataFile = Field()
 
 
-class FieldSummary(IcebergBaseModel):
+class PartitionFieldSummary(IcebergBaseModel):
     contains_null: bool = Field()
     contains_nan: Optional[bool] = Field()
     lower_bound: Optional[bytes] = Field()
@@ -125,7 +125,7 @@ class ManifestFile(IcebergBaseModel):
     added_rows_count: Optional[int] = Field()
     existing_rows_counts: Optional[int] = Field()
     deleted_rows_count: Optional[int] = Field()
-    partitions: Optional[List[FieldSummary]] = Field()
+    partitions: Optional[List[PartitionFieldSummary]] = Field()
     key_metadata: Optional[bytes] = Field()
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:

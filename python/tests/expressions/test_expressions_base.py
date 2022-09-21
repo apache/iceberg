@@ -17,23 +17,29 @@
 
 import uuid
 from decimal import Decimal
-from typing import List, Set
+from typing import Any, List, Set
 
 import pytest
 
+from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import base
+from pyiceberg.expressions.base import IN_PREDICATE_LIMIT, ManifestEvaluator
 from pyiceberg.expressions.literals import (
     Literal,
     LongLiteral,
     StringLiteral,
     literal,
 )
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
     FloatType,
+    IcebergType,
     IntegerType,
+    LongType,
     NestedField,
+    PrimitiveType,
     StringType,
 )
 from pyiceberg.utils.singleton import Singleton
@@ -1151,3 +1157,659 @@ def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
     with pytest.raises(TypeError) as exc_info:
         base.visit(bound_expression, visitor=visitor)
     assert "Not a bound predicate" in str(exc_info.value)
+
+
+def _to_byte_buffer(field_type: IcebergType, val: Any):
+    if not isinstance(field_type, PrimitiveType):
+        raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
+    return to_bytes(field_type, val)
+
+
+def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
+    return ManifestFile(
+        manifest_path="",
+        manifest_length=0,
+        partition_spec_id=0,
+        partitions=partitions,
+    )
+
+
+def test_manifest_evaluator_less_than_no_overlap():
+    expr = base.BoundLessThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("c"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_overlap():
+    expr = base.BoundLessThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_all_null():
+    expr = base.BoundLessThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    # All null
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_no_match():
+    expr = base.BoundLessThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_or_equal_no_overlap():
+    expr = base.BoundLessThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("c"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_or_equal_overlap():
+    expr = base.BoundLessThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_or_equal_all_null():
+    expr = base.BoundLessThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    # All null
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_or_equal_no_match():
+    expr = base.BoundLessThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_equal_no_overlap():
+    expr = base.BoundEqualTo(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("c"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_equal_overlap():
+    expr = base.BoundEqualTo(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = ManifestFile(
+        manifest_path="",
+        manifest_length=0,
+        partition_spec_id=0,
+        partitions=[
+            PartitionFieldSummary(
+                contains_null=False,
+                contains_nan=False,
+                lower_bound=_to_byte_buffer(StringType(), "a"),
+                upper_bound=_to_byte_buffer(StringType(), "b"),
+            )
+        ],
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_equal_all_null():
+    expr = base.BoundEqualTo(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    # All null
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_equal_no_match():
+    expr = base.BoundEqualTo(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_no_overlap():
+    expr = base.BoundGreaterThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_overlap():
+    expr = base.BoundGreaterThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("c"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_all_null():
+    expr = base.BoundGreaterThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    # All null
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_no_match():
+    expr = base.BoundGreaterThan(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("d"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_or_equal_no_overlap():
+    expr = base.BoundGreaterThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_or_equal_overlap():
+    expr = base.BoundGreaterThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("b"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_or_equal_all_null():
+    expr = base.BoundGreaterThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("a"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    # All null
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_or_equal_no_match():
+    expr = base.BoundGreaterThanOrEqual(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("d"),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "b"),
+            upper_bound=_to_byte_buffer(StringType(), "c"),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_is_nan():
+    expr = base.BoundIsNaN(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_is_nan_inverse():
+    expr = base.BoundIsNaN(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(DoubleType(), 18.15),
+            upper_bound=_to_byte_buffer(DoubleType(), 19.25),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_not_nan():
+    expr = base.BoundNotNaN(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(DoubleType(), 18.15),
+            upper_bound=_to_byte_buffer(DoubleType(), 19.25),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_not_nan_inverse():
+    expr = base.BoundNotNaN(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_is_null():
+    expr = base.BoundIsNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(StringType(), "a"),
+            upper_bound=_to_byte_buffer(StringType(), "b"),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_is_null_inverse():
+    expr = base.BoundNotNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+
+    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_not_null():
+    expr = base.BoundNotNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_not_null_inverse():
+    expr = base.BoundNotNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+
+    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_in():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(22)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_in_inverse():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(22)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 1815),
+            upper_bound=_to_byte_buffer(LongType(), 1925),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_in_overflow():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(IN_PREDICATE_LIMIT + 1)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 1815),
+            upper_bound=_to_byte_buffer(LongType(), 1925),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_less_than_lower_bound():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(2)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_greater_than_upper_bound():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(20, 22)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
