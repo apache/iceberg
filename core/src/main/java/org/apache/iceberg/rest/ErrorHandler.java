@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.rest;
 
-public interface ErrorHandler {
+import java.util.function.Consumer;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 
-  RESTErrorResponse parseResponse(int code, String json);
+public abstract class ErrorHandler implements Consumer<ErrorResponse> {
 
-  void handle(RESTErrorResponse restError);
+  public abstract ErrorResponse parseResponse(int code, String json);
 }

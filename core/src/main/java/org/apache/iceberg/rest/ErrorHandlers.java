@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -30,8 +31,9 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.rest.responses.CatalogErrorResponse;
+import org.apache.iceberg.rest.responses.CatalogErrorResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthErrorResponse;
 import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
 
@@ -43,23 +45,23 @@ public class ErrorHandlers {
 
   private ErrorHandlers() {}
 
-  public static ErrorHandler namespaceErrorHandler() {
+  public static Consumer<ErrorResponse> namespaceErrorHandler() {
     return NamespaceErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler tableErrorHandler() {
+  public static Consumer<ErrorResponse> tableErrorHandler() {
     return TableErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler tableCommitHandler() {
+  public static Consumer<ErrorResponse> tableCommitHandler() {
     return CommitErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler defaultErrorHandler() {
+  public static Consumer<ErrorResponse> defaultErrorHandler() {
     return DefaultErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler oauthErrorHandler() {
+  public static Consumer<ErrorResponse> oauthErrorHandler() {
     return OAuthErrorHandler.INSTANCE;
   }
 
@@ -68,8 +70,8 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new CommitErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse restError) {
+      CatalogErrorResponse error = (CatalogErrorResponse) restError;
       switch (error.code()) {
         case 404:
           throw new NoSuchTableException("%s", error.message());
@@ -81,7 +83,7 @@ public class ErrorHandlers {
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
 
-      super.handle(restError);
+      super.accept(restError);
     }
   }
 
@@ -90,8 +92,8 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new TableErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse restError) {
+      CatalogErrorResponse error = (CatalogErrorResponse) restError;
       switch (error.code()) {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
@@ -103,7 +105,7 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("%s", error.message());
       }
 
-      super.handle(restError);
+      super.accept(restError);
     }
   }
 
@@ -112,8 +114,8 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new NamespaceErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse restError) {
+      CatalogErrorResponse error = (CatalogErrorResponse) restError;
       switch (error.code()) {
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -123,7 +125,7 @@ public class ErrorHandlers {
           throw new RESTException("Unable to process: %s", error.message());
       }
 
-      super.handle(restError);
+      super.accept(restError);
     }
   }
 
@@ -131,17 +133,17 @@ public class ErrorHandlers {
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  private static class DefaultErrorHandler implements ErrorHandler {
+  private static class DefaultErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
 
     @Override
-    public RESTErrorResponse parseResponse(int code, String json) {
-      return ErrorResponseParser.fromJson(json);
+    public ErrorResponse parseResponse(int code, String json) {
+      return CatalogErrorResponseParser.fromJson(json);
     }
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse restError) {
+      CatalogErrorResponse error = (CatalogErrorResponse) restError;
       switch (error.code()) {
         case 400:
           throw new BadRequestException("Malformed request: %s", error.message());
@@ -164,12 +166,12 @@ public class ErrorHandlers {
     }
   }
 
-  private static class OAuthErrorHandler implements ErrorHandler {
+  private static class OAuthErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
     private static final String SERVER_ERROR = "server_error";
 
     @Override
-    public RESTErrorResponse parseResponse(int code, String json) {
+    public ErrorResponse parseResponse(int code, String json) {
       if (code == 400 || code == 401) {
         return OAuthErrorResponseParser.fromJson(json);
       }
@@ -180,7 +182,7 @@ public class ErrorHandlers {
     }
 
     @Override
-    public void handle(RESTErrorResponse restError) {
+    public void accept(ErrorResponse restError) {
       if (restError instanceof OAuthErrorResponse) {
         OAuthErrorResponse error = (OAuthErrorResponse) restError;
         switch (error.error()) {

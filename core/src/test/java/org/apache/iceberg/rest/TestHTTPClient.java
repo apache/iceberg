@@ -37,8 +37,8 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.CatalogErrorResponse;
+import org.apache.iceberg.rest.responses.CatalogErrorResponseParser;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -122,7 +122,7 @@ public class TestHTTPClient {
     int statusCode = 200;
 
     ErrorHandler onError = mock(ErrorHandler.class);
-    doThrow(new RuntimeException("Failure response")).when(onError).handle(any());
+    doThrow(new RuntimeException("Failure response")).when(onError).accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -135,7 +135,7 @@ public class TestHTTPClient {
           body);
     }
 
-    verify(onError, never()).handle(any());
+    verify(onError, never()).accept(any());
   }
 
   public static void testHttpMethodOnFailure(HttpMethod method) throws JsonProcessingException {
@@ -149,7 +149,7 @@ public class TestHTTPClient {
                     "Called error handler for method %s due to status code: %d",
                     method, statusCode)))
         .when(onError)
-        .handle(any());
+        .accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -160,7 +160,7 @@ public class TestHTTPClient {
             "Called error handler for method %s due to status code: %d", method, statusCode),
         () -> doExecuteRequest(method, path, body, onError));
 
-    verify(onError).handle(any());
+    verify(onError).accept(any());
   }
 
   // Adds a request that the mock-server can match against, based on the method, path, body, and
@@ -198,9 +198,12 @@ public class TestHTTPClient {
         // Simply return the passed in item in the success case.
         mockResponse = mockResponse.withBody(asJson);
       } else {
-        ErrorResponse response =
-            ErrorResponse.builder().responseCode(statusCode).withMessage("Not found").build();
-        mockResponse = mockResponse.withBody(ErrorResponseParser.toJson(response));
+        CatalogErrorResponse response =
+            CatalogErrorResponse.builder()
+                .responseCode(statusCode)
+                .withMessage("Not found")
+                .build();
+        mockResponse = mockResponse.withBody(CatalogErrorResponseParser.toJson(response));
       }
     }
 

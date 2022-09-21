@@ -19,10 +19,9 @@
 package org.apache.iceberg.rest.responses;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.RESTErrorResponse;
 
 /** Standard response body for OAuth errors */
-public class OAuthErrorResponse implements RESTErrorResponse {
+public class OAuthErrorResponse implements ErrorResponse {
 
   private String error;
   private String errorDescription;
