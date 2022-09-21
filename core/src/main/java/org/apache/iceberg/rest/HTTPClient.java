@@ -116,6 +116,11 @@ public class HTTPClient implements RESTClient {
           LOG.warn(
               "Unknown error handler {}, response body won't be parsed",
               errorHandler.getClass().getName());
+          errorResponse =
+              ErrorResponse.builder()
+                  .responseCode(response.getCode())
+                  .withMessage(responseBody)
+                  .build();
         }
 
       } catch (UncheckedIOException | IllegalArgumentException e) {

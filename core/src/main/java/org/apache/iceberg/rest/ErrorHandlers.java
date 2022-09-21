@@ -134,20 +134,15 @@ public class ErrorHandlers {
    */
   private static class DefaultErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
-    private static final String SERVER_ERROR = "server_error";
 
     @Override
     public ErrorResponse parseResponse(int code, String json) {
       try {
         return ErrorResponseParser.fromJson(json);
       } catch (Exception x) {
-        LOG.warn("Unable to parse error response: " + json);
+        LOG.warn("Unable to parse error response", x);
       }
-      return ErrorResponse.builder()
-          .responseCode(code)
-          .withType(SERVER_ERROR)
-          .withMessage(json)
-          .build();
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
     @Override
@@ -176,36 +171,34 @@ public class ErrorHandlers {
 
   private static class OAuthErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
-    private static final String SERVER_ERROR = "server_error";
 
     @Override
     public ErrorResponse parseResponse(int code, String json) {
       try {
         return OAuthErrorResponseParser.fromJson(code, json);
       } catch (Exception x) {
-        LOG.warn("Unable to parse error response: " + json);
+        LOG.warn("Unable to parse error response", x);
       }
-      return ErrorResponse.builder()
-          .responseCode(code)
-          .withType(SERVER_ERROR)
-          .withMessage(json)
-          .build();
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
     @Override
     public void accept(ErrorResponse error) {
-      switch (error.type()) {
-        case OAuth2Properties.INVALID_CLIENT_ERROR:
-          throw new NotAuthorizedException("Not authorized: %s: %s", error.type(), error.message());
-        case OAuth2Properties.INVALID_REQUEST_ERROR:
-        case OAuth2Properties.INVALID_GRANT_ERROR:
-        case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
-        case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
-        case OAuth2Properties.INVALID_SCOPE_ERROR:
-          throw new BadRequestException("Malformed request: %s: %s", error.type(), error.message());
-        default:
-          throw new RESTException("Unable to process: %s", error.message());
+      if (error.type() != null) {
+        switch (error.type()) {
+          case OAuth2Properties.INVALID_CLIENT_ERROR:
+            throw new NotAuthorizedException(
+                "Not authorized: %s: %s", error.type(), error.message());
+          case OAuth2Properties.INVALID_REQUEST_ERROR:
+          case OAuth2Properties.INVALID_GRANT_ERROR:
+          case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
+          case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
+          case OAuth2Properties.INVALID_SCOPE_ERROR:
+            throw new BadRequestException(
+                "Malformed request: %s: %s", error.type(), error.message());
+        }
       }
+      throw new RESTException("Unable to process: %s", error.message());
     }
   }
 }
