@@ -712,13 +712,13 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    public ExpireSnapshots expireSnapshots() {
-      return BaseTransaction.this.expireSnapshots();
+    public UpdateStatistics updateStatistics() {
+      return BaseTransaction.this.updateStatistics();
     }
 
     @Override
-    public Rollback rollback() {
-      throw new UnsupportedOperationException("Transaction tables do not support rollback");
+    public ExpireSnapshots expireSnapshots() {
+      return BaseTransaction.this.expireSnapshots();
     }
 
     @Override

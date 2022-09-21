@@ -238,6 +238,7 @@ The following properties can be set if using the Hive catalog:
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwrote with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
+* `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values. 
 
 ### Hadoop catalog
 
@@ -471,6 +472,31 @@ INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
 For an unpartitioned iceberg table, its data will be completely overwritten by `INSERT OVERWRITE`.
 
+### `UPSERT` 
+
+Iceberg supports `UPSERT` based on the primary key when writing data into v2 table format. There are two ways to enable upsert.
+
+1. Enable the `UPSERT` mode as table-level property `write.upsert.enabled`. Here is an example SQL statement to set the table property when creating a table. It would be applied for all write paths to this table (batch or streaming) unless overwritten by write options as described later.
+
+```
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+  `id`  INT UNIQUE COMMENT 'unique id',
+  `data` STRING NOT NULL,
+ PRIMARY KEY(`id`) NOT ENFORCED
+) with ('format-version'='2', 'write.upsert.enabled'='true');
+```
+
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
+
+```
+INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
+...
+```
+
+{{< hint info >}}
+OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+{{< /hint >}}
+
 ## Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.
@@ -633,6 +659,29 @@ FlinkSink.forRowData(input)
 
 env.execute("Test Iceberg DataStream");
 ```
+
+### Upsert data
+
+To upsert the data in existing iceberg table, we could set the `upsert` flag in FlinkSink builder. The table must use v2 table format and have a primary key.
+
+```java
+StreamExecutionEnvironment env = ...;
+
+DataStream<RowData> input = ... ;
+Configuration hadoopConf = new Configuration();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path", hadoopConf);
+
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .upsert(true)
+    .build();
+
+env.execute("Test Iceberg DataStream");
+```
+
+{{< hint info >}}
+OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
+{{< /hint >}}
 
 ## Write options
 

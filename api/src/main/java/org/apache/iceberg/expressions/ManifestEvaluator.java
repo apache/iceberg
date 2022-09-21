@@ -34,7 +34,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 
 /**
@@ -51,7 +50,6 @@ import org.apache.iceberg.util.BinaryUtil;
 public class ManifestEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
-  private final StructType struct;
   private final Expression expr;
 
   public static ManifestEvaluator forRowFilter(
@@ -66,8 +64,7 @@ public class ManifestEvaluator {
   }
 
   private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
-    this.struct = spec.partitionType();
-    this.expr = Binder.bind(struct, rewriteNot(partitionFilter), caseSensitive);
+    this.expr = Binder.bind(spec.partitionType(), rewriteNot(partitionFilter), caseSensitive);
   }
 
   /**

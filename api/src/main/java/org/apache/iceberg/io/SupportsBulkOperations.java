@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.io;
 
-public interface SupportsBulkOperations {
+public interface SupportsBulkOperations extends FileIO {
   /**
    * Delete the files at the given paths.
    *

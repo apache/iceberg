@@ -54,6 +54,8 @@ public class MetadataUpdateParser {
   static final String SET_PROPERTIES = "set-properties";
   static final String REMOVE_PROPERTIES = "remove-properties";
   static final String SET_LOCATION = "set-location";
+  static final String SET_STATISTICS = "set-statistics";
+  static final String REMOVE_STATISTICS = "remove-statistics";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -79,6 +81,9 @@ public class MetadataUpdateParser {
 
   // SetDefaultSortOrder
   private static final String SORT_ORDER_ID = "sort-order-id";
+
+  // SetStatistics
+  private static final String STATISTICS = "statistics";
 
   // AddSnapshot
   private static final String SNAPSHOT = "snapshot";
@@ -113,6 +118,8 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetDefaultPartitionSpec.class, SET_DEFAULT_PARTITION_SPEC)
           .put(MetadataUpdate.AddSortOrder.class, ADD_SORT_ORDER)
           .put(MetadataUpdate.SetDefaultSortOrder.class, SET_DEFAULT_SORT_ORDER)
+          .put(MetadataUpdate.SetStatistics.class, SET_STATISTICS)
+          .put(MetadataUpdate.RemoveStatistics.class, REMOVE_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
           .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
@@ -150,7 +157,7 @@ public class MetadataUpdateParser {
     // which is required
     Preconditions.checkArgument(
         updateAction != null,
-        "Cannot convert metadata update to json. Unrecognized metadata update type: {}",
+        "Cannot convert metadata update to json. Unrecognized metadata update type: %s",
         metadataUpdate.getClass().getName());
 
     generator.writeStartObject();
@@ -181,6 +188,12 @@ public class MetadataUpdateParser {
         break;
       case SET_DEFAULT_SORT_ORDER:
         writeSetDefaultSortOrder((MetadataUpdate.SetDefaultSortOrder) metadataUpdate, generator);
+        break;
+      case SET_STATISTICS:
+        writeSetStatistics((MetadataUpdate.SetStatistics) metadataUpdate, generator);
+        break;
+      case REMOVE_STATISTICS:
+        writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
         break;
       case ADD_SNAPSHOT:
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
@@ -252,6 +265,10 @@ public class MetadataUpdateParser {
         return readAddSortOrder(jsonNode);
       case SET_DEFAULT_SORT_ORDER:
         return readSetDefaultSortOrder(jsonNode);
+      case SET_STATISTICS:
+        return readSetStatistics(jsonNode);
+      case REMOVE_STATISTICS:
+        return readRemoveStatistics(jsonNode);
       case ADD_SNAPSHOT:
         return readAddSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
@@ -314,6 +331,18 @@ public class MetadataUpdateParser {
   private static void writeSetDefaultSortOrder(
       MetadataUpdate.SetDefaultSortOrder update, JsonGenerator gen) throws IOException {
     gen.writeNumberField(SORT_ORDER_ID, update.sortOrderId());
+  }
+
+  private static void writeSetStatistics(MetadataUpdate.SetStatistics update, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
+    gen.writeFieldName(STATISTICS);
+    StatisticsFileParser.toJson(update.statisticsFile(), gen);
+  }
+
+  private static void writeRemoveStatistics(
+      MetadataUpdate.RemoveStatistics update, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
   }
 
   private static void writeAddSnapshot(MetadataUpdate.AddSnapshot update, JsonGenerator gen)
@@ -413,6 +442,18 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetDefaultSortOrder(JsonNode node) {
     int sortOrderId = JsonUtil.getInt(SORT_ORDER_ID, node);
     return new MetadataUpdate.SetDefaultSortOrder(sortOrderId);
+  }
+
+  private static MetadataUpdate readSetStatistics(JsonNode node) {
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    JsonNode statisticsFileNode = JsonUtil.get(STATISTICS, node);
+    StatisticsFile statisticsFile = StatisticsFileParser.fromJson(statisticsFileNode);
+    return new MetadataUpdate.SetStatistics(snapshotId, statisticsFile);
+  }
+
+  private static MetadataUpdate readRemoveStatistics(JsonNode node) {
+    int snapshotId = JsonUtil.getInt(SNAPSHOT_ID, node);
+    return new MetadataUpdate.RemoveStatistics(snapshotId);
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {

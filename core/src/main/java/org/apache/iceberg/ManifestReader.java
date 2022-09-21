@@ -93,7 +93,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
-  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
+  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;

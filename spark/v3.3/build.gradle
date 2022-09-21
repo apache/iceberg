@@ -188,6 +188,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
       exclude group: 'org.antlr'
+      exclude group: 'org.scala-lang'
+      exclude group: 'org.scala-lang.modules'
     }
   }
 
@@ -242,6 +244,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'

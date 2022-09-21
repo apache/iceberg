@@ -27,6 +27,7 @@ from typing import (
 
 from pydantic import Field, root_validator
 
+from pyiceberg.schema import Schema
 from pyiceberg.transforms import IdentityTransform, Transform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -103,6 +104,9 @@ class SortField(IcebergBaseModel):
             return f"{self.transform}({self.source_id}) {self.direction} {self.null_order}"
 
 
+INITIAL_SORT_ORDER_ID = 1
+
+
 class SortOrder(IcebergBaseModel):
     """Describes how the data is sorted within the table
 
@@ -111,19 +115,21 @@ class SortOrder(IcebergBaseModel):
     The order of the sort fields within the list defines the order in which the sort is applied to the data.
 
     Args:
-      order_id (int): The id of the sort-order. To keep track of historical sorting
+      order_id (int): An unique id of the sort-order of a table.
       fields (List[SortField]): The fields how the table is sorted
     """
 
-    def __init__(self, order_id: Optional[int] = None, *fields: SortField, **data: Any):
-        if order_id is not None:
-            data["order-id"] = order_id
+    order_id: int = Field(alias="order-id", default=INITIAL_SORT_ORDER_ID)
+    fields: List[SortField] = Field(default_factory=list)
+
+    def __init__(self, *fields: SortField, **data: Any):
         if fields:
             data["fields"] = fields
         super().__init__(**data)
 
-    order_id: int = Field(alias="order-id")
-    fields: List[SortField] = Field(default_factory=list)
+    @property
+    def is_unsorted(self) -> bool:
+        return len(self.fields) == 0
 
     def __str__(self) -> str:
         result_str = "["
@@ -132,6 +138,34 @@ class SortOrder(IcebergBaseModel):
         result_str += "]"
         return result_str
 
+    def __repr__(self):
+        fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
+        return f"SortOrder({fields}order_id={self.order_id})"
+
 
 UNSORTED_SORT_ORDER_ID = 0
 UNSORTED_SORT_ORDER = SortOrder(order_id=UNSORTED_SORT_ORDER_ID)
+
+
+def assign_fresh_sort_order_ids(sort_order: SortOrder, old_schema: Schema, fresh_schema: Schema) -> SortOrder:
+    if sort_order.is_unsorted:
+        return UNSORTED_SORT_ORDER
+
+    fresh_fields = []
+    for field in sort_order.fields:
+        original_field = old_schema.find_column_name(field.source_id)
+        if original_field is None:
+            raise ValueError(f"Could not find in old schema: {field}")
+        fresh_field = fresh_schema.find_field(original_field)
+        if fresh_field is None:
+            raise ValueError(f"Could not find field in fresh schema: {original_field}")
+        fresh_fields.append(
+            SortField(
+                source_id=fresh_field.field_id,
+                transform=field.transform,
+                direction=field.direction,
+                null_order=field.null_order,
+            )
+        )
+
+    return SortOrder(*fresh_fields, order_id=INITIAL_SORT_ORDER_ID)

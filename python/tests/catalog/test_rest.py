@@ -64,13 +64,8 @@ def rest_mock(requests_mock: Mocker):
 
 
 def test_no_uri_supplied():
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(KeyError):
         RestCatalog("production")
-
-    assert (
-        "RestCatalog expects an uri property. Please set in config or using environment variable PYICEBERG_CATALOG__PRODUCTION__URI"
-        in str(exc_info.value)
-    )
 
 
 def test_token_200(rest_mock: Mocker):
@@ -84,7 +79,7 @@ def test_token_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    assert RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).property("token") == TEST_TOKEN
+    assert RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).properties["token"] == TEST_TOKEN
 
 
 def test_token_400(rest_mock: Mocker):
@@ -349,8 +344,8 @@ def test_load_table_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    table = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
-    assert table == Table(
+    actual = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
+    expected = Table(
         identifier=("rest", "fokko", "table"),
         metadata_location="s3://warehouse/database/table/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
         metadata=TableMetadataV1(
@@ -367,7 +362,6 @@ def test_load_table_200(rest_mock: Mocker):
                 )
             ],
             current_schema_id=0,
-            partition_specs=[PartitionSpec(spec_id=0, fields=())],
             default_spec_id=0,
             last_partition_id=999,
             properties={"owner": "bryan", "write.metadata.compression-codec": "gzip"},
@@ -427,6 +421,7 @@ def test_load_table_200(rest_mock: Mocker):
         ),
         config={"client.factory": "io.tabular.iceberg.catalog.TabularAwsClientFactory", "region": "us-west-2"},
     )
+    assert actual == expected
 
 
 def test_load_table_404(rest_mock: Mocker):
@@ -501,7 +496,6 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
                 ],
                 "partition-spec": [],
                 "default-spec-id": 0,
-                "partition-specs": [{"spec-id": 0, "fields": []}],
                 "last-partition-id": 999,
                 "default-sort-order-id": 0,
                 "sort-orders": [{"order-id": 0, "fields": []}],
@@ -529,9 +523,9 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
         schema=table_schema_simple,
         location=None,
         partition_spec=PartitionSpec(
-            spec_id=1, fields=(PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id"),)
+            PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id"), spec_id=1
         ),
-        sort_order=SortOrder(1, SortField(source_id=2, transform=IdentityTransform())),
+        sort_order=SortOrder(SortField(source_id=2, transform=IdentityTransform())),
         properties={"owner": "fokko"},
     )
     assert table == Table(
@@ -552,7 +546,6 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
                 )
             ],
             current_schema_id=0,
-            partition_specs=[PartitionSpec(spec_id=0, fields=())],
             default_spec_id=0,
             last_partition_id=999,
             properties={
@@ -600,10 +593,9 @@ def test_create_table_409(rest_mock, table_schema_simple: Schema):
             schema=table_schema_simple,
             location=None,
             partition_spec=PartitionSpec(
-                spec_id=1,
-                fields=(PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id"),),
+                PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id")
             ),
-            sort_order=SortOrder(1, SortField(source_id=2, transform=IdentityTransform())),
+            sort_order=SortOrder(SortField(source_id=2, transform=IdentityTransform())),
             properties={"owner": "fokko"},
         )
     assert "Table already exists" in str(e.value)

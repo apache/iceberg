@@ -85,7 +85,7 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
-    this.scanMetrics = ScanReport.ScanMetrics.NOOP;
+    this.scanMetrics = ScanReport.ScanMetrics.noop();
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {

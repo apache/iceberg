@@ -48,7 +48,7 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.0 and AWS clients version 2.17.131, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.0 and AWS clients version 2.17.257, you can start the Spark SQL shell with:
 
 ```sh
 # add Iceberg dependency
@@ -56,7 +56,7 @@ ICEBERG_VERSION={{% icebergVersion %}}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
 # add AWS dependnecy
-AWS_SDK_VERSION=2.17.131
+AWS_SDK_VERSION=2.17.257
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
     "bundle"
@@ -74,7 +74,7 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 
-As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.17.131`.
+As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.17.257`.
 
 ### Flink
 
@@ -88,7 +88,7 @@ ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
 
 # download AWS dependnecy
-AWS_SDK_VERSION=2.17.131
+AWS_SDK_VERSION=2.17.257
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
     "bundle"
@@ -509,6 +509,24 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 
 For more details on using S3 Acceleration, please refer to [Configuring fast, secure file transfers using Amazon S3 Transfer Acceleration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html).
 
+### S3 Dual-stack
+
+[S3 Dual-stack](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html) allows a client to access an S3 bucket through a dual-stack endpoint. 
+When clients make a request to a dual-stack endpoint, the bucket URL resolves to an IPv6 address if possible, otherwise fallback to IPv4.
+
+To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
+
+For example, to use S3 Dual-stack with Spark 3.0, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
+```
+
+For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
@@ -535,7 +553,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -564,7 +582,7 @@ For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.ama
 ```sh
 #!/bin/bash
 
-AWS_SDK_VERSION=2.17.131
+AWS_SDK_VERSION=2.17.257
 ICEBERG_VERSION={{% icebergVersion %}}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg

@@ -364,7 +364,7 @@ class DeleteFileIndex {
     private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
-    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
+    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;

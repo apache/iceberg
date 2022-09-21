@@ -36,6 +36,7 @@ from pyiceberg.avro.reader import (
     TimestamptzReader,
     primitive_reader,
 )
+from pyiceberg.manifest import _convert_pos_to_dict
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
@@ -46,9 +47,13 @@ from pyiceberg.types import (
     FixedType,
     FloatType,
     IntegerType,
+    ListType,
     LongType,
+    MapType,
+    NestedField,
     PrimitiveType,
     StringType,
+    StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
@@ -376,9 +381,10 @@ def test_read_manifest_file_file(generated_manifest_file_file: str):
         records = list(reader)
 
     assert len(records) == 1, f"Expected 1 records, got {len(records)}"
-    assert records[0] == AvroStruct(
+    actual = records[0]
+    expected = AvroStruct(
         _data=[
-            "/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro",
+            actual.get(0),
             7989,
             0,
             9182715666859759686,
@@ -391,6 +397,48 @@ def test_read_manifest_file_file(generated_manifest_file_file: str):
             0,
         ]
     )
+    assert actual == expected
+
+
+def test_null_list_convert_pos_to_dict():
+    data = _convert_pos_to_dict(
+        Schema(
+            NestedField(name="field", field_id=1, field_type=ListType(element_id=2, element=StringType(), element_required=False))
+        ),
+        AvroStruct([None]),
+    )
+    assert data["field"] is None
+
+
+def test_null_dict_convert_pos_to_dict():
+    data = _convert_pos_to_dict(
+        Schema(
+            NestedField(
+                name="field",
+                field_id=1,
+                field_type=MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=False),
+            )
+        ),
+        AvroStruct([None]),
+    )
+    assert data["field"] is None
+
+
+def test_null_struct_convert_pos_to_dict():
+    data = _convert_pos_to_dict(
+        Schema(
+            NestedField(
+                name="field",
+                field_id=1,
+                field_type=StructType(
+                    NestedField(2, "required_field", StringType(), True), NestedField(3, "optional_field", IntegerType())
+                ),
+                required=False,
+            )
+        ),
+        AvroStruct([None]),
+    )
+    assert data["field"] is None
 
 
 def test_fixed_reader():

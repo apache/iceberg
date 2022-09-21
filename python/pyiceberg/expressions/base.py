@@ -550,7 +550,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """Visit method for a Not boolean expression
 
         Args:
-            result (T): The result of visiting the child of the Not boolean expression
+            child_result (T): The result of visiting the child of the Not boolean expression
         """
 
     @abstractmethod
@@ -604,26 +604,26 @@ def visit(obj, visitor: BooleanExpressionVisitor[T]) -> T:
     raise NotImplementedError(f"Cannot visit unsupported expression: {obj}")
 
 
-@visit.register(AlwaysTrue)
-def _(obj: AlwaysTrue, visitor: BooleanExpressionVisitor[T]) -> T:
+@visit.register
+def _(_: AlwaysTrue, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_true()
 
 
-@visit.register(AlwaysFalse)
-def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
+@visit.register
+def _(_: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_false()
 
 
-@visit.register(Not)
+@visit.register
 def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
     child_result: T = visit(obj.child, visitor=visitor)
     return visitor.visit_not(child_result=child_result)
 
 
-@visit.register(And)
+@visit.register
 def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
     left_result: T = visit(obj.left, visitor=visitor)
@@ -631,19 +631,19 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
-@visit.register(UnboundPredicate)
+@visit.register
 def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 
 
-@visit.register(BoundPredicate)
+@visit.register
 def _(obj: BoundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit a bound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_bound_predicate(predicate=obj)
 
 
-@visit.register(Or)
+@visit.register
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
     left_result: T = visit(obj.left, visitor=visitor)

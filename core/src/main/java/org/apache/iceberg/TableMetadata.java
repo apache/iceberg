@@ -109,8 +109,7 @@ public class TableMetadata implements Serializable {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
-      specBuilder.add(
-          freshSchema.findField(sourceName).fieldId(), field.name(), field.transform().toString());
+      specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
     }
     PartitionSpec freshSpec = specBuilder.build();
 
@@ -243,6 +242,7 @@ public class TableMetadata implements Serializable {
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
   private final Map<String, SnapshotRef> refs;
+  private final List<StatisticsFile> statisticsFiles;
   private final List<MetadataUpdate> changes;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -267,6 +267,7 @@ public class TableMetadata implements Serializable {
       List<HistoryEntry> snapshotLog,
       List<MetadataLogEntry> previousFiles,
       Map<String, SnapshotRef> refs,
+      List<StatisticsFile> statisticsFiles,
       List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
@@ -314,6 +315,7 @@ public class TableMetadata implements Serializable {
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
     this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
+    this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -487,6 +489,10 @@ public class TableMetadata implements Serializable {
 
   public Map<String, SnapshotRef> refs() {
     return refs;
+  }
+
+  public List<StatisticsFile> statisticsFiles() {
+    return statisticsFiles;
   }
 
   public List<HistoryEntry> snapshotLog() {
@@ -817,6 +823,7 @@ public class TableMetadata implements Serializable {
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
     private final Map<String, SnapshotRef> refs;
+    private final Map<Long, List<StatisticsFile>> statisticsFiles;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -853,6 +860,7 @@ public class TableMetadata implements Serializable {
       this.snapshotLog = Lists.newArrayList();
       this.previousFiles = Lists.newArrayList();
       this.refs = Maps.newHashMap();
+      this.statisticsFiles = Maps.newHashMap();
       this.snapshotsById = Maps.newHashMap();
       this.schemasById = Maps.newHashMap();
       this.specsById = Maps.newHashMap();
@@ -884,6 +892,8 @@ public class TableMetadata implements Serializable {
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
       this.refs = Maps.newHashMap(base.refs);
+      this.statisticsFiles =
+          base.statisticsFiles.stream().collect(Collectors.groupingBy(StatisticsFile::snapshotId));
 
       this.snapshotsById = Maps.newHashMap(base.snapshotsById);
       this.schemasById = Maps.newHashMap(base.schemasById);
@@ -1176,6 +1186,27 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setStatistics(long snapshotId, StatisticsFile statisticsFile) {
+      Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
+      Preconditions.checkArgument(
+          snapshotId == statisticsFile.snapshotId(),
+          "snapshotId does not match: %s vs %s",
+          snapshotId,
+          statisticsFile.snapshotId());
+      statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
+      changes.add(new MetadataUpdate.SetStatistics(snapshotId, statisticsFile));
+      return this;
+    }
+
+    public Builder removeStatistics(long snapshotId) {
+      Preconditions.checkNotNull(snapshotId, "snapshotId is null");
+      if (statisticsFiles.remove(snapshotId) == null) {
+        return this;
+      }
+      changes.add(new MetadataUpdate.RemoveStatistics(snapshotId));
+      return this;
+    }
+
     public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
       Set<Long> idsToRemove =
           snapshotsToRemove.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
@@ -1313,6 +1344,7 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),
+          statisticsFiles.values().stream().flatMap(List::stream).collect(Collectors.toList()),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 

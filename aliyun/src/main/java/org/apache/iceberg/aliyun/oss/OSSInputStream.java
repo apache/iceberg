@@ -34,9 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** @deprecated moving to package-private in 0.15.0 */
-@Deprecated
-public class OSSInputStream extends SeekableInputStream {
+class OSSInputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(OSSInputStream.class);
   private static final int SKIP_SIZE = 1024 * 1024;
 
@@ -52,9 +50,7 @@ public class OSSInputStream extends SeekableInputStream {
   private final Counter readBytes;
   private final Counter readOperations;
 
-  /** @deprecated moving to package-private in 0.15.0 */
-  @Deprecated
-  public OSSInputStream(OSS client, OSSURI uri) {
+  OSSInputStream(OSS client, OSSURI uri) {
     this(client, uri, MetricsContext.nullMetrics());
   }
 

@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.lakeformation;
 
 import java.util.Map;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -64,7 +63,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public void initialize(Map<String, String> catalogProperties) {
     super.initialize(catalogProperties);
     Preconditions.checkArgument(
-        tags().stream().anyMatch(t -> t.key().equals(LF_AUTHORIZED_CALLER)),
+        awsProperties().stsClientAssumeRoleTags().stream()
+            .anyMatch(t -> LF_AUTHORIZED_CALLER.equals(t.key())),
         "STS assume role session tag %s must be set using %s to use LakeFormation client factory",
         LF_AUTHORIZED_CALLER,
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
@@ -78,11 +78,11 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public S3Client s3() {
     if (isTableRegisteredWithLakeFormation()) {
       return S3Client.builder()
-          .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
-          .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint()))
+          .applyMutation(awsProperties()::applyHttpClientConfigurations)
+          .applyMutation(awsProperties()::applyS3EndpointConfigurations)
+          .applyMutation(awsProperties()::applyS3ServiceConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
-          .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled()).build())
           .region(Region.of(region()))
           .build();
     } else {
@@ -94,7 +94,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public KmsClient kms() {
     if (isTableRegisteredWithLakeFormation()) {
       return KmsClient.builder()
-          .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType()))
+          .applyMutation(awsProperties()::applyHttpClientConfigurations)
           .credentialsProvider(
               new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
           .region(Region.of(region()))
@@ -132,7 +132,10 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   }
 
   private LakeFormationClient lakeFormation() {
-    return LakeFormationClient.builder().applyMutation(this::configure).build();
+    return LakeFormationClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties()::applyHttpClientConfigurations)
+        .build();
   }
 
   static class LakeFormationCredentialsProvider implements AwsCredentialsProvider {

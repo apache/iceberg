@@ -57,8 +57,8 @@ subprojects {
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
-          // error-prone is slow, don't run on tests and generated src
-          '-XepExcludedPaths:.*/(test|generated-src)/.*',
+          // error-prone is slow, don't run on tests/generated-src/generated
+          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
           // specific to Palantir
           '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
           '-Xep:FinalClass:OFF',
@@ -66,8 +66,14 @@ subprojects {
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:Slf4jLogsafeArgs:OFF',
           '-Xep:RawTypes:OFF',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
+          '-Xep:PreferStaticLoggers:ERROR',
+          '-Xep:Slf4jThrowable:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
+          // prefer method references over lambdas
+          '-Xep:LambdaMethodReference:ERROR',
           // patterns that are allowed
           '-Xep:MissingCasesInEnumSwitch:OFF',
           //Added because it errors out compile, but we need to figure out if we want it
@@ -75,6 +81,8 @@ subprojects {
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR'
       )
     }
   }

@@ -29,7 +29,8 @@ from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, TableMetadataV2
+from pyiceberg.table import Table
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
@@ -189,13 +190,17 @@ Sort order            [
                         2 ASC NULLS FIRST
                         bucket[4](3) DESC NULLS LAST
                       ]
-Schema                Schema
+Current schema        Schema, id=1
                       ├── 1: x: required long
                       ├── 2: y: required long (comment)
                       └── 3: z: required long
+Current snapshot      Operation.APPEND: id=3055729675574597004,
+                      parent_id=3051729675574597004, schema_id=1
 Snapshots             Snapshots
-                      ├── Snapshot None: s3://a/b/1.avro
-                      └── Snapshot 1: s3://a/b/2.avro
+                      ├── Snapshot 3051729675574597004, schema None:
+                      │   s3://a/b/1.avro
+                      └── Snapshot 3055729675574597004, schema 1:
+                          s3://a/b/2.avro
 Properties            read.split.target.size  134217728
 """
     )
@@ -352,7 +357,7 @@ def test_rename_table_does_not_exists(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_table(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default.foo"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.foo"])
     assert result.exit_code == 0
     assert result.output == "read.split.target.size  134217728\n"
 
@@ -361,7 +366,7 @@ def test_properties_get_table(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_table_specific_property(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 0
     assert result.output == "134217728\n"
 
@@ -370,7 +375,7 @@ def test_properties_get_table_specific_property(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_table_specific_property_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["properties", "get", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
     assert result.output == "Could not find property doesnotexist on table default.foo\n"
 
@@ -379,16 +384,16 @@ def test_properties_get_table_specific_property_that_doesnt_exist(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_table_does_not_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "doesnotexist"])
+    result = runner.invoke(run, ["properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == "Namespace does not exist: doesnotexist\n"
+    assert result.output == "Table does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_namespace(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default"])
+    result = runner.invoke(run, ["properties", "get", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == "location  s3://warehouse/database/location\n"
 
@@ -397,9 +402,18 @@ def test_properties_get_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_properties_get_namespace_specific_property(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["properties", "get", "default", "location"])
+    result = runner.invoke(run, ["properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == "s3://warehouse/database/location\n"
+
+
+@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
+@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
+def test_properties_get_namespace_does_not_exist(_):
+    runner = CliRunner()
+    result = runner.invoke(run, ["properties", "get", "namespace", "doesnotexist"])
+    assert result.exit_code == 1
+    assert result.output == "Namespace does not exist: doesnotexist\n"
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
@@ -678,7 +692,7 @@ def test_json_rename_table_does_not_exists(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_table(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default.foo"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo"])
     assert result.exit_code == 0
     assert result.output == """{"read.split.target.size": "134217728"}\n"""
 
@@ -687,7 +701,7 @@ def test_json_properties_get_table(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_table_specific_property(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default.foo", "read.split.target.size"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 0
     assert result.output == """"134217728"\n"""
 
@@ -696,7 +710,7 @@ def test_json_properties_get_table_specific_property(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_table_specific_property_that_doesnt_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default.foo", "doesnotexist"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
     assert (
         result.output
@@ -708,16 +722,16 @@ def test_json_properties_get_table_specific_property_that_doesnt_exist(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_table_does_not_exist(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "doesnotexist"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
-    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
+    assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_namespace(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default"])
     assert result.exit_code == 0
     assert result.output == """{"location": "s3://warehouse/database/location"}\n"""
 
@@ -726,9 +740,18 @@ def test_json_properties_get_namespace(_):
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
 def test_json_properties_get_namespace_specific_property(_):
     runner = CliRunner()
-    result = runner.invoke(run, ["--output=json", "properties", "get", "default", "location"])
+    result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
     assert result.output == """"s3://warehouse/database/location"\n"""
+
+
+@mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
+@mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
+def test_json_properties_get_namespace_does_not_exist(_):
+    runner = CliRunner()
+    result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "doesnotexist"])
+    assert result.exit_code == 1
+    assert result.output == """{"type": "NoSuchNamespaceError", "message": "Namespace does not exist: doesnotexist"}\n"""
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)

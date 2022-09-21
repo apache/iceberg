@@ -38,6 +38,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -46,6 +47,7 @@ public class TestTimestampsProjection {
   private static final Types.TimestampType TYPE = Types.TimestampType.withoutZone();
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
 
+  @SuppressWarnings("unchecked")
   public void assertProjectionStrict(
       PartitionSpec spec,
       UnboundPredicate<?> filter,
@@ -53,26 +55,28 @@ public class TestTimestampsProjection {
       String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
+    UnboundPredicate<Integer> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
     Assert.assertNotEquals(
         "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
-    Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<?, Integer> transform =
+        (Transform<?, Integer>) spec.getFieldsBySourceId(1).get(0).transform();
+    Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.NOT_IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      Iterable<Integer> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual =
           Lists.newArrayList(values).stream()
               .sorted()
-              .map(v -> transform.toHumanString((Integer) v))
+              .map(v -> transform.toHumanString(type, v))
               .collect(Collectors.toList())
               .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString((int) literal.value());
+      Literal<Integer> literal = predicate.literal();
+      String output = transform.toHumanString(type, literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }
@@ -91,32 +95,35 @@ public class TestTimestampsProjection {
     Assert.assertEquals(expectedOp, projection.op());
   }
 
+  @SuppressWarnings("unchecked")
   public void assertProjectionInclusive(
       PartitionSpec spec,
       UnboundPredicate<?> filter,
       Expression.Operation expectedOp,
       String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
+    UnboundPredicate<Integer> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
     Assert.assertNotEquals(
         "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
-    Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<?, Integer> transform =
+        (Transform<?, Integer>) spec.getFieldsBySourceId(1).get(0).transform();
+    Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
+      Iterable<Integer> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual =
           Lists.newArrayList(values).stream()
               .sorted()
-              .map(v -> transform.toHumanString((Integer) v))
+              .map(v -> transform.toHumanString(type, v))
               .collect(Collectors.toList())
               .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString((int) literal.value());
+      Literal<Integer> literal = predicate.literal();
+      String output = transform.toHumanString(type, literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }

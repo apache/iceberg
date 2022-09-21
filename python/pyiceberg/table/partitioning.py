@@ -25,9 +25,11 @@ from typing import (
 
 from pydantic import Field
 
+from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
+INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000
 
 
@@ -80,19 +82,16 @@ class PartitionSpec(IcebergBaseModel):
         fields(List[PartitionField): list of partition fields to produce partition values
     """
 
-    spec_id: int = Field(alias="spec-id")
-    fields: Tuple[PartitionField, ...] = Field(default_factory=tuple)
+    spec_id: int = Field(alias="spec-id", default=INITIAL_PARTITION_SPEC_ID)
+    fields: Tuple[PartitionField, ...] = Field(alias="fields", default_factory=tuple)
 
     def __init__(
         self,
-        spec_id: Optional[int] = None,
-        fields: Optional[Tuple[PartitionField, ...]] = None,
+        *fields: PartitionField,
         **data: Any,
     ):
-        if spec_id is not None:
-            data["spec-id"] = spec_id
-        if fields is not None:
-            data["fields"] = fields
+        if fields:
+            data["fields"] = tuple(fields)
         super().__init__(**data)
 
     def __eq__(self, other: Any) -> bool:
@@ -118,6 +117,10 @@ class PartitionSpec(IcebergBaseModel):
             result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
         result_str += "]"
         return result_str
+
+    def __repr__(self) -> str:
+        fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
+        return f"PartitionSpec({fields}spec_id={self.spec_id})"
 
     def is_unpartitioned(self) -> bool:
         return not self.fields
@@ -157,3 +160,23 @@ class PartitionSpec(IcebergBaseModel):
 
 
 UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)
+
+
+def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fresh_schema: Schema) -> PartitionSpec:
+    partition_fields = []
+    for pos, field in enumerate(spec.fields):
+        original_column_name = old_schema.find_column_name(field.source_id)
+        if original_column_name is None:
+            raise ValueError(f"Could not find in old schema: {field}")
+        fresh_field = fresh_schema.find_field(original_column_name)
+        if fresh_field is None:
+            raise ValueError(f"Could not find field in fresh schema: {original_column_name}")
+        partition_fields.append(
+            PartitionField(
+                name=field.name,
+                source_id=fresh_field.field_id,
+                field_id=_PARTITION_DATA_ID_START + pos,
+                transform=field.transform,
+            )
+        )
+    return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)

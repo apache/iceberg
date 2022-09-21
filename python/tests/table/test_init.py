@@ -20,7 +20,8 @@ from typing import Any, Dict
 import pytest
 
 from pyiceberg.schema import Schema
-from pyiceberg.table import PartitionSpec, Table, TableMetadataV2
+from pyiceberg.table import PartitionSpec, Table
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField
 from pyiceberg.table.snapshots import (
     Operation,
@@ -81,13 +82,13 @@ def test_schemas(table):
 
 def test_spec(table):
     assert table.spec() == PartitionSpec(
-        spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),)
+        PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0
     )
 
 
 def test_specs(table):
     assert table.specs() == {
-        0: PartitionSpec(spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),))
+        0: PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0)
     }
 
 

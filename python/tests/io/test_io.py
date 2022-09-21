@@ -18,18 +18,24 @@
 import os
 import tempfile
 from typing import Union
+from unittest.mock import patch
 from urllib.parse import ParseResult, urlparse
 
 import pytest
 
 from pyiceberg.io import (
+    ARROW_FILE_IO,
+    PY_IO_IMPL,
     FileIO,
     InputFile,
     InputStream,
     OutputFile,
     OutputStream,
+    _import_file_io,
+    load_file_io,
 )
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.io.fsspec import FsspecFileIO
+from pyiceberg.io.pyarrow import PyArrowFileIO
 
 
 class LocalInputFile(InputFile):
@@ -127,8 +133,8 @@ class LocalFileIO(FileIO):
             raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path}") from e
 
 
-@pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
-def test_custom_local_input_file(CustomInputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_custom_local_input_file(CustomFileIO):
     """Test initializing an InputFile implementation to read a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -140,7 +146,7 @@ def test_custom_local_input_file(CustomInputFile):
 
         # Instantiate the input file
         absolute_file_location = os.path.abspath(file_location)
-        input_file = CustomInputFile(location=f"{absolute_file_location}")
+        input_file = CustomFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
@@ -149,15 +155,15 @@ def test_custom_local_input_file(CustomInputFile):
         assert len(input_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_custom_local_output_file(CustomOutputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_custom_local_output_file(CustomFileIO):
     """Test initializing an OutputFile implementation to write to a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Instantiate the output file
         absolute_file_location = os.path.abspath(file_location)
-        output_file = CustomOutputFile(location=f"{absolute_file_location}")
+        output_file = CustomFileIO().new_output(location=f"{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -170,8 +176,8 @@ def test_custom_local_output_file(CustomOutputFile):
         assert len(output_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_custom_local_output_file_with_overwrite(CustomOutputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_custom_local_output_file_with_overwrite(CustomFileIO):
     """Test initializing an OutputFile implementation to overwrite a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -181,7 +187,7 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             f.write(b"foo")
 
         # Instantiate an output file
-        output_file = CustomOutputFile(location=f"{output_file_location}")
+        output_file = CustomFileIO().new_output(location=f"{output_file_location}")
 
         # Confirm that a FileExistsError is raised when overwrite=False
         with pytest.raises(FileExistsError):
@@ -195,8 +201,8 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowFile, PyArrowFile])
-def test_custom_file_exists(CustomFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_custom_file_exists(CustomFileIO):
     """Test that the exists property returns the proper value for existing and non-existing files"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -212,23 +218,31 @@ def test_custom_file_exists(CustomFile):
         absolute_file_location = os.path.abspath(file_location)
         non_existent_absolute_file_location = os.path.abspath(nonexistent_file_location)
 
-        # Create File instances
-        file = CustomFile(location=f"{absolute_file_location}")
-        non_existent_file = CustomFile(location=f"{non_existent_absolute_file_location}")
+        # Create InputFile instances
+        file = CustomFileIO().new_input(location=f"{absolute_file_location}")
+        non_existent_file = CustomFileIO().new_input(location=f"{non_existent_absolute_file_location}")
+
+        # Test opening and reading the file
+        assert file.exists()
+        assert not non_existent_file.exists()
+
+        # Create OutputFile instances
+        file = CustomFileIO().new_output(location=f"{absolute_file_location}")
+        non_existent_file = CustomFileIO().new_output(location=f"{non_existent_absolute_file_location}")
 
         # Test opening and reading the file
         assert file.exists()
         assert not non_existent_file.exists()
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_output_file_to_input_file(CustomOutputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_output_file_to_input_file(CustomFileIO):
     """Test initializing an InputFile using the `to_input_file()` method on an OutputFile instance"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Create an output file instance
-        output_file = CustomOutputFile(location=f"{output_file_location}")
+        output_file = CustomFileIO().new_output(location=f"{output_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -328,8 +342,8 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_deleting_local_file_using_file_io_input_file(CustomFileIO):
     """Test deleting a local file by passing an InputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -344,7 +358,7 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputF
         assert os.path.exists(file_location)
 
         # Instantiate the custom InputFile
-        input_file = CustomInputFile(location=f"{file_location}")
+        input_file = CustomFileIO().new_input(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(input_file)
@@ -353,8 +367,8 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputF
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutputFile):
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_deleting_local_file_using_file_io_output_file(CustomFileIO):
     """Test deleting a local file by passing an OutputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -369,10 +383,73 @@ def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutpu
         assert os.path.exists(file_location)
 
         # Instantiate the custom OutputFile
-        output_file = CustomOutputFile(location=f"{file_location}")
+        output_file = CustomFileIO().new_output(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(output_file)
 
         # Confirm that the file no longer exists
         assert not os.path.exists(file_location)
+
+
+class MockFileIO(FileIO):
+    def new_input(self, location: str):
+        raise NotImplementedError()
+
+    def new_output(self, location: str):
+        raise NotImplementedError()
+
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+        raise NotImplementedError()
+
+
+def test_import_file_io():
+    assert isinstance(_import_file_io(ARROW_FILE_IO, {}), PyArrowFileIO)
+
+
+def test_import_file_io_does_not_exist():
+    assert _import_file_io("pyiceberg.does.not.exist.FileIO", {}) is None
+
+
+def test_load_file():
+    assert isinstance(load_file_io({PY_IO_IMPL: ARROW_FILE_IO}), PyArrowFileIO)
+
+
+def test_load_file_io_no_arguments():
+    assert isinstance(load_file_io({}), PyArrowFileIO)
+
+
+def test_load_file_io_does_not_exist():
+    with pytest.raises(ValueError) as exc_info:
+        load_file_io({PY_IO_IMPL: "pyiceberg.does.not.exist.FileIO"})
+
+    assert "Could not initialize FileIO: pyiceberg.does.not.exist.FileIO" in str(exc_info.value)
+
+
+def test_load_file_io_warehouse():
+    assert isinstance(load_file_io({"warehouse": "s3://some-path/"}), FsspecFileIO)
+
+
+def test_load_file_io_location():
+    assert isinstance(load_file_io({"location": "s3://some-path/"}), PyArrowFileIO)
+
+
+def test_load_file_io_location_no_schema():
+    assert isinstance(load_file_io({"location": "/no-schema/"}), PyArrowFileIO)
+
+
+@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
+def test_mock_warehouse_location_file_io():
+    # For testing the selection logic
+    assert isinstance(load_file_io({"warehouse": "test://some-path/"}), MockFileIO)
+
+
+@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
+def test_mock_table_location_file_io():
+    # For testing the selection logic
+    assert isinstance(load_file_io({}, "test://some-path/"), MockFileIO)
+
+
+def test_gibberish_table_location_file_io():
+    # For testing the selection logic
+    assert isinstance(load_file_io({}, "gibberish"), PyArrowFileIO)

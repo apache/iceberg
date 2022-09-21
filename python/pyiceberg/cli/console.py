@@ -16,24 +16,15 @@
 # under the License.
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
 from functools import wraps
-from typing import (
-    Dict,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-)
+from typing import Literal, Optional, Tuple
 
 import click
 from click import Context
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.catalog.hive import HiveCatalog
-from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
-
-SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": RestCatalog}
+from pyiceberg.io import load_file_io
 
 
 def catch_exception():
@@ -55,11 +46,12 @@ def catch_exception():
 
 @click.group()
 @click.option("--catalog", default="default")
+@click.option("--verbose", type=click.BOOL)
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
+def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[str], credential: Optional[str]):
     properties = {}
     if uri:
         properties["uri"] = uri
@@ -68,9 +60,9 @@ def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential:
 
     ctx.ensure_object(dict)
     if output == "text":
-        ctx.obj["output"] = ConsoleOutput()
+        ctx.obj["output"] = ConsoleOutput(verbose=verbose)
     else:
-        ctx.obj["output"] = JsonOutput()
+        ctx.obj["output"] = JsonOutput(verbose=verbose)
 
     try:
         try:
@@ -143,6 +135,20 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 
     if is_namespace is False and is_table is False:
         raise NoSuchTableError(f"Table or namespace does not exist: {identifier}")
+
+
+@run.command()
+@click.argument("identifier")
+@click.option("--history", is_flag=True)
+@click.pass_context
+@catch_exception()
+def files(ctx: Context, identifier: str, history: bool):
+    """Lists all the files of the table"""
+    catalog, output = _catalog_and_output(ctx)
+
+    catalog_table = catalog.load_table(identifier)
+    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
+    output.files(catalog_table, io, history)
 
 
 @run.command()
@@ -236,55 +242,53 @@ def properties():
     """Properties on tables/namespaces"""
 
 
-@properties.command()
-@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
+@properties.group()
+def get():
+    """Fetch properties on tables/namespaces"""
+
+
+@get.command("namespace")
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
 @catch_exception()
-def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):
-    """Fetches a property of a namespace or table"""
+def get_namespace(ctx: Context, identifier: str, property_name: str):
+    """Fetch properties on a namespace"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    is_namespace = False
-    if entity in {"namespace", "any"}:
-        try:
-            namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    assert namespace_properties
 
-            if property_name:
-                if property_value := namespace_properties.get(property_name):
-                    output.text(property_value)
-                    is_namespace = True
-                else:
-                    raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
-            else:
-                output.describe_properties(namespace_properties)
-                is_namespace = True
-        except NoSuchNamespaceError as exc:
-            if entity != "any" or len(identifier_tuple) <= 1:  # type: ignore
-                raise exc
-    is_table = False
-    if is_namespace is False and len(identifier_tuple) > 1 and entity in {"table", "any"}:
-        metadata = catalog.load_table(identifier_tuple).metadata
-        assert metadata
-
-        if property_name:
-            if property_value := metadata.properties.get(property_name):
-                output.text(property_value)
-                is_table = True
-            else:
-                raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    if property_name:
+        if property_value := namespace_properties.get(property_name):
+            output.text(property_value)
         else:
-            output.describe_properties(metadata.properties)
-            is_table = True
+            raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
+    else:
+        output.describe_properties(namespace_properties)
 
-    if is_namespace is False and is_table is False:
-        property_err = ""
-        if property_name:
-            property_err = f" with property {property_name}"
 
-        raise NoSuchNamespaceError(f"Table or namespace does not exist: {identifier}{property_err}")
+@get.command("table")
+@click.argument("identifier")
+@click.argument("property_name", required=False)
+@click.pass_context
+@catch_exception()
+def get_table(ctx: Context, identifier: str, property_name: str):
+    """Fetch properties on a table"""
+    catalog, output = _catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    metadata = catalog.load_table(identifier_tuple).metadata
+    assert metadata
+
+    if property_name:
+        if property_value := metadata.properties.get(property_name):
+            output.text(property_value)
+        else:
+            raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    else:
+        output.describe_properties(metadata.properties)
 
 
 @properties.group()

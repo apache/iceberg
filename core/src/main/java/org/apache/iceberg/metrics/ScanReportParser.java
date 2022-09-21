@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -30,6 +32,7 @@ import org.apache.iceberg.util.JsonUtil;
 public class ScanReportParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String FILTER = "filter";
   private static final String PROJECTION = "projection";
   private static final String METRICS = "metrics";
 
@@ -51,6 +54,9 @@ public class ScanReportParser {
     gen.writeStringField(TABLE_NAME, scanReport.tableName());
     gen.writeNumberField(SNAPSHOT_ID, scanReport.snapshotId());
 
+    gen.writeFieldName(FILTER);
+    ExpressionParser.toJson(scanReport.filter(), gen);
+
     gen.writeFieldName(PROJECTION);
     SchemaParser.toJson(scanReport.projection(), gen);
 
@@ -71,14 +77,16 @@ public class ScanReportParser {
 
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
+    Expression filter = ExpressionParser.fromJson(JsonUtil.get(FILTER, json));
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, json));
     ScanMetricsResult scanMetricsResult =
         ScanMetricsResultParser.fromJson(JsonUtil.get(METRICS, json));
-    return ScanReport.builder()
-        .withTableName(tableName)
-        .withSnapshotId(snapshotId)
-        .withProjection(projection)
-        .fromScanMetricsResult(scanMetricsResult)
+    return ImmutableScanReport.builder()
+        .tableName(tableName)
+        .snapshotId(snapshotId)
+        .projection(projection)
+        .filter(filter)
+        .scanMetrics(scanMetricsResult)
         .build();
   }
 }

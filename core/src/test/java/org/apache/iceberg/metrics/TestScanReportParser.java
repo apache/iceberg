@@ -21,7 +21,9 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
+import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -53,14 +55,14 @@ public class TestScanReportParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":\"true\"}"))
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: projection");
 
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":\"true\","
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,"
                         + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: metrics");
@@ -68,7 +70,7 @@ public class TestScanReportParser {
 
   @Test
   public void extraFields() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -83,17 +85,18 @@ public class TestScanReportParser {
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .fromScanMetrics(scanMetrics)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     Assertions.assertThat(
             ScanReportParser.fromJson(
                 "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,"
-                    + "\"filter\":\"true\",\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
+                    + "\"filter\":true,\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
                     + "\"metrics\":{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
@@ -128,18 +131,28 @@ public class TestScanReportParser {
   }
 
   @Test
+  public void invalidExpressionFilter() {
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanReportParser.fromJson(
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":23,\"projection\":23}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse expression from non-object: 23");
+  }
+
+  @Test
   public void invalidSchema() {
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"projection\":23}"))
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"projection\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse type from json: 23");
   }
 
   @Test
   public void roundTripSerde() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -154,17 +167,19 @@ public class TestScanReportParser {
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .fromScanMetrics(scanMetrics)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .filter(Expressions.alwaysTrue())
+            .snapshotId(23L)
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     String expectedJson =
         "{\n"
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
             + "  \"projection\" : {\n"
             + "    \"type\" : \"struct\",\n"
             + "    \"schema-id\" : 0,\n"
@@ -231,17 +246,19 @@ public class TestScanReportParser {
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .fromScanMetrics(ScanMetrics.NOOP)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
             .build();
 
     String expectedJson =
         "{\n"
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
             + "  \"projection\" : {\n"
             + "    \"type\" : \"struct\",\n"
             + "    \"schema-id\" : 0,\n"

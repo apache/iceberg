@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 /** A sort order that defines how data and delete files should be ordered in a table. */
 public class SortOrder implements Serializable {
@@ -254,14 +253,6 @@ public class SortOrder implements Serializable {
     }
 
     Builder addSortField(
-        String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
-      Types.NestedField column = schema.findField(sourceId);
-      ValidationException.check(column != null, "Cannot find source column: %s", sourceId);
-      Transform<?, ?> transform = Transforms.fromString(column.type(), transformAsString);
-      return addSortField(transform, sourceId, direction, nullOrder);
-    }
-
-    Builder addSortField(
         Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
       SortField sortField = new SortField(transform, sourceId, direction, nullOrder);
       fields.add(sortField);
@@ -293,7 +284,7 @@ public class SortOrder implements Serializable {
 
     private Transform<?, ?> toTransform(BoundTerm<?> term) {
       if (term instanceof BoundReference) {
-        return Transforms.identity(term.type());
+        return Transforms.identity();
       } else if (term instanceof BoundTransform) {
         return ((BoundTransform<?, ?>) term).transform();
       } else {
