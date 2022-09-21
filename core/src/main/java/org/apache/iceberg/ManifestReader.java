@@ -206,6 +206,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           requireStatsProjection ? withStatsColumns(columns) : columns;
 
       return CloseableIterable.filter(
+          content == FileType.DATA_FILES
+              ? scanMetrics.skippedDataFiles()
+              : scanMetrics.skippedDeleteFiles(),
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
           entry ->
               entry != null
@@ -255,7 +258,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
     return CloseableIterable.filter(
-        entries(), entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
+        content == FileType.DATA_FILES
+            ? scanMetrics.skippedDataFiles()
+            : scanMetrics.skippedDeleteFiles(),
+        entries(),
+        entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */

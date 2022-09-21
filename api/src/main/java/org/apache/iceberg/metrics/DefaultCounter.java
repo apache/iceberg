@@ -38,6 +38,11 @@ public class DefaultCounter implements Counter {
         public long value() {
           throw new UnsupportedOperationException("NOOP counter has no value");
         }
+
+        @Override
+        public String toString() {
+          return "NOOP counter";
+        }
       };
 
   private final LongAdder counter;

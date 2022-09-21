@@ -311,16 +311,22 @@ class ManifestGroup {
                 if (ignoreExisting) {
                   entries =
                       CloseableIterable.filter(
-                          entries, entry -> entry.status() != ManifestEntry.Status.EXISTING);
+                          scanMetrics.skippedDataFiles(),
+                          entries,
+                          entry -> entry.status() != ManifestEntry.Status.EXISTING);
                 }
 
                 if (evaluator != null) {
                   entries =
                       CloseableIterable.filter(
-                          entries, entry -> evaluator.eval((GenericDataFile) entry.file()));
+                          scanMetrics.skippedDataFiles(),
+                          entries,
+                          entry -> evaluator.eval((GenericDataFile) entry.file()));
                 }
 
-                entries = CloseableIterable.filter(entries, manifestEntryPredicate);
+                entries =
+                    CloseableIterable.filter(
+                        scanMetrics.skippedDataFiles(), entries, manifestEntryPredicate);
 
                 iterable = entryFn.apply(manifest, entries);
 

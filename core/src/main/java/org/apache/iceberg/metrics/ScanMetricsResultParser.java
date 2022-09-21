@@ -87,6 +87,16 @@ class ScanMetricsResultParser {
       CounterResultParser.toJson(metrics.totalDeleteFileSizeInBytes(), gen);
     }
 
+    if (null != metrics.skippedDataFiles()) {
+      gen.writeFieldName(ScanMetrics.SKIPPED_DATA_FILES);
+      CounterResultParser.toJson(metrics.skippedDataFiles(), gen);
+    }
+
+    if (null != metrics.skippedDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.SKIPPED_DELETE_FILES);
+      CounterResultParser.toJson(metrics.skippedDeleteFiles(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -115,6 +125,8 @@ class ScanMetricsResultParser {
             CounterResultParser.fromJson(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES, json))
         .totalDeleteFileSizeInBytes(
             CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES, json))
+        .skippedDataFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_FILES, json))
+        .skippedDeleteFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DELETE_FILES, json))
         .build();
   }
 }

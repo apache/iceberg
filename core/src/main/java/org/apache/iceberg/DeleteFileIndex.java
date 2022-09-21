@@ -547,6 +547,7 @@ class DeleteFileIndex {
                   .filterPartitions(partitionFilter)
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
+                  .scanMetrics(scanMetrics)
                   .liveEntries());
     }
   }
