@@ -16,32 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.hadoop;
+package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
+import com.github.benmanes.caffeine.cache.Cache;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.HadoopTableTestBase;
 import org.apache.iceberg.io.ContentCache;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestManifestCaching extends HadoopTableTestBase {
+
+  // Schema passed to create tables
+  static final Schema SCHEMA =
+      new Schema(
+          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(4, "data", Types.StringType.get()));
+
+  // Partition spec used to create tables
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
 
   @Test
   public void testPlanWithCache() throws Exception {
@@ -49,10 +58,10 @@ public class TestManifestCaching extends HadoopTableTestBase {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             HadoopFileIO.class.getName(),
-            CatalogProperties.IO_CACHE_ENABLED,
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
             "true");
     Table table = createTable(properties);
-    ContentCache cache = ManifestFiles.getOrCreateCache(table.io());
+    ContentCache cache = ManifestFiles.contentCache(table.io());
     Assert.assertEquals(0, cache.estimatedCacheSize());
 
     int numFiles = 4;
@@ -85,9 +94,9 @@ public class TestManifestCaching extends HadoopTableTestBase {
     Map<String, String> properties =
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, HadoopFileIO.class.getName(),
-            CatalogProperties.IO_CACHE_ENABLED, "true",
-            CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES, "1",
-            CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH, "1");
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED, "true",
+            CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES, "1",
+            CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH, "1");
     Table table = createTable(properties);
 
     int numFiles = 4;
@@ -96,7 +105,7 @@ public class TestManifestCaching extends HadoopTableTestBase {
 
     // We should never hit cache.
     TableScan scan = table.newScan();
-    ContentCache cache = ManifestFiles.getOrCreateCache(scan.table().io());
+    ContentCache cache = ManifestFiles.contentCache(scan.table().io());
     Assert.assertEquals(1, cache.maxContentLength());
     Assert.assertEquals(1, cache.maxTotalBytes());
     Assert.assertEquals("Should get 1 tasks per file", numFiles, Iterables.size(scan.planFiles()));
@@ -112,21 +121,21 @@ public class TestManifestCaching extends HadoopTableTestBase {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             HadoopFileIO.class.getName(),
-            CatalogProperties.IO_CACHE_ENABLED,
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
             "true");
     Table table1 = createTable(properties1);
 
     Map<String, String> properties2 =
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, HadoopFileIO.class.getName(),
-            CatalogProperties.IO_CACHE_ENABLED, "true",
-            CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES, "1",
-            CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH, "1");
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED, "true",
+            CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES, "1",
+            CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH, "1");
     Table table2 = createTable(properties2);
 
-    ContentCache cache1 = ManifestFiles.getOrCreateCache(table1.io());
-    ContentCache cache2 = ManifestFiles.getOrCreateCache(table2.io());
-    ContentCache cache3 = ManifestFiles.getOrCreateCache(table2.io());
+    ContentCache cache1 = ManifestFiles.contentCache(table1.io());
+    ContentCache cache2 = ManifestFiles.contentCache(table2.io());
+    ContentCache cache3 = ManifestFiles.contentCache(table2.io());
     Assert.assertNotSame(cache1, cache2);
     Assert.assertSame(cache2, cache3);
 
@@ -140,16 +149,95 @@ public class TestManifestCaching extends HadoopTableTestBase {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             HadoopFileIO.class.getName(),
-            CatalogProperties.IO_CACHE_ENABLED,
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
             "true");
     Table table = createTable(properties);
 
-    ContentCache cache1 = ManifestFiles.getOrCreateCache(table.io());
+    ContentCache cache1 = ManifestFiles.contentCache(table.io());
     ManifestFiles.dropCache(table.io());
 
-    ContentCache cache2 = ManifestFiles.getOrCreateCache(table.io());
+    ContentCache cache2 = ManifestFiles.contentCache(table.io());
     Assert.assertNotSame(cache1, cache2);
     ManifestFiles.dropCache(table.io());
+  }
+
+  @Test
+  public void testWeakFileIOReferenceCleanUp() {
+    Cache<FileIO, ContentCache> manifestCache = ManifestFiles.newManifestCache();
+    int maxIO = SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
+    FileIO firstIO = null;
+    ContentCache firstCache = null;
+    for (int i = 0; i < maxIO; i++) {
+      FileIO io = cacheEnabledHadoopFileIO();
+      ContentCache cache = contentCache(manifestCache, io);
+      if (i == 0) {
+        firstIO = io;
+        firstCache = cache;
+      }
+    }
+
+    System.gc();
+    manifestCache.cleanUp();
+    awaitQuiescence();
+    Assert.assertEquals(maxIO, manifestCache.estimatedSize());
+    Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
+    Assert.assertEquals(
+        "No entries should be evicted before IO_CACHE_MAX_FILEIO_DEFAULT exceeded.",
+        0,
+        manifestCache.stats().evictionCount());
+
+    // Insert one more FileIO to trigger cache eviction.
+    FileIO lastIO = cacheEnabledHadoopFileIO();
+    ContentCache lastCache = contentCache(manifestCache, lastIO);
+    System.gc();
+    manifestCache.cleanUp();
+    awaitQuiescence();
+
+    // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
+    ContentCache cache1 = contentCache(manifestCache, firstIO);
+    ContentCache cacheN = contentCache(manifestCache, lastIO);
+    Assert.assertEquals(firstCache, cache1);
+    Assert.assertEquals(lastCache, cacheN);
+    Assert.assertEquals(2, manifestCache.estimatedSize());
+    Assert.assertEquals(maxIO + 1, manifestCache.stats().loadCount());
+    Assert.assertEquals(maxIO - 1, manifestCache.stats().evictionCount());
+  }
+
+  /**
+   * Helper to get existing or insert new {@link ContentCache} into the given manifestCache.
+   *
+   * @return an existing or new {@link ContentCache} associated with given io.
+   */
+  private static ContentCache contentCache(Cache<FileIO, ContentCache> manifestCache, FileIO io) {
+    return manifestCache.get(
+        io,
+        fileIO ->
+            new ContentCache(
+                ManifestFiles.cacheDurationMs(fileIO),
+                ManifestFiles.cacheTotalBytes(fileIO),
+                ManifestFiles.cacheMaxContentLength(fileIO)));
+  }
+
+  private FileIO cacheEnabledHadoopFileIO() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            HadoopFileIO.class.getName(),
+            CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+            "true");
+    HadoopFileIO io = new HadoopFileIO(new Configuration());
+    io.initialize(properties);
+    return io;
+  }
+
+  /**
+   * Wait until Caffeine cache complete its background maintenance tasks.
+   *
+   * <p>By default, Caffeine use {@link ForkJoinPool#commonPool()} as its executor.
+   */
+  private void awaitQuiescence() {
+    boolean quiescent = ForkJoinPool.commonPool().awaitQuiescence(10, TimeUnit.SECONDS);
+    Assert.assertTrue("ForkJoinPool.commonPool() does not quiesce within 10s.", quiescent);
   }
 
   private Table createTable(Map<String, String> properties) throws Exception {

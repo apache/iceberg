@@ -24,77 +24,55 @@ import com.github.benmanes.caffeine.cache.Weigher;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Class that provides file-content caching during reading.
+ *
+ * <p>The file-content caching is initiated by calling {@link ContentCache#tryCache(FileIO, String,
+ * long)}. Given a FileIO, a file location string, and file length that is within allowed limit,
+ * ContentCache will return a {@link CachingInputFile} that is backed by the cache. Calling {@link
+ * CachingInputFile#newStream()} will return a {@link ByteBufferInputStream} backed by list of
+ * {@link ByteBuffer} from the cache if such file-content exist in the cache. If the file-content
+ * does not exist in the cache yet, a regular InputFile will be instantiated, read-ahead, and loaded
+ * into the cache before returning ByteBufferInputStream. The regular InputFile is also used as a
+ * fallback if cache loading fail.
+ */
 public class ContentCache {
   private static final Logger LOG = LoggerFactory.getLogger(ContentCache.class);
   private static final int BUFFER_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
-
-  public static ContentCache createCache(Map<String, String> properties) {
-    boolean enabled =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            CatalogProperties.IO_CACHE_ENABLED,
-            CatalogProperties.IO_CACHE_ENABLED_DEFAULT);
-    long durationMs =
-        PropertyUtil.propertyAsLong(
-            properties,
-            CatalogProperties.IO_CACHE_EXPIRATION_INTERVAL_MS,
-            CatalogProperties.IO_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
-    long totalBytes =
-        PropertyUtil.propertyAsLong(
-            properties,
-            CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES,
-            CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES_DEFAULT);
-    long contentLength =
-        PropertyUtil.propertyAsLong(
-            properties,
-            CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH,
-            CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
-
-    if (!enabled) {
-      LOG.debug("No ContentCache created. {} is false.", CatalogProperties.IO_CACHE_ENABLED);
-    } else if (durationMs < 0) {
-      LOG.debug(
-          "No ContentCache created. {} ({}) is less than 0.",
-          CatalogProperties.IO_CACHE_EXPIRATION_INTERVAL_MS,
-          durationMs);
-    } else if (totalBytes <= 0) {
-      LOG.debug(
-          "No ContentCache created. {} ({}) is equal or less than 0.",
-          CatalogProperties.IO_CACHE_MAX_TOTAL_BYTES,
-          totalBytes);
-    } else if (contentLength <= 0) {
-      LOG.debug(
-          "No ContentCache created. {} ({}) is equal or less than 0.",
-          CatalogProperties.IO_CACHE_MAX_CONTENT_LENGTH,
-          contentLength);
-    } else {
-      return new ContentCache(durationMs, totalBytes, contentLength);
-    }
-
-    return null;
-  }
 
   private final long expireAfterAccessMs;
   private final long maxTotalBytes;
   private final long maxContentLength;
   private final Cache<String, CacheEntry> cache;
 
+  /**
+   * Constructor for ContentCache class.
+   *
+   * @param expireAfterAccessMs controls the duration for which entries in the ContentCache are hold
+   *     since last access. Must be greater or equal than 0. Setting 0 means cache entries expire
+   *     only if it gets evicted due to memory pressure.
+   * @param maxTotalBytes controls the maximum total amount of bytes to cache in ContentCache. Must
+   *     be greater than 0.
+   * @param maxContentLength controls the maximum length of file to be considered for caching. Must
+   *     be greater than 0.
+   */
   public ContentCache(long expireAfterAccessMs, long maxTotalBytes, long maxContentLength) {
+    ValidationException.check(expireAfterAccessMs >= 0, "expireAfterAccessMs is less than 0");
+    ValidationException.check(maxTotalBytes > 0, "maxTotalBytes is equal or less than 0");
+    ValidationException.check(maxContentLength > 0, "maxContentLength is equal or less than 0");
     this.expireAfterAccessMs = expireAfterAccessMs;
     this.maxTotalBytes = maxTotalBytes;
     this.maxContentLength = maxContentLength;
@@ -110,6 +88,10 @@ public class ContentCache {
             .weigher(
                 (Weigher<String, CacheEntry>)
                     (key, value) -> (int) Math.min(value.length, Integer.MAX_VALUE))
+            .softValues()
+            .removalListener(
+                (location, cacheEntry, cause) ->
+                    LOG.debug("Evicted {} from ContentCache ({})", location, cause))
             .recordStats()
             .build();
   }
@@ -138,6 +120,19 @@ public class ContentCache {
     return cache.getIfPresent(location);
   }
 
+  /**
+   * Try cache the file-content of file in the given location upon stream reading.
+   *
+   * <p>If length is longer than maximum length allowed by ContentCache, a regular {@link InputFile}
+   * and no caching will be done for that file. Otherwise, this method will return a {@link
+   * CachingInputFile} that serve file reads backed by ContentCache.
+   *
+   * @param io a FileIO associated with the location.
+   * @param location URL/path of a file accessible by io.
+   * @param length the known length of such file.
+   * @return a {@link CachingInputFile} if length is within allowed limit. Otherwise, a regular
+   *     {@link InputFile} for given location.
+   */
   public InputFile tryCache(FileIO io, String location, long length) {
     if (length <= maxContentLength) {
       return new CachingInputFile(this, io, location, length);
@@ -181,6 +176,15 @@ public class ContentCache {
     }
   }
 
+  /**
+   * A subclass of {@link InputFile} that is backed by a {@link ContentCache}.
+   *
+   * <p>Calling {@link CachingInputFile#newStream()} will return a {@link ByteBufferInputStream}
+   * backed by list of {@link ByteBuffer} from the cache if such file-content exist in the cache. If
+   * the file-content does not exist in the cache, a regular InputFile will be instantiated,
+   * read-ahead, and loaded into the cache before returning ByteBufferInputStream. The regular
+   * InputFile is also used as a fallback if cache loading fail.
+   */
   private static class CachingInputFile implements InputFile {
     private final ContentCache contentCache;
     private final FileIO io;
@@ -215,8 +219,8 @@ public class ContentCache {
     }
 
     /**
-     * Opens a new {@link SeekableInputStream} for the underlying data file, either through cache or
-     * through the inner FileIO.
+     * Opens a new {@link SeekableInputStream} for the underlying data file, either from cache or
+     * from the inner FileIO.
      *
      * <p>If data file is not cached yet, and it can fit in the cache, the file content will be
      * cached first before returning a {@link ByteBufferInputStream}. Otherwise, return a new
@@ -228,7 +232,7 @@ public class ContentCache {
     @Override
     public SeekableInputStream newStream() {
       try {
-        // read-through cache if file length is less than or equal to maximum length allowed to
+        // read from cache if file length is less than or equal to maximum length allowed to
         // cache.
         if (getLength() <= contentCache.maxContentLength()) {
           return cachedStream();
@@ -240,8 +244,8 @@ public class ContentCache {
         throw new NotFoundException(
             e, "Failed to open input stream for file %s: %s", location, e.toString());
       } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Failed to open input stream for file %s: %s", location, e.toString());
+        throw new UncheckedIOException(
+            String.format("Failed to open input stream for file %s: %s", location, e), e);
       }
     }
 
@@ -274,22 +278,19 @@ public class ContentCache {
             // Read less than it should be, possibly hitting EOF. Abandon caching by throwing
             // IOException and let the caller fallback to non-caching input file.
             throw new IOException(
-                "Expected to read "
-                    + fileLength
-                    + " bytes, but only "
-                    + (fileLength - totalBytesToRead)
-                    + " bytes "
-                    + "read.");
+                String.format(
+                    "Expected to read %d bytes, but only %d bytes read.",
+                    fileLength, fileLength - totalBytesToRead));
           } else {
             buffers.add(ByteBuffer.wrap(buf));
           }
         }
 
-        CacheEntry newEntry = new CacheEntry(fileLength - totalBytesToRead, buffers);
+        CacheEntry newEntry = new CacheEntry(fileLength, buffers);
         LOG.debug("cacheEntry took {} ms for {}", (System.currentTimeMillis() - start), location);
         return newEntry;
       } catch (IOException ex) {
-        throw new RuntimeIOException(ex);
+        throw new UncheckedIOException(ex);
       }
     }
 
@@ -300,10 +301,10 @@ public class ContentCache {
             entry, "CacheEntry should not be null when there is no RuntimeException occurs");
         LOG.debug("Cache stats: {}", contentCache.stats());
         return ByteBufferInputStream.wrap(entry.buffers);
-      } catch (RuntimeIOException ex) {
+      } catch (UncheckedIOException ex) {
         throw ex.getCause();
       } catch (RuntimeException ex) {
-        throw new IOException("Caught an error while reading through cache", ex);
+        throw new IOException("Caught an error while reading from cache", ex);
       }
     }
   }

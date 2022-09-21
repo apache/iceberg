@@ -31,9 +31,11 @@ import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,20 +53,28 @@ public class ManifestFiles {
               ManifestFile.PARTITION_SUMMARY_TYPE,
               GenericPartitionFieldSummary.class.getName()));
 
-  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
-      Caffeine.newBuilder().weakKeys().maximumSize(maxFileIO()).recordStats().build();
+  @VisibleForTesting
+  static Cache<FileIO, ContentCache> newManifestCache() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .softValues()
+        .maximumSize(maxFileIO())
+        .removalListener(
+            (io, contentCache, cause) ->
+                LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
+        .recordStats()
+        .build();
+  }
 
-  /**
-   * Get or create a manifest file cache for a given FileIO.
-   *
-   * <p>Returned cache object will be kept in memory until {@link #dropCache(FileIO)} is called.
-   * Return null if the given FileIO properties does not allow caching.
-   *
-   * @param fileIO A FileIO.
-   * @return A manifest file cache or null if the given FileIO properties does not allow caching.
-   */
-  public static ContentCache getOrCreateCache(FileIO fileIO) {
-    return CONTENT_CACHES.get(fileIO, io -> ContentCache.createCache(io.properties()));
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES = newManifestCache();
+
+  @VisibleForTesting
+  static ContentCache contentCache(FileIO io) {
+    return CONTENT_CACHES.get(
+        io,
+        fileIO ->
+            new ContentCache(
+                cacheDurationMs(fileIO), cacheTotalBytes(fileIO), cacheMaxContentLength(fileIO)));
   }
 
   /** Drop manifest file cache object for a FileIO if exists. */
@@ -331,21 +341,21 @@ public class ManifestFiles {
   }
 
   private static InputFile newInputFile(FileIO io, String path, long length) {
-    try {
-      ContentCache cache = getOrCreateCache(io);
-      if (cache != null) {
-        LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
-        return cache.tryCache(io, path, length);
-      } else {
-        return io.newInputFile(path, length);
-      }
-    } catch (UnsupportedOperationException e) {
-      return io.newInputFile(path, length);
+    boolean enabled = cachingEnabled(io);
+
+    if (enabled) {
+      ContentCache cache = contentCache(io);
+      Preconditions.checkNotNull(cache);
+      LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
+      return cache.tryCache(io, path, length);
     }
+
+    // caching is not enable for this io or caught RuntimeException.
+    return io.newInputFile(path, length);
   }
 
   private static int maxFileIO() {
-    String value = System.getProperty(SystemProperties.IO_CACHE_MAX_FILEIO);
+    String value = System.getProperty(SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO);
     if (value != null) {
       try {
         return Integer.parseUnsignedInt(value);
@@ -353,6 +363,34 @@ public class ManifestFiles {
         // will return the default
       }
     }
-    return SystemProperties.IO_CACHE_MAX_FILEIO_DEFAULT;
+    return SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
+  }
+
+  public static boolean cachingEnabled(FileIO io) {
+    return PropertyUtil.propertyAsBoolean(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+        CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
+  }
+
+  public static long cacheDurationMs(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS,
+        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+  }
+
+  public static long cacheTotalBytes(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES,
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT);
+  }
+
+  public static long cacheMaxContentLength(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH,
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
   }
 }

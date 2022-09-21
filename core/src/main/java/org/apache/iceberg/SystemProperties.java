@@ -37,9 +37,9 @@ public class SystemProperties {
    * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
    * associated {@link org.apache.iceberg.io.ContentCache} in memory at a time.
    */
-  public static final String IO_CACHE_MAX_FILEIO = "iceberg.io.cache.max-fileio";
+  public static final String IO_MANIFEST_CACHE_MAX_FILEIO = "iceberg.io.manifest.cache.fileio-max";
 
-  public static final int IO_CACHE_MAX_FILEIO_DEFAULT = 8;
+  public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
   static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);

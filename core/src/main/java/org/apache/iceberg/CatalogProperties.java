@@ -65,14 +65,14 @@ public class CatalogProperties {
    * true:
    *
    * <ul>
-   *   <li>{@link #IO_CACHE_EXPIRATION_INTERVAL_MS} is set to negative number.
-   *   <li>{@link #IO_CACHE_MAX_TOTAL_BYTES} is set to non-positive value.
-   *   <li>{@link #IO_CACHE_MAX_CONTENT_LENGTH} is set to non-positive value.
+   *   <li>{@link #IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS} is set to negative number.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} is set to non-positive value.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH} is set to non-positive value.
    * </ul>
    */
-  public static final String IO_CACHE_ENABLED = "io.cache-enabled";
+  public static final String IO_MANIFEST_CACHE_ENABLED = "io.manifest.cache-enabled";
 
-  public static final boolean IO_CACHE_ENABLED_DEFAULT = false;
+  public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
    * Controls the duration for which entries in the {@link ContentCache} are cached.
@@ -82,14 +82,16 @@ public class CatalogProperties {
    * <ul>
    *   <li>Negative Values - Caching disabled
    *   <li>Zero - Cache entries expires only if it gets evicted due to memory pressure from {@link
-   *       #IO_CACHE_MAX_TOTAL_BYTES} setting.
+   *       #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} setting.
    *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
    *       milliseconds
    * </ul>
    */
-  public static final String IO_CACHE_EXPIRATION_INTERVAL_MS = "io.cache.expiration-interval-ms";
+  public static final String IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS =
+      "io.manifest.cache.expiration-interval-ms";
 
-  public static final long IO_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(60);
+  public static final long IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT =
+      TimeUnit.SECONDS.toMillis(60);
 
   /**
    * Controls the maximum total amount of bytes to cache in {@link ContentCache}.
@@ -102,9 +104,10 @@ public class CatalogProperties {
    *       eviction
    * </ul>
    */
-  public static final String IO_CACHE_MAX_TOTAL_BYTES = "io.cache.max-total-bytes";
+  public static final String IO_MANIFEST_CACHE_MAX_TOTAL_BYTES =
+      "io.manifest.cache.max-total-bytes";
 
-  public static final long IO_CACHE_MAX_TOTAL_BYTES_DEFAULT = 100 * 1024 * 1024;
+  public static final long IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT = 100 * 1024 * 1024;
 
   /**
    * Controls the maximum length of file to be considered for caching.
@@ -112,9 +115,10 @@ public class CatalogProperties {
    * <p>An {@link org.apache.iceberg.io.InputFile} will not be cached if the length is longer than
    * this limit.
    */
-  public static final String IO_CACHE_MAX_CONTENT_LENGTH = "io.cache.max-content-length";
+  public static final String IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH =
+      "io.manifest.cache.max-content-length";
 
-  public static final long IO_CACHE_MAX_CONTENT_LENGTH_DEFAULT = 8 * 1024 * 1024;
+  public static final long IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT = 8 * 1024 * 1024;
 
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
