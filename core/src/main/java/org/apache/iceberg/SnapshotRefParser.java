@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,19 +41,7 @@ public class SnapshotRefParser {
   }
 
   public static String toJson(SnapshotRef ref, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-
-      toJson(ref, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(ref, gen), pretty);
   }
 
   public static void toJson(SnapshotRef ref, JsonGenerator generator) throws IOException {

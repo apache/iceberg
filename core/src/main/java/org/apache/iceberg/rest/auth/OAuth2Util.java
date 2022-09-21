@@ -25,7 +25,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -252,15 +251,7 @@ public class OAuth2Util {
   }
 
   public static String tokenResponseToJson(OAuthTokenResponse response) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      tokenResponseToJson(response, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> tokenResponseToJson(response, gen), false);
   }
 
   public static void tokenResponseToJson(OAuthTokenResponse response, JsonGenerator gen)
