@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
+import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -69,7 +70,7 @@ public class TestScanReportParser {
 
   @Test
   public void extraFields() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -79,17 +80,19 @@ public class TestScanReportParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     String tableName = "roundTripTableName";
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .withFilter(Expressions.alwaysTrue())
-            .fromScanMetrics(scanMetrics)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     Assertions.assertThat(
@@ -105,6 +108,8 @@ public class TestScanReportParser {
                     + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
+                    + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .usingRecursiveComparison()
@@ -151,7 +156,7 @@ public class TestScanReportParser {
 
   @Test
   public void roundTripSerde() {
-    ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -161,17 +166,19 @@ public class TestScanReportParser {
     scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
+    scanMetrics.skippedDataFiles().increment(3L);
+    scanMetrics.skippedDeleteFiles().increment(3L);
 
     String tableName = "roundTripTableName";
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .withFilter(Expressions.alwaysTrue())
-            .fromScanMetrics(scanMetrics)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .filter(Expressions.alwaysTrue())
+            .snapshotId(23L)
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     String expectedJson =
@@ -227,6 +234,14 @@ public class TestScanReportParser {
             + "    \"total-delete-file-size-in-bytes\" : {\n"
             + "      \"unit\" : \"bytes\",\n"
             + "      \"value\" : 23\n"
+            + "    },\n"
+            + "    \"skipped-data-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"skipped-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
             + "    }\n"
             + "  }\n"
             + "}";
@@ -245,12 +260,12 @@ public class TestScanReportParser {
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
-        ScanReport.builder()
-            .withTableName(tableName)
-            .withProjection(projection)
-            .withSnapshotId(23L)
-            .withFilter(Expressions.alwaysTrue())
-            .fromScanMetrics(ScanMetrics.NOOP)
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .projection(projection)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
             .build();
 
     String expectedJson =

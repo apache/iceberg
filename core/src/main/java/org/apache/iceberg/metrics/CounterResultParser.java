@@ -63,7 +63,7 @@ class CounterResultParser {
 
     String unit = JsonUtil.getString(UNIT, json);
     long value = JsonUtil.getLong(VALUE, json);
-    return new CounterResult(Unit.fromDisplayName(unit), value);
+    return CounterResult.of(Unit.fromDisplayName(unit), value);
   }
 
   /**
@@ -88,6 +88,6 @@ class CounterResultParser {
 
     String unit = JsonUtil.getString(UNIT, counter);
     long value = JsonUtil.getLong(VALUE, counter);
-    return new CounterResult(Unit.fromDisplayName(unit), value);
+    return CounterResult.of(Unit.fromDisplayName(unit), value);
   }
 }

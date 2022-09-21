@@ -87,6 +87,16 @@ class ScanMetricsResultParser {
       CounterResultParser.toJson(metrics.totalDeleteFileSizeInBytes(), gen);
     }
 
+    if (null != metrics.skippedDataFiles()) {
+      gen.writeFieldName(ScanMetrics.SKIPPED_DATA_FILES);
+      CounterResultParser.toJson(metrics.skippedDataFiles(), gen);
+    }
+
+    if (null != metrics.skippedDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.SKIPPED_DELETE_FILES);
+      CounterResultParser.toJson(metrics.skippedDeleteFiles(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -99,15 +109,24 @@ class ScanMetricsResultParser {
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse scan metrics from non-object: %s", json);
 
-    return new ScanMetricsResult(
-        TimerResultParser.fromJson(ScanMetrics.TOTAL_PLANNING_DURATION, json),
-        CounterResultParser.fromJson(ScanMetrics.RESULT_DATA_FILES, json),
-        CounterResultParser.fromJson(ScanMetrics.RESULT_DELETE_FILES, json),
-        CounterResultParser.fromJson(ScanMetrics.TOTAL_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_MANIFESTS, json),
-        CounterResultParser.fromJson(ScanMetrics.SCANNED_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES, json),
-        CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES, json));
+    return ImmutableScanMetricsResult.builder()
+        .totalPlanningDuration(
+            TimerResultParser.fromJson(ScanMetrics.TOTAL_PLANNING_DURATION, json))
+        .resultDataFiles(CounterResultParser.fromJson(ScanMetrics.RESULT_DATA_FILES, json))
+        .resultDeleteFiles(CounterResultParser.fromJson(ScanMetrics.RESULT_DELETE_FILES, json))
+        .totalDataManifests(CounterResultParser.fromJson(ScanMetrics.TOTAL_DATA_MANIFESTS, json))
+        .totalDeleteManifests(
+            CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_MANIFESTS, json))
+        .scannedDataManifests(
+            CounterResultParser.fromJson(ScanMetrics.SCANNED_DATA_MANIFESTS, json))
+        .skippedDataManifests(
+            CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_MANIFESTS, json))
+        .totalFileSizeInBytes(
+            CounterResultParser.fromJson(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES, json))
+        .totalDeleteFileSizeInBytes(
+            CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES, json))
+        .skippedDataFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_FILES, json))
+        .skippedDeleteFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DELETE_FILES, json))
+        .build();
   }
 }

@@ -81,12 +81,12 @@ public class ScanReportParser {
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, json));
     ScanMetricsResult scanMetricsResult =
         ScanMetricsResultParser.fromJson(JsonUtil.get(METRICS, json));
-    return ScanReport.builder()
-        .withTableName(tableName)
-        .withSnapshotId(snapshotId)
-        .withProjection(projection)
-        .withFilter(filter)
-        .fromScanMetricsResult(scanMetricsResult)
+    return ImmutableScanReport.builder()
+        .tableName(tableName)
+        .snapshotId(snapshotId)
+        .projection(projection)
+        .filter(filter)
+        .scanMetrics(scanMetricsResult)
         .build();
   }
 }

@@ -21,7 +21,6 @@ package org.apache.iceberg.puffin;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
@@ -46,18 +45,7 @@ public final class FileMetadataParser {
   private static final String COMPRESSION_CODEC = "compression-codec";
 
   public static String toJson(FileMetadata fileMetadata, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(fileMetadata, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to write json for: " + fileMetadata, e);
-    }
+    return JsonUtil.generate(gen -> toJson(fileMetadata, gen), pretty);
   }
 
   public static FileMetadata fromJson(String json) {

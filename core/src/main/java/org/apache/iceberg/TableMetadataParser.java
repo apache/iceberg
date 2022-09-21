@@ -154,6 +154,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -222,6 +223,12 @@ public class TableMetadataParser {
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
+    }
+    generator.writeEndArray();
+
+    generator.writeArrayFieldStart(STATISTICS);
+    for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
+      StatisticsFileParser.toJson(statisticsFile, generator);
     }
     generator.writeEndArray();
 
