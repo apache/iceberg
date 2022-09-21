@@ -23,7 +23,7 @@ on:
     branches:
       - 'master'
     paths:
-      - 'python/docs/**'
+      - 'python/mkdocs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
