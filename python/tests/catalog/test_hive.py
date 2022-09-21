@@ -77,7 +77,8 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 @pytest.fixture
 def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
     metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
-    ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2), LocalFileIO().new_output(str(metadata_path)), True)
+    metadata = TableMetadataV2(**example_table_metadata_v2)
+    ToOutputFile.table_metadata(metadata, LocalFileIO().new_output(str(metadata_path)), True)
 
     return HiveTable(
         tableName="new_tabl2e",
@@ -267,7 +268,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
 
     assert "database/table" in metadata.location
 
-    assert metadata == TableMetadataV2(
+    expected = TableMetadataV2(
         location=metadata.location,
         table_uuid=metadata.table_uuid,
         last_updated_ms=metadata.last_updated_ms,
@@ -282,10 +283,10 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
             )
         ],
         current_schema_id=0,
-        partition_specs=[PartitionSpec(spec_id=0)],
-        default_spec_id=0,
         last_partition_id=1000,
         properties={"owner": "javaberg"},
+        partition_specs=[PartitionSpec()],
+        default_spec_id=0,
         current_snapshot_id=None,
         snapshots=[],
         snapshot_log=[],
@@ -297,6 +298,8 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
         last_sequence_number=0,
     )
 
+    assert metadata.dict() == expected.dict()
+
 
 def test_load_table(hive_table: HiveTable):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, uri=HIVE_METASTORE_FAKE_URL)
@@ -307,8 +310,7 @@ def test_load_table(hive_table: HiveTable):
 
     catalog._client.__enter__().get_table.assert_called_with(dbname="default", tbl_name="new_tabl2e")
 
-    assert table.identifier == ("default", "new_tabl2e")
-    assert table.metadata == TableMetadataV2(
+    expected = TableMetadataV2(
         location="s3://bucket/test/location",
         table_uuid=uuid.UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1"),
         last_updated_ms=1602638573590,
@@ -329,9 +331,7 @@ def test_load_table(hive_table: HiveTable):
         ],
         current_schema_id=1,
         partition_specs=[
-            PartitionSpec(
-                spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),)
-            )
+            PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0)
         ],
         default_spec_id=0,
         last_partition_id=1000,
@@ -364,7 +364,6 @@ def test_load_table(hive_table: HiveTable):
         metadata_log=[MetadataLogEntry(metadata_file="s3://bucket/.../v1.json", timestamp_ms=1515100)],
         sort_orders=[
             SortOrder(
-                3,
                 SortField(
                     source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
                 ),
@@ -374,6 +373,7 @@ def test_load_table(hive_table: HiveTable):
                     direction=SortDirection.DESC,
                     null_order=NullOrder.NULLS_LAST,
                 ),
+                order_id=3,
             )
         ],
         default_sort_order_id=3,
@@ -396,6 +396,9 @@ def test_load_table(hive_table: HiveTable):
         format_version=2,
         last_sequence_number=34,
     )
+
+    assert table.identifier == ("default", "new_tabl2e")
+    assert expected == table.metadata
 
 
 def test_rename_table_from_does_not_exists():

@@ -37,7 +37,7 @@ If you want to install the library on the host, you can simply run `pip3 install
 To set up IDEA with Poetry ([also on Loom](https://www.loom.com/share/6d36464d45f244729d91003e7f671fd2)):
 
 - Open up the Python project in IntelliJ
-- Make sure that you're on a lastest master (that includes Poetry)
+- Make sure that you're on latest master (that includes Poetry)
 - Go to File -> Project Structure (⌘;)
 - Go to Platform Settings -> SDKs
 - Click the + sign -> Add Python SDK
@@ -70,6 +70,12 @@ For Python, we use pytest in combination with coverage to maintain 90% code cove
 
 ```bash
 make test
+```
+
+By default we ignore the s3 tests that require minio to be running. To run this suite, we can run:
+
+```bash
+make test-s3
 ```
 
 To pass additional arguments to pytest, you can use `PYTEST_ARGS`.

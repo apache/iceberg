@@ -29,7 +29,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-INITIAL_SPEC_ID = 0
+INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000
 
 
@@ -82,19 +82,16 @@ class PartitionSpec(IcebergBaseModel):
         fields(List[PartitionField): list of partition fields to produce partition values
     """
 
-    spec_id: int = Field(alias="spec-id")
-    fields: Tuple[PartitionField, ...] = Field(default_factory=tuple)
+    spec_id: int = Field(alias="spec-id", default=INITIAL_PARTITION_SPEC_ID)
+    fields: Tuple[PartitionField, ...] = Field(alias="fields", default_factory=tuple)
 
     def __init__(
         self,
-        spec_id: Optional[int] = None,
-        fields: Optional[Tuple[PartitionField, ...]] = None,
+        *fields: PartitionField,
         **data: Any,
     ):
-        if spec_id is not None:
-            data["spec-id"] = spec_id
-        if fields is not None:
-            data["fields"] = fields
+        if fields:
+            data["fields"] = tuple(fields)
         super().__init__(**data)
 
     def __eq__(self, other: Any) -> bool:
@@ -120,6 +117,10 @@ class PartitionSpec(IcebergBaseModel):
             result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
         result_str += "]"
         return result_str
+
+    def __repr__(self) -> str:
+        fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
+        return f"PartitionSpec({fields}spec_id={self.spec_id})"
 
     def is_unpartitioned(self) -> bool:
         return not self.fields
@@ -178,4 +179,4 @@ def assign_fresh_partition_spec_ids(spec: PartitionSpec, old_schema: Schema, fre
                 transform=field.transform,
             )
         )
-    return PartitionSpec(INITIAL_SPEC_ID, fields=tuple(partition_fields))
+    return PartitionSpec(*partition_fields, spec_id=INITIAL_PARTITION_SPEC_ID)

@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -29,14 +28,18 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
 public class AwsClientFactories {
@@ -86,99 +89,59 @@ public class AwsClientFactories {
   }
 
   static class DefaultAwsClientFactory implements AwsClientFactory {
+    private AwsProperties awsProperties;
 
-    private String glueEndpoint;
-    private String s3Endpoint;
-    private String s3AccessKeyId;
-    private String s3SecretAccessKey;
-    private String s3SessionToken;
-    private Boolean s3PathStyleAccess;
-    private Boolean s3UseArnRegionEnabled;
-    private Boolean s3AccelerationEnabled;
-    private String dynamoDbEndpoint;
-    private String httpClientType;
-    private Boolean s3DualStackEnabled;
-
-    DefaultAwsClientFactory() {}
+    DefaultAwsClientFactory() {
+      awsProperties = new AwsProperties();
+    }
 
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .dualstackEnabled(s3DualStackEnabled)
-          .serviceConfiguration(
-              S3Configuration.builder()
-                  .pathStyleAccessEnabled(s3PathStyleAccess)
-                  .useArnRegionEnabled(s3UseArnRegionEnabled)
-                  .accelerateModeEnabled(s3AccelerationEnabled)
-                  .build())
-          .credentialsProvider(
-              credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyS3EndpointConfigurations)
+          .applyMutation(awsProperties::applyS3ServiceConfigurations)
+          .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .build();
     }
 
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, glueEndpoint))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .build();
     }
 
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
           .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
-          .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
     }
 
     @Override
     public void initialize(Map<String, String> properties) {
-      this.glueEndpoint = properties.get(AwsProperties.GLUE_CATALOG_ENDPOINT);
-      this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
-      this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
-      this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
-      this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
-      this.s3PathStyleAccess =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
-              AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT);
-      this.s3UseArnRegionEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_USE_ARN_REGION_ENABLED,
-              AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
-      this.s3AccelerationEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_ACCELERATION_ENABLED,
-              AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
-      this.s3DualStackEnabled =
-          PropertyUtil.propertyAsBoolean(
-              properties,
-              AwsProperties.S3_DUALSTACK_ENABLED,
-              AwsProperties.S3_DUALSTACK_ENABLED_DEFAULT);
-
-      ValidationException.check(
-          (s3AccessKeyId == null) == (s3SecretAccessKey == null),
-          "S3 client access key ID and secret access key must be set at the same time");
-      this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
-      this.httpClientType =
-          PropertyUtil.propertyAsString(
-              properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+      this.awsProperties = new AwsProperties(properties);
     }
   }
 
+  /**
+   * Build a httpClientBuilder object
+   *
+   * @deprecated Not for public use. To configure the httpClient for a client, please use {@link
+   *     AwsProperties#applyHttpClientConfigurations(AwsSyncClientBuilder)}. It will be removed in
+   *     2.0.0
+   */
+  @Deprecated
   public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
     if (Strings.isNullOrEmpty(clientType)) {
@@ -194,6 +157,16 @@ public class AwsClientFactories {
     }
   }
 
+  /**
+   * Configure the endpoint setting for a client
+   *
+   * @deprecated Not for public use. To configure the endpoint for a client, please use {@link
+   *     AwsProperties#applyS3EndpointConfigurations(S3ClientBuilder)}, {@link
+   *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
+   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)} accordingly. It
+   *     will be removed in 2.0.0
+   */
+  @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
@@ -215,6 +188,14 @@ public class AwsClientFactories {
         .build();
   }
 
+  /**
+   * Build an AwsBasicCredential object
+   *
+   * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
+   *     AwsProperties#applyS3CredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will
+   *     be removed in 2.0.0.
+   */
+  @Deprecated
   static AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {

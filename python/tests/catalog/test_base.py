@@ -40,9 +40,9 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
-from pyiceberg.table.metadata import INITIAL_SPEC_ID
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.transforms import IdentityTransform
 from pyiceberg.typedef import EMPTY_DICT
 from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
@@ -186,7 +186,7 @@ TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
 TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
-TEST_TABLE_PARTITION_SPEC = PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=())
+TEST_TABLE_PARTITION_SPEC = PartitionSpec(PartitionField(name="x", transform=IdentityTransform(), source_id=1, field_id=1000))
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
 NO_SUCH_TABLE_ERROR = "Table does not exist: \\('com', 'organization', 'department', 'my_table'\\)"
 TABLE_ALREADY_EXISTS_ERROR = "Table already exists: \\('com', 'organization', 'department', 'my_table'\\)"
@@ -200,7 +200,7 @@ def given_catalog_has_a_table(catalog: InMemoryCatalog) -> Table:
         identifier=TEST_TABLE_IDENTIFIER,
         schema=TEST_TABLE_SCHEMA,
         location=TEST_TABLE_LOCATION,
-        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        partition_spec=UNPARTITIONED_PARTITION_SPEC,
         properties=TEST_TABLE_PROPERTIES,
     )
 
