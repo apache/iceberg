@@ -34,12 +34,16 @@ import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A set of consumers to handle errors for requests for table entities or for namespace entities, to
  * throw the correct exception.
  */
 public class ErrorHandlers {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ErrorHandlers.class);
 
   private ErrorHandlers() {}
 
@@ -130,10 +134,20 @@ public class ErrorHandlers {
    */
   private static class DefaultErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
+    private static final String SERVER_ERROR = "server_error";
 
     @Override
     public ErrorResponse parseResponse(int code, String json) {
-      return ErrorResponseParser.fromJson(json);
+      try {
+        return ErrorResponseParser.fromJson(json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response: " + json);
+      }
+      return ErrorResponse.builder()
+          .responseCode(code)
+          .withType(SERVER_ERROR)
+          .withMessage(json)
+          .build();
     }
 
     @Override
@@ -166,8 +180,10 @@ public class ErrorHandlers {
 
     @Override
     public ErrorResponse parseResponse(int code, String json) {
-      if (code == 400 || code == 401) {
+      try {
         return OAuthErrorResponseParser.fromJson(code, json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response: " + json);
       }
       return ErrorResponse.builder()
           .responseCode(code)
@@ -180,13 +196,13 @@ public class ErrorHandlers {
     public void accept(ErrorResponse error) {
       switch (error.type()) {
         case OAuth2Properties.INVALID_CLIENT_ERROR:
-          throw new NotAuthorizedException("Not authorized: %s", error.message());
+          throw new NotAuthorizedException("Not authorized: %s: %s", error.type(), error.message());
         case OAuth2Properties.INVALID_REQUEST_ERROR:
         case OAuth2Properties.INVALID_GRANT_ERROR:
         case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
         case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
         case OAuth2Properties.INVALID_SCOPE_ERROR:
-          throw new BadRequestException("Malformed request: %s", error.message());
+          throw new BadRequestException("Malformed request: %s: %s", error.type(), error.message());
         default:
           throw new RESTException("Unable to process: %s", error.message());
       }
