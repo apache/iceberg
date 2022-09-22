@@ -192,11 +192,11 @@ public class RESTCatalogAdapter implements RESTClient {
       return null;
     }
 
-    public Class<? extends RESTRequest> getRequestClass() {
+    public Class<? extends RESTRequest> requestClass() {
       return requestClass;
     }
 
-    public Class<? extends RESTResponse> getResponseClass() {
+    public Class<? extends RESTResponse> responseClass() {
       return responseClass;
     }
   }
