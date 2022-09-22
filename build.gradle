@@ -418,6 +418,7 @@ project(':iceberg-aws') {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
   }
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-gcp') {
