@@ -37,6 +37,7 @@ packages = [
     { include = "pyiceberg" },
     { from = "vendor", include = "fb303" },
     { from = "vendor", include = "hive_metastore" },
+    { include = "tests", format = "sdist" },
 ]
 
 
