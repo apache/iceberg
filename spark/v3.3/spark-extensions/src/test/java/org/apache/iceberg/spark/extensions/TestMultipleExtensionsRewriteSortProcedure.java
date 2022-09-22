@@ -47,7 +47,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import scala.Function1;
 import scala.Function2;
-import scala.collection.Seq;
+import scala.collection.immutable.Seq;
 import scala.runtime.BoxedUnit;
 
 public class TestMultipleExtensionsRewriteSortProcedure extends TestRewriteDataFilesProcedure {
@@ -209,7 +209,7 @@ public class TestMultipleExtensionsRewriteSortProcedure extends TestRewriteDataF
 
     @Override
     public Seq<String> parseMultipartIdentifier(String sqlText) throws ParseException {
-      return delegate.parseMultipartIdentifier(sqlText);
+      return (Seq<String>) delegate.parseMultipartIdentifier(sqlText);
     }
 
     @Override
