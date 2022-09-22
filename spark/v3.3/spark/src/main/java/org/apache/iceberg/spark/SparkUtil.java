@@ -29,6 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
@@ -210,6 +211,19 @@ public class SparkUtil {
 
   private static String hadoopConfPrefixForCatalog(String catalogName) {
     return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
+  }
+
+  public static Long getSnapshotIdFromRef(String snapshotRef, Table table) {
+    if (snapshotRef != null
+        && !snapshotRef.equalsIgnoreCase(SnapshotRef.MAIN_BRANCH)) {
+      SnapshotRef ref = table.refs().get(snapshotRef);
+      if (ref == null) {
+        throw new IllegalArgumentException("Snapshot ref does not exist: " + snapshotRef);
+      }
+
+      return ref.snapshotId();
+    }
+    return null;
   }
 
   /**

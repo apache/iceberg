@@ -48,6 +48,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
@@ -84,11 +85,17 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     super(spark, table, readConf, expectedSchema, filters);
 
     this.scan = scan;
-    this.snapshotId = readConf.snapshotId();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.runtimeFilterExpressions = Lists.newArrayList();
+
+    String snapshotRef = readConf.snapshotRef();
+    if (readConf.snapshotId() == null) {
+      this.snapshotId = SparkUtil.getSnapshotIdFromRef(snapshotRef, table);
+    } else {
+      this.snapshotId = readConf.snapshotId();
+    }
 
     if (scan == null) {
       this.specIds = Collections.emptySet();
