@@ -209,7 +209,7 @@ public class TestMultipleExtensionsRewriteSortProcedure extends TestRewriteDataF
 
     @Override
     public Seq<String> parseMultipartIdentifier(String sqlText) throws ParseException {
-      return (Seq<String>) delegate.parseMultipartIdentifier(sqlText);
+      return delegate.parseMultipartIdentifier(sqlText).toList();
     }
 
     @Override
