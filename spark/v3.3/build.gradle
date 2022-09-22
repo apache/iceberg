@@ -39,6 +39,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   }
 
   dependencies {
+    implementation group: 'com.github.davidmoten', name: 'hilbert-curve', version: '0.2.2'
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation project(':iceberg-common')

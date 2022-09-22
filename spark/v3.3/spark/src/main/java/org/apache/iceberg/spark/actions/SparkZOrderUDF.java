@@ -44,7 +44,7 @@ import org.apache.spark.sql.types.TimestampType;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
-class SparkZOrderUDF implements Serializable {
+class SparkZOrderUDF implements SparkSpaceCurveUDF, Serializable {
   private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE];
 
   /**
@@ -283,12 +283,14 @@ class SparkZOrderUDF implements Serializable {
           .udf((Seq<byte[]> arrayBinary) -> interleaveBits(arrayBinary), DataTypes.BinaryType)
           .withName("INTERLEAVE_BYTES");
 
-  Column interleaveBytes(Column arrayBinary) {
+  @Override
+  public Column interleaveBytes(Column arrayBinary) {
     return interleaveUDF.apply(arrayBinary);
   }
 
+  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  Column sortedLexicographically(Column column, DataType type) {
+  public Column sortedLexicographically(Column column, DataType type) {
     if (type instanceof ByteType) {
       return tinyToOrderedBytesUDF().apply(column);
     } else if (type instanceof ShortType) {

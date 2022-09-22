@@ -141,7 +141,17 @@ public class RewriteDataFilesSparkAction
         this.strategy == null,
         "Cannot set strategy to zorder, it has already been set to %s",
         this.strategy);
-    this.strategy = zOrderStrategy(columnNames);
+    this.strategy = spaceCurveStrategy(SparkSpaceCurveUDF.SparkSpaceStrategy.ZORDER, columnNames);
+    return this;
+  }
+
+  @Override
+  public RewriteDataFilesSparkAction hilbert(String... columnNames) {
+    Preconditions.checkArgument(
+        this.strategy == null,
+        "Cannot set strategy to hilbert, it has already been set to %s",
+        this.strategy);
+    this.strategy = spaceCurveStrategy(SparkSpaceCurveUDF.SparkSpaceStrategy.HILBERT, columnNames);
     return this;
   }
 
@@ -496,8 +506,10 @@ public class RewriteDataFilesSparkAction
     return new SparkSortStrategy(table, spark());
   }
 
-  private SortStrategy zOrderStrategy(String... columnNames) {
-    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
+  private SortStrategy spaceCurveStrategy(
+      SparkSpaceCurveUDF.SparkSpaceStrategy spaceCurveStrategy, String... columnNames) {
+    return new SparkSpaceCurveStrategy(
+        table, spark(), Lists.newArrayList(columnNames), spaceCurveStrategy);
   }
 
   @VisibleForTesting

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.SparkSpaceCurveUDF.SparkSpaceStrategy.HILBERT;
+import static org.apache.iceberg.spark.actions.SparkSpaceCurveUDF.SparkSpaceStrategy.ZORDER;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -104,9 +106,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
+@RunWith(Parameterized.class)
 public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private static final int SCALE = 400000;
@@ -117,6 +122,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
           optional(1, "c1", Types.IntegerType.get()),
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
+
+  private final SparkSpaceCurveUDF.SparkSpaceStrategy sparkSpaceStrategy;
+
+  @Parameterized.Parameters(name = "sparkSpaceStrategy")
+  public static Object[] parameters() {
+    return new Object[] {ZORDER, HILBERT};
+  }
+
+  public TestRewriteDataFilesAction(SparkSpaceCurveUDF.SparkSpaceStrategy sparkSpaceStrategy) {
+    this.sparkSpaceStrategy = sparkSpaceStrategy;
+  }
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -1072,7 +1088,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testZOrderSort() {
+  public void testSpaceCurveSort() {
     int originalFiles = 20;
     Table table = createTable(originalFiles);
     shouldHaveLastCommitUnsorted(table, "c2");
@@ -1088,8 +1104,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertTrue("Should require all files to scan c3", originalFilesC3 > 0.99);
 
     RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .zOrder("c2", "c3")
+        getStrategy(basicRewrite(table), "c2", "c3")
             .option(
                 SortStrategy.MAX_FILE_SIZE_BYTES,
                 Integer.toString((averageFileSize(table) / 2) + 2))
@@ -1101,8 +1116,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
-    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedDataFiles(table.io()));
-    Assert.assertTrue("Should have written 40+ files", zOrderedFilesTotal >= 40);
+    int spaceCurveFilesTotal = Iterables.size(table.currentSnapshot().addedDataFiles(table.io()));
+    Assert.assertTrue("Should have written 40+ files", spaceCurveFilesTotal >= 40);
 
     table.refresh();
 
@@ -1129,7 +1144,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testZOrderAllTypesSort() {
+  public void testSpaceCurveAllTypesSort() {
     Table table = createTypeTestTable();
     shouldHaveFiles(table, 10);
 
@@ -1139,8 +1154,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     // TODO add in UUID when it is supported in Spark
     RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .zOrder(
+        getStrategy(
+                basicRewrite(table),
                 "longCol",
                 "intCol",
                 "floatCol",
@@ -1155,8 +1170,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
-    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedDataFiles(table.io()));
-    Assert.assertEquals("Should have written 1 file", 1, zOrderedFilesTotal);
+    int spaceCurveFilesTotal = Iterables.size(table.currentSnapshot().addedDataFiles(table.io()));
+    Assert.assertEquals("Should have written 1 file", 1, spaceCurveFilesTotal);
 
     table.refresh();
 
@@ -1636,6 +1651,19 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     int totalFiles = Iterables.size(table.newScan().planFiles());
     int filteredFiles = Iterables.size(table.newScan().filter(restriction).planFiles());
     return (double) filteredFiles / (double) totalFiles;
+  }
+
+  private RewriteDataFilesSparkAction getStrategy(
+      RewriteDataFilesSparkAction action, String... columnNames) {
+    switch (this.sparkSpaceStrategy) {
+      case ZORDER:
+        action.zOrder(columnNames);
+        break;
+      case HILBERT:
+        action.hilbert(columnNames);
+        break;
+    }
+    return action;
   }
 
   class GroupInfoMatcher implements ArgumentMatcher<RewriteFileGroup> {
