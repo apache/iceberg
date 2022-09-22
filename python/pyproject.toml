@@ -69,6 +69,7 @@ pre-commit = "^2.0.0"
 fastavro = "^1.6.1"
 coverage = { version = "^6.4.4", extras = ["toml"] }
 requests-mock = "^1.9.3"
+packaging = "^21.3"
 
 [tool.poetry.scripts]
 pyiceberg = "pyiceberg.cli.console:run"
@@ -163,6 +164,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "s3fs.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "packaging.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
