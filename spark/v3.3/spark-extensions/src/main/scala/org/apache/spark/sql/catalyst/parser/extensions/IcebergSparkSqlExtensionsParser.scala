@@ -66,6 +66,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
+  def this() = {
+    this(null)
+  }
+
   /**
    * Parse a string to a DataType.
    */

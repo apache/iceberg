@@ -549,7 +549,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Table cache must be empty", 0, SparkTableCache.get().size());
   }
 
-  private void createTable() {
+  protected void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
   }
 
@@ -559,7 +559,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         tableName);
   }
 
-  private void insertData(int filesCount) {
+  protected void insertData(int filesCount) {
     insertData(tableName, filesCount);
   }
 
@@ -584,7 +584,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     }
   }
 
-  private List<Object[]> currentData() {
+  protected List<Object[]> currentData() {
     return currentData(tableName);
   }
 
