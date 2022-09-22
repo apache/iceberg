@@ -19,6 +19,7 @@
 package org.apache.iceberg.metrics;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.immutables.value.Value;
 
 /** Carries all metrics for a particular scan */
@@ -26,6 +27,7 @@ import org.immutables.value.Value;
 public abstract class ScanMetrics {
   public static final String TOTAL_PLANNING_DURATION = "total-planning-duration";
   public static final String RESULT_DATA_FILES = "result-data-files";
+  public static final String RESULT_DATA_FILES_BY_FORMAT = "result-data-files-by-format";
   public static final String RESULT_DELETE_FILES = "result-delete-files";
   public static final String SCANNED_DATA_MANIFESTS = "scanned-data-manifests";
   public static final String SCANNED_DELETE_MANIFESTS = "scanned-delete-manifests";
@@ -55,6 +57,11 @@ public abstract class ScanMetrics {
   @Value.Derived
   public Counter resultDataFiles() {
     return metricsContext().counter(RESULT_DATA_FILES);
+  }
+
+  @Value.Derived
+  public MultiDimensionCounter resultDataFilesByFormat() {
+    return metricsContext().multiCounter(RESULT_DATA_FILES_BY_FORMAT, Unit.COUNT);
   }
 
   @Value.Derived

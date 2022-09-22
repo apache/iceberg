@@ -20,10 +20,13 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.skyscreamer.jsonassert.JSONCompareMode;
 
 public class TestScanReportParser {
 
@@ -70,6 +73,15 @@ public class TestScanReportParser {
     ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.AVRO.toString()), 1L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.ORC.toString()), 2L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.PARQUET.toString()), 3L);
     scanMetrics.resultDeleteFiles().increment(5L);
     scanMetrics.scannedDataManifests().increment(5L);
     scanMetrics.skippedDataManifests().increment(5L);
@@ -103,6 +115,10 @@ public class TestScanReportParser {
                     + "\"filter\":true,\"schema-id\": 4,\"projected-field-ids\": [ 1, 2, 3 ],\"projected-field-names\": [ \"c1\", \"c2\", \"c3\" ],"
                     + "\"metrics\":{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":[{\"counter-id\":\"AVRO\",\"value\":1},{\"counter-id\":\"ORC\",\"value\":2},{\"counter-id\":\"PARQUET\",\"value\":3}]},"
+                    + "\"result-avro-data-files\":{\"unit\":\"count\",\"value\":1},"
+                    + "\"result-orc-data-files\":{\"unit\":\"count\",\"value\":2},"
+                    + "\"result-parquet-data-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
@@ -178,6 +194,15 @@ public class TestScanReportParser {
     ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.AVRO.toString()), 1L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.ORC.toString()), 2L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.PARQUET.toString()), 3L);
     scanMetrics.resultDeleteFiles().increment(5L);
     scanMetrics.scannedDataManifests().increment(5L);
     scanMetrics.skippedDataManifests().increment(5L);
@@ -222,6 +247,19 @@ public class TestScanReportParser {
             + "    \"result-data-files\" : {\n"
             + "      \"unit\" : \"count\",\n"
             + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"result-data-files-by-format\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"counters\" : [ {\n"
+            + "        \"counter-id\" : \"AVRO\",\n"
+            + "        \"value\" : 1\n"
+            + "      }, {\n"
+            + "        \"counter-id\" : \"ORC\",\n"
+            + "        \"value\" : 2\n"
+            + "      }, {\n"
+            + "        \"counter-id\" : \"PARQUET\",\n"
+            + "        \"value\" : 3\n"
+            + "      } ]\n"
             + "    },\n"
             + "    \"result-delete-files\" : {\n"
             + "      \"unit\" : \"count\",\n"
@@ -284,7 +322,10 @@ public class TestScanReportParser {
 
     String json = ScanReportParser.toJson(scanReport, true);
     Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+
+    Assertions.assertThatNoException()
+        .isThrownBy(
+            () -> JSONAssert.assertEquals(expectedJson, json, JSONCompareMode.NON_EXTENSIBLE));
   }
 
   @Test

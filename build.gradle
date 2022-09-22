@@ -370,6 +370,7 @@ project(':iceberg-core') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
+    testImplementation "org.skyscreamer:jsonassert:1.5.1"
   }
 }
 

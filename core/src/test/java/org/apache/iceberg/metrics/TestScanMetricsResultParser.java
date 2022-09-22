@@ -21,9 +21,13 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.skyscreamer.jsonassert.JSONCompareMode;
 
 public class TestScanMetricsResultParser {
 
@@ -156,6 +160,29 @@ public class TestScanMetricsResultParser {
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1023},"
                     + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":23}}"))
         .isEqualTo(scanMetricsResult);
+
+    scanMetricsResult =
+        scanMetricsResult.withResultDataFilesByFormat(
+            MultiDimensionCounterResult.of(
+                ScanMetrics.RESULT_DATA_FILES_BY_FORMAT,
+                Unit.COUNT,
+                ImmutableMap.of(FileFormat.AVRO.toString(), 11L, FileFormat.ORC.toString(), 22L)));
+    Assertions.assertThat(
+            ScanMetricsResultParser.fromJson(
+                "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
+                    + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":[{\"counter-id\":\"AVRO\",\"value\":11},{\"counter-id\":\"ORC\",\"value\":22}]},"
+                    + "\"result-avro-data-files\":{\"unit\":\"count\",\"value\":11},"
+                    + "\"result-orc-data-files\":{\"unit\":\"count\",\"value\":22},"
+                    + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
+                    + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1023},"
+                    + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":23}}"))
+        .isEqualTo(scanMetricsResult);
   }
 
   @Test
@@ -163,6 +190,15 @@ public class TestScanMetricsResultParser {
     ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.AVRO.toString()), 51);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.ORC.toString()), 52);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.PARQUET.toString()), 53);
     scanMetrics.resultDeleteFiles().increment(5L);
     scanMetrics.scannedDataManifests().increment(5L);
     scanMetrics.skippedDataManifests().increment(5L);
@@ -183,6 +219,7 @@ public class TestScanMetricsResultParser {
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":[{\"counter-id\":\"AVRO\",\"value\":51},{\"counter-id\":\"ORC\",\"value\":52},{\"counter-id\":\"PARQUET\",\"value\":53}]},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
                     + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
@@ -223,10 +260,59 @@ public class TestScanMetricsResultParser {
   }
 
   @Test
+  public void invalidMultiDimensionCounter() {
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanMetricsResultParser.fromJson(
+                    "{\"result-data-files-by-format\":{\"counters\":[{\"counter-id\":\"AVRO\",\"value\":51},{\"counter-id\":\"ORC\",\"value\":52},{\"counter-id\":\"PARQUET\",\"value\":53}]}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot parse counter from 'result-data-files-by-format': Missing field 'unit'");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanMetricsResultParser.fromJson(
+                    "{\"result-data-files-by-format\":{\"unit\":\"count\"}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot parse counter from 'result-data-files-by-format': Missing field 'counters'");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanMetricsResultParser.fromJson(
+                    "{\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":11}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("'counters' should be an array in 'result-data-files-by-format'");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanMetricsResultParser.fromJson(
+                    "{\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":[{\"value\":51}]}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse counter from 'counters': Missing field 'counter-id'");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanMetricsResultParser.fromJson(
+                    "{\"result-data-files-by-format\":{\"unit\":\"count\",\"counters\":[{\"counter-id\":\"AVRO\"}]}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse counter from 'counters': Missing field 'value'");
+  }
+
+  @Test
   public void roundTripSerde() {
     ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.DAYS);
     scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.AVRO.toString()), 1L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.ORC.toString()), 2L);
+    scanMetrics
+        .resultDataFilesByFormat()
+        .increment(new DefaultMetricTag(FileFormat.PARQUET.toString()), 3L);
     scanMetrics.resultDeleteFiles().increment(5L);
     scanMetrics.scannedDataManifests().increment(5L);
     scanMetrics.skippedDataManifests().increment(5L);
@@ -254,6 +340,19 @@ public class TestScanMetricsResultParser {
             + "  \"result-data-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 5\n"
+            + "  },\n"
+            + "  \"result-data-files-by-format\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"counters\" : [ {\n"
+            + "      \"counter-id\" : \"AVRO\",\n"
+            + "      \"value\" : 1\n"
+            + "    }, {\n"
+            + "      \"counter-id\" : \"ORC\",\n"
+            + "      \"value\" : 2\n"
+            + "    }, {\n"
+            + "      \"counter-id\" : \"PARQUET\",\n"
+            + "      \"value\" : 3\n"
+            + "    } ]\n"
             + "  },\n"
             + "  \"result-delete-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
@@ -315,7 +414,10 @@ public class TestScanMetricsResultParser {
 
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
     Assertions.assertThat(ScanMetricsResultParser.fromJson(json)).isEqualTo(scanMetricsResult);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+
+    Assertions.assertThatNoException()
+        .isThrownBy(
+            () -> JSONAssert.assertEquals(expectedJson, json, JSONCompareMode.NON_EXTENSIBLE));
   }
 
   @Test
