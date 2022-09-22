@@ -376,7 +376,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     }.toMap
 
     attrs.zipWithIndex.map { case (attr, index) =>
-      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)
+      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)()
     }
   }
 
