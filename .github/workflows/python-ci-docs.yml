@@ -24,6 +24,7 @@ on:
       - 'master'
     paths:
       - 'python/mkdocs/**'
+      - '.github/workflows/python-ci-docs.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
