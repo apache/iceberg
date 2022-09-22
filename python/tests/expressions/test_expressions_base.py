@@ -926,30 +926,6 @@ def test_not_expression_binding(unbound_not_expression, expected_bound_expressio
     assert bound_expression == expected_bound_expression
 
 
-def test_bound_boolean_expression_visitor_ignore_is_nan_for_string_type():
-    """Test ignoring IsNan expressions when the field type is a String"""
-    bound_expression = base.And(
-        base.BoundIn[str](
-            term=base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals=(StringLiteral("foo"), StringLiteral("bar")),
-        ),
-        base.Not(
-            base.BoundIsNaN[str](
-                term=base.BoundReference(
-                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                    accessor=Accessor(position=0, inner=None),
-                ),
-            )
-        ),
-    )
-    visitor = FooBoundBooleanExpressionVisitor()
-    result = base.visit(bound_expression, visitor=visitor)
-    assert result == ["IN"]
-
-
 def test_bound_boolean_expression_visitor_and_in():
     """Test visiting an And and In expression with a bound boolean expression visitor"""
     bound_expression = base.And(
