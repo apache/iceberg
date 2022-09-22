@@ -1,0 +1,31 @@
+To: dev@iceberg.apache.org
+Subject: [VOTE] Release Apache PyIceberg 0.1.0rc1
+Hi Everyone,
+
+I propose that we release the following RC as the official PyIceberg 0.1.0rc1 release.
+
+The commit ID is 804c93cf1bf5a516556cad4eadbdf31d878069ce
+
+* This corresponds to the tag: pyiceberg-0.1.0rc1 (3e314eb0a0c6ec7c45490afd1a88c7a2cc985f69)
+* https://github.com/apache/iceberg/releases/tag/pyiceberg-0.1.0rc1
+* https://github.com/apache/iceberg/tree/804c93cf1bf5a516556cad4eadbdf31d878069ce
+
+The release tarball, signature, and checksums are here:
+
+* https://dist.apache.org/repos/dist/dev/iceberg/pyiceberg-0.1.0rc1/
+
+You can find the KEYS file here:
+
+* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+
+Convenience binary artifacts are staged on pypi:
+
+https://pypi.org/project/pyiceberg/0.1.0rc1/
+
+And can be installed using: pip3 install pyiceberg==0.1.0rc1
+
+Please download, verify, and test.
+Please vote in the next 72 hours.
+[ ] +1 Release this as PyIceberg 0.1.0rc1
+[ ] +0
+[ ] -1 Do not release this because...
