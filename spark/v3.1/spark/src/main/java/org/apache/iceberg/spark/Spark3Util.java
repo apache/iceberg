@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
@@ -61,6 +62,7 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
@@ -653,7 +655,8 @@ public class Spark3Util {
       if (lit.value() instanceof String) {
         return "'" + lit.value() + "'";
       } else if (lit.value() instanceof ByteBuffer) {
-        throw new IllegalArgumentException("Cannot convert bytes to SQL literal: " + lit);
+        byte[] bytes = ByteBuffers.toByteArray((ByteBuffer) lit.value());
+        return "X'" + BaseEncoding.base16().encode(bytes) + "'";
       } else {
         return lit.value().toString();
       }

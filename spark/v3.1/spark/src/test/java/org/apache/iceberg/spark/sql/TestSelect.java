@@ -39,6 +39,7 @@ import org.junit.Test;
 public class TestSelect extends SparkCatalogTestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
+  private String binaryTableName = tableName("binary_table");
 
   public TestSelect(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -64,6 +65,7 @@ public class TestSelect extends SparkCatalogTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", binaryTableName);
   }
 
   @Test
@@ -221,5 +223,17 @@ public class TestSelect extends SparkCatalogTestBase {
               .load(tableName)
               .collectAsList();
         });
+  }
+
+  @Test
+  public void testBinaryInFilter() {
+    sql("CREATE TABLE %s (id bigint, binary binary) USING iceberg", binaryTableName);
+    sql("INSERT INTO %s VALUES (1, X''), (2, X'1111'), (3, X'11')", binaryTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
   }
 }
