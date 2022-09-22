@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.lakeformation;
 
 import org.apache.iceberg.AssertHelpers;
@@ -33,8 +32,7 @@ import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-public class TestLakeFormationDataOperations
-    extends LakeFormationTestBase {
+public class TestLakeFormationDataOperations extends LakeFormationTestBase {
 
   private static String testDbName;
   private static String testTableName;
@@ -55,28 +53,36 @@ public class TestLakeFormationDataOperations
 
   @Test
   public void testLoadTableWithNoTableAccess() {
-    AssertHelpers.assertThrows("attempt to load a table without SELECT permission should fail",
+    AssertHelpers.assertThrows(
+        "attempt to load a table without SELECT permission should fail",
         AccessDeniedException.class,
         "Insufficient Lake Formation permission(s)",
-        () -> glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName)));
+        () ->
+            glueCatalogPrivilegedRole.loadTable(
+                TableIdentifier.of(Namespace.of(testDbName), testTableName)));
   }
 
   @Test
   public void testLoadTableSuccess() {
     grantTablePrivileges(testDbName, testTableName, Permission.SELECT);
-    glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName));
+    glueCatalogPrivilegedRole.loadTable(
+        TableIdentifier.of(Namespace.of(testDbName), testTableName));
   }
 
   @Test
   public void testUpdateTableWithNoInsertAccess() {
     grantTablePrivileges(testDbName, testTableName, Permission.SELECT);
-    Table table = glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName));
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-    AssertHelpers.assertThrows("attempt to insert to a table without INSERT permission should fail",
+    Table table =
+        glueCatalogPrivilegedRole.loadTable(
+            TableIdentifier.of(Namespace.of(testDbName), testTableName));
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    AssertHelpers.assertThrows(
+        "attempt to insert to a table without INSERT permission should fail",
         S3Exception.class,
         "Access Denied",
         () -> table.newAppend().appendFile(dataFile).commit());
@@ -84,27 +90,36 @@ public class TestLakeFormationDataOperations
 
   @Test
   public void testUpdateTableSuccess() {
-    grantTablePrivileges(testDbName, testTableName, Permission.SELECT, Permission.ALTER, Permission.INSERT);
+    grantTablePrivileges(
+        testDbName, testTableName, Permission.SELECT, Permission.ALTER, Permission.INSERT);
     grantDataPathPrivileges(getTableLocation(testTableName));
-    Table table = glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName));
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
+    Table table =
+        glueCatalogPrivilegedRole.loadTable(
+            TableIdentifier.of(Namespace.of(testDbName), testTableName));
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
     table.newAppend().appendFile(dataFile).commit();
   }
 
   @Test
   public void testDeleteWithNoDataPathAccess() {
-    grantTablePrivileges(testDbName, testTableName, Permission.SELECT, Permission.INSERT, Permission.ALTER);
-    Table table = glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName));
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath(getTableLocation(testTableName) + "/path/to/delete-a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-    AssertHelpers.assertThrows("attempt to delete without DATA_LOCATION_ACCESS permission should fail",
+    grantTablePrivileges(
+        testDbName, testTableName, Permission.SELECT, Permission.INSERT, Permission.ALTER);
+    Table table =
+        glueCatalogPrivilegedRole.loadTable(
+            TableIdentifier.of(Namespace.of(testDbName), testTableName));
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath(getTableLocation(testTableName) + "/path/to/delete-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    AssertHelpers.assertThrows(
+        "attempt to delete without DATA_LOCATION_ACCESS permission should fail",
         ForbiddenException.class,
         "Glue cannot access the requested resources",
         () -> table.newDelete().deleteFile(dataFile).commit());
@@ -112,14 +127,18 @@ public class TestLakeFormationDataOperations
 
   @Test
   public void testDeleteSuccess() {
-    grantTablePrivileges(testDbName, testTableName, Permission.SELECT, Permission.ALTER, Permission.INSERT);
+    grantTablePrivileges(
+        testDbName, testTableName, Permission.SELECT, Permission.ALTER, Permission.INSERT);
     grantDataPathPrivileges(getTableLocation(testTableName));
-    Table table = glueCatalogPrivilegedRole.loadTable(TableIdentifier.of(Namespace.of(testDbName), testTableName));
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
+    Table table =
+        glueCatalogPrivilegedRole.loadTable(
+            TableIdentifier.of(Namespace.of(testDbName), testTableName));
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath(getTableLocation(testTableName) + "/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
     table.newDelete().deleteFile(dataFile).commit();
   }
 }
