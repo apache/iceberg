@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static java.lang.String.format;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -36,7 +34,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
@@ -45,6 +42,8 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.lang.String.format;
 
 /**
  * The RESTCatalogServlet provides a servlet implementation used in combination with a
@@ -103,7 +102,7 @@ public class RESTCatalogServlet extends HttpServlet {
               context.path(),
               context.queryParams(),
               context.body(),
-              context.route().getResponseClass(),
+              context.route().responseClass(),
               context.headers(),
               handle(response));
 
@@ -175,18 +174,12 @@ public class RESTCatalogServlet extends HttpServlet {
 
       Route route = routeContext.first();
       Object requestBody = null;
-      if (route.getRequestClass() != null) {
+      if (route.requestClass() != null) {
         requestBody =
-            RESTObjectMapper.mapper().readValue(request.getReader(), route.getRequestClass());
+            RESTObjectMapper.mapper().readValue(request.getReader(), route.requestClass());
       } else if (route == Route.TOKENS) {
         try (Reader reader = new InputStreamReader(request.getInputStream())) {
-          Splitter.MapSplitter formSplitter = Splitter.on("&").withKeyValueSeparator("=");
-          requestBody =
-              formSplitter.split(CharStreams.toString(reader)).entrySet().stream()
-                  .collect(
-                      Collectors.toMap(
-                          e -> RESTUtil.decodeString(e.getKey()),
-                          e -> RESTUtil.decodeString(e.getValue())));
+          requestBody = RESTUtil.decodeFormData(CharStreams.toString(reader));
         }
       }
 
