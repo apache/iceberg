@@ -19,6 +19,9 @@ install:
 	pip install poetry
 	poetry install -E pyarrow -E hive -E s3fs
 
+check-license:
+	./dev/check-license
+
 lint:
 	poetry run pre-commit run --all-files
 
