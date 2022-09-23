@@ -37,7 +37,8 @@ class MigrateTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP)
+        ProcedureParameter.optional("properties", STRING_MAP),
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -88,8 +89,14 @@ class MigrateTableProcedure extends BaseProcedure {
               });
     }
 
+    boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
+
     MigrateTable.Result result =
-        SparkActions.get().migrateTable(tableName).tableProperties(properties).execute();
+        SparkActions.get()
+            .migrateTable(tableName)
+            .tableProperties(properties)
+            .dropBackup(dropBackup)
+            .execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

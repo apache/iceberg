@@ -41,6 +41,14 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
    */
   MigrateTable tableProperty(String name, String value);
 
+  /**
+   * Sets the dropBackup property to drop backup table after a successful table Migration
+   *
+   * @param dropBackup
+   * @return
+   */
+  MigrateTable dropBackup(boolean dropBackup);
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */

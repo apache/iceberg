@@ -117,7 +117,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     Object result =
         scalarSql(
-            "CALL %s.system.migrate('%s', map('dropBackup', 'true'))", catalogName, tableName);
+            "CALL %s.system.migrate(table => '%s', drop_backup => true)", catalogName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
     Assert.assertFalse(spark.catalog().tableExists(tableName + "_BACKUP_"));
   }
