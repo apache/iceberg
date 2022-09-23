@@ -374,15 +374,6 @@ public class AwsProperties implements Serializable {
       "client.apache-http.connection-timeout-ms";
 
   /**
-   * Default Apache Http Client connection timeout value indicates that we do not set the connection
-   * timeout value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
-   *
-   * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
-   */
-  public static final long APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT = -1;
-
-  /**
    * Used to configure the socket timeout in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
    * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
@@ -392,15 +383,6 @@ public class AwsProperties implements Serializable {
    */
   public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS =
       "client.apache-http.socket-timeout-ms";
-
-  /**
-   * Default Apache Http Client socket timeout value indicates that we do not set the socket timeout
-   * value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
-   *
-   * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
-   */
-  public static final long APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT = -1;
 
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
@@ -492,8 +474,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
-  private long apacheHttpClientConnectionTimeout;
-  private long apacheHttpClientSocketTimeout;
+  private Long apacheHttpClientConnectionTimeout;
+  private Long apacheHttpClientSocketTimeout;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -538,8 +520,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.apacheHttpClientConnectionTimeout = APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
-    this.apacheHttpClientSocketTimeout = APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
+    this.apacheHttpClientConnectionTimeout = null;
+    this.apacheHttpClientSocketTimeout = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -592,15 +574,9 @@ public class AwsProperties implements Serializable {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.apacheHttpClientConnectionTimeout =
-        PropertyUtil.propertyAsLong(
-            properties,
-            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS,
-            APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT);
+        PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, null);
     this.apacheHttpClientSocketTimeout =
-        PropertyUtil.propertyAsLong(
-            properties,
-            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS,
-            APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT);
+        PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, null);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
@@ -1050,10 +1026,8 @@ public class AwsProperties implements Serializable {
 
   @VisibleForTesting
   protected <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    boolean setConnectionTimeout =
-        apacheHttpClientConnectionTimeout != APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
-    boolean setSocketTimeout =
-        apacheHttpClientSocketTimeout != APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
+    boolean setConnectionTimeout = apacheHttpClientConnectionTimeout != null;
+    boolean setSocketTimeout = apacheHttpClientSocketTimeout != null;
     if (setConnectionTimeout && setSocketTimeout) {
       builder
           .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
