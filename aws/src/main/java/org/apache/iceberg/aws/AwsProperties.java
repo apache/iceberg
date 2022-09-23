@@ -574,9 +574,9 @@ public class AwsProperties implements Serializable {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.apacheHttpClientConnectionTimeout =
-        PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, null);
+        PropertyUtil.propertyAsNullableLong(properties, APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS);
     this.apacheHttpClientSocketTimeout =
-        PropertyUtil.propertyAsLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, null);
+        PropertyUtil.propertyAsNullableLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);

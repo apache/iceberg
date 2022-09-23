@@ -66,13 +66,12 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static Long propertyAsLong(
-      Map<String, String> properties, String property, Long defaultValue) {
+  public static Long propertyAsNullableLong(Map<String, String> properties, String property) {
     String value = properties.get(property);
     if (value != null) {
       return Long.parseLong(value);
     }
-    return defaultValue;
+    return null;
   }
 
   public static String propertyAsString(
