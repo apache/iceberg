@@ -23,7 +23,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -371,10 +370,16 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
-      "apache.connection-timeout-ms";
+      "client.apache-http.connection-timeout-ms";
 
-  public static final long APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT =
-      TimeUnit.SECONDS.toMillis(30);
+  /**
+   * Default Apache Http Client connection timeout value indicates that we do not set the connection
+   * timeout value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final long APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT = -1;
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -384,10 +389,17 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
-  public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS = "apache.socket-timeout-ms";
+  public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS =
+      "client.apache-http.socket-timeout-ms";
 
-  public static final long APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT =
-      TimeUnit.SECONDS.toMillis(30);
+  /**
+   * Default Apache Http Client socket timeout value indicates that we do not set the socket timeout
+   * value manually for {@link software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final long APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT = -1;
 
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
@@ -945,10 +957,7 @@ public class AwsProperties implements Serializable {
         builder.httpClientBuilder(UrlConnectionHttpClient.builder());
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(
-            ApacheHttpClient.builder()
-                .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
-                .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout)));
+        builder.httpClientBuilder(configureApacheHttpClientBuilder());
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1034,6 +1043,26 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  private ApacheHttpClient.Builder configureApacheHttpClientBuilder() {
+    boolean setConnectionTimeout =
+        apacheHttpClientConnectionTimeout != APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
+    boolean setSocketTimeout =
+        apacheHttpClientSocketTimeout != APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
+    if (setConnectionTimeout && setSocketTimeout) {
+      return ApacheHttpClient.builder()
+          .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
+          .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
+    } else if (setConnectionTimeout) {
+      return ApacheHttpClient.builder()
+          .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
+    } else if (setSocketTimeout) {
+      return ApacheHttpClient.builder()
+          .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout));
+    } else {
+      return ApacheHttpClient.builder();
     }
   }
 }
