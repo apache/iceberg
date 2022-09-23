@@ -28,6 +28,7 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -957,7 +958,8 @@ public class AwsProperties implements Serializable {
         builder.httpClientBuilder(UrlConnectionHttpClient.builder());
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(configureApacheHttpClientBuilder());
+        builder.httpClientBuilder(
+            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1046,23 +1048,20 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  private ApacheHttpClient.Builder configureApacheHttpClientBuilder() {
+  @VisibleForTesting
+  protected <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
     boolean setConnectionTimeout =
         apacheHttpClientConnectionTimeout != APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS_DEFAULT;
     boolean setSocketTimeout =
         apacheHttpClientSocketTimeout != APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS_DEFAULT;
     if (setConnectionTimeout && setSocketTimeout) {
-      return ApacheHttpClient.builder()
+      builder
           .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
           .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
     } else if (setConnectionTimeout) {
-      return ApacheHttpClient.builder()
-          .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
+      builder.connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
     } else if (setSocketTimeout) {
-      return ApacheHttpClient.builder()
-          .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout));
-    } else {
-      return ApacheHttpClient.builder();
+      builder.socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout));
     }
   }
 }
