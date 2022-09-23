@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -395,6 +396,48 @@ public class AwsProperties implements Serializable {
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
+   * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
+   * property.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   *
+   * <p>Example: s3.write.table-tag-enabled=true
+   */
+  public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
+
+  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
+
+  /**
+   * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
+   * property.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   *
+   * <p>Example: s3.write.namespace-tag-enabled=true
+   */
+  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = "s3.write.namespace-tag-enabled";
+
+  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
+
+  /**
+   * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
+   * #S3_WRITE_TABLE_TAG_ENABLED} is enabled
+   *
+   * <p>Example: iceberg.table=tableName
+   */
+  public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
+
+  /**
+   * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
+   * #S3_WRITE_NAMESPACE_TAG_ENABLED} is enabled
+   *
+   * <p>Example: iceberg.namespace=namespaceName
+   */
+  public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
+
+  /**
    * Used by {@link S3FileIO} to tag objects when deleting. When this config is set, objects are
    * tagged with the configured key-value pairs before deletion. This is considered a soft-delete,
    * because users are able to configure tag-based object lifecycle policy at bucket level to
@@ -498,6 +541,8 @@ public class AwsProperties implements Serializable {
   private ObjectCannedACL s3FileIoAcl;
   private boolean isS3ChecksumEnabled;
   private final Set<Tag> s3WriteTags;
+  private boolean s3WriteTableTagEnabled;
+  private boolean s3WriteNamespaceTagEnabled;
   private final Set<Tag> s3DeleteTags;
   private int s3FileIoDeleteThreads;
   private boolean isS3DeleteEnabled;
@@ -546,6 +591,8 @@ public class AwsProperties implements Serializable {
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
     this.s3WriteTags = Sets.newHashSet();
+    this.s3WriteTableTagEnabled = S3_WRITE_TABLE_TAG_ENABLED_DEFAULT;
+    this.s3WriteNamespaceTagEnabled = S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
     this.s3DeleteTags = Sets.newHashSet();
     this.s3FileIoDeleteThreads = Runtime.getRuntime().availableProcessors();
     this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
@@ -679,6 +726,12 @@ public class AwsProperties implements Serializable {
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3WriteTableTagEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_WRITE_TABLE_TAG_ENABLED, S3_WRITE_TABLE_TAG_ENABLED_DEFAULT);
+    this.s3WriteNamespaceTagEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_WRITE_NAMESPACE_TAG_ENABLED, S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT);
     this.s3DeleteTags = toS3Tags(properties, S3_DELETE_TAGS_PREFIX);
     this.s3FileIoDeleteThreads =
         PropertyUtil.propertyAsInt(
@@ -854,6 +907,22 @@ public class AwsProperties implements Serializable {
 
   public Set<Tag> s3WriteTags() {
     return s3WriteTags;
+  }
+
+  public boolean s3WriteTableTagEnabled() {
+    return s3WriteTableTagEnabled;
+  }
+
+  public void setS3WriteTableTagEnabled(boolean s3WriteTableNameTagEnabled) {
+    this.s3WriteTableTagEnabled = s3WriteTableNameTagEnabled;
+  }
+
+  public boolean s3WriteNamespaceTagEnabled() {
+    return s3WriteNamespaceTagEnabled;
+  }
+
+  public void setS3WriteNamespaceTagEnabled(boolean s3WriteNamespaceTagEnabled) {
+    this.s3WriteNamespaceTagEnabled = s3WriteNamespaceTagEnabled;
   }
 
   public Set<Tag> s3DeleteTags() {

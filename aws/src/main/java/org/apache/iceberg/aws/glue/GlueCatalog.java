@@ -199,20 +199,30 @@ public class GlueCatalog extends BaseMetastoreCatalog
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     if (catalogProperties != null) {
       ImmutableMap.Builder<String, String> tableSpecificCatalogPropertiesBuilder =
-          ImmutableMap.<String, String>builder()
-              .putAll(catalogProperties)
-              .put(
-                  AwsProperties.LAKE_FORMATION_DB_NAME,
-                  IcebergToGlueConverter.getDatabaseName(
-                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
-              .put(
-                  AwsProperties.LAKE_FORMATION_TABLE_NAME,
-                  IcebergToGlueConverter.getTableName(
-                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()));
+          ImmutableMap.<String, String>builder().putAll(catalogProperties);
+      boolean skipNameValidation = awsProperties.glueCatalogSkipNameValidation();
+
+      if (awsProperties.s3WriteTableTagEnabled()) {
+        tableSpecificCatalogPropertiesBuilder.put(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE),
+            IcebergToGlueConverter.getTableName(tableIdentifier, skipNameValidation));
+      }
+
+      if (awsProperties.s3WriteNamespaceTagEnabled()) {
+        tableSpecificCatalogPropertiesBuilder.put(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE),
+            IcebergToGlueConverter.getDatabaseName(tableIdentifier, skipNameValidation));
+      }
 
       if (awsProperties.glueLakeFormationEnabled()) {
-        tableSpecificCatalogPropertiesBuilder.put(
-            AwsProperties.S3_PRELOAD_CLIENT_ENABLED, String.valueOf(true));
+        tableSpecificCatalogPropertiesBuilder
+            .put(
+                AwsProperties.LAKE_FORMATION_DB_NAME,
+                IcebergToGlueConverter.getDatabaseName(tableIdentifier, skipNameValidation))
+            .put(
+                AwsProperties.LAKE_FORMATION_TABLE_NAME,
+                IcebergToGlueConverter.getTableName(tableIdentifier, skipNameValidation))
+            .put(AwsProperties.S3_PRELOAD_CLIENT_ENABLED, String.valueOf(true));
       }
 
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
