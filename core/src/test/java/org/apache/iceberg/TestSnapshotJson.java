@@ -47,7 +47,10 @@ public class TestSnapshotJson {
             null,
             null,
             1,
-            new String[] {"file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro"});
+            new String[] {
+              localInput("file:/tmp/manifest1.avro").location(),
+              localInput("file:/tmp/manifest2.avro").location()
+            });
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -70,7 +73,10 @@ public class TestSnapshotJson {
             null,
             null,
             null,
-            new String[] {"file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro"});
+            new String[] {
+              localInput("file:/tmp/manifest1.avro").location(),
+              localInput("file:/tmp/manifest2.avro").location()
+            });
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 

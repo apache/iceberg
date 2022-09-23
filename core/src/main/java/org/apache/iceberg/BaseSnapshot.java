@@ -241,11 +241,6 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
-  @Override
-  public String[] v1ManifestLocations() {
-    return v1ManifestLocations;
-  }
-
   private void cacheDeleteFileChanges(FileIO fileIO) {
     Preconditions.checkArgument(fileIO != null, "Cannot cache delete file changes: FileIO is null");
 

@@ -24,6 +24,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
@@ -31,6 +35,9 @@ import org.apache.iceberg.util.JsonUtil;
 public class SnapshotParser {
 
   private SnapshotParser() {}
+
+  /** A dummy {@link FileIO} implementation that is only used to retrieve the path */
+  private static final DummyFileIO DUMMY_FILE_IO = new DummyFileIO();
 
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";
@@ -76,8 +83,8 @@ public class SnapshotParser {
     } else {
       // embed the manifest list in the JSON, v1 only
       generator.writeArrayFieldStart(MANIFESTS);
-      for (String location : snapshot.v1ManifestLocations()) {
-        generator.writeString(location);
+      for (ManifestFile file : snapshot.allManifests(DUMMY_FILE_IO)) {
+        generator.writeString(file.path());
       }
       generator.writeEndArray();
     }
@@ -171,6 +178,47 @@ public class SnapshotParser {
       return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
+    }
+  }
+
+  /**
+   * The main purpose of this class is to lazily retrieve the path from a v1 Snapshot that has
+   * manifest lists
+   */
+  private static class DummyFileIO implements FileIO {
+    @Override
+    public InputFile newInputFile(String path) {
+      return new InputFile() {
+        @Override
+        public long getLength() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SeekableInputStream newStream() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String location() {
+          return path;
+        }
+
+        @Override
+        public boolean exists() {
+          return true;
+        }
+      };
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      throw new UnsupportedOperationException();
     }
   }
 }
