@@ -28,7 +28,7 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.10.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.11.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.7'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
@@ -230,6 +230,8 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"
     testImplementation "com.esotericsoftware:kryo"
   }
@@ -259,6 +261,8 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
@@ -275,6 +279,8 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    testImplementation "org.eclipse.jetty:jetty-servlet"
+    testImplementation "org.eclipse.jetty:jetty-server"
     testImplementation 'org.mock-server:mockserver-netty'
     testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"

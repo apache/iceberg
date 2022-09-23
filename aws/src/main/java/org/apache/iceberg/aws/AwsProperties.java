@@ -329,6 +329,14 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname
+   */
+  public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
+
+  /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
@@ -448,6 +456,7 @@ public class AwsProperties implements Serializable {
   private String clientAssumeRoleExternalId;
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
+  private String clientAssumeRoleSessionName;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -491,6 +500,7 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleTimeoutSec = CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT;
     this.clientAssumeRoleExternalId = null;
     this.clientAssumeRoleRegion = null;
+    this.clientAssumeRoleSessionName = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -543,6 +553,7 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
+    this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -675,6 +686,10 @@ public class AwsProperties implements Serializable {
 
   public String clientAssumeRoleRegion() {
     return clientAssumeRoleRegion;
+  }
+
+  public String clientAssumeRoleSessionName() {
+    return clientAssumeRoleSessionName;
   }
 
   public String s3FileIoSseType() {

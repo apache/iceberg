@@ -17,12 +17,11 @@
 
 # Iceberg Python
 
-py-iceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format.
-It is an implementation of [iceberg table spec](https://iceberg.apache.org/spec/) in Python.
+pyiceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format. It is a Python implementation of [iceberg table spec](https://iceberg.apache.org/spec/). Documentation is available at [https://pyiceberg.apache.org/](https://pyiceberg.apache.org/).
 
 ## Getting Started
 
-py-iceberg is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
+pyiceberg is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
 
 ```
 git clone https://github.com/apache/iceberg.git
@@ -30,11 +29,9 @@ cd iceberg/python
 pip install -e .
 ```
 
-Development is made easy using [Poetry](https://python-poetry.org/docs/#installation).
-
 ## Development
 
-Poetry provides virtual environments for development:
+Development is made easy using [Poetry](https://python-poetry.org/docs/#installation). Poetry provides virtual environments for development:
 
 ```bash
 poetry shell
@@ -54,4 +51,5 @@ poetry run pytest
 ```
 
 ## Get in Touch
+
 - [Iceberg community](https://iceberg.apache.org/community/)

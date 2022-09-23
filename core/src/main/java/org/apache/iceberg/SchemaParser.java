@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -165,19 +164,9 @@ public class SchemaParser {
   }
 
   public static String toJson(Schema schema, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(
+        gen -> toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), gen),
+        pretty);
   }
 
   private static Type typeFromJson(JsonNode json) {

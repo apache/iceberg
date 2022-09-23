@@ -21,7 +21,6 @@ package org.apache.iceberg.mapping;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -51,16 +50,7 @@ public class NameMappingParser {
   private static final String FIELDS = "fields";
 
   public static String toJson(NameMapping mapping) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
-      toJson(mapping, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", mapping);
-    }
+    return JsonUtil.generate(gen -> toJson(mapping, gen), true);
   }
 
   static void toJson(NameMapping nameMapping, JsonGenerator generator) throws IOException {

@@ -27,3 +27,10 @@ test:
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
+
+test-s3:
+	sh ./dev/run-minio.sh
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml

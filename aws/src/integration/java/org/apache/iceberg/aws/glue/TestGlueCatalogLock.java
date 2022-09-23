@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.glue;
 
 import java.util.List;
@@ -77,18 +76,21 @@ public class TestGlueCatalogLock extends GlueTestBase {
     String tableName = getRandomName();
     createTable(namespace, tableName);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath("/path/to/data-a.parquet")
-        .withFileSizeInBytes(1)
-        .withRecordCount(1)
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(1)
+            .withRecordCount(1)
+            .build();
 
-    List<AppendFiles> pendingCommits = IntStream.range(0, nThreads)
-        .mapToObj(i -> table.newAppend().appendFile(dataFile))
-        .collect(Collectors.toList());
+    List<AppendFiles> pendingCommits =
+        IntStream.range(0, nThreads)
+            .mapToObj(i -> table.newAppend().appendFile(dataFile))
+            .collect(Collectors.toList());
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(nThreads));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(nThreads));
 
     Tasks.range(nThreads)
         .retry(10000)
@@ -97,8 +99,11 @@ public class TestGlueCatalogLock extends GlueTestBase {
         .run(i -> pendingCommits.get(i).commit());
 
     table.refresh();
-    Assert.assertEquals("Commits should all succeed sequentially", nThreads, table.history().size());
-    Assert.assertEquals("Should have all manifests", nThreads,
+    Assert.assertEquals(
+        "Commits should all succeed sequentially", nThreads, table.history().size());
+    Assert.assertEquals(
+        "Should have all manifests",
+        nThreads,
         table.currentSnapshot().allManifests(table.io()).size());
   }
 
@@ -109,38 +114,41 @@ public class TestGlueCatalogLock extends GlueTestBase {
     createTable(namespace, tableName);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(table.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath(FileFormat.PARQUET.addExtension(fileName))
+            .withRecordCount(2)
+            .withFileSizeInBytes(0)
+            .build();
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
     Tasks.range(2)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(executorService)
-        .run(index -> {
-          for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-            while (barrier.get() < numCommittedFiles * 2) {
-              try {
-                Thread.sleep(10);
-              } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-            }
+        .run(
+            index -> {
+              for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
+                while (barrier.get() < numCommittedFiles * 2) {
+                  try {
+                    Thread.sleep(10);
+                  } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                  }
+                }
 
-            table.newFastAppend().appendFile(file).commit();
-            barrier.incrementAndGet();
-          }
-        });
+                table.newFastAppend().appendFile(file).commit();
+                barrier.incrementAndGet();
+              }
+            });
 
     table.refresh();
     Assert.assertEquals("Commits should all succeed sequentially", 20, table.history().size());
-    Assert.assertEquals("should have 20 manifests", 20, table.currentSnapshot().allManifests(table.io()).size());
+    Assert.assertEquals(
+        "should have 20 manifests", 20, table.currentSnapshot().allManifests(table.io()).size());
   }
-
 }

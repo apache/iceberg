@@ -133,6 +133,17 @@ public class TestTableMetadata {
             "previous", SnapshotRef.tagBuilder(previousSnapshotId).build(),
             "test", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
+    List<StatisticsFile> statisticsFiles =
+        ImmutableList.of(
+            new GenericStatisticsFile(
+                11L,
+                "/some/stats/file.puffin",
+                100,
+                42,
+                ImmutableList.of(
+                    new GenericBlobMetadata(
+                        "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -155,7 +166,7 @@ public class TestTableMetadata {
             snapshotLog,
             ImmutableList.of(),
             refs,
-            ImmutableList.of(),
+            statisticsFiles,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -220,6 +231,8 @@ public class TestTableMetadata {
     Assert.assertNull(
         "Previous snapshot's schema ID should be null",
         metadata.snapshot(previousSnapshotId).schemaId());
+    Assert.assertEquals(
+        "Statistics files should match", statisticsFiles, metadata.statisticsFiles());
     Assert.assertEquals("Refs map should match", refs, metadata.refs());
   }
 

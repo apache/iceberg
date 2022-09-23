@@ -30,7 +30,7 @@ jobs:
   stale:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/stale@v5.1.1
+      - uses: actions/stale@v5.2.0
         with:
           stale-issue-label: 'stale'
           exempt-issue-labels: 'not-stale'

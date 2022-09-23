@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.glue;
 
 import java.io.File;
@@ -92,8 +91,10 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("Client could not determine outcome so new metadata file should also exist",
-        3, metadataFileCount(ops.current()));
+    Assert.assertEquals(
+        "Client could not determine outcome so new metadata file should also exist",
+        3,
+        metadataFileCount(ops.current()));
   }
 
   @Test
@@ -107,7 +108,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, ConcurrentModificationException.builder().build());
 
-    AssertHelpers.assertThrowsWithCause("GlueCatalog should fail on concurrent modifications",
+    AssertHelpers.assertThrowsWithCause(
+        "GlueCatalog should fail on concurrent modifications",
         CommitFailedException.class,
         "Glue detected concurrent update",
         ConcurrentModificationException.class,
@@ -134,14 +136,18 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     // Simulate a communication error after a successful commit
     commitAndThrowException(ops, spyOps);
 
-    // Shouldn't throw because the commit actually succeeds even though persistTable throws an exception
+    // Shouldn't throw because the commit actually succeeds even though persistTable throws an
+    // exception
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
     Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals("Commit should have been successful and new metadata file should be made",
-        3, metadataFileCount(ops.current()));
+    Assert.assertTrue(
+        "Current metadata file should still exist", metadataFileExists(ops.current()));
+    Assert.assertEquals(
+        "Commit should have been successful and new metadata file should be made",
+        3,
+        metadataFileCount(ops.current()));
   }
 
   @Test
@@ -156,16 +162,21 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
 
-    AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class, "Datacenter on fire",
+    AssertHelpers.assertThrows(
+        "Should throw CommitStateUnknownException since the catalog check was blocked",
+        CommitStateUnknownException.class,
+        "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
 
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals("Client could not determine outcome so new metadata file should also exist",
-        3, metadataFileCount(ops.current()));
+    Assert.assertTrue(
+        "Current metadata file should still exist", metadataFileExists(ops.current()));
+    Assert.assertEquals(
+        "Client could not determine outcome so new metadata file should also exist",
+        3,
+        metadataFileCount(ops.current()));
   }
 
   @Test
@@ -180,29 +191,31 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     commitAndThrowException(ops, spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
 
-    AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class, "Datacenter on fire",
+    AssertHelpers.assertThrows(
+        "Should throw CommitStateUnknownException since the catalog check was blocked",
+        CommitStateUnknownException.class,
+        "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
 
     Assert.assertNotEquals("Current metadata should have changed", ops.current(), metadataV2);
-    Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
+    Assert.assertTrue(
+        "Current metadata file should still exist", metadataFileExists(ops.current()));
   }
 
   /**
-   * Pretends we threw an exception while persisting, the commit succeeded, the lock expired,
-   * and a second committer placed a commit on top of ours before the first committer was able to check
-   * if their commit succeeded or not
+   * Pretends we threw an exception while persisting, the commit succeeded, the lock expired, and a
+   * second committer placed a commit on top of ours before the first committer was able to check if
+   * their commit succeeded or not
    *
-   * Timeline:
-   *   Client 1 commits which throws an exception but suceeded
-   *   Client 1's lock expires while waiting to do the recheck for commit success
-   *   Client 2 acquires a lock, commits successfully on top of client 1's commit and release lock
-   *   Client 1 check's to see if their commit was successful
+   * <p>Timeline: Client 1 commits which throws an exception but suceeded Client 1's lock expires
+   * while waiting to do the recheck for commit success Client 2 acquires a lock, commits
+   * successfully on top of client 1's commit and release lock Client 1 check's to see if their
+   * commit was successful
    *
-   * This tests to make sure a disconnected client 1 doesn't think their commit failed just because it isn't the
-   * current one during the recheck phase.
+   * <p>This tests to make sure a disconnected client 1 doesn't think their commit failed just
+   * because it isn't the current one during the recheck phase.
    */
   @Test
   public void testExceptionThrownInConcurrentCommit() {
@@ -223,31 +236,38 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     ops.refresh();
     Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals("The column addition from the concurrent commit should have been successful",
-        2, ops.current().schema().columns().size());
+    Assert.assertTrue(
+        "Current metadata file should still exist", metadataFileExists(ops.current()));
+    Assert.assertEquals(
+        "The column addition from the concurrent commit should have been successful",
+        2,
+        ops.current().schema().columns().size());
   }
 
-  private void concurrentCommitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOperations,
-                                                 Table table) {
+  private void concurrentCommitAndThrowException(
+      GlueTableOperations realOps, GlueTableOperations spyOperations, Table table) {
     // Simulate a communication error after a successful commit
-    Mockito.doAnswer(i -> {
-      Map<String, String> mapProperties = i.getArgument(1, Map.class);
-      realOps.persistGlueTable(
-          i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
-          mapProperties,
-          i.getArgument(2, TableMetadata.class));
+    Mockito.doAnswer(
+            i -> {
+              Map<String, String> mapProperties = i.getArgument(1, Map.class);
+              realOps.persistGlueTable(
+                  i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
+                  mapProperties,
+                  i.getArgument(2, TableMetadata.class));
 
-      // new metadata location is stored in map property, and used for locking
-      String newMetadataLocation = mapProperties.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+              // new metadata location is stored in map property, and used for locking
+              String newMetadataLocation =
+                  mapProperties.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
 
-      // Simulate lock expiration or removal, use commit status null to avoid deleting data
-      realOps.cleanupMetadataAndUnlock(null, newMetadataLocation);
+              // Simulate lock expiration or removal, use commit status null to avoid deleting data
+              realOps.cleanupMetadataAndUnlock(null, newMetadataLocation);
 
-      table.refresh();
-      table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
-      throw new RuntimeException("Datacenter on fire");
-    }).when(spyOperations).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+              table.refresh();
+              table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
+              throw new RuntimeException("Datacenter on fire");
+            })
+        .when(spyOperations)
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   @Test
@@ -262,10 +282,10 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, EntityNotFoundException.builder().build());
 
     AssertHelpers.assertThrows(
-            "Should throw not found exception",
-            NotFoundException.class,
-            "because Glue cannot find the requested entity",
-            () -> spyOps.commit(metadataV2, metadataV1));
+        "Should throw not found exception",
+        NotFoundException.class,
+        "because Glue cannot find the requested entity",
+        () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -285,10 +305,10 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, AccessDeniedException.builder().build());
 
     AssertHelpers.assertThrows(
-            "Should throw forbidden exception",
-            ForbiddenException.class,
-            "because Glue cannot access the requested resources",
-            () -> spyOps.commit(metadataV2, metadataV1));
+        "Should throw forbidden exception",
+        ForbiddenException.class,
+        "because Glue cannot access the requested resources",
+        () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -308,10 +328,10 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, ValidationException.builder().build());
 
     AssertHelpers.assertThrows(
-            "Should throw validation exception",
-            org.apache.iceberg.exceptions.ValidationException.class,
-            "because Glue encountered a validation exception while accessing requested resources",
-            () -> spyOps.commit(metadataV2, metadataV1));
+        "Should throw validation exception",
+        org.apache.iceberg.exceptions.ValidationException.class,
+        "because Glue encountered a validation exception while accessing requested resources",
+        () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -331,9 +351,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
 
     AssertHelpers.assertThrows(
-            null,
-            S3Exception.class,
-            () -> spyOps.commit(metadataV2, metadataV1));
+        null, S3Exception.class, () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -353,9 +371,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
 
     AssertHelpers.assertThrows(
-            null,
-            GlueException.class,
-            () -> spyOps.commit(metadataV2, metadataV1));
+        null, GlueException.class, () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -375,9 +391,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
 
     AssertHelpers.assertThrows(
-            null,
-            CommitFailedException.class,
-            () -> spyOps.commit(metadataV2, metadataV1));
+        null, CommitFailedException.class, () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -392,9 +406,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   private TableMetadata updateTable(Table table, GlueTableOperations ops) {
-    table.updateSchema()
-        .addColumn("n", Types.IntegerType.get())
-        .commit();
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
     ops.refresh();
 
@@ -405,13 +417,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   private void commitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOps) {
-    Mockito.doAnswer(i -> {
-      realOps.persistGlueTable(
-          i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
-          i.getArgument(1, Map.class),
-          i.getArgument(2, TableMetadata.class));
-      throw new RuntimeException("Datacenter on fire");
-    }).when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+    Mockito.doAnswer(
+            i -> {
+              realOps.persistGlueTable(
+                  i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
+                  i.getArgument(1, Map.class),
+                  i.getArgument(2, TableMetadata.class));
+              throw new RuntimeException("Datacenter on fire");
+            })
+        .when(spyOps)
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
@@ -420,7 +435,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
     Mockito.doThrow(exceptionToThrow)
-        .when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+        .when(spyOps)
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void breakFallbackCatalogCommitCheck(GlueTableOperations spyOperations) {
@@ -430,10 +446,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private boolean metadataFileExists(TableMetadata metadata) {
     try {
-      s3.headObject(HeadObjectRequest.builder()
-          .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
-          .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
-          .build());
+      s3.headObject(
+          HeadObjectRequest.builder()
+              .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
+              .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
+              .build());
       return true;
     } catch (NoSuchKeyException e) {
       return false;
@@ -441,10 +458,17 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   private int metadataFileCount(TableMetadata metadata) {
-    return (int) s3.listObjectsV2(ListObjectsV2Request.builder()
-        .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
-        .prefix(new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation())).getParent())
-        .build())
-        .contents().stream().filter(s3Object -> s3Object.key().endsWith("metadata.json")).count();
+    return (int)
+        s3
+            .listObjectsV2(
+                ListObjectsV2Request.builder()
+                    .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
+                    .prefix(
+                        new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
+                            .getParent())
+                    .build())
+            .contents().stream()
+            .filter(s3Object -> s3Object.key().endsWith("metadata.json"))
+            .count();
   }
 }

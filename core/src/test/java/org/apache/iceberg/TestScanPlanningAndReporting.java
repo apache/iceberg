@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.LoggingScanReporter;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
@@ -61,16 +62,16 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
-    assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
-        .isGreaterThan(Duration.ZERO);
-    assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(3);
-    assertThat(scanReport.scanMetrics().resultDeleteFiles().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(2);
-    assertThat(scanReport.scanMetrics().skippedDataManifests().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(2);
-    assertThat(scanReport.scanMetrics().totalDeleteManifests().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(30L);
-    assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(3);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(2);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(0);
+    assertThat(result.totalDataManifests().value()).isEqualTo(2);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(30L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
 
     // we should hit only a single data manifest and only a single data file
     try (CloseableIterable<FileScanTask> fileScanTasks =
@@ -79,19 +80,19 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     }
 
     scanReport = reporter.lastReport();
+    result = scanReport.scanMetrics();
     assertThat(scanReport).isNotNull();
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
-    assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
-        .isGreaterThan(Duration.ZERO);
-    assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().resultDeleteFiles().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().skippedDataManifests().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(2);
-    assertThat(scanReport.scanMetrics().totalDeleteManifests().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(10L);
-    assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(1);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(1);
+    assertThat(result.totalDataManifests().value()).isEqualTo(2);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(10L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
   }
 
   @Test
@@ -118,16 +119,82 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(scanReport).isNotNull();
     assertThat(scanReport.tableName()).isEqualTo("scan-planning-with-deletes");
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
-    assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
-        .isGreaterThan(Duration.ZERO);
-    assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(3);
-    assertThat(scanReport.scanMetrics().resultDeleteFiles().value()).isEqualTo(2);
-    assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().skippedDataManifests().value()).isEqualTo(0);
-    assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().totalDeleteManifests().value()).isEqualTo(1);
-    assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(30L);
-    assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes().value()).isEqualTo(20L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(3);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(2);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(1);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(0);
+    assertThat(result.totalDataManifests().value()).isEqualTo(1);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(1);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(30L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(20L);
+  }
+
+  @Test
+  public void scanningWithSkippedDataFiles() throws IOException {
+    String tableName = "scan-planning-with-skipped-data-files";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_D).commit();
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+    TableScan tableScan = table.newScan();
+
+    try (CloseableIterable<FileScanTask> fileScanTasks =
+        tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.skippedDataFiles().value()).isEqualTo(1);
+    assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(1);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(1);
+    assertThat(result.totalDataManifests().value()).isEqualTo(2);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(10L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
+  }
+
+  @Test
+  public void scanningWithSkippedDeleteFiles() throws IOException {
+    String tableName = "scan-planning-with-skipped-delete-files";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_D).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_D2_DELETES).commit();
+    TableScan tableScan = table.newScan();
+
+    try (CloseableIterable<FileScanTask> fileScanTasks =
+        tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(1);
+    assertThat(result.skippedDataFiles().value()).isEqualTo(1);
+    assertThat(result.skippedDeleteFiles().value()).isEqualTo(1);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(1);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(0);
+    assertThat(result.totalDataManifests().value()).isEqualTo(1);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(1);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(10L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(10L);
   }
 
   private static class TestScanReporter implements ScanReporter {

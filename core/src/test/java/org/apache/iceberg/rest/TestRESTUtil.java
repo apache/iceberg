@@ -126,4 +126,15 @@ public class TestRESTUtil {
 
     Assertions.assertThat(RESTUtil.encodeFormData(formData)).isEqualTo(expected);
   }
+
+  @Test
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  public void testOAuth2FormDataDecoding() {
+    String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
+    String asString = "+%25%26%2B%C2%A3%E2%82%AC";
+    Map<String, String> expected = ImmutableMap.of("client_id", "12345", "client_secret", utf8);
+    String formString = "client_id=12345&client_secret=" + asString;
+
+    Assertions.assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
+  }
 }
