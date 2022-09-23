@@ -20,10 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -34,9 +37,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestMetadataUpdateParser {
+
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static final Schema ID_DATA_SCHEMA =
       new Schema(
@@ -348,25 +355,24 @@ public class TestMetadataUpdateParser {
 
   /** AddSnapshot * */
   @Test
-  public void testAddSnapshotToJson() {
+  public void testAddSnapshotToJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot snapshot =
         new BaseSnapshot(
+            0,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
-            manifests);
+            manifestList);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -376,25 +382,24 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
-  public void testAddSnapshotFromJson() {
+  public void testAddSnapshotFromJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
+
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
     Snapshot snapshot =
         new BaseSnapshot(
+            0,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
             DataOperations.REPLACE,
             summary,
             schemaId,
-            manifests);
+            manifestList);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
@@ -1104,5 +1109,23 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsSetLocation(
       MetadataUpdate.SetLocation expected, MetadataUpdate.SetLocation actual) {
     Assert.assertEquals("Location should be the same", expected.location(), actual.location());
+  }
+
+  private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
+      throws IOException {
+    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    manifestList.deleteOnExit();
+
+    List<ManifestFile> manifests =
+        ImmutableList.of(
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+
+    try (ManifestListWriter writer =
+        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+      writer.addAll(manifests);
+    }
+
+    return localInput(manifestList).location();
   }
 }

@@ -26,8 +26,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -197,55 +195,42 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     validate(base, parentSnapshot);
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
-    if (base.formatVersion() > 1
-        || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
-      OutputFile manifestList = manifestListPath();
+    OutputFile manifestList = manifestListPath();
 
-      try (ManifestListWriter writer =
-          ManifestLists.write(
-              ops.current().formatVersion(),
-              manifestList,
-              snapshotId(),
-              parentSnapshotId,
-              sequenceNumber)) {
+    try (ManifestListWriter writer =
+        ManifestLists.write(
+            ops.current().formatVersion(),
+            manifestList,
+            snapshotId(),
+            parentSnapshotId,
+            sequenceNumber)) {
 
-        // keep track of the manifest lists created
-        manifestLists.add(manifestList.location());
+      // keep track of the manifest lists created
+      manifestLists.add(manifestList.location());
 
-        ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+      ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
 
-        Tasks.range(manifestFiles.length)
-            .stopOnFailure()
-            .throwFailureWhenFinished()
-            .executeWith(workerPool)
-            .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+      Tasks.range(manifestFiles.length)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(workerPool)
+          .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
-        writer.addAll(Arrays.asList(manifestFiles));
+      writer.addAll(Arrays.asList(manifestFiles));
 
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to write manifest list file");
-      }
-
-      return new BaseSnapshot(
-          sequenceNumber,
-          snapshotId(),
-          parentSnapshotId,
-          System.currentTimeMillis(),
-          operation(),
-          summary(base),
-          base.currentSchemaId(),
-          manifestList.location());
-
-    } else {
-      return new BaseSnapshot(
-          snapshotId(),
-          parentSnapshotId,
-          System.currentTimeMillis(),
-          operation(),
-          summary(base),
-          base.currentSchemaId(),
-          manifests);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
+
+    return new BaseSnapshot(
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        System.currentTimeMillis(),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        manifestList.location());
   }
 
   protected abstract Map<String, String> summary();
