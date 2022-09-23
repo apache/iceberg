@@ -56,7 +56,7 @@ Metadata tables, like `history` and `snapshots`, can use the Iceberg table name 
 
 For example, to read from the `files` metadata table for `prod.db.table`:
 
-```
+```sql
 SELECT * FROM prod.db.table.files
 ```
 |content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
@@ -107,14 +107,14 @@ SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
 
 In addition, `FOR SYSTEM_TIME AS OF` and `FOR SYSTEM_VERSION AS OF` clauses are also supported:
 
-```
+```sql
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF '1986-10-26 01:21:00';
 SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 10963874102873;
 ```
 
 Timestamps may also be supplied as a Unix timestamp, in seconds:
 
-```
+```sql
 -- timestamp in seconds
 SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
@@ -402,6 +402,7 @@ To inspect a tables's metadata with the time travel feature:
 ```sql
 -- get the table's file manifests at timestamp Sep 20, 2021 08:00:00
 SELECT * FROM prod.db.table.manifests TIMESTAMP AS OF '2021-09-20 08:00:00';
+
 -- get the table's partitions with snapshot id 10963874102873L
 SELECT * FROM prod.db.table.partitions VERSION AS OF 10963874102873;
 ```
