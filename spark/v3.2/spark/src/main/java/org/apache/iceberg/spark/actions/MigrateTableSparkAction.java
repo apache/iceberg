@@ -57,7 +57,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
-  private boolean dropBackup = false;
+  private boolean removeBackup = false;
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -95,8 +95,9 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     return this;
   }
 
+  @Override
   public MigrateTableSparkAction dropBackup(boolean dropBackup) {
-    this.dropBackup = dropBackup;
+    this.removeBackup = dropBackup;
     return this;
   }
 
@@ -148,7 +149,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
             LOG.error("Cannot abort staged changes", abortException);
           }
         }
-      } else if (dropBackup) {
+      } else if (removeBackup) {
         dropBackupTable();
       }
     }
