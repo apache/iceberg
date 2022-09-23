@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.io.ContentCache;
 
 public class CatalogProperties {
 
@@ -59,15 +58,14 @@ public class CatalogProperties {
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
 
   /**
-   * Controls whether to use {@link ContentCache} during manifest file reads or not.
+   * Controls whether to use caching during manifest reads or not.
    *
-   * <p>This value will be ignored and the file cache will be disabled if any of the following is
-   * true:
+   * <p>Enabling manifest file caching require the following configuration constraints to be true:
    *
    * <ul>
-   *   <li>{@link #IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS} is set to negative number.
-   *   <li>{@link #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} is set to non-positive value.
-   *   <li>{@link #IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH} is set to non-positive value.
+   *   <li>{@link #IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS} must be a non-negative value.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} must be a positive value.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH} must be a positive value.
    * </ul>
    */
   public static final String IO_MANIFEST_CACHE_ENABLED = "io.manifest.cache-enabled";
@@ -75,12 +73,11 @@ public class CatalogProperties {
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
-   * Controls the duration for which entries in the {@link ContentCache} are cached.
+   * Controls the maximum duration for which an entry stays in the manifest cache.
    *
-   * <p>Behavior of specific values of cache.expiration-interval-ms:
+   * <p>Must be a non-negative value. Following are specific behaviors of this config:
    *
    * <ul>
-   *   <li>Negative Values - Caching disabled
    *   <li>Zero - Cache entries expires only if it gets evicted due to memory pressure from {@link
    *       #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} setting.
    *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
@@ -94,15 +91,9 @@ public class CatalogProperties {
       TimeUnit.SECONDS.toMillis(60);
 
   /**
-   * Controls the maximum total amount of bytes to cache in {@link ContentCache}.
+   * Controls the maximum total amount of bytes to cache in manifest cache.
    *
-   * <p>Behavior of specific values of cache.content.max-total-bytes:
-   *
-   * <ul>
-   *   <li>Non-Positive Values - Caching disabled
-   *   <li>Positive Values - Maximum total amount of bytes allowed in cache before cache start doing
-   *       eviction
-   * </ul>
+   * <p>Must be a positive value.
    */
   public static final String IO_MANIFEST_CACHE_MAX_TOTAL_BYTES =
       "io.manifest.cache.max-total-bytes";
@@ -113,7 +104,7 @@ public class CatalogProperties {
    * Controls the maximum length of file to be considered for caching.
    *
    * <p>An {@link org.apache.iceberg.io.InputFile} will not be cached if the length is longer than
-   * this limit.
+   * this limit. Must be a positive value.
    */
   public static final String IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH =
       "io.manifest.cache.max-content-length";

@@ -366,28 +366,28 @@ public class ManifestFiles {
     return SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
   }
 
-  public static boolean cachingEnabled(FileIO io) {
+  static boolean cachingEnabled(FileIO io) {
     return PropertyUtil.propertyAsBoolean(
         io.properties(),
         CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
         CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
   }
 
-  public static long cacheDurationMs(FileIO io) {
+  static long cacheDurationMs(FileIO io) {
     return PropertyUtil.propertyAsLong(
         io.properties(),
         CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS,
         CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
   }
 
-  public static long cacheTotalBytes(FileIO io) {
+  static long cacheTotalBytes(FileIO io) {
     return PropertyUtil.propertyAsLong(
         io.properties(),
         CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES,
         CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT);
   }
 
-  public static long cacheMaxContentLength(FileIO io) {
+  static long cacheMaxContentLength(FileIO io) {
     return PropertyUtil.propertyAsLong(
         io.properties(),
         CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH,
