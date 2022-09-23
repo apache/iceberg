@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static java.lang.String.format;
+
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -42,8 +44,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.lang.String.format;
 
 /**
  * The RESTCatalogServlet provides a servlet implementation used in combination with a

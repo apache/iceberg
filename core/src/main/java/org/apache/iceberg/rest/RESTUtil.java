@@ -102,7 +102,8 @@ public class RESTUtil {
   }
 
   private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
-  private static final Splitter.MapSplitter FORM_SPLITTER = Splitter.on("&").withKeyValueSeparator("=");
+  private static final Splitter.MapSplitter FORM_SPLITTER =
+      Splitter.on("&").withKeyValueSeparator("=");
 
   /**
    * Encodes a map of form data as application/x-www-form-urlencoded.
@@ -132,8 +133,7 @@ public class RESTUtil {
     return FORM_SPLITTER.split(formString).entrySet().stream()
         .collect(
             ImmutableMap.toImmutableMap(
-                e -> RESTUtil.decodeString(e.getKey()),
-                e -> RESTUtil.decodeString(e.getValue())));
+                e -> RESTUtil.decodeString(e.getKey()), e -> RESTUtil.decodeString(e.getValue())));
   }
 
   /**
