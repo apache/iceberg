@@ -371,7 +371,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
-      "client.apache-http.connection-timeout-ms";
+      "http-client.apache.connection-timeout-ms";
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -382,7 +382,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS =
-      "client.apache-http.socket-timeout-ms";
+      "http-client.apache.socket-timeout-ms";
 
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
@@ -1025,7 +1025,7 @@ public class AwsProperties implements Serializable {
   }
 
   @VisibleForTesting
-  protected <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
+  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
     boolean setConnectionTimeout = apacheHttpClientConnectionTimeout != null;
     boolean setSocketTimeout = apacheHttpClientSocketTimeout != null;
     if (setConnectionTimeout && setSocketTimeout) {
