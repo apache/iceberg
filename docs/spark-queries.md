@@ -384,7 +384,7 @@ SELECT * FROM prod.db.table.refs
 | main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
 | testTag | TAG | 4686954189838128572 | 10 | null | null |
 
-## Inspecting with DataFrames
+### Inspecting with DataFrames
 
 Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:
 
@@ -395,13 +395,20 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
 
-You can also inspect Iceberg metadata tables with the time travel feature:
+### Time Travel with Metadata Tables
+
+To inspect a tables's metadata with the time travel feature:
+
+```sql
+-- get the table's file manifests at timestamp Sep 20, 2021 08:00:00
+SELECT * FROM prod.db.table.manifests TIMESTAMP AS OF '2021-09-20 08:00:00';
+-- get the table's partitions with snapshot id 10963874102873L
+SELECT * FROM prod.db.table.partitions VERSION AS OF 10963874102873;
+```
+
+Metadata tables can also be inspected with time travel using the DataFrameReader API:
 
 ```scala
-// get table's all data files and each data file's metadata at snapshot-id 7277403863961056344
-spark.read
-        .format("iceberg")
-        .option("snapshot-id", 7277403863961056344L)
-        .load("db.table.files")
-        .show()
+// get table's data files and each data file's metadata at snapshot-id 10963874102873
+spark.read.format("iceberg").option("snapshot-id", 10963874102873L).load("db.table.files").show()
 ```
