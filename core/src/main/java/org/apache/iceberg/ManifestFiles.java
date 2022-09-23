@@ -341,11 +341,20 @@ public class ManifestFiles {
   }
 
   private static InputFile newInputFile(FileIO io, String path, long length) {
-    boolean enabled = cachingEnabled(io);
+    boolean enabled = false;
+
+    try {
+      enabled = cachingEnabled(io);
+    } catch (UnsupportedOperationException e) {
+      // There is an issue reading io.properties(). Disable caching.
+      enabled = false;
+    }
 
     if (enabled) {
       ContentCache cache = contentCache(io);
-      Preconditions.checkNotNull(cache);
+      Preconditions.checkNotNull(
+          cache,
+          "ContentCache creation failed. Check that all manifest caching configurations has valid value.");
       LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
       return cache.tryCache(io, path, length);
     }
