@@ -38,7 +38,8 @@ packages = [
     { from = "vendor", include = "fb303" },
     { from = "vendor", include = "hive_metastore" },
     { include = "tests", format = "sdist" },
-    { include = "Makefile", format = "sdist" }
+    { include = "Makefile", format = "sdist" },
+    { include = "NOTICE", format = ["sdist", "wheel"] }
 ]
 
 
