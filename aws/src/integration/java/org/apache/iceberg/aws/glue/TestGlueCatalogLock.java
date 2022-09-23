@@ -59,8 +59,14 @@ public class TestGlueCatalogLock extends GlueTestBase {
     glueCatalog = new GlueCatalog();
     AwsProperties awsProperties = new AwsProperties();
     dynamo = clientFactory.dynamo();
-    glueCatalog.initialize(catalogName, testBucketPath, awsProperties, glue,
-        new DynamoDbLockManager(dynamo, lockTableName), fileIO, ImmutableMap.of());
+    glueCatalog.initialize(
+        catalogName,
+        testBucketPath,
+        awsProperties,
+        glue,
+        new DynamoDbLockManager(dynamo, lockTableName),
+        fileIO,
+        ImmutableMap.of());
   }
 
   @AfterClass
