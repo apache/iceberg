@@ -46,7 +46,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,7 +109,20 @@ public class HTTPClient implements RESTClient {
 
     if (responseBody != null) {
       try {
-        errorResponse = ErrorResponseParser.fromJson(responseBody);
+        if (errorHandler instanceof ErrorHandler) {
+          errorResponse =
+              ((ErrorHandler) errorHandler).parseResponse(response.getCode(), responseBody);
+        } else {
+          LOG.warn(
+              "Unknown error handler {}, response body won't be parsed",
+              errorHandler.getClass().getName());
+          errorResponse =
+              ErrorResponse.builder()
+                  .responseCode(response.getCode())
+                  .withMessage(responseBody)
+                  .build();
+        }
+
       } catch (UncheckedIOException | IllegalArgumentException e) {
         // It's possible to receive a non-successful response that isn't a properly defined
         // ErrorResponse

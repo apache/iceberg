@@ -132,7 +132,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -160,7 +160,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -178,7 +178,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;

@@ -48,4 +48,12 @@ public class OAuth2Properties {
   public static final String SAML1_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:saml1";
   public static final String SAML2_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:saml2";
   public static final String JWT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt";
+
+  // error type constants
+  public static final String INVALID_REQUEST_ERROR = "invalid_request";
+  public static final String INVALID_CLIENT_ERROR = "invalid_client";
+  public static final String INVALID_GRANT_ERROR = "invalid_grant";
+  public static final String UNAUTHORIZED_CLIENT_ERROR = "unauthorized_client";
+  public static final String UNSUPPORTED_GRANT_TYPE_ERROR = "unsupported_grant_type";
+  public static final String INVALID_SCOPE_ERROR = "invalid_scope";
 }
