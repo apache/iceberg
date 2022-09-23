@@ -122,7 +122,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     // iterator to find
     // addedFilesCount.
     addedFilesCount =
-        addedFilesCount == -1 ? Iterables.size(latestSnapshot.addedFiles()) : addedFilesCount;
+        addedFilesCount == -1
+            ? Iterables.size(latestSnapshot.addedDataFiles(table.io()))
+            : addedFilesCount;
 
     return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount, false);
   }

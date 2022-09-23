@@ -67,16 +67,6 @@ public interface Snapshot extends Serializable {
   /**
    * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
    *
-   * @return a list of ManifestFile
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)}
-   *     instead.
-   */
-  @Deprecated
-  List<ManifestFile> allManifests();
-
-  /**
-   * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
-   *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return a list of ManifestFile
    */
@@ -85,30 +75,10 @@ public interface Snapshot extends Serializable {
   /**
    * Return a {@link ManifestFile} for each data manifest in this snapshot.
    *
-   * @return a list of ManifestFile
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)}
-   *     instead.
-   */
-  @Deprecated
-  List<ManifestFile> dataManifests();
-
-  /**
-   * Return a {@link ManifestFile} for each data manifest in this snapshot.
-   *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return a list of ManifestFile
    */
   List<ManifestFile> dataManifests(FileIO io);
-
-  /**
-   * Return a {@link ManifestFile} for each delete manifest in this snapshot.
-   *
-   * @return a list of ManifestFile
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
-   *     Snapshot#deleteManifests(FileIO)} instead.
-   */
-  @Deprecated
-  List<ManifestFile> deleteManifests();
 
   /**
    * Return a {@link ManifestFile} for each delete manifest in this snapshot.
@@ -139,36 +109,10 @@ public interface Snapshot extends Serializable {
    * <p>The files returned include the following columns: file_path, file_format, partition,
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
-   * @return all data files added to the table in this snapshot.
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedDataFiles(FileIO)}
-   *     instead.
-   */
-  @Deprecated
-  Iterable<DataFile> addedFiles();
-
-  /**
-   * Return all data files added to the table in this snapshot.
-   *
-   * <p>The files returned include the following columns: file_path, file_format, partition,
-   * record_count, and file_size_in_bytes. Other columns will be null.
-   *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files added to the table in this snapshot.
    */
   Iterable<DataFile> addedDataFiles(FileIO io);
-
-  /**
-   * Return all data files deleted from the table in this snapshot.
-   *
-   * <p>The files returned include the following columns: file_path, file_format, partition,
-   * record_count, and file_size_in_bytes. Other columns will be null.
-   *
-   * @return all data files deleted from the table in this snapshot.
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
-   *     Snapshot#removedDataFiles(FileIO)} instead.
-   */
-  @Deprecated
-  Iterable<DataFile> deletedFiles();
 
   /**
    * Return all data files removed from the table in this snapshot.

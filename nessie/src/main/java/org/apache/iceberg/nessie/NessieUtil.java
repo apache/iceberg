@@ -113,7 +113,7 @@ public final class NessieUtil {
       } catch (IOException e) {
         throw new RuntimeException("Failed to generate JSON string from metadata", e);
       }
-      deserialized = TableMetadataParser.fromJson(io, metadataLocation, jsonString);
+      deserialized = TableMetadataParser.fromJson(metadataLocation, jsonString);
     } else {
       deserialized = TableMetadataParser.read(io, metadataLocation);
     }

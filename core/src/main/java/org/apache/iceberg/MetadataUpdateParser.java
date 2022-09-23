@@ -444,7 +444,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {
-    Snapshot snapshot = SnapshotParser.fromJson(null, JsonUtil.get(SNAPSHOT, node));
+    Snapshot snapshot = SnapshotParser.fromJson(JsonUtil.get(SNAPSHOT, node));
     return new MetadataUpdate.AddSnapshot(snapshot);
   }
 
