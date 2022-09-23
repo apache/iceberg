@@ -182,7 +182,7 @@ public class TestManifestCaching extends HadoopTableTestBase {
     Assert.assertEquals(maxIO, manifestCache.estimatedSize());
     Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
     Assert.assertEquals(
-        "No entries should be evicted before IO_CACHE_MAX_FILEIO_DEFAULT exceeded.",
+        "No entries should be evicted before IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT exceeded.",
         0,
         manifestCache.stats().evictionCount());
 
