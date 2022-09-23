@@ -338,6 +338,7 @@ public class TestAwsProperties {
     ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
     ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
 
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .connectionTimeout(connectionTimeoutCaptor.capture());
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
