@@ -37,15 +37,22 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversion() {
+
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
+            0,
+            23,
+            null,
             System.currentTimeMillis(),
+            null,
+            null,
             1,
-            "file:/tmp/manifest1.avro",
-            "file:/tmp/manifest2.avro");
+            new String[] {
+              localInput("file:/tmp/manifest1.avro").location(),
+              localInput("file:/tmp/manifest2.avro").location()
+            });
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals(
@@ -59,13 +66,19 @@ public class TestSnapshotJson {
   public void testJsonConversionWithoutSchemaId() {
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
+            0,
+            23,
+            null,
             System.currentTimeMillis(),
             null,
-            "file:/tmp/manifest1.avro",
-            "file:/tmp/manifest2.avro");
+            null,
+            null,
+            new String[] {
+              localInput("file:/tmp/manifest1.avro").location(),
+              localInput("file:/tmp/manifest2.avro").location()
+            });
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
 
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals(
@@ -86,7 +99,6 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
             id,
             parentId,
             System.currentTimeMillis(),
@@ -96,7 +108,7 @@ public class TestSnapshotJson {
             manifests);
 
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
 
     Assert.assertEquals("Sequence number should default to 0 for v1", 0, snapshot.sequenceNumber());
     Assert.assertEquals("Snapshot ID should match", expected.snapshotId(), snapshot.snapshotId());
@@ -134,7 +146,6 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            ops.io(),
             id,
             34,
             parentId,
@@ -144,8 +155,7 @@ public class TestSnapshotJson {
             4,
             localInput(manifestList).location());
     Snapshot inMemory =
-        new BaseSnapshot(
-            ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests);
+        new BaseSnapshot(id, parentId, expected.timestampMillis(), null, null, 4, manifests);
 
     Assert.assertEquals(
         "Files should match in memory list",
@@ -153,7 +163,7 @@ public class TestSnapshotJson {
         expected.allManifests(ops.io()));
 
     String json = SnapshotParser.toJson(expected);
-    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
 
     Assert.assertEquals(
         "Sequence number should default to 0",

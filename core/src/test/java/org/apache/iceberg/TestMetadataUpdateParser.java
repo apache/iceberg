@@ -358,7 +358,6 @@ public class TestMetadataUpdateParser {
 
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
@@ -387,7 +386,6 @@ public class TestMetadataUpdateParser {
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
             snapshotId,
             parentId,
             System.currentTimeMillis(),

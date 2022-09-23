@@ -90,7 +90,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -102,7 +101,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -155,7 +153,7 @@ public class TestTableMetadata {
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
+    TableMetadata metadata = TableMetadataParser.fromJson(asJson);
 
     Assert.assertEquals(
         "Format version should match", expected.formatVersion(), metadata.formatVersion());
@@ -228,7 +226,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -240,7 +237,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -275,7 +271,7 @@ public class TestTableMetadata {
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
+    TableMetadata metadata = TableMetadataParser.fromJson(asJson);
 
     Assert.assertEquals(
         "Format version should match", expected.formatVersion(), metadata.formatVersion());
@@ -352,7 +348,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -364,7 +359,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -423,7 +417,6 @@ public class TestTableMetadata {
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot snapshot =
         new BaseSnapshot(
-            ops.io(),
             snapshotId,
             null,
             snapshotId,
@@ -556,7 +549,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -568,7 +560,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -610,7 +601,7 @@ public class TestTableMetadata {
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
-    TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), asJson);
+    TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
 
     Assert.assertEquals(
         "Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
@@ -621,7 +612,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -633,7 +623,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -706,7 +695,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -718,7 +706,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -809,7 +796,6 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            ops.io(),
             previousSnapshotId,
             null,
             previousSnapshotId,
@@ -821,7 +807,6 @@ public class TestTableMetadata {
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         new BaseSnapshot(
-            ops.io(),
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
@@ -973,11 +958,11 @@ public class TestTableMetadata {
   @Test
   public void testParserVersionValidation() throws Exception {
     String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    TableMetadata parsed1 = TableMetadataParser.fromJson(ops.io(), supportedVersion1);
+    TableMetadata parsed1 = TableMetadataParser.fromJson(supportedVersion1);
     Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
 
     String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata parsed2 = TableMetadataParser.fromJson(ops.io(), supportedVersion2);
+    TableMetadata parsed2 = TableMetadataParser.fromJson(supportedVersion2);
     Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
@@ -985,7 +970,7 @@ public class TestTableMetadata {
         "Should not read unsupported metadata",
         IllegalArgumentException.class,
         "Cannot read unsupported version",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupportedVersion));
+        () -> TableMetadataParser.fromJson(unsupportedVersion));
   }
 
   @Test
@@ -996,7 +981,7 @@ public class TestTableMetadata {
         "Should reject v2 metadata without partition specs",
         IllegalArgumentException.class,
         "partition-specs must exist in format v2",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupportedVersion));
+        () -> TableMetadataParser.fromJson(unsupportedVersion));
   }
 
   @Test
@@ -1007,7 +992,7 @@ public class TestTableMetadata {
         "Should reject v2 metadata without last assigned partition field id",
         IllegalArgumentException.class,
         "last-partition-id must exist in format v2",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupportedVersion));
+        () -> TableMetadataParser.fromJson(unsupportedVersion));
   }
 
   @Test
@@ -1017,7 +1002,7 @@ public class TestTableMetadata {
         "Should reject v2 metadata without sort order",
         IllegalArgumentException.class,
         "sort-orders must exist in format v2",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupportedVersion));
+        () -> TableMetadataParser.fromJson(unsupportedVersion));
   }
 
   @Test
@@ -1027,7 +1012,7 @@ public class TestTableMetadata {
         "Should reject v2 metadata without valid schema id",
         IllegalArgumentException.class,
         "Cannot find schema with current-schema-id=2 from schemas",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupported));
+        () -> TableMetadataParser.fromJson(unsupported));
   }
 
   @Test
@@ -1037,7 +1022,7 @@ public class TestTableMetadata {
         "Should reject v2 metadata without schemas",
         IllegalArgumentException.class,
         "schemas must exist in format v2",
-        () -> TableMetadataParser.fromJson(ops.io(), unsupported));
+        () -> TableMetadataParser.fromJson(unsupported));
   }
 
   private String readTableMetadataInputFile(String fileName) throws Exception {
@@ -1238,7 +1223,7 @@ public class TestTableMetadata {
   @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata parsed = TableMetadataParser.fromJson(ops.io(), data);
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
   }

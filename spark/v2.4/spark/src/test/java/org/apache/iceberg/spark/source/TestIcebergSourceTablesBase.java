@@ -160,9 +160,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Should only contain one manifest", 1, snapshot.allManifests().size());
+    Assert.assertEquals(
+        "Should only contain one manifest", 1, snapshot.allManifests(table.io()).size());
 
-    InputFile manifest = table.io().newInputFile(snapshot.allManifests().get(0).path());
+    InputFile manifest = table.io().newInputFile(snapshot.allManifests(table.io()).get(0).path());
     List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows =
         Avro.read(manifest).project(entriesTable.schema()).build()) {
@@ -226,7 +227,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> singleActual =
         rowsToJava(
@@ -259,7 +260,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -297,7 +298,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -355,7 +356,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest :
-        Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::allManifests))) {
+        Iterables.concat(
+            Iterables.transform(
+                table.snapshots(), snapshot -> snapshot.allManifests(table.io())))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -442,7 +445,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -499,7 +502,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
               .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
-      for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+      for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
         InputFile in = table.io().newInputFile(manifest.path());
         try (CloseableIterable<GenericData.Record> rows =
             Avro.read(in).project(entriesTable.schema()).build()) {
@@ -591,7 +594,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedFiles());
+    DataFile toDelete =
+        Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
 
     // add a second file
     df2.select("id", "data")
@@ -607,7 +611,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -723,7 +727,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest :
-        Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::dataManifests))) {
+        Iterables.concat(
+            Iterables.transform(
+                table.snapshots(), snapshot -> snapshot.dataManifests(table.io())))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -1020,7 +1026,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "partition_summary"));
     List<GenericData.Record> expected =
         Lists.transform(
-            table.currentSnapshot().allManifests(),
+            table.currentSnapshot().allManifests(table.io()),
             manifest ->
                 builder
                     .set("content", manifest.content().id())
@@ -1122,7 +1128,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "partition_summary"));
     List<GenericData.Record> expected =
         Lists.transform(
-            table.currentSnapshot().allManifests(),
+            table.currentSnapshot().allManifests(table.io()),
             manifest ->
                 builder
                     .set("partition_spec_id", manifest.partitionSpecId())
@@ -1636,7 +1642,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
     Snapshot snapshot1 = table.currentSnapshot();
     snapshotIdToManifests.addAll(
-        snapshot1.allManifests().stream()
+        snapshot1.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot1.snapshotId(), manifest))
             .collect(Collectors.toList()));
 
@@ -1648,9 +1654,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
     Snapshot snapshot2 = table.currentSnapshot();
-    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests().size());
+    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests(table.io()).size());
     snapshotIdToManifests.addAll(
-        snapshot2.allManifests().stream()
+        snapshot2.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
             .collect(Collectors.toList()));
 
