@@ -16,6 +16,8 @@
 #  under the License.
 from __future__ import annotations
 
+import boto3
+
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
@@ -27,6 +29,7 @@ from pyiceberg.typedef import Identifier, Properties, EMPTY_DICT
 class GlueCatalog(Catalog):
 
     def __init__(self, name: str, properties: Properties):
+        self.client = boto3.client("glue")
         super().__init__(name, properties)
 
     def create_table(
