@@ -1026,15 +1026,10 @@ public class AwsProperties implements Serializable {
 
   @VisibleForTesting
   <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    boolean setConnectionTimeout = apacheHttpClientConnectionTimeout != null;
-    boolean setSocketTimeout = apacheHttpClientSocketTimeout != null;
-    if (setConnectionTimeout && setSocketTimeout) {
-      builder
-          .socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout))
-          .connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
-    } else if (setConnectionTimeout) {
+    if (apacheHttpClientConnectionTimeout != null) {
       builder.connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
-    } else if (setSocketTimeout) {
+    }
+    if (apacheHttpClientSocketTimeout != null) {
       builder.socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout));
     }
   }
