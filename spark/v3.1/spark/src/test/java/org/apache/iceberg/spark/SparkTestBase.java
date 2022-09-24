@@ -168,7 +168,11 @@ public abstract class SparkTestBase {
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
-        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        if (expectedValue instanceof byte[]) {
+          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
+        } else {
+          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        }
       } else if (expectedValue != ANY) {
         Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }
