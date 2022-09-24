@@ -62,10 +62,6 @@ public class SparkReadOptions {
       "streaming-skip-overwrite-snapshots";
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
 
-  // Threshold for number of positional deletes present to use a streaming filter rather than a
-  // filter set; below this number, the deletes are held in memory
-  public static final String STREAM_DELETE_FILTER_THRESHOLD = "stream-delete-filter-threshold";
-
   // Controls whether to allow reading timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";

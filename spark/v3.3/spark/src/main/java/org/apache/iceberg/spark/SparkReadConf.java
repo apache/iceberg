@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -189,15 +188,6 @@ public class SparkReadConf {
         .option(SparkReadOptions.FILE_OPEN_COST)
         .tableProperty(TableProperties.SPLIT_OPEN_FILE_COST)
         .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT)
-        .parse();
-  }
-
-  public long streamDeleteFilterThreshold() {
-    return confParser
-        .longConf()
-        .option(SparkReadOptions.STREAM_DELETE_FILTER_THRESHOLD)
-        .sessionConf(SparkSQLProperties.STREAM_DELETE_FILTER_THRESHOLD)
-        .defaultValue(DeleteFilter.DEFAULT_STREAM_FILTER_THRESHOLD)
         .parse();
   }
 

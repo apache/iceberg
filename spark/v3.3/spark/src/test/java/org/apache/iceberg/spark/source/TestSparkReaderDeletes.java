@@ -41,7 +41,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
@@ -54,7 +53,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
@@ -84,12 +82,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static HiveCatalog catalog = null;
   private final String format;
   private final boolean vectorized;
-  private final boolean useStreamDeleteFilter;
 
   public TestSparkReaderDeletes(String format, boolean vectorized, boolean useStreamDeleteFilter) {
     this.format = format;
     this.vectorized = vectorized;
-    this.useStreamDeleteFilter = useStreamDeleteFilter;
+    System.clearProperty("iceberg.stream-delete-filter-threshold");
+    if (useStreamDeleteFilter) {
+      System.setProperty("iceberg.stream-delete-filter-threshold", "2");
+    }
   }
 
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, useStreamDeleteFilter = {2}")
@@ -136,6 +136,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     metastore = null;
     spark.stop();
     spark = null;
+    System.clearProperty("iceberg.stream-delete-filter-threshold");
   }
 
   @Override
@@ -183,13 +184,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   public StructLikeSet rowSet(String name, Types.StructType projection, String... columns) {
-    long streamDeleteFilterThreshold =
-        useStreamDeleteFilter ? 2 : DeleteFilter.DEFAULT_STREAM_FILTER_THRESHOLD;
     Dataset<Row> df =
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.STREAM_DELETE_FILTER_THRESHOLD, streamDeleteFilterThreshold)
             .load(TableIdentifier.of("default", name).toString())
             .selectExpr(columns);
 

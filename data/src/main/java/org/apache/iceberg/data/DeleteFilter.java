@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
-  public static final long DEFAULT_STREAM_FILTER_THRESHOLD = 100_000L;
+  private static final long DEFAULT_STREAM_FILTER_THRESHOLD = 100_000L;
   private static final Schema POS_DELETE_SCHEMA =
       new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
@@ -81,9 +81,13 @@ public abstract class DeleteFilter<T> {
       List<DeleteFile> deletes,
       Schema tableSchema,
       Schema requestedSchema,
-      long streamFilterThreshold,
       DeleteCounter counter) {
-    this.streamFilterThreshold = streamFilterThreshold;
+    // For testing purposes only, we may set the stream filter threshold via a system property
+    String testingThreshold = System.getProperty("iceberg.stream-delete-filter-threshold");
+    this.streamFilterThreshold =
+        (testingThreshold != null)
+            ? Long.parseLong(testingThreshold)
+            : DEFAULT_STREAM_FILTER_THRESHOLD;
     this.filePath = filePath;
     this.counter = counter;
 
@@ -116,13 +120,7 @@ public abstract class DeleteFilter<T> {
 
   protected DeleteFilter(
       String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
-    this(
-        filePath,
-        deletes,
-        tableSchema,
-        requestedSchema,
-        DEFAULT_STREAM_FILTER_THRESHOLD,
-        new DeleteCounter());
+    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter());
   }
 
   protected int columnIsDeletedPosition() {
