@@ -370,7 +370,7 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
-  public static final String APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS =
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS =
       "http-client.apache.connection-timeout-ms";
 
   /**
@@ -381,7 +381,7 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
-  public static final String APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS =
+  public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
       "http-client.apache.socket-timeout-ms";
 
   /**
@@ -474,8 +474,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
-  private Long apacheHttpClientConnectionTimeout;
-  private Long apacheHttpClientSocketTimeout;
+  private Long apacheHttpClientConnectionTimeoutMs;
+  private Long apacheHttpClientSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -520,8 +520,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.apacheHttpClientConnectionTimeout = null;
-    this.apacheHttpClientSocketTimeout = null;
+    this.apacheHttpClientConnectionTimeoutMs = null;
+    this.apacheHttpClientSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -573,10 +573,10 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.apacheHttpClientConnectionTimeout =
-        PropertyUtil.propertyAsNullableLong(properties, APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS);
-    this.apacheHttpClientSocketTimeout =
-        PropertyUtil.propertyAsNullableLong(properties, APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS);
+    this.apacheHttpClientConnectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
+    this.apacheHttpClientSocketTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
@@ -1026,11 +1026,11 @@ public class AwsProperties implements Serializable {
 
   @VisibleForTesting
   <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    if (apacheHttpClientConnectionTimeout != null) {
-      builder.connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeout));
+    if (apacheHttpClientConnectionTimeoutMs != null) {
+      builder.connectionTimeout(Duration.ofMillis(apacheHttpClientConnectionTimeoutMs));
     }
-    if (apacheHttpClientSocketTimeout != null) {
-      builder.socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeout));
+    if (apacheHttpClientSocketTimeoutMs != null) {
+      builder.socketTimeout(Duration.ofMillis(apacheHttpClientSocketTimeoutMs));
     }
   }
 }

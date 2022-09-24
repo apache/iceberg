@@ -262,8 +262,8 @@ public class TestAwsProperties {
   @Test
   public void testApacheConnectionSocketTimeoutConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, "100");
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
@@ -288,7 +288,7 @@ public class TestAwsProperties {
   @Test
   public void testApacheConnectionTimeoutConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
@@ -311,7 +311,7 @@ public class TestAwsProperties {
   @Test
   public void testApacheSocketTimeoutConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.APACHE_HTTP_CLIENT_SOCKET_TIMEOUT_MS, "100");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
