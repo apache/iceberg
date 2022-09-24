@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws;
 
+import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -29,6 +30,10 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
@@ -203,5 +208,140 @@ public class TestAwsProperties {
         "The secret access key should be the same as the one set by tag S3FILEIO_SECRET_ACCESS_KEY",
         "secret",
         capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey());
+  }
+
+  @Test
+  public void testUrlHttpClientConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_TYPE, "urlconnection");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
+        ArgumentCaptor.forClass(SdkHttpClient.Builder.class);
+
+    awsProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
+    SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
+
+    Assert.assertTrue(
+        "Should use url connection http client",
+        capturedHttpClientBuilder instanceof UrlConnectionHttpClient.Builder);
+  }
+
+  @Test
+  public void testApacheHttpClientConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_TYPE, "apache");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
+        ArgumentCaptor.forClass(SdkHttpClient.Builder.class);
+
+    awsProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
+    SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
+    Assert.assertTrue(
+        "Should use apache http client",
+        capturedHttpClientBuilder instanceof ApacheHttpClient.Builder);
+  }
+
+  @Test
+  public void testInvalidHttpClientType() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_TYPE, "test");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    S3ClientBuilder s3ClientBuilder = S3Client.builder();
+
+    AssertHelpers.assertThrows(
+        "should not support http client types other than urlconnection and apache",
+        IllegalArgumentException.class,
+        "Unrecognized HTTP client type",
+        () -> awsProperties.applyHttpClientConfigurations(s3ClientBuilder));
+  }
+
+  @Test
+  public void testApacheConnectionSocketTimeoutConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+    ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).socketTimeout(socketTimeoutCaptor.capture());
+    Mockito.verify(spyApacheHttpClientBuilder).connectionTimeout(connectionTimeoutCaptor.capture());
+
+    Duration capturedSocketTimeout = socketTimeoutCaptor.getValue();
+    Duration capturedConnectionTimeout = connectionTimeoutCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured socket timeout should be 100 ms", 100, capturedSocketTimeout.toMillis());
+    Assert.assertEquals(
+        "The configured connection timeout should be 200 ms",
+        200,
+        capturedConnectionTimeout.toMillis());
+  }
+
+  @Test
+  public void testApacheConnectionTimeoutConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS, "200");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+    ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).connectionTimeout(connectionTimeoutCaptor.capture());
+    Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
+        .socketTimeout(socketTimeoutCaptor.capture());
+
+    Duration capturedConnectionTimeout = connectionTimeoutCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection timeout should be 200 ms",
+        200,
+        capturedConnectionTimeout.toMillis());
+  }
+
+  @Test
+  public void testApacheSocketTimeoutConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS, "100");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+    ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
+        .connectionTimeout(connectionTimeoutCaptor.capture());
+    Mockito.verify(spyApacheHttpClientBuilder).socketTimeout(socketTimeoutCaptor.capture());
+
+    Duration capturedSocketTimeout = socketTimeoutCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured socket timeout should be 100 ms", 100, capturedSocketTimeout.toMillis());
+  }
+
+  @Test
+  public void testApacheDefaultConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+    ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
+        .connectionTimeout(connectionTimeoutCaptor.capture());
+    Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
+        .socketTimeout(socketTimeoutCaptor.capture());
   }
 }
