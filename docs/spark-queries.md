@@ -390,9 +390,9 @@ Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader 
 
 ```scala
 // named metastore table
-spark.read.format("iceberg").load("db.table.files").show(truncate = false)
+spark.read.format("iceberg").load("db.table.files")
 // Hadoop path table
-spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files")
 ```
 
 ### Time Travel with Metadata Tables
@@ -410,6 +410,6 @@ SELECT * FROM prod.db.table.partitions VERSION AS OF 10963874102873;
 Metadata tables can also be inspected with time travel using the DataFrameReader API:
 
 ```scala
-// get table's data files and each data file's metadata at snapshot-id 10963874102873
-spark.read.format("iceberg").option("snapshot-id", 10963874102873L).load("db.table.files").show()
+// load the table's file metadata at snapshot-id 10963874102873 as DataFrame
+spark.read.format("iceberg").option("snapshot-id", 10963874102873L).load("db.table.files")
 ```
