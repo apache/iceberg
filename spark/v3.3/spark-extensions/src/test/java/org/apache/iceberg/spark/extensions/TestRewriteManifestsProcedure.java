@@ -27,13 +27,28 @@ import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
+
+  private static final StructField[] dateStruct = {
+    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty())
+  };
 
   public TestRewriteManifestsProcedure(
       String catalogName, String implementation, Map<String, String> config) {
@@ -73,6 +88,57 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Assert.assertEquals(
         "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+  }
+
+  @Test
+  public void testRewriteLargeManifestsWithDatePartitionedTables() {
+    String[] scenarios = new String[] {"true", "false"};
+    for (String scenario : scenarios) {
+      withSQLConf(
+          ImmutableMap.of("spark.sql.datetime.java8API.enabled", scenario),
+          () -> {
+            String createIceberg =
+                "CREATE TABLE %s (id Integer, name String, dept String, ts Date) USING iceberg PARTITIONED BY (ts)";
+            sql(createIceberg, tableName);
+            try {
+              spark
+                  .createDataFrame(
+                      ImmutableList.of(
+                          RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
+                          RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-02")),
+                          RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-03")),
+                          RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-04"))),
+                      new StructType(dateStruct))
+                  .writeTo(tableName)
+                  .append();
+            } catch (NoSuchTableException e) {
+              // not possible as we already created the table above.
+              throw new RuntimeException(e);
+            }
+
+            Table table = validationCatalog.loadTable(tableIdent);
+
+            Assert.assertEquals(
+                "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+            sql(
+                "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+                tableName);
+
+            List<Object[]> output =
+                sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+            assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+
+            table.refresh();
+
+            Assert.assertEquals(
+                "Must have 4 manifests",
+                4,
+                table.currentSnapshot().allManifests(table.io()).size());
+
+            sql("DROP TABLE IF EXISTS %s", tableName);
+          });
+    }
   }
 
   @Test
@@ -221,5 +287,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
         sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+  }
+
+  private static java.sql.Date toDate(String value) {
+    return new java.sql.Date(DateTime.parse(value).getMillis());
   }
 }
