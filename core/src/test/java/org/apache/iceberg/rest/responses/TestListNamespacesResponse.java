@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,9 +31,8 @@ import org.junit.Test;
 
 public class TestListNamespacesResponse extends RequestResponseTestBase<ListNamespacesResponse> {
 
-  private static final List<Namespace> NAMESPACES = ImmutableList.of(
-      Namespace.of("accounting"),
-      Namespace.of("tax"));
+  private static final List<Namespace> NAMESPACES =
+      ImmutableList.of(Namespace.of("accounting"), Namespace.of("tax"));
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
@@ -52,31 +50,27 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
     AssertHelpers.assertThrows(
         "A malformed JSON response with the wrong type for a field should fail to deserialize",
         JsonProcessingException.class,
-        () -> deserialize(jsonNamespacesHasWrongType)
-    );
+        () -> deserialize(jsonNamespacesHasWrongType));
 
     String emptyJson = "{}";
     AssertHelpers.assertThrows(
         "An empty JSON response will deserialize, but not into a valid object",
         IllegalArgumentException.class,
         "Invalid namespace: null",
-        () -> deserialize(emptyJson)
-    );
+        () -> deserialize(emptyJson));
 
-    String jsonWithKeysSpelledIncorrectly =
-        "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
+    String jsonWithKeysSpelledIncorrectly = "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
     AssertHelpers.assertThrows(
         "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonWithKeysSpelledIncorrectly)
-    );
+        IllegalArgumentException.class,
+        "Invalid namespace: null",
+        () -> deserialize(jsonWithKeysSpelledIncorrectly));
 
     String nullJson = null;
     AssertHelpers.assertThrows(
         "A null JSON response should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(nullJson)
-    );
+        () -> deserialize(nullJson));
   }
 
   @Test
@@ -85,43 +79,38 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
         "The builder should not allow using null as a namespace to add to the list",
         NullPointerException.class,
         "Invalid namespace: null",
-        () -> ListNamespacesResponse.builder().add(null).build()
-    );
+        () -> ListNamespacesResponse.builder().add(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null list of namespaces to add",
         NullPointerException.class,
         "Invalid namespace list: null",
-        () -> ListNamespacesResponse.builder().addAll(null).build()
-    );
+        () -> ListNamespacesResponse.builder().addAll(null).build());
 
     List<Namespace> listWithNullElement = Lists.newArrayList(Namespace.of("a"), null);
     AssertHelpers.assertThrows(
         "The builder should not allow passing a collection of namespaces with a null element in it",
         IllegalArgumentException.class,
         "Invalid namespace: null",
-        () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build()
-    );
+        () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build());
   }
-
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "namespaces" };
+    return new String[] {"namespaces"};
   }
 
   @Override
   public ListNamespacesResponse createExampleInstance() {
-    return ListNamespacesResponse.builder()
-        .addAll(NAMESPACES)
-        .build();
+    return ListNamespacesResponse.builder().addAll(NAMESPACES).build();
   }
 
   @Override
   public void assertEquals(ListNamespacesResponse actual, ListNamespacesResponse expected) {
-    Assert.assertTrue("Namespaces list should be equal",
-        actual.namespaces().size() == expected.namespaces().size() &&
-            Sets.newHashSet(actual.namespaces()).equals(Sets.newHashSet(expected.namespaces())));
+    Assert.assertTrue(
+        "Namespaces list should be equal",
+        actual.namespaces().size() == expected.namespaces().size()
+            && Sets.newHashSet(actual.namespaces()).equals(Sets.newHashSet(expected.namespaces())));
   }
 
   @Override
@@ -131,4 +120,3 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
     return resp;
   }
 }
-

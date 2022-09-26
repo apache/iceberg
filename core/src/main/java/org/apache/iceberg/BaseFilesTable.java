@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -35,9 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 
-/**
- * Base class logic for files metadata tables
- */
+/** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
 
   BaseFilesTable(TableOperations ops, Table table, String name) {
@@ -49,79 +46,97 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = new Schema(DataFile.getType(partitionType).fields());
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition
+      // field
       return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }
   }
 
+  private static CloseableIterable<FileScanTask> planFiles(
+      Table table,
+      CloseableIterable<ManifestFile> manifests,
+      Schema tableSchema,
+      Schema projectedSchema,
+      TableScanContext context) {
+    Expression rowFilter = context.rowFilter();
+    boolean caseSensitive = context.caseSensitive();
+    boolean ignoreResiduals = context.ignoreResiduals();
+
+    LoadingCache<Integer, ManifestEvaluator> evalCache =
+        Caffeine.newBuilder()
+            .build(
+                specId -> {
+                  PartitionSpec spec = table.specs().get(specId);
+                  PartitionSpec transformedSpec = BaseFilesTable.transformSpec(tableSchema, spec);
+                  return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
+                });
+
+    CloseableIterable<ManifestFile> filteredManifests =
+        CloseableIterable.filter(
+            manifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+
+    String schemaString = SchemaParser.toJson(projectedSchema);
+    String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
+
+    return CloseableIterable.transform(
+        filteredManifests,
+        manifest ->
+            new ManifestReadTask(
+                table, manifest, projectedSchema, schemaString, specString, residuals));
+  }
+
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
 
-    private final Schema fileSchema;
-    private final MetadataTableType type;
-
-    protected BaseFilesTableScan(TableOperations ops, Table table, Schema fileSchema, MetadataTableType type) {
-      super(ops, table, fileSchema);
-      this.fileSchema = fileSchema;
-      this.type = type;
+    protected BaseFilesTableScan(
+        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
+      super(ops, table, schema, tableType);
     }
 
-    protected BaseFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
-                                 TableScanContext context, MetadataTableType type) {
-      super(ops, table, schema, context);
-      this.fileSchema = fileSchema;
-      this.type = type;
+    protected BaseFilesTableScan(
+        TableOperations ops,
+        Table table,
+        Schema schema,
+        MetadataTableType tableType,
+        TableScanContext context) {
+      super(ops, table, schema, tableType, context);
     }
 
-    protected Schema fileSchema() {
-      return fileSchema;
-    }
-
-    @Override
-    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-      throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", type.name()));
-    }
-
-    @Override
-    public TableScan appendsAfter(long fromSnapshotId) {
-      throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", type.name()));
-    }
-
-    @Override
-    protected CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot, Expression rowFilter,
-                                                        boolean ignoreResiduals, boolean caseSensitive,
-                                                        boolean colStats) {
-      Map<Integer, PartitionSpec> specsById = table().specs();
-
-      LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
-        PartitionSpec spec = specsById.get(specId);
-        PartitionSpec transformedSpec = transformSpec(fileSchema, spec);
-        return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
-      });
-
-      CloseableIterable<ManifestFile> filteredManifests = CloseableIterable.filter(manifests(),
-          manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
-      // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
-      // This data task needs to use the table schema, which may not include a partition schema to avoid having an
-      // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
-      // all cases.
-      return CloseableIterable.transform(filteredManifests, manifest ->
-          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
-    }
-
-    /**
-     * Returns an iterable of manifest files to explore for this Files metadata table scan
-     */
+    /** Returns an iterable of manifest files to explore for this files metadata table scan */
     protected abstract CloseableIterable<ManifestFile> manifests();
+
+    @Override
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+    }
+  }
+
+  abstract static class BaseAllFilesTableScan extends BaseAllMetadataTableScan {
+
+    protected BaseAllFilesTableScan(
+        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
+      super(ops, table, schema, tableType);
+    }
+
+    protected BaseAllFilesTableScan(
+        TableOperations ops,
+        Table table,
+        Schema schema,
+        MetadataTableType tableType,
+        TableScanContext context) {
+      super(ops, table, schema, tableType, context);
+    }
+
+    /** Returns an iterable of manifest files to explore for this all files metadata table scan */
+    protected abstract CloseableIterable<ManifestFile> manifests();
+
+    @Override
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+    }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
@@ -130,8 +145,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Schema schema;
 
-    ManifestReadTask(Table table, ManifestFile manifest,
-                     Schema schema, String schemaString, String specString, ResidualEvaluator residuals) {
+    ManifestReadTask(
+        Table table,
+        ManifestFile manifest,
+        Schema schema,
+        String schemaString,
+        String specString,
+        ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.io = table.io();
       this.specsById = Maps.newHashMap(table.specs());
@@ -151,7 +171,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         case DELETES:
           return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(schema);
         default:
-          throw new IllegalArgumentException("Unsupported manifest content type:" + manifest.content());
+          throw new IllegalArgumentException(
+              "Unsupported manifest content type:" + manifest.content());
       }
     }
 

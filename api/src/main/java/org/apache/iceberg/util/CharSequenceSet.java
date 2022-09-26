@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.io.Serializable;
@@ -32,8 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 public class CharSequenceSet implements Set<CharSequence>, Serializable {
-  private static final ThreadLocal<CharSequenceWrapper> wrappers = ThreadLocal.withInitial(
-      () -> CharSequenceWrapper.wrap(null));
+  private static final ThreadLocal<CharSequenceWrapper> wrappers =
+      ThreadLocal.withInitial(() -> CharSequenceWrapper.wrap(null));
 
   public static CharSequenceSet of(Iterable<CharSequence> charSequences) {
     return new CharSequenceSet(charSequences);
@@ -46,7 +45,8 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   private final Set<CharSequenceWrapper> wrapperSet;
 
   private CharSequenceSet(Iterable<CharSequence> charSequences) {
-    this.wrapperSet = Sets.newHashSet(Iterables.transform(charSequences, CharSequenceWrapper::wrap));
+    this.wrapperSet =
+        Sets.newHashSet(Iterables.transform(charSequences, CharSequenceWrapper::wrap));
   }
 
   @Override
@@ -130,7 +130,8 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean addAll(Collection<? extends CharSequence> charSequences) {
     if (charSequences != null) {
-      return Iterables.addAll(wrapperSet, Iterables.transform(charSequences, CharSequenceWrapper::wrap));
+      return Iterables.addAll(
+          wrapperSet, Iterables.transform(charSequences, CharSequenceWrapper::wrap));
     }
     return false;
   }
@@ -172,7 +173,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(wrapperSet);
+    return Objects.hashCode(wrapperSet);
   }
 
   @Override

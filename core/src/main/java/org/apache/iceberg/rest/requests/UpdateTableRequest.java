@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import java.util.List;
@@ -47,8 +46,7 @@ public class UpdateTableRequest implements RESTRequest {
   }
 
   @Override
-  public void validate() {
-  }
+  public void validate() {}
 
   public List<UpdateRequirement> requirements() {
     return requirements != null ? requirements : ImmutableList.of();
@@ -227,8 +225,7 @@ public class UpdateTableRequest implements RESTRequest {
     void validate(TableMetadata base);
 
     class AssertTableDoesNotExist implements UpdateRequirement {
-      private AssertTableDoesNotExist() {
-      }
+      AssertTableDoesNotExist() {}
 
       @Override
       public void validate(TableMetadata base) {
@@ -241,7 +238,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertTableUUID implements UpdateRequirement {
       private final String uuid;
 
-      private AssertTableUUID(String uuid) {
+      AssertTableUUID(String uuid) {
         this.uuid = uuid;
       }
 
@@ -262,7 +259,7 @@ public class UpdateTableRequest implements RESTRequest {
       private final String name;
       private final Long snapshotId;
 
-      private AssertRefSnapshotID(String name, Long snapshotId) {
+      AssertRefSnapshotID(String name, Long snapshotId) {
         this.name = name;
         this.snapshotId = snapshotId;
       }
@@ -320,7 +317,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertCurrentSchemaID implements UpdateRequirement {
       private final int schemaId;
 
-      private AssertCurrentSchemaID(int schemaId) {
+      AssertCurrentSchemaID(int schemaId) {
         this.schemaId = schemaId;
       }
 
@@ -362,7 +359,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertDefaultSpecID implements UpdateRequirement {
       private final int specId;
 
-      private AssertDefaultSpecID(int specId) {
+      AssertDefaultSpecID(int specId) {
         this.specId = specId;
       }
 
@@ -383,7 +380,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertDefaultSortOrderID implements UpdateRequirement {
       private final int sortOrderId;
 
-      private AssertDefaultSortOrderID(int sortOrderId) {
+      AssertDefaultSortOrderID(int sortOrderId) {
         this.sortOrderId = sortOrderId;
       }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -29,23 +28,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.UpdateRequirementParser;
+import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
 
-  private RESTSerializers() {
-  }
+  private RESTSerializers() {}
 
   public static void registerAll(ObjectMapper mapper) {
     SimpleModule module = new SimpleModule();
@@ -61,13 +67,74 @@ public class RESTSerializers {
         .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
         .addDeserializer(UnboundPartitionSpec.class, new UnboundPartitionSpecDeserializer())
         .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
-        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer());
+        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer())
+        .addSerializer(MetadataUpdate.class, new MetadataUpdateSerializer())
+        .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer())
+        .addSerializer(TableMetadata.class, new TableMetadataSerializer())
+        .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
+        .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
+        .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
+        .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
+        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+    @Override
+    public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return UpdateRequirementParser.fromJson(node);
+    }
+  }
+
+  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
+    @Override
+    public void serialize(
+        UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UpdateRequirementParser.toJson(value, gen);
+    }
+  }
+
+  public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata> {
+    @Override
+    public TableMetadata deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return TableMetadataParser.fromJson(node);
+    }
+  }
+
+  public static class TableMetadataSerializer extends JsonSerializer<TableMetadata> {
+    @Override
+    public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      TableMetadataParser.toJson(metadata, gen);
+    }
+  }
+
+  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {
+    @Override
+    public MetadataUpdate deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return MetadataUpdateParser.fromJson(node);
+    }
+  }
+
+  public static class MetadataUpdateSerializer extends JsonSerializer<MetadataUpdate> {
+    @Override
+    public void serialize(MetadataUpdate value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      MetadataUpdateParser.toJson(value, gen);
+    }
   }
 
   public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
     @Override
-    public ErrorResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public ErrorResponse deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
       JsonNode node = p.getCodec().readTree(p);
       return ErrorResponseParser.fromJson(node);
     }
@@ -75,7 +142,8 @@ public class RESTSerializers {
 
   public static class ErrorResponseSerializer extends JsonSerializer<ErrorResponse> {
     @Override
-    public void serialize(ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(
+        ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       ErrorResponseParser.toJson(errorResponse, gen);
     }
@@ -109,7 +177,8 @@ public class RESTSerializers {
 
   public static class TableIdentifierSerializer extends JsonSerializer<TableIdentifier> {
     @Override
-    public void serialize(TableIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(
+        TableIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       TableIdentifierParser.toJson(identifier, gen);
     }
@@ -140,7 +209,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UnboundPartitionSpecDeserializer extends JsonDeserializer<UnboundPartitionSpec> {
+  public static class UnboundPartitionSpecDeserializer
+      extends JsonDeserializer<UnboundPartitionSpec> {
     @Override
     public UnboundPartitionSpec deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -151,7 +221,8 @@ public class RESTSerializers {
 
   public static class UnboundSortOrderSerializer extends JsonSerializer<UnboundSortOrder> {
     @Override
-    public void serialize(UnboundSortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(
+        UnboundSortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       SortOrderParser.toJson(sortOrder, gen);
     }
@@ -159,9 +230,28 @@ public class RESTSerializers {
 
   public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder> {
     @Override
-    public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return SortOrderParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class OAuthTokenResponseSerializer extends JsonSerializer<OAuthTokenResponse> {
+    @Override
+    public void serialize(
+        OAuthTokenResponse tokenResponse, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      OAuth2Util.tokenResponseToJson(tokenResponse, gen);
+    }
+  }
+
+  public static class OAuthTokenResponseDeserializer extends JsonDeserializer<OAuthTokenResponse> {
+    @Override
+    public OAuthTokenResponse deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return OAuth2Util.tokenResponseFromJson(jsonNode);
     }
   }
 }

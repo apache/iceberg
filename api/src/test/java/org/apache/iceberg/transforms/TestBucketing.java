@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.lang.reflect.Constructor;
@@ -33,6 +32,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BucketUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -62,60 +62,65 @@ public class TestBucketing {
 
   @Test
   public void testSpecValues() {
-    Assert.assertEquals("Spec example: hash(true) = 1392991556",
-        1392991556, Bucket.<Integer>get(Types.IntegerType.get(), 100).hash(1));
-    Assert.assertEquals("Spec example: hash(34) = 2017239379",
-        2017239379, Bucket.<Integer>get(Types.IntegerType.get(), 100).hash(34));
-    Assert.assertEquals("Spec example: hash(34L) = 2017239379",
-        2017239379, Bucket.<Long>get(Types.LongType.get(), 100).hash(34L));
-    Assert.assertEquals("Spec example: hash(17.11F) = -142385009",
-        -142385009, new Bucket.BucketFloat(100).hash(1.0F));
-    Assert.assertEquals("Spec example: hash(17.11D) = -142385009",
-        -142385009, new Bucket.BucketDouble(100).hash(1.0D));
-    Assert.assertEquals("Spec example: hash(decimal2(14.20)) = -500754589",
+    Assert.assertEquals("Spec example: hash(true) = 1392991556", 1392991556, BucketUtil.hash(1));
+    Assert.assertEquals("Spec example: hash(34) = 2017239379", 2017239379, BucketUtil.hash(34));
+    Assert.assertEquals("Spec example: hash(34L) = 2017239379", 2017239379, BucketUtil.hash(34L));
+    Assert.assertEquals(
+        "Spec example: hash(17.11F) = -142385009", -142385009, BucketUtil.hash(1.0F));
+    Assert.assertEquals(
+        "Spec example: hash(17.11D) = -142385009", -142385009, BucketUtil.hash(1.0D));
+    Assert.assertEquals(
+        "Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
-        Bucket.<BigDecimal>get(Types.DecimalType.of(9, 2), 100).hash(new BigDecimal("14.20")));
-    Assert.assertEquals("Spec example: hash(decimal2(14.20)) = -500754589",
+        BucketUtil.hash(new BigDecimal("14.20")));
+    Assert.assertEquals(
+        "Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
-        Bucket.<BigDecimal>get(Types.DecimalType.of(9, 2), 100).hash(new BigDecimal("14.20")));
+        BucketUtil.hash(new BigDecimal("14.20")));
 
     Literal<Integer> date = Literal.of("2017-11-16").to(Types.DateType.get());
-    Assert.assertEquals("Spec example: hash(2017-11-16) = -653330422",
-        -653330422,
-        Bucket.<Integer>get(Types.DateType.get(), 100).hash(date.value()));
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16) = -653330422", -653330422, BucketUtil.hash(date.value()));
 
     Literal<Long> timeValue = Literal.of("22:31:08").to(Types.TimeType.get());
-    Assert.assertEquals("Spec example: hash(22:31:08) = -662762989",
+    Assert.assertEquals(
+        "Spec example: hash(22:31:08) = -662762989",
         -662762989,
-        Bucket.<Long>get(Types.TimeType.get(), 100).hash(timeValue.value()));
+        BucketUtil.hash(timeValue.value()));
 
-    Literal<Long> timestampVal = Literal.of("2017-11-16T22:31:08")
-        .to(Types.TimestampType.withoutZone());
-    Assert.assertEquals("Spec example: hash(2017-11-16T22:31:08) = -2047944441",
+    Literal<Long> timestampVal =
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
         -2047944441,
-        Bucket.<Long>get(Types.TimestampType.withoutZone(), 100).hash(timestampVal.value()));
+        BucketUtil.hash(timestampVal.value()));
 
-    Literal<Long> timestamptzVal = Literal.of("2017-11-16T14:31:08-08:00")
-        .to(Types.TimestampType.withZone());
-    Assert.assertEquals("Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441",
+    Literal<Long> timestamptzVal =
+        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.withZone());
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441",
         -2047944441,
-        Bucket.<Long>get(Types.TimestampType.withZone(), 100).hash(timestamptzVal.value()));
+        BucketUtil.hash(timestamptzVal.value()));
 
-    Assert.assertEquals("Spec example: hash(\"iceberg\") = 1210000089",
-        1210000089, Bucket.<String>get(Types.StringType.get(), 100).hash("iceberg"));
-    Assert.assertEquals("Spec example: hash(\"iceberg\") = 1210000089",
-        1210000089, Bucket.<Utf8>get(Types.StringType.get(), 100).hash(new Utf8("iceberg")));
+    Assert.assertEquals(
+        "Spec example: hash(\"iceberg\") = 1210000089", 1210000089, BucketUtil.hash("iceberg"));
+    Assert.assertEquals(
+        "Spec example: hash(\"iceberg\") = 1210000089",
+        1210000089,
+        BucketUtil.hash(new Utf8("iceberg")));
 
-    Literal<UUID> uuid = Literal.of("f79c3e09-677c-4bbd-a479-3f349cb785e7")
-        .to(Types.UUIDType.get());
-    Assert.assertEquals("Spec example: hash(f79c3e09-677c-4bbd-a479-3f349cb785e7) = 1488055340",
-        1488055340, Bucket.<UUID>get(Types.UUIDType.get(), 100).hash(uuid.value()));
+    Literal<UUID> uuid =
+        Literal.of("f79c3e09-677c-4bbd-a479-3f349cb785e7").to(Types.UUIDType.get());
+    Assert.assertEquals(
+        "Spec example: hash(f79c3e09-677c-4bbd-a479-3f349cb785e7) = 1488055340",
+        1488055340,
+        BucketUtil.hash(uuid.value()));
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
-    Assert.assertEquals("Spec example: hash([00 01 02 03]) = -188683207",
-        -188683207, Bucket.<ByteBuffer>get(Types.BinaryType.get(), 100).hash(bytes));
-    Assert.assertEquals("Spec example: hash([00 01 02 03]) = -188683207",
-        -188683207, Bucket.<ByteBuffer>get(Types.BinaryType.get(), 100).hash(bytes));
+    Assert.assertEquals(
+        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
+    Assert.assertEquals(
+        "Spec example: hash([00 01 02 03]) = -188683207", -188683207, BucketUtil.hash(bytes));
   }
 
   @Test
@@ -123,12 +128,12 @@ public class TestBucketing {
     int num = testRandom.nextInt();
     ByteBuffer buffer = ByteBuffer.allocate(8);
     buffer.order(ByteOrder.LITTLE_ENDIAN);
-    buffer.putLong((long) num);
+    buffer.putLong(num);
 
-    Bucket<Integer> bucketFunc = Bucket.get(Types.IntegerType.get(), 100);
-
-    Assert.assertEquals("Integer hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()), bucketFunc.hash(num));
+    Assert.assertEquals(
+        "Integer hash should match hash of little-endian bytes",
+        hashBytes(buffer.array()),
+        BucketUtil.hash(num));
   }
 
   @Test
@@ -138,58 +143,30 @@ public class TestBucketing {
     buffer.order(ByteOrder.LITTLE_ENDIAN);
     buffer.putLong(num);
 
-    Bucket<Long> bucketFunc = Bucket.get(Types.LongType.get(), 100);
-
-    Assert.assertEquals("Long hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()), bucketFunc.hash(num));
+    Assert.assertEquals(
+        "Long hash should match hash of little-endian bytes",
+        hashBytes(buffer.array()),
+        BucketUtil.hash(num));
   }
 
   @Test
   public void testIntegerTypePromotion() {
-    Bucket<Integer> bucketInts = Bucket.get(Types.IntegerType.get(), 100);
-    Bucket<Long> bucketLongs = Bucket.get(Types.LongType.get(), 100);
-
     int randomInt = testRandom.nextInt();
 
-    Assert.assertEquals("Integer and Long bucket results should match",
-        bucketInts.apply(randomInt), bucketLongs.apply((long) randomInt));
-  }
-
-  @Test
-  public void testFloat() {
-    float num = testRandom.nextFloat();
-    ByteBuffer buffer = ByteBuffer.allocate(8);
-    buffer.order(ByteOrder.LITTLE_ENDIAN);
-    buffer.putDouble((double) num);
-
-    Bucket<Float> bucketFunc = new Bucket.BucketFloat(100);
-
-    Assert.assertEquals("Float hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()), bucketFunc.hash(num));
-  }
-
-  @Test
-  public void testDouble() {
-    double num = testRandom.nextDouble();
-    ByteBuffer buffer = ByteBuffer.allocate(8);
-    buffer.order(ByteOrder.LITTLE_ENDIAN);
-    buffer.putDouble(num);
-
-    Bucket<Double> bucketFunc = new Bucket.BucketDouble(100);
-
-    Assert.assertEquals("Double hash should match hash of little-endian bytes",
-        hashBytes(buffer.array()), bucketFunc.hash(num));
+    Assert.assertEquals(
+        "Integer and Long bucket results should match",
+        BucketUtil.hash(randomInt),
+        BucketUtil.hash((long) randomInt));
   }
 
   @Test
   public void testFloatTypePromotion() {
-    Bucket<Float> bucketFloats = new Bucket.BucketFloat(100);
-    Bucket<Double> bucketDoubles = new Bucket.BucketDouble(100);
-
     float randomFloat = testRandom.nextFloat();
 
-    Assert.assertEquals("Float and Double bucket results should match",
-        bucketFloats.apply(randomFloat), bucketDoubles.apply((double) randomFloat));
+    Assert.assertEquals(
+        "Float and Double bucket results should match",
+        BucketUtil.hash(randomFloat),
+        BucketUtil.hash((double) randomFloat));
   }
 
   @Test
@@ -198,10 +175,10 @@ public class TestBucketing {
     BigDecimal decimal = BigDecimal.valueOf(num);
     byte[] unscaledBytes = decimal.unscaledValue().toByteArray();
 
-    Bucket<BigDecimal> bucketFunc = Bucket.get(Types.DecimalType.of(9, 2), 100);
-
-    Assert.assertEquals("Decimal hash should match hash of backing bytes",
-        hashBytes(unscaledBytes), bucketFunc.hash(decimal));
+    Assert.assertEquals(
+        "Decimal hash should match hash of backing bytes",
+        hashBytes(unscaledBytes),
+        BucketUtil.hash(decimal));
   }
 
   @Test
@@ -209,22 +186,23 @@ public class TestBucketing {
     String string = "string to test murmur3 hash";
     byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
 
-    Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
-
-    Assert.assertEquals("String hash should match hash of UTF-8 bytes",
-        hashBytes(asBytes), bucketFunc.hash(string));
+    Assert.assertEquals(
+        "String hash should match hash of UTF-8 bytes",
+        hashBytes(asBytes),
+        BucketUtil.hash(string));
   }
 
   @Test
   public void testStringWithSurrogatePair() {
     String string = "string with a surrogate pair: 💰";
-    Assert.assertNotEquals("string has no surrogate pairs", string.length(), string.codePoints().count());
+    Assert.assertNotEquals(
+        "string has no surrogate pairs", string.length(), string.codePoints().count());
     byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
 
-    Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
-
-    Assert.assertEquals("String hash should match hash of UTF-8 bytes",
-        hashBytes(asBytes), bucketFunc.hash(string));
+    Assert.assertEquals(
+        "String hash should match hash of UTF-8 bytes",
+        hashBytes(asBytes),
+        BucketUtil.hash(string));
   }
 
   @Test
@@ -232,10 +210,8 @@ public class TestBucketing {
     Utf8 utf8 = new Utf8("string to test murmur3 hash");
     byte[] asBytes = utf8.toString().getBytes(StandardCharsets.UTF_8);
 
-    Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
-
-    Assert.assertEquals("String hash should match hash of UTF-8 bytes",
-        hashBytes(asBytes), bucketFunc.hash(utf8));
+    Assert.assertEquals(
+        "String hash should match hash of UTF-8 bytes", hashBytes(asBytes), BucketUtil.hash(utf8));
   }
 
   @Test
@@ -243,15 +219,31 @@ public class TestBucketing {
     byte[] bytes = randomBytes(128);
     ByteBuffer buffer = ByteBuffer.wrap(bytes, 5, 100);
 
-    Bucket<ByteBuffer> bucketFunc = Bucket.get(Types.BinaryType.get(), 100);
-
     Assert.assertEquals(
         "HeapByteBuffer hash should match hash for correct slice",
-        hashBytes(bytes, 5, 100), bucketFunc.hash(buffer));
+        hashBytes(bytes, 5, 100),
+        BucketUtil.hash(buffer));
 
     // verify that the buffer was not modified
     Assert.assertEquals("Buffer position should not change", 5, buffer.position());
     Assert.assertEquals("Buffer limit should not change", 105, buffer.limit());
+  }
+
+  @Test
+  public void testByteBufferOnHeapArrayOffset() {
+    byte[] bytes = randomBytes(128);
+    ByteBuffer raw = ByteBuffer.wrap(bytes, 5, 100);
+    ByteBuffer buffer = raw.slice();
+    Assert.assertEquals("Buffer arrayOffset should be 5", 5, buffer.arrayOffset());
+
+    Assert.assertEquals(
+        "HeapByteBuffer hash should match hash for correct slice",
+        hashBytes(bytes, 5, 100),
+        BucketUtil.hash(buffer));
+
+    // verify that the buffer was not modified
+    Assert.assertEquals("Buffer position should be 0", 0, buffer.position());
+    Assert.assertEquals("Buffer limit should not change", 100, buffer.limit());
   }
 
   @Test
@@ -266,11 +258,10 @@ public class TestBucketing {
     buffer.put(bytes, 5, 100);
     buffer.reset();
 
-    Bucket<ByteBuffer> bucketFunc = Bucket.get(Types.BinaryType.get(), 100);
-
     Assert.assertEquals(
         "DirectByteBuffer hash should match hash for correct slice",
-        hashBytes(bytes, 5, 100), bucketFunc.hash(buffer));
+        hashBytes(bytes, 5, 100),
+        BucketUtil.hash(buffer));
 
     // verify that the buffer was not modified
     Assert.assertEquals("Buffer position should not change", 5, buffer.position());
@@ -282,18 +273,19 @@ public class TestBucketing {
     byte[] uuidBytes = randomBytes(16);
     UUID uuid = newUUID(uuidBytes);
 
-    Bucket<UUID> bucketFunc = Bucket.get(Types.UUIDType.get(), 100);
-
-    Assert.assertEquals("UUID hash should match hash of backing bytes",
-        hashBytes(uuidBytes), bucketFunc.hash(uuid));
+    Assert.assertEquals(
+        "UUID hash should match hash of backing bytes",
+        hashBytes(uuidBytes),
+        BucketUtil.hash(uuid));
   }
 
   @Test
   public void testVerifiedIllegalNumBuckets() {
-    AssertHelpers.assertThrows("Should fail if numBucket is less than or equal to zero",
+    AssertHelpers.assertThrows(
+        "Should fail if numBucket is less than or equal to zero",
         IllegalArgumentException.class,
         "Invalid number of buckets: 0 (must be > 0)",
-        () -> Bucket.get(Types.IntegerType.get(), 0));
+        () -> Bucket.get(0));
   }
 
   private byte[] randomBytes(int length) {
@@ -312,6 +304,7 @@ public class TestBucketing {
 
   /**
    * This method returns a UUID for the bytes in the array without modification.
+   *
    * @param bytes a 16-byte array
    * @return a UUID for the bytes
    */

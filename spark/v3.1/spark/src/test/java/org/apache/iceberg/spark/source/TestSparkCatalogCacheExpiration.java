@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -36,12 +35,16 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
 
   private static final String sessionCatalogName = "spark_catalog";
   private static final String sessionCatalogImpl = SparkSessionCatalog.class.getName();
-  private static final Map<String, String> sessionCatalogConfig = ImmutableMap.of(
-      "type", "hadoop",
-      "default-namespace", "default",
-      CatalogProperties.CACHE_ENABLED, "true",
-      CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS, "3000"
-  );
+  private static final Map<String, String> sessionCatalogConfig =
+      ImmutableMap.of(
+          "type",
+          "hadoop",
+          "default-namespace",
+          "default",
+          CatalogProperties.CACHE_ENABLED,
+          "true",
+          CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+          "3000");
 
   private static String asSqlConfCatalogKeyFor(String catalog, String configKey) {
     // configKey is empty when the catalog's class is being defined
@@ -58,19 +61,29 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
   public static void beforeClass() {
     // Catalog - expiration_disabled: Catalog with caching on and expiration disabled.
     ImmutableMap.of(
-        "", "org.apache.iceberg.spark.SparkCatalog",
-        "type", "hive",
-        CatalogProperties.CACHE_ENABLED, "true",
-        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS, "-1"
-    ).forEach((k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("expiration_disabled", k), v));
+            "",
+            "org.apache.iceberg.spark.SparkCatalog",
+            "type",
+            "hive",
+            CatalogProperties.CACHE_ENABLED,
+            "true",
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+            "-1")
+        .forEach((k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("expiration_disabled", k), v));
 
-    // Catalog - cache_disabled_implicitly: Catalog that does not cache, as the cache expiration interval is 0.
+    // Catalog - cache_disabled_implicitly: Catalog that does not cache, as the cache expiration
+    // interval is 0.
     ImmutableMap.of(
-        "", "org.apache.iceberg.spark.SparkCatalog",
-        "type", "hive",
-        CatalogProperties.CACHE_ENABLED, "true",
-        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS, "0"
-    ).forEach((k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("cache_disabled_implicitly", k), v));
+            "",
+            "org.apache.iceberg.spark.SparkCatalog",
+            "type",
+            "hive",
+            CatalogProperties.CACHE_ENABLED,
+            "true",
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+            "0")
+        .forEach(
+            (k, v) -> spark.conf().set(asSqlConfCatalogKeyFor("cache_disabled_implicitly", k), v));
   }
 
   public TestSparkCatalogCacheExpiration() {
@@ -85,56 +98,55 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
         .extracting("cacheEnabled")
         .isEqualTo(true);
 
-    Assertions
-        .assertThat(sparkCatalog)
+    Assertions.assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .extracting("icebergCatalog")
-        .isInstanceOfSatisfying(Catalog.class, icebergCatalog -> {
-          Assertions.assertThat(icebergCatalog)
-              .isExactlyInstanceOf(CachingCatalog.class)
-              .extracting("expirationIntervalMillis")
-              .isEqualTo(3000L);
-        });
+        .isInstanceOfSatisfying(
+            Catalog.class,
+            icebergCatalog -> {
+              Assertions.assertThat(icebergCatalog)
+                  .isExactlyInstanceOf(CachingCatalog.class)
+                  .extracting("expirationIntervalMillis")
+                  .isEqualTo(3000L);
+            });
   }
 
   @Test
   public void testCacheEnabledAndExpirationDisabled() {
     SparkCatalog sparkCatalog = getSparkCatalog("expiration_disabled");
-    Assertions.assertThat(sparkCatalog)
-        .extracting("cacheEnabled")
-        .isEqualTo(true);
+    Assertions.assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(true);
 
-    Assertions
-        .assertThat(sparkCatalog)
+    Assertions.assertThat(sparkCatalog)
         .extracting("icebergCatalog")
-        .isInstanceOfSatisfying(CachingCatalog.class, icebergCatalog -> {
-          Assertions.assertThat(icebergCatalog)
-              .extracting("expirationIntervalMillis")
-              .isEqualTo(-1L);
-        });
+        .isInstanceOfSatisfying(
+            CachingCatalog.class,
+            icebergCatalog -> {
+              Assertions.assertThat(icebergCatalog)
+                  .extracting("expirationIntervalMillis")
+                  .isEqualTo(-1L);
+            });
   }
 
   @Test
   public void testCacheDisabledImplicitly() {
     SparkCatalog sparkCatalog = getSparkCatalog("cache_disabled_implicitly");
-    Assertions.assertThat(sparkCatalog)
-        .extracting("cacheEnabled")
-        .isEqualTo(false);
+    Assertions.assertThat(sparkCatalog).extracting("cacheEnabled").isEqualTo(false);
 
-    Assertions
-        .assertThat(sparkCatalog)
+    Assertions.assertThat(sparkCatalog)
         .extracting("icebergCatalog")
         .isInstanceOfSatisfying(
             Catalog.class,
-            icebergCatalog -> Assertions.assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
+            icebergCatalog ->
+                Assertions.assertThat(icebergCatalog).isNotInstanceOf(CachingCatalog.class));
   }
 
   private SparkSessionCatalog<?> sparkSessionCatalog() {
-    TableCatalog catalog = (TableCatalog) spark.sessionState().catalogManager().catalog("spark_catalog");
+    TableCatalog catalog =
+        (TableCatalog) spark.sessionState().catalogManager().catalog("spark_catalog");
     return (SparkSessionCatalog<?>) catalog;
   }
 
-  private SparkCatalog getSparkCatalog(String catalog)  {
+  private SparkCatalog getSparkCatalog(String catalog) {
     return (SparkCatalog) spark.sessionState().catalogManager().catalog(catalog);
   }
 }

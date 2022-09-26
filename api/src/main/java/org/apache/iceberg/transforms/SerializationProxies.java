@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
@@ -24,12 +23,11 @@ import java.io.Serializable;
 
 /**
  * Stand-in classes for expression classes in Java Serialization.
- * <p>
- * These are used so that transform classes can be singletons and use identical equality.
+ *
+ * <p>These are used so that transform classes can be singletons and use identical equality.
  */
 class SerializationProxies {
-  private SerializationProxies() {
-  }
+  private SerializationProxies() {}
 
   static class VoidTransformProxy implements Serializable {
     private static final VoidTransformProxy INSTANCE = new VoidTransformProxy();
@@ -38,14 +36,86 @@ class SerializationProxies {
       return INSTANCE;
     }
 
-    /**
-     * Constructor for Java serialization.
-     */
-    VoidTransformProxy() {
-    }
+    /** Constructor for Java serialization. */
+    VoidTransformProxy() {}
 
     Object readResolve() throws ObjectStreamException {
       return VoidTransform.get();
+    }
+  }
+
+  static class IdentityTransformProxy implements Serializable {
+    private static final IdentityTransformProxy INSTANCE = new IdentityTransformProxy();
+
+    static IdentityTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    IdentityTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Identity.get();
+    }
+  }
+
+  static class YearsTransformProxy implements Serializable {
+    private static final YearsTransformProxy INSTANCE = new YearsTransformProxy();
+
+    static YearsTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    YearsTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Years.get();
+    }
+  }
+
+  static class MonthsTransformProxy implements Serializable {
+    private static final MonthsTransformProxy INSTANCE = new MonthsTransformProxy();
+
+    static MonthsTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    MonthsTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Months.get();
+    }
+  }
+
+  static class DaysTransformProxy implements Serializable {
+    private static final DaysTransformProxy INSTANCE = new DaysTransformProxy();
+
+    static DaysTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    DaysTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Days.get();
+    }
+  }
+
+  static class HoursTransformProxy implements Serializable {
+    private static final HoursTransformProxy INSTANCE = new HoursTransformProxy();
+
+    static HoursTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    HoursTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Hours.get();
     }
   }
 }

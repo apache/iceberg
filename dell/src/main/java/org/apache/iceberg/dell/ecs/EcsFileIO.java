@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -36,15 +35,16 @@ import org.slf4j.LoggerFactory;
 
 /**
  * FileIO implementation backed by Dell EMC ECS.
- * <p>
- * Locations used must follow the conventions for ECS URIs (e.g. ecs://bucket/path...).
- * URIs with schemes s3, s3a, s3n, https are also treated as ECS object paths.
- * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
+ *
+ * <p>Locations used must follow the conventions for ECS URIs (e.g. ecs://bucket/path...). URIs with
+ * schemes s3, s3a, s3n, https are also treated as ECS object paths. Using this FileIO with other
+ * schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class EcsFileIO implements FileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(EcsFileIO.class);
-  private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String DEFAULT_METRICS_IMPL =
+      "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private SerializableSupplier<S3Client> s3;
   private DellProperties dellProperties;
@@ -90,12 +90,17 @@ public class EcsFileIO implements FileIO {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
-          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+          DynConstructors.builder(MetricsContext.class)
+              .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+              .buildChecked();
       MetricsContext context = ctor.newInstance("ecs");
       context.initialize(properties);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
+      LOG.warn(
+          "Unable to load metrics class: '{}', falling back to null metrics",
+          DEFAULT_METRICS_IMPL,
+          e);
     }
   }
 

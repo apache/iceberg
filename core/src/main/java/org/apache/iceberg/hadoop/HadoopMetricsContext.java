@@ -16,18 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 
 /**
- * FileIO Metrics implementation that delegates to Hadoop FileSystem
- * statistics implementation using the provided scheme.
+ * FileIO Metrics implementation that delegates to Hadoop FileSystem statistics implementation using
+ * the provided scheme.
  */
 public class HadoopMetricsContext implements FileIOMetricsContext {
   public static final String SCHEME = "io.metrics-scheme";
@@ -36,8 +37,8 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   private transient volatile FileSystem.Statistics statistics;
 
   public HadoopMetricsContext(String scheme) {
-    ValidationException.check(scheme != null,
-        "Scheme is required for Hadoop FileSystem metrics reporting");
+    ValidationException.check(
+        scheme != null, "Scheme is required for Hadoop FileSystem metrics reporting");
 
     this.scheme = scheme;
   }
@@ -51,10 +52,9 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   }
 
   /**
-   * The Hadoop implementation delegates to the Hadoop delegates to the
-   * FileSystem.Statistics implementation and therefore does not require
-   * support for operations like unit() and count() as the counter
-   * values are not directly consumed.
+   * The Hadoop implementation delegates to the FileSystem.Statistics implementation and therefore
+   * does not require support for operations like unit() and count() as the counter values are not
+   * directly consumed.
    *
    * @param name name of the metric
    * @param type numeric type of the counter value
@@ -70,13 +70,15 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
         ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
         return (Counter<T>) longCounter(statistics()::incrementBytesRead);
       case READ_OPERATIONS:
-        ValidationException.check(type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
+        ValidationException.check(
+            type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
         return (Counter<T>) integerCounter(statistics()::incrementReadOps);
       case WRITE_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
         return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
       case WRITE_OPERATIONS:
-        ValidationException.check(type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
+        ValidationException.check(
+            type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
         return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
@@ -84,7 +86,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   }
 
   private Counter<Long> longCounter(Consumer<Long> consumer) {
-    return  new Counter<Long>() {
+    return new Counter<Long>() {
       @Override
       public void increment() {
         increment(1L);
@@ -107,6 +109,51 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
       @Override
       public void increment(Integer amount) {
         consumer.accept(amount);
+      }
+    };
+  }
+
+  /**
+   * The Hadoop implementation delegates to the FileSystem.Statistics implementation and therefore
+   * does not require support for operations like unit() as the counter values are not directly
+   * consumed.
+   *
+   * @param name name of the metric
+   * @param unit ignored
+   * @return counter
+   */
+  @Override
+  public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
+    switch (name) {
+      case READ_BYTES:
+        return counter(statistics()::incrementBytesRead, statistics()::getBytesRead);
+      case READ_OPERATIONS:
+        return counter((long x) -> statistics.incrementReadOps((int) x), statistics()::getReadOps);
+      case WRITE_BYTES:
+        return counter(statistics()::incrementBytesWritten, statistics()::getBytesWritten);
+      case WRITE_OPERATIONS:
+        return counter(
+            (long x) -> statistics.incrementWriteOps((int) x), statistics()::getWriteOps);
+      default:
+        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+    }
+  }
+
+  private org.apache.iceberg.metrics.Counter counter(LongConsumer consumer, LongSupplier supplier) {
+    return new org.apache.iceberg.metrics.Counter() {
+      @Override
+      public void increment() {
+        increment(1L);
+      }
+
+      @Override
+      public void increment(long amount) {
+        consumer.accept(amount);
+      }
+
+      @Override
+      public long value() {
+        return supplier.getAsLong();
       }
     };
   }

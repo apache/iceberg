@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -54,8 +53,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Implementation of Iceberg tables that uses the Hadoop FileSystem
- * to store metadata and manifests.
+ * Implementation of Iceberg tables that uses the Hadoop FileSystem to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
 
@@ -110,8 +108,9 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   /**
-   * Try to resolve a metadata table, which we encode as URI fragments
-   * e.g. hdfs:///warehouse/my_table#snapshots
+   * Try to resolve a metadata table, which we encode as URI fragments e.g.
+   * hdfs:///warehouse/my_table#snapshots
+   *
    * @param location Path to parse
    * @return A base table name and MetadataTableType if a type is found, null if not
    */
@@ -127,7 +126,8 @@ public class HadoopTables implements Tables, Configurable {
     }
   }
 
-  private Table loadMetadataTable(String location, String metadataTableName, MetadataTableType type) {
+  private Table loadMetadataTable(
+      String location, String metadataTableName, MetadataTableType type) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist at location: %s", location);
@@ -137,8 +137,7 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   /**
-   * Create a table using the FileSystem implementation resolve from
-   * location.
+   * Create a table using the FileSystem implementation resolve from location.
    *
    * @param schema iceberg schema used to create the table
    * @param spec partitioning spec, if null the table will be unpartitioned
@@ -147,9 +146,14 @@ public class HadoopTables implements Tables, Configurable {
    * @return newly created table implementation
    */
   @Override
-  public Table create(Schema schema, PartitionSpec spec, SortOrder order,
-                      Map<String, String> properties, String location) {
-    return buildTable(location, schema).withPartitionSpec(spec)
+  public Table create(
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder order,
+      Map<String, String> properties,
+      String location) {
+    return buildTable(location, schema)
+        .withPartitionSpec(spec)
         .withSortOrder(order)
         .withProperties(properties)
         .create();
@@ -167,8 +171,8 @@ public class HadoopTables implements Tables, Configurable {
 
   /**
    * Drop a table; optionally delete data and metadata files.
-   * <p>
-   * If purge is set to true the implementation should delete all data and metadata files.
+   *
+   * <p>If purge is set to true the implementation should delete all data and metadata files.
    *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @param purge if true, delete all data and metadata files in the table
@@ -204,8 +208,8 @@ public class HadoopTables implements Tables, Configurable {
     if (location.contains(METADATA_JSON)) {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {
-      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf,
-          createOrGetLockManager(this));
+      return new HadoopTableOperations(
+          new Path(location), new HadoopFileIO(conf), conf, createOrGetLockManager(this));
     }
   }
 
@@ -227,8 +231,12 @@ public class HadoopTables implements Tables, Configurable {
     return lockManager;
   }
 
-  private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
-                                      Map<String, String> properties, String location) {
+  private TableMetadata tableMetadata(
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder order,
+      Map<String, String> properties,
+      String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
@@ -248,11 +256,11 @@ public class HadoopTables implements Tables, Configurable {
    * @throws AlreadyExistsException if the table already exists
    */
   public Transaction newCreateTableTransaction(
-      String location,
-      Schema schema,
-      PartitionSpec spec,
-      Map<String, String> properties) {
-    return buildTable(location, schema).withPartitionSpec(spec).withProperties(properties).createTransaction();
+      String location, Schema schema, PartitionSpec spec, Map<String, String> properties) {
+    return buildTable(location, schema)
+        .withPartitionSpec(spec)
+        .withProperties(properties)
+        .createTransaction();
   }
 
   /**
@@ -273,8 +281,8 @@ public class HadoopTables implements Tables, Configurable {
       Map<String, String> properties,
       boolean orCreate) {
 
-
-    Catalog.TableBuilder builder = buildTable(location, schema).withPartitionSpec(spec).withProperties(properties);
+    Catalog.TableBuilder builder =
+        buildTable(location, schema).withPartitionSpec(spec).withProperties(properties);
     return orCreate ? builder.createOrReplaceTransaction() : builder.replaceTransaction();
   }
 
@@ -288,7 +296,6 @@ public class HadoopTables implements Tables, Configurable {
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
-
 
     HadoopTableBuilder(String location, Schema schema) {
       this.location = location;
@@ -309,8 +316,10 @@ public class HadoopTables implements Tables, Configurable {
 
     @Override
     public Catalog.TableBuilder withLocation(String newLocation) {
-      Preconditions.checkArgument(newLocation == null || location.equals(newLocation),
-          String.format("Table location %s differs from the table location (%s) from the PathIdentifier",
+      Preconditions.checkArgument(
+          newLocation == null || location.equals(newLocation),
+          String.format(
+              "Table location %s differs from the table location (%s) from the PathIdentifier",
               newLocation, location));
       return this;
     }

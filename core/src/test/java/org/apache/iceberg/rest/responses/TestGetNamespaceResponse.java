@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,65 +38,68 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
   @Test
   // Test cases that are JSON that can be created via the Builder
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
-    GetNamespaceResponse fullValue = GetNamespaceResponse.builder()
-        .withNamespace(NAMESPACE).setProperties(PROPERTIES).build();
+    String fullJson =
+        "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
+    GetNamespaceResponse fullValue =
+        GetNamespaceResponse.builder().withNamespace(NAMESPACE).setProperties(PROPERTIES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, fullValue);
 
     String emptyProps = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{}}";
     assertRoundTripSerializesEquallyFrom(
         emptyProps, GetNamespaceResponse.builder().withNamespace(NAMESPACE).build());
     assertRoundTripSerializesEquallyFrom(
-        emptyProps, GetNamespaceResponse.builder().withNamespace(NAMESPACE).setProperties(EMPTY_PROPERTIES).build());
+        emptyProps,
+        GetNamespaceResponse.builder()
+            .withNamespace(NAMESPACE)
+            .setProperties(EMPTY_PROPERTIES)
+            .build());
   }
 
   @Test
   // Test cases that can't be constructed with our Builder class but that will parse correctly
   public void testCanDeserializeWithoutDefaultValues() throws JsonProcessingException {
-    GetNamespaceResponse withoutProps = GetNamespaceResponse.builder().withNamespace(NAMESPACE).build();
+    GetNamespaceResponse withoutProps =
+        GetNamespaceResponse.builder().withNamespace(NAMESPACE).build();
     String jsonWithNullProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":null}";
     assertEquals(deserialize(jsonWithNullProperties), withoutProps);
   }
 
   @Test
   public void testDeserializeInvalidResponse() {
-    String jsonNamespaceHasWrongType = "{\"namespace\":\"accounting%00tax\",\"properties\":null}";
+    String jsonNamespaceHasWrongType = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for a field should fail to deserialize",
         JsonProcessingException.class,
         "Cannot parse string array from non-array",
-        () -> deserialize(jsonNamespaceHasWrongType)
-    );
+        () -> deserialize(jsonNamespaceHasWrongType));
 
-    String jsonPropertiesHasWrongType = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
+    String jsonPropertiesHasWrongType =
+        "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for a field should fail to deserialize",
         JsonProcessingException.class,
-        () -> deserialize(jsonPropertiesHasWrongType)
-    );
+        () -> deserialize(jsonPropertiesHasWrongType));
 
     String emptyJson = "{}";
     AssertHelpers.assertThrows(
         "An empty JSON request should fail to deserialize after validation",
         IllegalArgumentException.class,
         "Invalid namespace: null",
-        () -> deserialize(emptyJson)
-    );
+        () -> deserialize(emptyJson));
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
     AssertHelpers.assertThrows(
         "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonWithKeysSpelledIncorrectly)
-    );
+        IllegalArgumentException.class,
+        "Invalid namespace: null",
+        () -> deserialize(jsonWithKeysSpelledIncorrectly));
 
     String nullJson = null;
     AssertHelpers.assertThrows(
         "An empty JSON request should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(nullJson)
-    );
+        () -> deserialize(nullJson));
   }
 
   @Test
@@ -106,15 +108,13 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
         "The builder should not allow using null for the namespace",
         NullPointerException.class,
         "Invalid namespace: null",
-        () -> GetNamespaceResponse.builder().withNamespace(null).build()
-    );
+        () -> GetNamespaceResponse.builder().withNamespace(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null collection of properties",
         NullPointerException.class,
         "Invalid properties map: null",
-        () -> GetNamespaceResponse.builder().setProperties(null).build()
-    );
+        () -> GetNamespaceResponse.builder().setProperties(null).build());
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
@@ -122,8 +122,7 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
         "The builder should not allow using null as a key in the properties to set",
         IllegalArgumentException.class,
         "Invalid property: null",
-        () -> GetNamespaceResponse.builder().setProperties(mapWithNullKey).build()
-    );
+        () -> GetNamespaceResponse.builder().setProperties(mapWithNullKey).build());
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
@@ -132,13 +131,12 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
         "The builder should not allow using null as a value in the properties to set",
         IllegalArgumentException.class,
         "Invalid value for properties [a]: null",
-        () -> GetNamespaceResponse.builder().setProperties(mapWithMultipleNullValues).build()
-    );
+        () -> GetNamespaceResponse.builder().setProperties(mapWithMultipleNullValues).build());
   }
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "namespace", "properties" };
+    return new String[] {"namespace", "properties"};
   }
 
   @Override

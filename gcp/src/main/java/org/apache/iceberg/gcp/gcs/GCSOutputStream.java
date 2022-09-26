@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.client.util.Lists;
@@ -33,16 +32,16 @@ import java.util.List;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The GCSOutputStream leverages native streaming channels from the GCS API
- * for streaming uploads. See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
+ * The GCSOutputStream leverages native streaming channels from the GCS API for streaming uploads.
+ * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
  */
 class GCSOutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStream.class);
@@ -54,22 +53,23 @@ class GCSOutputStream extends PositionOutputStream {
 
   private OutputStream stream;
 
-  private final Counter<Long> writeBytes;
-  private final Counter<Integer> writeOperations;
+  private final Counter writeBytes;
+  private final Counter writeOperations;
 
   private long pos = 0;
   private boolean closed = false;
 
-  GCSOutputStream(Storage storage, BlobId blobId, GCPProperties gcpProperties,
-      MetricsContext metrics) throws IOException {
+  GCSOutputStream(
+      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics)
+      throws IOException {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
 
     createStack = Thread.currentThread().getStackTrace();
 
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
 
     openStream();
   }
@@ -96,20 +96,23 @@ class GCSOutputStream extends PositionOutputStream {
   public void write(byte[] b, int off, int len) throws IOException {
     stream.write(b, off, len);
     pos += len;
-    writeBytes.increment((long) len);
+    writeBytes.increment(len);
     writeOperations.increment();
   }
 
   private void openStream() {
     List<BlobWriteOption> writeOptions = Lists.newArrayList();
 
-    gcpProperties.encryptionKey().ifPresent(
-        key -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
-    gcpProperties.userProject().ifPresent(
-        userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
+    gcpProperties
+        .encryptionKey()
+        .ifPresent(key -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
+    gcpProperties
+        .userProject()
+        .ifPresent(userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
 
-    WriteChannel channel = storage.writer(BlobInfo.newBuilder(blobId).build(),
-        writeOptions.toArray(new BlobWriteOption[0]));
+    WriteChannel channel =
+        storage.writer(
+            BlobInfo.newBuilder(blobId).build(), writeOptions.toArray(new BlobWriteOption[0]));
 
     gcpProperties.channelWriteChunkSize().ifPresent(channel::setChunkSize);
 
@@ -127,15 +130,13 @@ class GCSOutputStream extends PositionOutputStream {
     stream.close();
   }
 
-
   @SuppressWarnings("checkstyle:NoFinalizer")
   @Override
   protected void finalize() throws Throwable {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
+      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
     }
   }

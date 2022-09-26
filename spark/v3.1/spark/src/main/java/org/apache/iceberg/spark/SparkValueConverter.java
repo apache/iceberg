@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
@@ -34,13 +33,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
-/**
- * A utility class that converts Spark values to Iceberg's internal representation.
- */
+/** A utility class that converts Spark values to Iceberg's internal representation. */
 public class SparkValueConverter {
 
-  private SparkValueConverter() {
-  }
+  private SparkValueConverter() {}
 
   public static Record convert(Schema schema, Row row) {
     return convert(schema.asStruct(), row);
@@ -95,6 +91,10 @@ public class SparkValueConverter {
   }
 
   private static Record convert(Types.StructType struct, Row row) {
+    if (row == null) {
+      return null;
+    }
+
     Record record = GenericRecord.create(struct);
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
@@ -107,7 +107,12 @@ public class SparkValueConverter {
           record.set(i, convert(fieldType.asStructType(), row.getStruct(i)));
           break;
         case LIST:
-          record.set(i, convert(fieldType.asListType(), row.getList(i)));
+          try {
+            record.set(i, convert(fieldType.asListType(), row.getList(i)));
+          } catch (NullPointerException npe) {
+            // Handle https://issues.apache.org/jira/browse/SPARK-37654
+            record.set(i, convert(fieldType.asListType(), null));
+          }
           break;
         case MAP:
           record.set(i, convert(fieldType.asMapType(), row.getJavaMap(i)));

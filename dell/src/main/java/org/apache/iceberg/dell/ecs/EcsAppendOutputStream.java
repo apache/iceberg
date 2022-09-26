@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -25,13 +24,11 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 
-/**
- * Use ECS append API to write data.
- */
+/** Use ECS append API to write data. */
 class EcsAppendOutputStream extends PositionOutputStream {
 
   private final S3Client client;
@@ -40,49 +37,41 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
   /**
    * Local bytes cache that avoid too many requests
-   * <p>
-   * Use {@link ByteBuffer} to maintain offset.
+   *
+   * <p>Use {@link ByteBuffer} to maintain offset.
    */
   private final ByteBuffer localCache;
 
-  /**
-   * A marker for data file to put first part instead of append first part.
-   */
+  /** A marker for data file to put first part instead of append first part. */
   private boolean firstPart = true;
 
-  /**
-   * Pos for {@link PositionOutputStream}
-   */
+  /** Pos for {@link PositionOutputStream} */
   private long pos;
 
-  private final Counter<Long> writeBytes;
-  private final Counter<Integer> writeOperations;
+  private final Counter writeBytes;
+  private final Counter writeOperations;
 
-  private EcsAppendOutputStream(S3Client client, EcsURI uri, byte[] localCache, MetricsContext metrics) {
+  private EcsAppendOutputStream(
+      S3Client client, EcsURI uri, byte[] localCache, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.localCache = ByteBuffer.wrap(localCache);
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
   }
 
-  /**
-   * Use built-in 1 KiB byte buffer
-   */
+  /** Use built-in 1 KiB byte buffer */
   static EcsAppendOutputStream create(S3Client client, EcsURI uri, MetricsContext metrics) {
     return createWithBufferSize(client, uri, 1024, metrics);
   }
 
-  /**
-   * Create {@link PositionOutputStream} with specific buffer size.
-   */
-  static EcsAppendOutputStream createWithBufferSize(S3Client client, EcsURI uri, int size, MetricsContext metrics) {
+  /** Create {@link PositionOutputStream} with specific buffer size. */
+  static EcsAppendOutputStream createWithBufferSize(
+      S3Client client, EcsURI uri, int size, MetricsContext metrics) {
     return new EcsAppendOutputStream(client, uri, new byte[size], metrics);
   }
 
-  /**
-   * Write a byte. If buffer is full, upload the buffer.
-   */
+  /** Write a byte. If buffer is full, upload the buffer. */
   @Override
   public void write(int b) {
     if (!checkBuffer(1)) {
@@ -96,9 +85,8 @@ class EcsAppendOutputStream extends PositionOutputStream {
   }
 
   /**
-   * Write a byte.
-   * If buffer is full, upload the buffer.
-   * If buffer size &lt; input bytes, upload input bytes.
+   * Write a byte. If buffer is full, upload the buffer. If buffer size &lt; input bytes, upload
+   * input bytes.
    */
   @Override
   public void write(byte[] b, int off, int len) {
@@ -114,7 +102,7 @@ class EcsAppendOutputStream extends PositionOutputStream {
     }
 
     pos += len;
-    writeBytes.increment((long) len);
+    writeBytes.increment(len);
     writeOperations.increment();
   }
 
@@ -124,25 +112,23 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
   private void flushBuffer(byte[] buffer, int offset, int length) {
     if (firstPart) {
-      client.putObject(new PutObjectRequest(uri.bucket(), uri.name(),
-          new ByteArrayInputStream(buffer, offset, length)));
+      client.putObject(
+          new PutObjectRequest(
+              uri.bucket(), uri.name(), new ByteArrayInputStream(buffer, offset, length)));
       firstPart = false;
     } else {
-      client.appendObject(uri.bucket(), uri.name(), new ByteArrayInputStream(buffer, offset, length));
+      client.appendObject(
+          uri.bucket(), uri.name(), new ByteArrayInputStream(buffer, offset, length));
     }
   }
 
-  /**
-   * Pos of the file
-   */
+  /** Pos of the file */
   @Override
   public long getPos() {
     return pos;
   }
 
-  /**
-   * Write cached bytes if present.
-   */
+  /** Write cached bytes if present. */
   @Override
   public void flush() {
     if (localCache.remaining() < localCache.capacity()) {
@@ -152,9 +138,7 @@ class EcsAppendOutputStream extends PositionOutputStream {
     }
   }
 
-  /**
-   * Trigger flush() when closing stream.
-   */
+  /** Trigger flush() when closing stream. */
   @Override
   public void close() {
     flush();

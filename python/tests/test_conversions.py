@@ -77,9 +77,9 @@ from decimal import Decimal
 
 import pytest
 
-import iceberg.utils.decimal as decimal_util
-from iceberg import conversions
-from iceberg.types import (
+import pyiceberg.utils.decimal as decimal_util
+from pyiceberg import conversions
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -179,7 +179,7 @@ def test_partition_to_py(primitive_type, value_str, expected_result):
 )
 def test_none_partition_values(primitive_type):
     """Test converting a partition value to a python built-in"""
-    assert conversions.partition_to_py(primitive_type, None) == None
+    assert conversions.partition_to_py(primitive_type, None) is None
 
 
 @pytest.mark.parametrize(
@@ -203,7 +203,7 @@ def test_none_partition_values(primitive_type):
 )
 def test_hive_default_partition_values(primitive_type):
     """Test converting a partition value to a python built-in"""
-    assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") == None
+    assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") is None
 
 
 @pytest.mark.parametrize(
@@ -456,15 +456,15 @@ def test_raise_on_unregistered_type():
 
     with pytest.raises(TypeError) as exc_info:
         conversions.partition_to_py(FooUnknownType(), "foo")
-    assert (f"Cannot convert 'foo' to unsupported type: FooUnknownType()") in str(exc_info.value)
+    assert "Cannot convert 'foo' to unsupported type: FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.to_bytes(FooUnknownType(), "foo")
-    assert ("scale does not match FooUnknownType()") in str(exc_info.value)
+    assert "scale does not match FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.from_bytes(FooUnknownType(), b"foo")
-    assert ("Cannot deserialize bytes, type FooUnknownType() not supported: b'foo'") in str(exc_info.value)
+    assert "Cannot deserialize bytes, type FooUnknownType() not supported: b'foo'" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(

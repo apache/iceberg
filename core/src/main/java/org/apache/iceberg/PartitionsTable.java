@@ -16,21 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructLikeWrapper;
 
-/**
- * A {@link Table} implementation that exposes a table's partitions as rows.
- */
+/** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
@@ -44,12 +42,12 @@ public class PartitionsTable extends BaseMetadataTable {
   PartitionsTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
 
-    this.schema = new Schema(
-        Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
-        Types.NestedField.required(2, "record_count", Types.LongType.get()),
-        Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
-        Types.NestedField.required(4, "spec_id", Types.IntegerType.get())
-    );
+    this.schema =
+        new Schema(
+            Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
+            Types.NestedField.required(2, "record_count", Types.LongType.get()),
+            Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
+            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()));
   }
 
   @Override
@@ -72,35 +70,89 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private DataTask task(StaticTableScan scan) {
     TableOperations ops = operations();
-    Iterable<Partition> partitions = partitions(scan);
+    Iterable<Partition> partitions = partitions(table(), scan);
     if (table().spec().fields().size() < 1) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
-          schema(), scan.schema(), partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount)
-      );
+          schema(),
+          scan.schema(),
+          partitions,
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
     } else {
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
-          schema(), scan.schema(), partitions,
-          PartitionsTable::convertPartition
-      );
+          schema(),
+          scan.schema(),
+          partitions,
+          PartitionsTable::convertPartition);
     }
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.specId);
+    return StaticDataTask.Row.of(
+        partition.key, partition.recordCount, partition.fileCount, partition.specId);
   }
 
-  private static Iterable<Partition> partitions(StaticTableScan scan) {
+  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
+    Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
+    PartitionMap partitions = new PartitionMap();
 
-    PartitionMap partitions = new PartitionMap(scan.table().spec().partitionType());
+    // cache a position map needed by each partition spec to normalize partitions to final schema
+    Map<Integer, int[]> normalizedPositionsBySpec =
+        Maps.newHashMapWithExpectedSize(table.specs().size());
+
     for (FileScanTask task : tasks) {
-      partitions.get(task.file().partition()).update(task.file());
+      PartitionData original = (PartitionData) task.file().partition();
+      int[] normalizedPositions =
+          normalizedPositionsBySpec.computeIfAbsent(
+              task.spec().specId(),
+              specId -> normalizedPositions(table, specId, normalizedPartitionType));
+      PartitionData normalized =
+          normalizePartition(original, normalizedPartitionType, normalizedPositions);
+      partitions.get(normalized).update(task.file());
     }
     return partitions.all();
+  }
+
+  /**
+   * Builds an array of the field position of positions in the normalized partition type indexed by
+   * field position in the original partition type
+   */
+  private static int[] normalizedPositions(
+      Table table, int specId, Types.StructType normalizedType) {
+    Types.StructType originalType = table.specs().get(specId).partitionType();
+    int[] normalizedPositions = new int[originalType.fields().size()];
+    for (int originalIndex = 0; originalIndex < originalType.fields().size(); originalIndex++) {
+      Types.NestedField normalizedField =
+          normalizedType.field(originalType.fields().get(originalIndex).fieldId());
+      normalizedPositions[originalIndex] = normalizedType.fields().indexOf(normalizedField);
+    }
+    return normalizedPositions;
+  }
+
+  /**
+   * Convert a partition data written by an old spec, to table's normalized partition type, which is
+   * a common partition type for all specs of the table.
+   *
+   * @param originalPartition un-normalized partition data
+   * @param normalizedPartitionType table's normalized partition type {@link
+   *     Partitioning#partitionType(Table)}
+   * @param normalizedPositions field positions in the normalized partition type indexed by field
+   *     position in the original partition type
+   * @return the normalized partition data
+   */
+  private static PartitionData normalizePartition(
+      PartitionData originalPartition,
+      Types.StructType normalizedPartitionType,
+      int[] normalizedPositions) {
+    PartitionData normalizedPartition = new PartitionData(normalizedPartitionType);
+    for (int originalIndex = 0; originalIndex < originalPartition.size(); originalIndex++) {
+      normalizedPartition.put(
+          normalizedPositions[originalIndex], originalPartition.get(originalIndex));
+    }
+    return normalizedPartition;
   }
 
   @VisibleForTesting
@@ -109,24 +161,31 @@ public class PartitionsTable extends BaseMetadataTable {
     Snapshot snapshot = table.snapshot(scan.snapshot().snapshotId());
     boolean caseSensitive = scan.isCaseSensitive();
 
-    // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-    Expression partitionFilter = Projections
-        .inclusive(transformSpec(scan.schema(), table.spec()), caseSensitive)
-        .project(scan.filter());
+    LoadingCache<Integer, ManifestEvaluator> evalCache =
+        Caffeine.newBuilder()
+            .build(
+                specId -> {
+                  PartitionSpec spec = table.specs().get(specId);
+                  PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
+                  return ManifestEvaluator.forRowFilter(
+                      scan.filter(), transformedSpec, caseSensitive);
+                });
 
-    ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
-        .caseSensitive(caseSensitive)
-        .filterPartitions(partitionFilter)
-        .select(scan.colStats() ? DataTableScan.SCAN_WITH_STATS_COLUMNS : DataTableScan.SCAN_COLUMNS)
-        .specsById(scan.table().specs())
-        .ignoreDeleted();
+    FileIO io = table.io();
+    ManifestGroup manifestGroup =
+        new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
+            .caseSensitive(caseSensitive)
+            .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
+            .select(scan.scanColumns())
+            .specsById(scan.table().specs())
+            .ignoreDeleted();
 
     if (scan.shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (scan.snapshot().dataManifests().size() > 1 &&
-        (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
+    if (scan.snapshot().dataManifests(io).size() > 1
+        && (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
     }
 
@@ -135,26 +194,23 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan(TableOperations ops, Table table) {
-      super(ops, table, PartitionsTable.this.schema(), PartitionsTable.this.metadataTableType().name(),
-            PartitionsTable.this::task);
+      super(
+          ops,
+          table,
+          PartitionsTable.this.schema(),
+          MetadataTableType.PARTITIONS,
+          PartitionsTable.this::task);
     }
   }
 
   static class PartitionMap {
-    private final Map<StructLikeWrapper, Partition> partitions = Maps.newHashMap();
-    private final Types.StructType type;
-    private final StructLikeWrapper reused;
+    private final Map<PartitionData, Partition> partitions = Maps.newHashMap();
 
-    PartitionMap(Types.StructType type) {
-      this.type = type;
-      this.reused = StructLikeWrapper.forType(type);
-    }
-
-    Partition get(StructLike key) {
-      Partition partition = partitions.get(reused.set(key));
+    Partition get(PartitionData key) {
+      Partition partition = partitions.get(key);
       if (partition == null) {
         partition = new Partition(key);
-        partitions.put(StructLikeWrapper.forType(type).set(key), partition);
+        partitions.put(key, partition);
       }
       return partition;
     }

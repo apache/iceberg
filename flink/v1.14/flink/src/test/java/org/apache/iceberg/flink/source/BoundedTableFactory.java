@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.util.List;
@@ -53,7 +52,8 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
   private static final AtomicInteger DATA_SET_ID = new AtomicInteger(0);
   private static final Map<String, List<List<Row>>> DATA_SETS = Maps.newHashMap();
 
-  private static final ConfigOption<String> DATA_ID = ConfigOptions.key("data-id").stringType().noDefaultValue();
+  private static final ConfigOption<String> DATA_ID =
+      ConfigOptions.key("data-id").stringType().noDefaultValue();
 
   public static String registerDataSet(List<List<Row>> dataSet) {
     String dataSetId = String.valueOf(DATA_SET_ID.incrementAndGet());
@@ -67,12 +67,13 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
 
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    TableSchema tableSchema =
+        TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
 
     Configuration configuration = Configuration.fromMap(context.getCatalogTable().getOptions());
     String dataId = configuration.getString(DATA_ID);
-    Preconditions.checkArgument(DATA_SETS.containsKey(dataId),
-        "data-id %s does not found in registered data set.", dataId);
+    Preconditions.checkArgument(
+        DATA_SETS.containsKey(dataId), "data-id %s does not found in registered data set.", dataId);
 
     return new BoundedTableSource(DATA_SETS.get(dataId), tableSchema);
   }
@@ -112,8 +113,7 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
       Supplier<Stream<Row>> supplier = () -> elementsPerCheckpoint.stream().flatMap(List::stream);
 
       // Add the INSERT row kind by default.
-      ChangelogMode.Builder builder = ChangelogMode.newBuilder()
-          .addContainedKind(RowKind.INSERT);
+      ChangelogMode.Builder builder = ChangelogMode.newBuilder().addContainedKind(RowKind.INSERT);
 
       if (supplier.get().anyMatch(r -> r.getKind() == RowKind.DELETE)) {
         builder.addContainedKind(RowKind.DELETE);
@@ -136,12 +136,13 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
         @Override
         public DataStream<RowData> produceDataStream(StreamExecutionEnvironment env) {
           boolean checkpointEnabled = env.getCheckpointConfig().isCheckpointingEnabled();
-          SourceFunction<Row> source = new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
+          SourceFunction<Row> source =
+              new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
 
           RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
           // Converter to convert the Row to RowData.
-          DataFormatConverters.RowConverter rowConverter = new DataFormatConverters
-              .RowConverter(tableSchema.getFieldDataTypes());
+          DataFormatConverters.RowConverter rowConverter =
+              new DataFormatConverters.RowConverter(tableSchema.getFieldDataTypes());
 
           return env.addSource(source, new RowTypeInfo(tableSchema.getFieldTypes()))
               .map(rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType));

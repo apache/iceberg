@@ -16,17 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.AfterClass;
@@ -37,12 +47,9 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 
-import static org.mockserver.integration.ClientAndServer.startClientAndServer;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
-/***
- * Exercises the RESTClient interface, specifically over a mocked-server using the actual HttpRESTClient code.
+/**
+ * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
+ * HttpRESTClient code.
  */
 public class TestHTTPClient {
 
@@ -51,17 +58,17 @@ public class TestHTTPClient {
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
+  private static String icebergBuildGitCommitShort;
+  private static String icebergBuildFullVersion;
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
   @BeforeClass
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient
-        .builder()
-        .uri(URI)
-        .withBearerAuth(BEARER_AUTH_TOKEN)
-        .build();
+    restClient = new HTTPClientFactory().apply(ImmutableMap.of(CatalogProperties.URI, URI));
+    icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
+    icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
 
   @AfterClass
@@ -113,48 +120,53 @@ public class TestHTTPClient {
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
-    AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<ErrorResponse> onError = (error) -> {
-      errorCounter.incrementAndGet();
-      throw new RuntimeException("Failure response");
-    };
+
+    ErrorHandler onError = mock(ErrorHandler.class);
+    doThrow(new RuntimeException("Failure response")).when(onError).accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
     Item successResponse = doExecuteRequest(method, path, body, onError);
 
     if (method.usesRequestBody()) {
-      Assert.assertEquals("On a successful " + method + ", the correct response body should be returned",
-          successResponse, body);
+      Assert.assertEquals(
+          "On a successful " + method + ", the correct response body should be returned",
+          successResponse,
+          body);
     }
-    Assert.assertEquals("On a successful " + method + ", the error handler should not be called",
-        0, errorCounter.get());
+
+    verify(onError, never()).accept(any());
   }
 
   public static void testHttpMethodOnFailure(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 404;
-    AtomicInteger errorCounter = new AtomicInteger(0);
-    Consumer<ErrorResponse> onError = error -> {
-      errorCounter.incrementAndGet();
-      throw new RuntimeException(
-          String.format("Called error handler for method %s due to status code: %d", method, statusCode));
-    };
+
+    ErrorHandler onError = mock(ErrorHandler.class);
+    doThrow(
+            new RuntimeException(
+                String.format(
+                    "Called error handler for method %s due to status code: %d",
+                    method, statusCode)))
+        .when(onError)
+        .accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
     AssertHelpers.assertThrows(
         "A response indicating a failed request should throw",
         RuntimeException.class,
-        String.format("Called error handler for method %s due to status code: %d", method, statusCode),
+        String.format(
+            "Called error handler for method %s due to status code: %d", method, statusCode),
         () -> doExecuteRequest(method, path, body, onError));
 
-    Assert.assertEquals("On an unsuccessful " + method + ", the error handler should be called",
-        1, errorCounter.get());
+    verify(onError).accept(any());
   }
 
-  // Adds a request that the mock-server can match against, based on the method, path, body, and headers.
-  // Return the path generated for the test case, so that the client can call that path to exercise it.
+  // Adds a request that the mock-server can match against, based on the method, path, body, and
+  // headers.
+  // Return the path generated for the test case, so that the client can call that path to exercise
+  // it.
   private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode)
       throws JsonProcessingException {
 
@@ -166,9 +178,13 @@ public class TestHTTPClient {
 
     // Build the expected request
     String asJson = body != null ? MAPPER.writeValueAsString(body) : null;
-    HttpRequest mockRequest = request("/" + path)
-        .withMethod(method.name().toUpperCase(Locale.ROOT))
-        .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
+    HttpRequest mockRequest =
+        request("/" + path)
+            .withMethod(method.name().toUpperCase(Locale.ROOT))
+            .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
+            .withHeader(HTTPClientFactory.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
+            .withHeader(
+                HTTPClientFactory.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);
@@ -182,30 +198,30 @@ public class TestHTTPClient {
         // Simply return the passed in item in the success case.
         mockResponse = mockResponse.withBody(asJson);
       } else {
-        ErrorResponse response = ErrorResponse.builder()
-            .responseCode(statusCode).withMessage("Not found").build();
+        ErrorResponse response =
+            ErrorResponse.builder().responseCode(statusCode).withMessage("Not found").build();
         mockResponse = mockResponse.withBody(ErrorResponseParser.toJson(response));
       }
     }
 
-    mockServer
-        .when(mockRequest)
-        .respond(mockResponse);
+    mockServer.when(mockRequest).respond(mockResponse);
 
     return path;
   }
 
-  private static Item doExecuteRequest(HttpMethod method, String path, Item body, Consumer<ErrorResponse> onError) {
+  private static Item doExecuteRequest(
+      HttpMethod method, String path, Item body, ErrorHandler onError) {
+    Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, onError);
+        return restClient.post(path, body, Item.class, headers, onError);
       case GET:
-        return restClient.get(path, Item.class, onError);
+        return restClient.get(path, Item.class, headers, onError);
       case HEAD:
-        restClient.head(path, onError);
+        restClient.head(path, headers, onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, onError);
+        return restClient.delete(path, Item.class, headers, onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }
@@ -217,8 +233,7 @@ public class TestHTTPClient {
 
     // Required for Jackson deserialization
     @SuppressWarnings("unused")
-    public Item() {
-    }
+    public Item() {}
 
     public Item(Long id, String data) {
       this.id = id;
@@ -226,8 +241,7 @@ public class TestHTTPClient {
     }
 
     @Override
-    public void validate() {
-    }
+    public void validate() {}
 
     @Override
     public int hashCode() {

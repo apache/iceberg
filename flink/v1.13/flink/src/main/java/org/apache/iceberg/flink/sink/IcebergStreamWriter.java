@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
@@ -61,9 +60,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-    // close all open files and emit files to downstream committer operator
-    emit(writer.complete());
-
+    flush();
     this.writer = taskWriterFactory.create();
   }
 
@@ -83,9 +80,13 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void endInput() throws IOException {
-    // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
-    // completed files to downstream before closing the writer so that we won't miss any of them.
-    emit(writer.complete());
+    // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
+    // remaining completed files to downstream before closing the writer so that we won't miss any
+    // of them.
+    // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
+    // causing files to be sent repeatedly, the writer is marked as null after the last file is sent
+    // to guard against duplicated writes.
+    flush();
   }
 
   @Override
@@ -97,7 +98,17 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
         .toString();
   }
 
-  private void emit(WriteResult result) {
+  /** close all open files and emit files to downstream committer operator */
+  private void flush() throws IOException {
+    if (writer == null) {
+      return;
+    }
+
+    WriteResult result = writer.complete();
     output.collect(new StreamRecord<>(result));
+
+    // Set writer to null to prevent duplicate flushes in the corner case of
+    // prepareSnapshotPreBarrier happening after endInput.
+    writer = null;
   }
 }

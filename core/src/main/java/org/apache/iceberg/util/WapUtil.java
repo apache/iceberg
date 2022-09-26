@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import org.apache.iceberg.Snapshot;
@@ -26,19 +25,23 @@ import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 
 public class WapUtil {
 
-  private WapUtil() {
-  }
+  private WapUtil() {}
 
   public static String stagedWapId(Snapshot snapshot) {
-    return snapshot.summary() != null ? snapshot.summary().get(SnapshotSummary.STAGED_WAP_ID_PROP) : null;
+    return snapshot.summary() != null
+        ? snapshot.summary().get(SnapshotSummary.STAGED_WAP_ID_PROP)
+        : null;
   }
 
   public static String publishedWapId(Snapshot snapshot) {
-    return snapshot.summary() != null ? snapshot.summary().get(SnapshotSummary.PUBLISHED_WAP_ID_PROP) : null;
+    return snapshot.summary() != null
+        ? snapshot.summary().get(SnapshotSummary.PUBLISHED_WAP_ID_PROP)
+        : null;
   }
 
   /**
-   * Check if a given staged snapshot's associated wap-id was already published. Does not fail for non-WAP workflows.
+   * Check if a given staged snapshot's associated wap-id was already published. Does not fail for
+   * non-WAP workflows.
    *
    * @param current the current {@link TableMetadata metadata} for the target table
    * @param wapSnapshotId a snapshot id which could have been staged and is associated with a wap id

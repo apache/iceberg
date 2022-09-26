@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
@@ -67,6 +66,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private NessieCatalog catalog;
   private NessieApiV1 api;
   private Configuration hadoopConfig;
+  private String initialHashOfDefaultBranch;
   private String uri;
 
   @BeforeEach
@@ -74,20 +74,14 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     this.uri = nessieUri.toString();
     this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
-    resetData();
-
-    try {
-      api.createReference().reference(Branch.of("main", null)).create();
-    } catch (Exception e) {
-      // ignore, already created. Can't run this in BeforeAll as quarkus hasn't disabled auth
-    }
+    initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
 
     hadoopConfig = new Configuration();
     catalog = initNessieCatalog("main");
   }
 
   @AfterEach
-  public void afterEach() throws NessieConflictException, NessieNotFoundException {
+  public void afterEach() throws IOException {
     resetData();
     try {
       if (catalog != null) {
@@ -102,14 +96,19 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
+    Branch defaultBranch = api.getDefaultBranch();
     for (Reference r : api.getAllReferences().get().getReferences()) {
-      if (r instanceof Branch) {
+      if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
-      } else {
+      }
+      if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
-    api.createReference().reference(Branch.of("main", null)).create();
+    api.assignBranch()
+        .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
+        .branch(defaultBranch)
+        .assign();
   }
 
   private NessieCatalog initNessieCatalog(String ref) {
@@ -136,7 +135,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Override
   protected boolean supportsNamespaceProperties() {
-    return false;
+    return true;
   }
 
   @Override
@@ -151,12 +150,5 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       "Nessie does not differentiate between table creates & updates, thus a concurrent transaction does not fail")
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
-  }
-
-  @Test
-  @Override
-  @Disabled("currently not validated within doCommit")
-  public void testUUIDValidation() {
-    super.testUUIDValidation();
   }
 }

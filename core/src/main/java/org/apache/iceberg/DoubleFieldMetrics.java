@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
- * <p>
- * Parquet/ORC keeps track of most metrics in file statistics, and only NaN counter is actually tracked by writers.
- * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
- * exceptions when they are accessed.
+ *
+ * <p>Parquet/ORC keeps track of most metrics in file statistics, and only NaN counter is actually
+ * tracked by writers. This wrapper ensures that metrics not being updated by those writers will not
+ * be incorrectly used, by throwing exceptions when they are accessed.
  */
 public class DoubleFieldMetrics extends FieldMetrics<Double> {
 
-  private DoubleFieldMetrics(int id, long valueCount, long nanValueCount, Double lowerBound, Double upperBound) {
+  private DoubleFieldMetrics(
+      int id, long valueCount, long nanValueCount, Double lowerBound, Double upperBound) {
     super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
   }
 
@@ -59,8 +59,12 @@ public class DoubleFieldMetrics extends FieldMetrics<Double> {
 
     public DoubleFieldMetrics build() {
       boolean hasBound = valueCount - nanValueCount > 0;
-      return new DoubleFieldMetrics(id, valueCount, nanValueCount,
-          hasBound ? lowerBound : null, hasBound ? upperBound : null);
+      return new DoubleFieldMetrics(
+          id,
+          valueCount,
+          nanValueCount,
+          hasBound ? lowerBound : null,
+          hasBound ? upperBound : null);
     }
   }
 }

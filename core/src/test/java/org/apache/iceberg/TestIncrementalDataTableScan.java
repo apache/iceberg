@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ import org.junit.runners.Parameterized;
 public class TestIncrementalDataTableScan extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestIncrementalDataTableScan(int formatVersion) {
@@ -59,7 +58,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("A"));
     AssertHelpers.assertThrows(
         "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
-        IllegalArgumentException.class, "from and to snapshot ids cannot be the same",
+        IllegalArgumentException.class,
+        "from and to snapshot ids cannot be the same",
         () -> appendsBetweenScan(1, 1));
 
     add(table.newAppend(), files("B"));
@@ -68,11 +68,13 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("E"));
     AssertHelpers.assertThrows(
         "Check refinement api",
-        IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
+        IllegalArgumentException.class,
+        "from snapshot id 1 not in existing snapshot ids range (2, 4]",
         () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
     AssertHelpers.assertThrows(
         "Check refinement api",
-        IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
+        IllegalArgumentException.class,
+        "to snapshot id 3 not in existing snapshot ids range (1, 2]",
         () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
   }
 
@@ -109,6 +111,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     Assert.assertEquals(table.schema(), listener1.event().projection());
     Assert.assertEquals(Expressions.alwaysTrue(), listener1.event().filter());
     Assert.assertEquals("test", listener1.event().tableName());
+    Assert.assertEquals(false, listener1.event().isFromSnapshotInclusive());
   }
 
   @Test
@@ -138,7 +141,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     overwrite(table.newOverwrite(), files("H"), files("E")); // 9
     AssertHelpers.assertThrows(
-        "Overwrites are not supported for Incremental scan", UnsupportedOperationException.class,
+        "Overwrites are not supported for Incremental scan",
+        UnsupportedOperationException.class,
         "Found overwrite operation, cannot support incremental data in snapshots (8, 9]",
         () -> appendsBetweenScan(8, 9));
   }
@@ -186,7 +190,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C")); // 3
     // Go back to snapshot "B"
-    table.rollback().toSnapshotId(2).commit(); // 2
+    table.manageSnapshots().rollbackTo(2).commit(); // 2
     Assert.assertEquals(2, table.currentSnapshot().snapshotId());
     filesMatch(Lists.newArrayList("B"), appendsBetweenScan(1, 2));
     filesMatch(Lists.newArrayList("B"), appendsAfterScan(1));
@@ -197,7 +201,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(transaction.newAppend(), files("F"));
     transaction.commitTransaction();
     // Go back to snapshot "E"
-    table.rollback().toSnapshotId(5).commit();
+    table.manageSnapshots().rollbackTo(5).commit();
     Assert.assertEquals(5, table.currentSnapshot().snapshotId());
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsBetweenScan(1, 5));
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsAfterScan(1));
@@ -209,29 +213,29 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C"));
 
-    TableScan scan1 = table.newScan()
-        .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3);
+    TableScan scan1 = table.newScan().filter(Expressions.equal("id", 5)).appendsBetween(1, 3);
 
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
+      Assert.assertTrue(
+          "Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
       for (CombinedScanTask combinedScanTask : tasks) {
         for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          Assert.assertNotEquals("Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
+          Assert.assertNotEquals(
+              "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
         }
       }
     }
 
-    TableScan scan2 = table.newScan()
-        .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3)
-        .ignoreResiduals();
+    TableScan scan2 =
+        table.newScan().filter(Expressions.equal("id", 5)).appendsBetween(1, 3).ignoreResiduals();
 
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
+      Assert.assertTrue(
+          "Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
       for (CombinedScanTask combinedScanTask : tasks) {
         for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
+          Assert.assertEquals(
+              "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
         }
       }
     }
@@ -244,25 +248,31 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("C"));
 
     AtomicInteger planThreadsIndex = new AtomicInteger(0);
-    TableScan scan = table.newScan()
-        .appendsAfter(1)
-        .planWith(Executors.newFixedThreadPool(1, runnable -> {
-          Thread thread = new Thread(runnable);
-          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
-          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
-          return thread;
-        }));
+    TableScan scan =
+        table
+            .newScan()
+            .appendsAfter(1)
+            .planWith(
+                Executors.newFixedThreadPool(
+                    1,
+                    runnable -> {
+                      Thread thread = new Thread(runnable);
+                      thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+                      thread.setDaemon(
+                          true); // daemon threads will be terminated abruptly when the JVM exits
+                      return thread;
+                    }));
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 
   private static DataFile file(String name) {
     return DataFiles.builder(SPEC)
-            .withPath(name + ".parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-            .withRecordCount(1)
-            .build();
+        .withPath(name + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
   }
 
   private static void add(AppendFiles appendFiles, List<DataFile> adds) {
@@ -279,12 +289,14 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     deleteFiles.commit();
   }
 
-  private static void replace(RewriteFiles rewriteFiles, List<DataFile> deletes, List<DataFile> adds) {
+  private static void replace(
+      RewriteFiles rewriteFiles, List<DataFile> deletes, List<DataFile> adds) {
     rewriteFiles.rewriteFiles(Sets.newHashSet(deletes), Sets.newHashSet(adds));
     rewriteFiles.commit();
   }
 
-  private static void overwrite(OverwriteFiles overwriteFiles, List<DataFile> adds, List<DataFile> deletes) {
+  private static void overwrite(
+      OverwriteFiles overwriteFiles, List<DataFile> adds, List<DataFile> deletes) {
     for (DataFile f : adds) {
       overwriteFiles.addFile(f);
     }
@@ -311,10 +323,13 @@ public class TestIncrementalDataTableScan extends TableTestBase {
   }
 
   private static List<String> filesToScan(TableScan tableScan) {
-    Iterable<String> filesToRead = Iterables.transform(tableScan.planFiles(), t -> {
-      String path = t.file().path().toString();
-      return path.split("\\.")[0];
-    });
+    Iterable<String> filesToRead =
+        Iterables.transform(
+            tableScan.planFiles(),
+            t -> {
+              String path = t.file().path().toString();
+              return path.split("\\.")[0];
+            });
     return Lists.newArrayList(filesToRead);
   }
 

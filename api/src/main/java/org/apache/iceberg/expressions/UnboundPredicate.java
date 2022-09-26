@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.List;
@@ -31,7 +30,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements Unbound<T, Expression> {
+public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
+    implements Unbound<T, Expression> {
   private static final Joiner COMMA = Joiner.on(", ");
 
   private final List<Literal<T>> literals;
@@ -71,8 +71,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   }
 
   public Literal<T> literal() {
-    Preconditions.checkArgument(op() != Operation.IN && op() != Operation.NOT_IN,
-        "%s predicate cannot return a literal", op());
+    Preconditions.checkArgument(
+        op() != Operation.IN && op() != Operation.NOT_IN,
+        "%s predicate cannot return a literal",
+        op());
     return literals == null ? null : Iterables.getOnlyElement(literals);
   }
 
@@ -83,11 +85,12 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   /**
    * Bind this UnboundPredicate, defaulting to case sensitive mode.
    *
-   * Access modifier is package-private, to only allow use from existing tests.
+   * <p>Access modifier is package-private, to only allow use from existing tests.
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @return an {@link Expression}
-   * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
+   * @throws ValidationException if literals do not match bound references, or if comparison on
+   *     expression is invalid
    */
   Expression bind(StructType struct) {
     return bind(struct, true);
@@ -97,9 +100,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
    * Bind this UnboundPredicate.
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
-   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case
+   *     sensitivity.
    * @return an {@link Expression}
-   * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
+   * @throws ValidationException if literals do not match bound references, or if comparison on
+   *     expression is invalid
    */
   @Override
   public Expression bind(StructType struct, boolean caseSensitive) {
@@ -153,7 +158,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {
-      throw new ValidationException("Invalid value for conversion to type %s: %s (%s)",
+      throw new ValidationException(
+          "Invalid value for conversion to type %s: %s (%s)",
           boundTerm.type(), literal().value(), literal().value().getClass().getName());
 
     } else if (lit == Literals.aboveMax()) {
@@ -185,14 +191,22 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   }
 
   private Expression bindInOperation(BoundTerm<T> boundTerm) {
-    List<Literal<T>> convertedLiterals = Lists.newArrayList(Iterables.filter(
-        Lists.transform(literals, lit -> {
-          Literal<T> converted = lit.to(boundTerm.type());
-          ValidationException.check(converted != null,
-              "Invalid value for conversion to type %s: %s (%s)", boundTerm.type(), lit, lit.getClass().getName());
-          return converted;
-        }),
-        lit -> lit != Literals.aboveMax() && lit != Literals.belowMin()));
+    List<Literal<T>> convertedLiterals =
+        Lists.newArrayList(
+            Iterables.filter(
+                Lists.transform(
+                    literals,
+                    lit -> {
+                      Literal<T> converted = lit.to(boundTerm.type());
+                      ValidationException.check(
+                          converted != null,
+                          "Invalid value for conversion to type %s: %s (%s)",
+                          boundTerm.type(),
+                          lit,
+                          lit.getClass().getName());
+                      return converted;
+                    }),
+                lit -> lit != Literals.aboveMax() && lit != Literals.belowMin()));
 
     if (convertedLiterals.isEmpty()) {
       switch (op()) {
@@ -209,9 +223,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
     if (literalSet.size() == 1) {
       switch (op()) {
         case IN:
-          return new BoundLiteralPredicate<>(Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          return new BoundLiteralPredicate<>(
+              Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
         case NOT_IN:
-          return new BoundLiteralPredicate<>(Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          return new BoundLiteralPredicate<>(
+              Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
         default:
           throw new ValidationException("Operation must be IN or NOT_IN");
       }
@@ -259,7 +275,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   @SuppressWarnings("unchecked")
   static <T> Set<T> setOf(Iterable<Literal<T>> literals) {
     Literal<T> lit = Iterables.get(literals, 0);
-    if (lit instanceof Literals.StringLiteral && lit.value() instanceof CharSequence) {
+    if (lit instanceof Literals.StringLiteral) {
       Iterable<T> values = Iterables.transform(literals, Literal::value);
       Iterable<CharSequence> charSeqs = Iterables.transform(values, val -> (CharSequence) val);
       return (Set<T>) CharSequenceSet.of(charSeqs);

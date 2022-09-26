@@ -65,10 +65,14 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'org.roaringbitmap'
     }
+
+    implementation("org.apache.parquet:parquet-column")
+    implementation("org.apache.parquet:parquet-hadoop")
 
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
@@ -141,6 +145,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'org.roaringbitmap'
@@ -194,6 +199,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
       exclude group: 'org.antlr'
+      exclude group: 'org.scala-lang'
+      exclude group: 'org.scala-lang.modules'
     }
   }
 
@@ -248,6 +255,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'

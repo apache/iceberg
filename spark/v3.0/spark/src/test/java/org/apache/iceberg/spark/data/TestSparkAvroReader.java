@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,8 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
-
 public class TestSparkAvroReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -42,20 +41,19 @@ public class TestSparkAvroReader extends AvroDataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
     }
 
     List<InternalRow> rows;
-    try (AvroIterable<InternalRow> reader = Avro.read(Files.localInput(testFile))
-        .createReaderFunc(SparkAvroReader::new)
-        .project(schema)
-        .build()) {
+    try (AvroIterable<InternalRow> reader =
+        Avro.read(Files.localInput(testFile))
+            .createReaderFunc(SparkAvroReader::new)
+            .project(schema)
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 

@@ -16,8 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
+
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -67,33 +87,12 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNaN;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notEqual;
-import static org.apache.iceberg.expressions.Expressions.notIn;
-import static org.apache.iceberg.expressions.Expressions.notNaN;
-import static org.apache.iceberg.expressions.Expressions.notNull;
-import static org.apache.iceberg.expressions.Expressions.notStartsWith;
-import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestMetricsRowGroupFilter {
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "orc" };
+    return new Object[] {"parquet", "orc"};
   }
 
   private final FileFormat format;
@@ -105,39 +104,41 @@ public class TestMetricsRowGroupFilter {
   private static final Types.StructType structFieldType =
       Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", IntegerType.get()),
-      optional(2, "no_stats_parquet", StringType.get()),
-      required(3, "required", StringType.get()),
-      optional(4, "all_nulls", DoubleType.get()),
-      optional(5, "some_nulls", StringType.get()),
-      optional(6, "no_nulls", StringType.get()),
-      optional(7, "struct_not_null", structFieldType),
-      optional(9, "not_in_file", FloatType.get()),
-      optional(10, "str", StringType.get()),
-      optional(11, "map_not_null",
-          Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get())),
-      optional(14, "all_nans", DoubleType.get()),
-      optional(15, "some_nans", FloatType.get()),
-      optional(16, "no_nans", DoubleType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", IntegerType.get()),
+          optional(2, "no_stats_parquet", StringType.get()),
+          required(3, "required", StringType.get()),
+          optional(4, "all_nulls", DoubleType.get()),
+          optional(5, "some_nulls", StringType.get()),
+          optional(6, "no_nulls", StringType.get()),
+          optional(7, "struct_not_null", structFieldType),
+          optional(9, "not_in_file", FloatType.get()),
+          optional(10, "str", StringType.get()),
+          optional(
+              11,
+              "map_not_null",
+              Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get())),
+          optional(14, "all_nans", DoubleType.get()),
+          optional(15, "some_nans", FloatType.get()),
+          optional(16, "no_nans", DoubleType.get()));
 
   private static final Types.StructType _structFieldType =
       Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
 
-  private static final Schema FILE_SCHEMA = new Schema(
-      required(1, "_id", IntegerType.get()),
-      optional(2, "_no_stats_parquet", StringType.get()),
-      required(3, "_required", StringType.get()),
-      optional(4, "_all_nulls", DoubleType.get()),
-      optional(5, "_some_nulls", StringType.get()),
-      optional(6, "_no_nulls", StringType.get()),
-      optional(7, "_struct_not_null", _structFieldType),
-      optional(10, "_str", StringType.get()),
-      optional(14, "_all_nans", Types.DoubleType.get()),
-      optional(15, "_some_nans", FloatType.get()),
-      optional(16, "_no_nans", Types.DoubleType.get())
-  );
+  private static final Schema FILE_SCHEMA =
+      new Schema(
+          required(1, "_id", IntegerType.get()),
+          optional(2, "_no_stats_parquet", StringType.get()),
+          required(3, "_required", StringType.get()),
+          optional(4, "_all_nulls", DoubleType.get()),
+          optional(5, "_some_nulls", StringType.get()),
+          optional(6, "_no_nulls", StringType.get()),
+          optional(7, "_struct_not_null", _structFieldType),
+          optional(10, "_str", StringType.get()),
+          optional(14, "_all_nans", Types.DoubleType.get()),
+          optional(15, "_some_nans", FloatType.get()),
+          optional(16, "_no_nans", Types.DoubleType.get()));
 
   private static final String TOO_LONG_FOR_STATS_PARQUET;
 
@@ -156,8 +157,7 @@ public class TestMetricsRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createInputFile() throws IOException {
@@ -169,7 +169,8 @@ public class TestMetricsRowGroupFilter {
         createParquetInputFile();
         break;
       default:
-        throw new UnsupportedOperationException("Row group filter tests not supported for " + format);
+        throw new UnsupportedOperationException(
+            "Row group filter tests not supported for " + format);
     }
   }
 
@@ -178,16 +179,19 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue(orcFile.delete());
 
     OutputFile outFile = Files.localOutput(orcFile);
-    try (FileAppender<GenericRecord> appender = ORC.write(outFile)
-        .schema(FILE_SCHEMA)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    try (FileAppender<GenericRecord> appender =
+        ORC.write(outFile)
+            .schema(FILE_SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       GenericRecord record = GenericRecord.create(FILE_SCHEMA);
       // create 50 records
       for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
         record.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        record.setField("_no_stats_parquet", TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
-                                                                          // in Parquet, but will produce stats for ORC
+        record.setField(
+            "_no_stats_parquet",
+            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
+        // in Parquet, but will produce stats for ORC
         record.setField("_required", "req"); // required, always non-null
         record.setField("_all_nulls", null); // never non-null
         record.setField("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
@@ -206,8 +210,9 @@ public class TestMetricsRowGroupFilter {
     }
 
     InputFile inFile = Files.localInput(orcFile);
-    try (Reader reader = OrcFile.createReader(new Path(inFile.location()),
-        OrcFile.readerOptions(new Configuration()))) {
+    try (Reader reader =
+        OrcFile.createReader(
+            new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
       Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
     }
 
@@ -222,15 +227,15 @@ public class TestMetricsRowGroupFilter {
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
     OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<Record> appender = Parquet.write(outFile)
-        .schema(FILE_SCHEMA)
-        .build()) {
+    try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 50 records
       for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
         builder.set("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        builder.set("_no_stats_parquet", TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
-                                                                      // in Parquet
+        builder.set(
+            "_no_stats_parquet",
+            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
+        // in Parquet
         builder.set("_required", "req"); // required, always non-null
         builder.set("_all_nulls", null); // never non-null
         builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
@@ -305,7 +310,18 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(isNaN("no_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    switch (format) {
+      case ORC:
+        Assert.assertFalse(
+            "Should read 0 rows due to the ORC filter push-down feature", shouldRead);
+        break;
+      case PARQUET:
+        Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+        break;
+      default:
+        throw new UnsupportedOperationException(
+            "Row group filter tests not supported for " + format);
+    }
 
     shouldRead = shouldRead(isNaN("all_nulls"));
     Assert.assertFalse("Should skip: all null column will not contain nan value", shouldRead);
@@ -324,7 +340,6 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = shouldRead(notNaN("all_nulls"));
     Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
-
   }
 
   @Test
@@ -336,14 +351,14 @@ public class TestMetricsRowGroupFilter {
     Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
   }
 
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
+  @Rule public ExpectedException exceptionRule = ExpectedException.none();
 
   @Test
   public void testMissingColumn() {
     exceptionRule.expect(ValidationException.class);
     exceptionRule.expectMessage("Cannot find field 'missing'");
-    exceptionRule.reportMissingExceptionWithMessage("Should complain about missing column in expression");
+    exceptionRule.reportMissingExceptionWithMessage(
+        "Should complain about missing column in expression");
     shouldRead(lessThan("missing", 5));
   }
 
@@ -352,20 +367,19 @@ public class TestMetricsRowGroupFilter {
     Assume.assumeFalse(
         "If a column is not in file, ORC does NOT try to apply predicates assuming null values for the column",
         format == FileFormat.ORC);
-    Expression[] cannotMatch = new Expression[] {
-        lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
-        equal("not_in_file", 1.0f), greaterThan("not_in_file", 1.0f),
-        greaterThanOrEqual("not_in_file", 1.0f), notNull("not_in_file")
-    };
+    Expression[] cannotMatch =
+        new Expression[] {
+          lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
+          equal("not_in_file", 1.0f), greaterThan("not_in_file", 1.0f),
+          greaterThanOrEqual("not_in_file", 1.0f), notNull("not_in_file")
+        };
 
     for (Expression expr : cannotMatch) {
       boolean shouldRead = shouldRead(expr);
       Assert.assertFalse("Should skip when column is not in file (all nulls): " + expr, shouldRead);
     }
 
-    Expression[] canMatch = new Expression[] {
-        isNull("not_in_file"), notEqual("not_in_file", 1.0f)
-    };
+    Expression[] canMatch = new Expression[] {isNull("not_in_file"), notEqual("not_in_file", 1.0f)};
 
     for (Expression expr : canMatch) {
       boolean shouldRead = shouldRead(expr);
@@ -376,12 +390,19 @@ public class TestMetricsRowGroupFilter {
   @Test
   public void testMissingStatsParquet() {
     Assume.assumeTrue(format == FileFormat.PARQUET);
-    Expression[] exprs = new Expression[] {
-        lessThan("no_stats_parquet", "a"), lessThanOrEqual("no_stats_parquet", "b"), equal("no_stats_parquet", "c"),
-        greaterThan("no_stats_parquet", "d"), greaterThanOrEqual("no_stats_parquet", "e"),
-        notEqual("no_stats_parquet", "f"), isNull("no_stats_parquet"), notNull("no_stats_parquet"),
-        startsWith("no_stats_parquet", "a"), notStartsWith("no_stats_parquet", "a")
-    };
+    Expression[] exprs =
+        new Expression[] {
+          lessThan("no_stats_parquet", "a"),
+          lessThanOrEqual("no_stats_parquet", "b"),
+          equal("no_stats_parquet", "c"),
+          greaterThan("no_stats_parquet", "d"),
+          greaterThanOrEqual("no_stats_parquet", "e"),
+          notEqual("no_stats_parquet", "f"),
+          isNull("no_stats_parquet"),
+          notNull("no_stats_parquet"),
+          startsWith("no_stats_parquet", "a"),
+          notStartsWith("no_stats_parquet", "a")
+        };
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldRead(expr);
@@ -395,11 +416,17 @@ public class TestMetricsRowGroupFilter {
     BlockMetaData emptyBlock = new BlockMetaData();
     emptyBlock.setRowCount(0);
 
-    Expression[] exprs = new Expression[] {
-        lessThan("id", 5), lessThanOrEqual("id", 30), equal("id", 70), greaterThan("id", 78),
-        greaterThanOrEqual("id", 90), notEqual("id", 101), isNull("some_nulls"),
-        notNull("some_nulls")
-    };
+    Expression[] exprs =
+        new Expression[] {
+          lessThan("id", 5),
+          lessThanOrEqual("id", 30),
+          equal("id", 70),
+          greaterThan("id", 78),
+          greaterThanOrEqual("id", 90),
+          notEqual("id", 101),
+          isNull("some_nulls"),
+          notNull("some_nulls")
+        };
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldReadParquet(expr, true, parquetSchema, emptyBlock);
@@ -420,25 +447,33 @@ public class TestMetricsRowGroupFilter {
   @Test
   public void testAnd() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = shouldRead(and(lessThan("id", INT_MIN_VALUE - 25),
-        greaterThanOrEqual("id", INT_MIN_VALUE - 30)));
+    boolean shouldRead =
+        shouldRead(
+            and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MIN_VALUE - 30)));
     Assert.assertFalse("Should skip: and(false, true)", shouldRead);
 
-    shouldRead = shouldRead(and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
+    shouldRead =
+        shouldRead(
+            and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
     Assert.assertFalse("Should skip: and(false, false)", shouldRead);
 
-    shouldRead = shouldRead(and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)));
+    shouldRead =
+        shouldRead(
+            and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)));
     Assert.assertTrue("Should read: and(true, true)", shouldRead);
   }
 
   @Test
   public void testOr() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
-    boolean shouldRead = shouldRead(or(lessThan("id", INT_MIN_VALUE - 25),
-        greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
+    boolean shouldRead =
+        shouldRead(
+            or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
     Assert.assertFalse("Should skip: or(false, false)", shouldRead);
 
-    shouldRead = shouldRead(or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE - 19)));
+    shouldRead =
+        shouldRead(
+            or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE - 19)));
     Assert.assertTrue("Should read: or(false, true)", shouldRead);
   }
 
@@ -591,7 +626,8 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testStructFieldLtEq() {
-    boolean shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
+    boolean shouldRead =
+        shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
     Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 1));
@@ -621,7 +657,8 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testStructFieldGtEq() {
-    boolean shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
+    boolean shouldRead =
+        shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
     Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 1));
@@ -690,7 +727,8 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testStringStartsWith() {
-    Assume.assumeFalse("ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
+    Assume.assumeFalse(
+        "ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
     boolean shouldRead = shouldRead(startsWith("str", "1"));
     Assert.assertTrue("Should read: range matches", shouldRead);
 
@@ -721,7 +759,8 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testStringNotStartsWith() {
-    Assume.assumeFalse("ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
+    Assume.assumeFalse(
+        "ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
     boolean shouldRead = shouldRead(notStartsWith("str", "1"));
     Assert.assertTrue("Should read: range matches", shouldRead);
 
@@ -765,7 +804,8 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+    Assert.assertTrue(
+        "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
     Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
@@ -798,7 +838,8 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    Assert.assertTrue("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+    Assert.assertTrue(
+        "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
     Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
@@ -817,7 +858,8 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = shouldRead(notIn("no_nulls", "aaa", ""));
     if (format == FileFormat.PARQUET) {
-      // no_nulls column has all values == "", so notIn("no_nulls", "") should always be false and so should be skipped
+      // no_nulls column has all values == "", so notIn("no_nulls", "") should always be false and
+      // so should be skipped
       // However, the metrics evaluator in Parquets always reads row group for a notIn filter
       Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
     } else {
@@ -851,8 +893,9 @@ public class TestMetricsRowGroupFilter {
   public void testParquetTypePromotion() {
     Assume.assumeTrue("Only valid for Parquet", format == FileFormat.PARQUET);
     Schema promotedSchema = new Schema(required(1, "id", Types.LongType.get()));
-    boolean shouldRead = new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
-        .shouldRead(parquetSchema, rowGroupMetadata);
+    boolean shouldRead =
+        new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
+            .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should succeed with promoted schema", shouldRead);
   }
 
@@ -867,24 +910,29 @@ public class TestMetricsRowGroupFilter {
       case PARQUET:
         return shouldReadParquet(expression, caseSensitive, parquetSchema, rowGroupMetadata);
       default:
-        throw new UnsupportedOperationException("Row group filter tests not supported for " + format);
+        throw new UnsupportedOperationException(
+            "Row group filter tests not supported for " + format);
     }
   }
 
   private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
-    try (CloseableIterable<org.apache.iceberg.data.Record> reader = ORC.read(Files.localInput(orcFile))
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
-        .filter(expression)
-        .caseSensitive(caseSensitive)
-        .build()) {
+    try (CloseableIterable<org.apache.iceberg.data.Record> reader =
+        ORC.read(Files.localInput(orcFile))
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .filter(expression)
+            .caseSensitive(caseSensitive)
+            .build()) {
       return Lists.newArrayList(reader).size() > 0;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
 
-  private boolean shouldReadParquet(Expression expression, boolean caseSensitive, MessageType messageType,
+  private boolean shouldReadParquet(
+      Expression expression,
+      boolean caseSensitive,
+      MessageType messageType,
       BlockMetaData blockMetaData) {
     return new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive)
         .shouldRead(messageType, blockMetaData);

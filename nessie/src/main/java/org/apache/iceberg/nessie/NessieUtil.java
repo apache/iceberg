@@ -16,21 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.JsonUtil;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
+import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
 
 public final class NessieUtil {
@@ -38,8 +47,7 @@ public final class NessieUtil {
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
   static final String APPLICATION_TYPE = "application-type";
 
-  private NessieUtil() {
-  }
+  private NessieUtil() {}
 
   static TableIdentifier removeCatalogName(TableIdentifier to, String name) {
 
@@ -68,25 +76,60 @@ public final class NessieUtil {
     return catalogOptions(CommitMeta.builder().message(commitMsg), catalogOptions).build();
   }
 
-  static ImmutableCommitMeta.Builder catalogOptions(ImmutableCommitMeta.Builder commitMetaBuilder,
-      Map<String, String> catalogOptions) {
+  static ImmutableCommitMeta.Builder catalogOptions(
+      ImmutableCommitMeta.Builder commitMetaBuilder, Map<String, String> catalogOptions) {
     Preconditions.checkArgument(null != catalogOptions, "catalogOptions must not be null");
     commitMetaBuilder.author(NessieUtil.commitAuthor(catalogOptions));
     commitMetaBuilder.putProperties(APPLICATION_TYPE, "iceberg");
     if (catalogOptions.containsKey(CatalogProperties.APP_ID)) {
-      commitMetaBuilder.putProperties(CatalogProperties.APP_ID, catalogOptions.get(CatalogProperties.APP_ID));
+      commitMetaBuilder.putProperties(
+          CatalogProperties.APP_ID, catalogOptions.get(CatalogProperties.APP_ID));
     }
     return commitMetaBuilder;
   }
 
   /**
    * @param catalogOptions The options where to look for the <b>user</b>
-   * @return The author that can be used for a commit, which is either the <b>user</b> from the given
-   * <code>catalogOptions</code> or the logged in user as defined in the <b>user.name</b> JVM properties.
+   * @return The author that can be used for a commit, which is either the <b>user</b> from the
+   *     given <code>catalogOptions</code> or the logged in user as defined in the <b>user.name</b>
+   *     JVM properties.
    */
   @Nullable
   private static String commitAuthor(Map<String, String> catalogOptions) {
     return Optional.ofNullable(catalogOptions.get(CatalogProperties.USER))
         .orElseGet(() -> System.getProperty("user.name"));
+  }
+
+  static TableMetadata tableMetadataFromIcebergTable(
+      FileIO io, IcebergTable table, String metadataLocation) {
+    TableMetadata deserialized;
+    if (table.getMetadata() != null) {
+      String jsonString;
+      try (StringWriter writer = new StringWriter()) {
+        try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+          generator.writeObject(table.getMetadata().getMetadata());
+        }
+        jsonString = writer.toString();
+      } catch (IOException e) {
+        throw new RuntimeException("Failed to generate JSON string from metadata", e);
+      }
+      deserialized = TableMetadataParser.fromJson(metadataLocation, jsonString);
+    } else {
+      deserialized = TableMetadataParser.read(io, metadataLocation);
+    }
+    return deserialized;
+  }
+
+  static JsonNode tableMetadataAsJsonNode(TableMetadata metadata) {
+    JsonNode newMetadata;
+    try {
+      String jsonString = TableMetadataParser.toJson(metadata);
+      try (JsonParser parser = JsonUtil.factory().createParser(jsonString)) {
+        newMetadata = parser.readValueAs(JsonNode.class);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return newMetadata;
   }
 }

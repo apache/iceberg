@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
-/**
- * A {@link Table} implementation that exposes a table's data files as rows.
- */
+/** A {@link Table} implementation that exposes a table's data files as rows. */
 public class DataFilesTable extends BaseFilesTable {
 
   DataFilesTable(TableOperations ops, Table table) {
@@ -46,22 +43,23 @@ public class DataFilesTable extends BaseFilesTable {
 
   public static class DataFilesTableScan extends BaseFilesTableScan {
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.DATA_FILES);
+    DataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema, MetadataTableType.DATA_FILES);
     }
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.DATA_FILES);
+    DataFilesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, MetadataTableType.DATA_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, fileSchema(), context);
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new DataFilesTableScan(ops, table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().dataManifests());
+      return CloseableIterable.withNoopClose(snapshot().dataManifests(tableOps().io()));
     }
   }
 }

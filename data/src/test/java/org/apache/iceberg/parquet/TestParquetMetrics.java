@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.File;
@@ -41,17 +40,15 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-/**
- * Test Metrics for Parquet.
- */
+/** Test Metrics for Parquet. */
 @RunWith(Parameterized.class)
 public class TestParquetMetrics extends TestMetrics {
-  private static final Map<String, String> SMALL_ROW_GROUP_CONFIG = ImmutableMap.of(
-      TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1600");
+  private static final Map<String, String> SMALL_ROW_GROUP_CONFIG =
+      ImmutableMap.of(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1600");
 
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestParquetMetrics(int formatVersion) {
@@ -76,18 +73,25 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @Override
-  public Metrics getMetrics(Schema schema, MetricsConfig metricsConfig, Record... records) throws IOException {
+  public Metrics getMetrics(Schema schema, MetricsConfig metricsConfig, Record... records)
+      throws IOException {
     return getMetrics(schema, createOutputFile(), ImmutableMap.of(), metricsConfig, records);
   }
 
-  private Metrics getMetrics(Schema schema, OutputFile file, Map<String, String> properties,
-                             MetricsConfig metricsConfig, Record... records) throws IOException {
-    FileAppender<Record> writer = Parquet.write(file)
-        .schema(schema)
-        .setAll(properties)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .metricsConfig(metricsConfig)
-        .build();
+  private Metrics getMetrics(
+      Schema schema,
+      OutputFile file,
+      Map<String, String> properties,
+      MetricsConfig metricsConfig,
+      Record... records)
+      throws IOException {
+    FileAppender<Record> writer =
+        Parquet.write(file)
+            .schema(schema)
+            .setAll(properties)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .metricsConfig(metricsConfig)
+            .build();
     try (FileAppender<Record> appender = writer) {
       appender.addAll(Lists.newArrayList(records));
     }
@@ -97,7 +101,8 @@ public class TestParquetMetrics extends TestMetrics {
   @Override
   protected Metrics getMetricsForRecordsWithSmallRowGroups(
       Schema schema, OutputFile outputFile, Record... records) throws IOException {
-    return getMetrics(schema, outputFile, SMALL_ROW_GROUP_CONFIG, MetricsConfig.getDefault(), records);
+    return getMetrics(
+        schema, outputFile, SMALL_ROW_GROUP_CONFIG, MetricsConfig.getDefault(), records);
   }
 
   @Override

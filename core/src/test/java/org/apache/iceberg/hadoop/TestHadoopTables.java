@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
+
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,20 +47,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.NullOrder.NULLS_FIRST;
-import static org.apache.iceberg.SortDirection.ASC;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestHadoopTables {
 
   private static final HadoopTables TABLES = new HadoopTables();
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get(), "unique ID"),
-      required(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "data", Types.StringType.get()));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private File tableDir = null;
 
   @Before
@@ -68,9 +66,7 @@ public class TestHadoopTables {
   @Test
   public void testTableExists() {
     Assert.assertFalse(TABLES.exists(tableDir.toURI().toString()));
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-            .bucket("data", 16)
-            .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
     Assert.assertTrue(TABLES.exists(tableDir.toURI().toString()));
   }
@@ -80,8 +76,10 @@ public class TestHadoopTables {
     TABLES.create(SCHEMA, tableDir.toURI().toString());
     TABLES.dropTable(tableDir.toURI().toString());
     AssertHelpers.assertThrows(
-        "Should complain about missing table", NoSuchTableException.class,
-        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+        "Should complain about missing table",
+        NoSuchTableException.class,
+        "Table does not exist",
+        () -> TABLES.load(tableDir.toURI().toString()));
   }
 
   @Test
@@ -92,8 +90,10 @@ public class TestHadoopTables {
 
     TABLES.dropTable(tableDir.toURI().toString(), true);
     AssertHelpers.assertThrows(
-        "Should complain about missing table", NoSuchTableException.class,
-        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+        "Should complain about missing table",
+        NoSuchTableException.class,
+        "Table does not exist",
+        () -> TABLES.load(tableDir.toURI().toString()));
 
     Assert.assertEquals(0, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
@@ -109,8 +109,10 @@ public class TestHadoopTables {
 
     TABLES.dropTable(tableDir.toURI().toString(), false);
     AssertHelpers.assertThrows(
-        "Should complain about missing table", NoSuchTableException.class,
-        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+        "Should complain about missing table",
+        NoSuchTableException.class,
+        "Table does not exist",
+        () -> TABLES.load(tableDir.toURI().toString()));
 
     Assert.assertEquals(1, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
@@ -120,9 +122,7 @@ public class TestHadoopTables {
 
   @Test
   public void testDefaultSortOrder() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .bucket("data", 16)
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
@@ -132,28 +132,24 @@ public class TestHadoopTables {
 
   @Test
   public void testCustomSortOrder() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .bucket("data", 16)
-        .build();
-    SortOrder order = SortOrder.builderFor(SCHEMA)
-        .asc("id", NULLS_FIRST)
-        .build();
-    Table table = TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
+    SortOrder order = SortOrder.builderFor(SCHEMA).asc("id", NULLS_FIRST).build();
+    Table table =
+        TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
     Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
     Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
-    Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
-    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Assert.assertEquals(
+        "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    Transform<?, ?> transform = Transforms.identity();
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
   @Test
   public void testTableName() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .bucket("data", 16)
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     String location = tableDir.toURI().toString();
     TABLES.create(SCHEMA, spec, location);
 
@@ -169,11 +165,12 @@ public class TestHadoopTables {
     AppendFiles append = table.newAppend();
     String data = dataDir.getPath() + "/data.parquet";
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
-    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withPath(data)
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(data)
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
     append.appendFile(dataFile);
     append.commit();
 

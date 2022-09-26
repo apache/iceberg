@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -33,6 +31,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 /**
  * Parses external name mappings from a JSON representation.
+ *
  * <pre>
  * [ { "field-id": 1, "names": ["id", "record_id"] },
  *   { "field-id": 2, "names": ["data"] },
@@ -44,24 +43,14 @@ import org.apache.iceberg.util.JsonUtil;
  */
 public class NameMappingParser {
 
-  private NameMappingParser() {
-  }
+  private NameMappingParser() {}
 
   private static final String FIELD_ID = "field-id";
   private static final String NAMES = "names";
   private static final String FIELDS = "fields";
 
   public static String toJson(NameMapping mapping) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
-      toJson(mapping, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", mapping);
-    }
+    return JsonUtil.generate(gen -> toJson(mapping, gen), true);
   }
 
   static void toJson(NameMapping nameMapping, JsonGenerator generator) throws IOException {
@@ -120,8 +109,10 @@ public class NameMappingParser {
   }
 
   private static MappedField fieldFromJson(JsonNode node) {
-    Preconditions.checkArgument(node != null && !node.isNull() && node.isObject(),
-        "Cannot parse non-object mapping field: %s", node);
+    Preconditions.checkArgument(
+        node != null && !node.isNull() && node.isObject(),
+        "Cannot parse non-object mapping field: %s",
+        node);
 
     Integer id = JsonUtil.getIntOrNull(FIELD_ID, node);
 

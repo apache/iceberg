@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -24,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -37,8 +35,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SchemaParser {
 
-  private SchemaParser() {
-  }
+  private SchemaParser() {}
 
   private static final String SCHEMA_ID = "schema-id";
   private static final String IDENTIFIER_FIELD_IDS = "identifier-field-ids";
@@ -64,8 +61,12 @@ public class SchemaParser {
     toJson(struct, null, null, generator);
   }
 
-  private static void toJson(Types.StructType struct, Integer schemaId, Set<Integer> identifierFieldIds,
-                             JsonGenerator generator) throws IOException {
+  private static void toJson(
+      Types.StructType struct,
+      Integer schemaId,
+      Set<Integer> identifierFieldIds,
+      JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(TYPE, STRUCT);
@@ -163,33 +164,25 @@ public class SchemaParser {
   }
 
   public static String toJson(Schema schema, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(
+        gen -> toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), gen),
+        pretty);
   }
 
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
       return Types.fromPrimitiveString(json.asText());
-
     } else if (json.isObject()) {
-      String type = json.get(TYPE).asText();
-      if (STRUCT.equals(type)) {
-        return structFromJson(json);
-      } else if (LIST.equals(type)) {
-        return listFromJson(json);
-      } else if (MAP.equals(type)) {
-        return mapFromJson(json);
+      JsonNode typeObj = json.get(TYPE);
+      if (typeObj != null) {
+        String type = typeObj.asText();
+        if (STRUCT.equals(type)) {
+          return structFromJson(json);
+        } else if (LIST.equals(type)) {
+          return listFromJson(json);
+        } else if (MAP.equals(type)) {
+          return mapFromJson(json);
+        }
       }
     }
 
@@ -197,20 +190,20 @@ public class SchemaParser {
   }
 
   private static Types.StructType structFromJson(JsonNode json) {
-    JsonNode fieldArray = json.get(FIELDS);
-    Preconditions.checkArgument(fieldArray.isArray(),
-        "Cannot parse struct fields from non-array: %s", fieldArray);
+    JsonNode fieldArray = JsonUtil.get(FIELDS, json);
+    Preconditions.checkArgument(
+        fieldArray.isArray(), "Cannot parse struct fields from non-array: %s", fieldArray);
 
     List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(fieldArray.size());
     Iterator<JsonNode> iterator = fieldArray.elements();
     while (iterator.hasNext()) {
       JsonNode field = iterator.next();
-      Preconditions.checkArgument(field.isObject(),
-          "Cannot parse struct field from non-object: %s", field);
+      Preconditions.checkArgument(
+          field.isObject(), "Cannot parse struct field from non-object: %s", field);
 
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
-      Type type = typeFromJson(field.get(TYPE));
+      Type type = typeFromJson(JsonUtil.get(TYPE, field));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
@@ -224,10 +217,9 @@ public class SchemaParser {
     return Types.StructType.of(fields);
   }
 
-
   private static Types.ListType listFromJson(JsonNode json) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
-    Type elementType = typeFromJson(json.get(ELEMENT));
+    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json));
     boolean isRequired = JsonUtil.getBool(ELEMENT_REQUIRED, json);
 
     if (isRequired) {
@@ -239,10 +231,10 @@ public class SchemaParser {
 
   private static Types.MapType mapFromJson(JsonNode json) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
-    Type keyType = typeFromJson(json.get(KEY));
+    Type keyType = typeFromJson(JsonUtil.get(KEY, json));
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
-    Type valueType = typeFromJson(json.get(VALUE));
+    Type valueType = typeFromJson(JsonUtil.get(VALUE, json));
 
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
 
@@ -254,9 +246,11 @@ public class SchemaParser {
   }
 
   public static Schema fromJson(JsonNode json) {
-    Type type  = typeFromJson(json);
-    Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
-        "Cannot create schema, not a struct type: %s", type);
+    Type type = typeFromJson(json);
+    Preconditions.checkArgument(
+        type.isNestedType() && type.asNestedType().isStructType(),
+        "Cannot create schema, not a struct type: %s",
+        type);
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
     Set<Integer> identifierFieldIds = JsonUtil.getIntegerSetOrNull(IDENTIFIER_FIELD_IDS, json);
 
@@ -267,17 +261,18 @@ public class SchemaParser {
     }
   }
 
-  private static final Cache<String, Schema> SCHEMA_CACHE = Caffeine.newBuilder()
-      .weakValues()
-      .build();
+  private static final Cache<String, Schema> SCHEMA_CACHE =
+      Caffeine.newBuilder().weakValues().build();
 
   public static Schema fromJson(String json) {
-    return SCHEMA_CACHE.get(json, jsonKey -> {
-      try {
-        return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
-      }
-    });
+    return SCHEMA_CACHE.get(
+        json,
+        jsonKey -> {
+          try {
+            return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
+          } catch (IOException e) {
+            throw new RuntimeIOException(e);
+          }
+        });
   }
 }

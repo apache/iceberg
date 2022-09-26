@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Collection;
@@ -25,13 +24,13 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.LoggingScanReporter;
+import org.apache.iceberg.metrics.ScanReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
-/**
- * Context object with optional arguments for a TableScan.
- */
+/** Context object with optional arguments for a TableScan. */
 final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
@@ -44,6 +43,8 @@ final class TableScanContext {
   private final Long fromSnapshotId;
   private final Long toSnapshotId;
   private final ExecutorService planExecutor;
+  private final boolean fromSnapshotInclusive;
+  private final ScanReporter scanReporter;
 
   TableScanContext() {
     this.snapshotId = null;
@@ -57,12 +58,24 @@ final class TableScanContext {
     this.fromSnapshotId = null;
     this.toSnapshotId = null;
     this.planExecutor = null;
+    this.fromSnapshotInclusive = false;
+    this.scanReporter = new LoggingScanReporter();
   }
 
-  private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
-                           boolean caseSensitive, boolean colStats, Schema projectedSchema,
-                           Collection<String> selectedColumns, ImmutableMap<String, String> options,
-                           Long fromSnapshotId, Long toSnapshotId, ExecutorService planExecutor) {
+  private TableScanContext(
+      Long snapshotId,
+      Expression rowFilter,
+      boolean ignoreResiduals,
+      boolean caseSensitive,
+      boolean colStats,
+      Schema projectedSchema,
+      Collection<String> selectedColumns,
+      ImmutableMap<String, String> options,
+      Long fromSnapshotId,
+      Long toSnapshotId,
+      ExecutorService planExecutor,
+      boolean fromSnapshotInclusive,
+      ScanReporter scanReporter) {
     this.snapshotId = snapshotId;
     this.rowFilter = rowFilter;
     this.ignoreResiduals = ignoreResiduals;
@@ -74,6 +87,8 @@ final class TableScanContext {
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
     this.planExecutor = planExecutor;
+    this.fromSnapshotInclusive = fromSnapshotInclusive;
+    this.scanReporter = scanReporter;
   }
 
   Long snapshotId() {
@@ -81,9 +96,20 @@ final class TableScanContext {
   }
 
   TableScanContext useSnapshotId(Long scanSnapshotId) {
-    return new TableScanContext(scanSnapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        scanSnapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   Expression rowFilter() {
@@ -91,9 +117,20 @@ final class TableScanContext {
   }
 
   TableScanContext filterRows(Expression filter) {
-    return new TableScanContext(snapshotId, filter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        filter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   boolean ignoreResiduals() {
@@ -101,9 +138,20 @@ final class TableScanContext {
   }
 
   TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {
-    return new TableScanContext(snapshotId, rowFilter, shouldIgnoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        shouldIgnoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   boolean caseSensitive() {
@@ -111,9 +159,20 @@ final class TableScanContext {
   }
 
   TableScanContext setCaseSensitive(boolean isCaseSensitive) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        isCaseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        isCaseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   boolean returnColumnStats() {
@@ -121,9 +180,20 @@ final class TableScanContext {
   }
 
   TableScanContext shouldReturnColumnStats(boolean returnColumnStats) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, returnColumnStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        returnColumnStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   Collection<String> selectedColumns() {
@@ -131,10 +201,22 @@ final class TableScanContext {
   }
 
   TableScanContext selectColumns(Collection<String> columns) {
-    Preconditions.checkState(projectedSchema == null, "Cannot select columns when projection schema is set");
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, null, columns, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    Preconditions.checkState(
+        projectedSchema == null, "Cannot select columns when projection schema is set");
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        null,
+        columns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   Schema projectedSchema() {
@@ -142,10 +224,22 @@ final class TableScanContext {
   }
 
   TableScanContext project(Schema schema) {
-    Preconditions.checkState(selectedColumns == null, "Cannot set projection schema when columns are selected");
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, schema, null, options, fromSnapshotId, toSnapshotId,
-        planExecutor);
+    Preconditions.checkState(
+        selectedColumns == null, "Cannot set projection schema when columns are selected");
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        schema,
+        null,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   Map<String, String> options() {
@@ -156,19 +250,62 @@ final class TableScanContext {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
     builder.putAll(options);
     builder.put(property, value);
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        builder.build(),
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   Long fromSnapshotId() {
     return fromSnapshotId;
   }
 
-  TableScanContext fromSnapshotId(long id) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, id, toSnapshotId,
-        planExecutor);
+  TableScanContext fromSnapshotIdExclusive(long id) {
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        id,
+        toSnapshotId,
+        planExecutor,
+        false,
+        scanReporter);
+  }
+
+  TableScanContext fromSnapshotIdInclusive(long id) {
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        id,
+        toSnapshotId,
+        planExecutor,
+        true,
+        scanReporter);
+  }
+
+  boolean fromSnapshotInclusive() {
+    return fromSnapshotInclusive;
   }
 
   Long toSnapshotId() {
@@ -176,9 +313,20 @@ final class TableScanContext {
   }
 
   TableScanContext toSnapshotId(long id) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, id,
-        planExecutor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        id,
+        planExecutor,
+        fromSnapshotInclusive,
+        scanReporter);
   }
 
   ExecutorService planExecutor() {
@@ -190,8 +338,40 @@ final class TableScanContext {
   }
 
   TableScanContext planWith(ExecutorService executor) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId,
-        executor);
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        executor,
+        fromSnapshotInclusive,
+        scanReporter);
+  }
+
+  ScanReporter scanReporter() {
+    return scanReporter;
+  }
+
+  TableScanContext reportWith(ScanReporter reporter) {
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        reporter);
   }
 }

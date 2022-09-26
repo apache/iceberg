@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSS;
@@ -42,8 +41,7 @@ import org.junit.Test;
 
 public class TestLocalAliyunOSS {
 
-  @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
+  @ClassRule public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
   private final String bucketName = OSS_TEST_RULE.testBucketName();
@@ -70,7 +68,8 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testBuckets() {
-    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+    Assume.assumeTrue(
+        "Aliyun integration test cannot delete existing bucket from test environment.",
         OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
 
     Assert.assertTrue(doesBucketExist(bucketName));
@@ -85,7 +84,8 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testDeleteBucket() {
-    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+    Assume.assumeTrue(
+        "Aliyun integration test cannot delete existing bucket from test environment.",
         OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
@@ -116,7 +116,8 @@ public class TestLocalAliyunOSS {
     random.nextBytes(bytes);
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
-    assertThrows(() -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
+    assertThrows(
+        () -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     PutObjectResult result = oss.putObject(bucketName, "object", wrap(bytes));
     Assert.assertEquals(AliyunOSSMockLocalStore.md5sum(wrap(bytes)), result.getETag());

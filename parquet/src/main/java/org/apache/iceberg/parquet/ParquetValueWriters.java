@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.lang.reflect.Array;
@@ -45,12 +44,10 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
 
 public class ParquetValueWriters {
-  private ParquetValueWriters() {
-  }
+  private ParquetValueWriters() {}
 
-  public static <T> ParquetValueWriter<T> option(Type type,
-                                                 int definitionLevel,
-                                                 ParquetValueWriter<T> writer) {
+  public static <T> ParquetValueWriter<T> option(
+      Type type, int definitionLevel, ParquetValueWriter<T> writer) {
     if (type.isRepetition(Type.Repetition.OPTIONAL)) {
       return new OptionWriter<>(definitionLevel, writer);
     }
@@ -90,18 +87,18 @@ public class ParquetValueWriters {
     return new StringWriter(desc);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsInteger(ColumnDescriptor desc,
-                                                             int precision, int scale) {
+  public static PrimitiveWriter<BigDecimal> decimalAsInteger(
+      ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsLong(ColumnDescriptor desc,
-                                                          int precision, int scale) {
+  public static PrimitiveWriter<BigDecimal> decimalAsLong(
+      ColumnDescriptor desc, int precision, int scale) {
     return new LongDecimalWriter(desc, precision, scale);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsFixed(ColumnDescriptor desc,
-                                                           int precision, int scale) {
+  public static PrimitiveWriter<BigDecimal> decimalAsFixed(
+      ColumnDescriptor desc, int precision, int scale) {
     return new FixedDecimalWriter(desc, precision, scale);
   }
 
@@ -113,15 +110,15 @@ public class ParquetValueWriters {
     return new CollectionWriter<>(dl, rl, writer);
   }
 
-  public static <K, V> MapWriter<K, V> maps(int dl, int rl,
-                                            ParquetValueWriter<K> keyWriter,
-                                            ParquetValueWriter<V> valueWriter) {
+  public static <K, V> MapWriter<K, V> maps(
+      int dl, int rl, ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter) {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
     @SuppressWarnings("checkstyle:VisibilityModifier")
     protected final ColumnWriter<T> column;
+
     private final List<TripleWriter<?>> children;
 
     protected PrimitiveWriter(ColumnDescriptor desc) {
@@ -158,7 +155,7 @@ public class ParquetValueWriters {
       column.writeInteger(repetitionLevel, value);
     }
 
-    public void writeLong(int repetitionLevel, long  value) {
+    public void writeLong(int repetitionLevel, long value) {
       column.writeLong(repetitionLevel, value);
     }
 
@@ -247,10 +244,18 @@ public class ParquetValueWriters {
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
+      Preconditions.checkArgument(
+          decimal.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          decimal);
+      Preconditions.checkArgument(
+          decimal.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          decimal);
 
       column.writeInteger(repetitionLevel, decimal.unscaledValue().intValue());
     }
@@ -268,10 +273,18 @@ public class ParquetValueWriters {
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
+      Preconditions.checkArgument(
+          decimal.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          decimal);
+      Preconditions.checkArgument(
+          decimal.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          decimal);
 
       column.writeLong(repetitionLevel, decimal.unscaledValue().longValue());
     }
@@ -286,7 +299,8 @@ public class ParquetValueWriters {
       super(desc);
       this.precision = precision;
       this.scale = scale;
-      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
+      this.bytes =
+          ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
@@ -316,8 +330,8 @@ public class ParquetValueWriters {
     public void write(int repetitionLevel, CharSequence value) {
       if (value instanceof Utf8) {
         Utf8 utf8 = (Utf8) value;
-        column.writeBinary(repetitionLevel,
-            Binary.fromReusedByteArray(utf8.getBytes(), 0, utf8.getByteLength()));
+        column.writeBinary(
+            repetitionLevel, Binary.fromReusedByteArray(utf8.getBytes(), 0, utf8.getByteLength()));
       } else {
         column.writeBinary(repetitionLevel, Binary.fromString(value.toString()));
       }
@@ -362,7 +376,8 @@ public class ParquetValueWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       if (writer instanceof PrimitiveWriter) {
-        List<FieldMetrics<?>> fieldMetricsFromWriter = writer.metrics().collect(Collectors.toList());
+        List<FieldMetrics<?>> fieldMetricsFromWriter =
+            writer.metrics().collect(Collectors.toList());
 
         if (fieldMetricsFromWriter.size() == 0) {
           // we are not tracking field metrics for this type ourselves
@@ -370,19 +385,24 @@ public class ParquetValueWriters {
         } else if (fieldMetricsFromWriter.size() == 1) {
           FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
           return Stream.of(
-              new FieldMetrics<>(metrics.id(),
-                  metrics.valueCount() + nullValueCount, nullValueCount,
-                  metrics.nanValueCount(), metrics.lowerBound(), metrics.upperBound())
-          );
+              new FieldMetrics<>(
+                  metrics.id(),
+                  metrics.valueCount() + nullValueCount,
+                  nullValueCount,
+                  metrics.nanValueCount(),
+                  metrics.lowerBound(),
+                  metrics.upperBound()));
         } else {
-          throw new IllegalStateException(String.format(
-              "OptionWriter should only expect at most one field metric from a primitive writer." +
-                  "Current number of fields: %s, primitive writer type: %s",
-              fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
+          throw new IllegalStateException(
+              String.format(
+                  "OptionWriter should only expect at most one field metric from a primitive writer."
+                      + "Current number of fields: %s, primitive writer type: %s",
+                  fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
         }
       }
 
-      // skipping updating null stats for non-primitive types since we don't use them today, to avoid unnecessary work
+      // skipping updating null stats for non-primitive types since we don't use them today, to
+      // avoid unnecessary work
       return writer.metrics();
     }
   }
@@ -393,8 +413,8 @@ public class ParquetValueWriters {
     private final ParquetValueWriter<E> writer;
     private final List<TripleWriter<?>> children;
 
-    protected RepeatedWriter(int definitionLevel, int repetitionLevel,
-                             ParquetValueWriter<E> writer) {
+    protected RepeatedWriter(
+        int definitionLevel, int repetitionLevel, ParquetValueWriter<E> writer) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.writer = writer;
@@ -447,8 +467,8 @@ public class ParquetValueWriters {
   }
 
   private static class CollectionWriter<E> extends RepeatedWriter<Collection<E>, E> {
-    private CollectionWriter(int definitionLevel, int repetitionLevel,
-                             ParquetValueWriter<E> writer) {
+    private CollectionWriter(
+        int definitionLevel, int repetitionLevel, ParquetValueWriter<E> writer) {
       super(definitionLevel, repetitionLevel, writer);
     }
 
@@ -465,17 +485,20 @@ public class ParquetValueWriters {
     private final ParquetValueWriter<V> valueWriter;
     private final List<TripleWriter<?>> children;
 
-    protected RepeatedKeyValueWriter(int definitionLevel, int repetitionLevel,
-                                     ParquetValueWriter<K> keyWriter,
-                                     ParquetValueWriter<V> valueWriter) {
+    protected RepeatedKeyValueWriter(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueWriter<K> keyWriter,
+        ParquetValueWriter<V> valueWriter) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
-      this.children = ImmutableList.<TripleWriter<?>>builder()
-          .addAll(keyWriter.columns())
-          .addAll(valueWriter.columns())
-          .build();
+      this.children =
+          ImmutableList.<TripleWriter<?>>builder()
+              .addAll(keyWriter.columns())
+              .addAll(valueWriter.columns())
+              .build();
     }
 
     @Override
@@ -525,8 +548,11 @@ public class ParquetValueWriters {
   }
 
   private static class MapWriter<K, V> extends RepeatedKeyValueWriter<Map<K, V>, K, V> {
-    private MapWriter(int definitionLevel, int repetitionLevel,
-                      ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter) {
+    private MapWriter(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueWriter<K> keyWriter,
+        ParquetValueWriter<V> valueWriter) {
       super(definitionLevel, repetitionLevel, keyWriter, valueWriter);
     }
 
@@ -542,8 +568,9 @@ public class ParquetValueWriters {
 
     @SuppressWarnings("unchecked")
     protected StructWriter(List<ParquetValueWriter<?>> writers) {
-      this.writers = (ParquetValueWriter<Object>[]) Array.newInstance(
-          ParquetValueWriter.class, writers.size());
+      this.writers =
+          (ParquetValueWriter<Object>[])
+              Array.newInstance(ParquetValueWriter.class, writers.size());
 
       ImmutableList.Builder<TripleWriter<?>> columnsBuilder = ImmutableList.builder();
       for (int i = 0; i < writers.size(); i += 1) {
@@ -586,7 +613,8 @@ public class ParquetValueWriters {
   public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {
     private final Function<CharSequence, ?> pathTransformFunc;
 
-    public PositionDeleteStructWriter(StructWriter<?> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
+    public PositionDeleteStructWriter(
+        StructWriter<?> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
       super(Arrays.asList(replacedWriter.writers));
       this.pathTransformFunc = pathTransformFunc;
     }

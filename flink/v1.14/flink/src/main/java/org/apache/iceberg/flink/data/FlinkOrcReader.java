@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
@@ -44,7 +43,8 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
   }
 
   public FlinkOrcReader(Schema iSchema, TypeDescription readSchema, Map<Integer, ?> idToConstant) {
-    this.reader = OrcSchemaWithTypeVisitor.visit(iSchema, readSchema, new ReadBuilder(idToConstant));
+    this.reader =
+        OrcSchemaWithTypeVisitor.visit(iSchema, readSchema, new ReadBuilder(idToConstant));
   }
 
   @Override
@@ -65,21 +65,26 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
     }
 
     @Override
-    public OrcValueReader<RowData> record(Types.StructType iStruct, TypeDescription record, List<String> names,
-                                          List<OrcValueReader<?>> fields) {
+    public OrcValueReader<RowData> record(
+        Types.StructType iStruct,
+        TypeDescription record,
+        List<String> names,
+        List<OrcValueReader<?>> fields) {
       return FlinkOrcReaders.struct(fields, iStruct, idToConstant);
     }
 
     @Override
-    public OrcValueReader<ArrayData> list(Types.ListType iList, TypeDescription array,
-                                          OrcValueReader<?> elementReader) {
+    public OrcValueReader<ArrayData> list(
+        Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
       return FlinkOrcReaders.array(elementReader);
     }
 
     @Override
-    public OrcValueReader<MapData> map(Types.MapType iMap, TypeDescription map,
-                                       OrcValueReader<?> keyReader,
-                                       OrcValueReader<?> valueReader) {
+    public OrcValueReader<MapData> map(
+        Types.MapType iMap,
+        TypeDescription map,
+        OrcValueReader<?> keyReader,
+        OrcValueReader<?> valueReader) {
       return FlinkOrcReaders.map(keyReader, valueReader);
     }
 
@@ -117,8 +122,9 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return FlinkOrcReaders.decimals(decimalType.precision(), decimalType.scale());
         default:
-          throw new IllegalArgumentException(String.format("Invalid iceberg type %s corresponding to ORC type %s",
-              iPrimitive, primitive));
+          throw new IllegalArgumentException(
+              String.format(
+                  "Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
       }
     }
   }

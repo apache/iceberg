@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.util.Map;
@@ -34,6 +33,10 @@ public class ResourcePaths {
 
   public static String config() {
     return "v1/config";
+  }
+
+  public static String tokens() {
+    return "v1/oauth/tokens";
   }
 
   private final String prefix;
@@ -60,7 +63,15 @@ public class ResourcePaths {
 
   public String table(TableIdentifier ident) {
     return SLASH.join(
-        "v1", prefix, "namespaces", RESTUtil.encodeNamespace(ident.namespace()), "tables",
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
         RESTUtil.encodeString(ident.name()));
+  }
+
+  public String rename() {
+    return SLASH.join("v1", prefix, "tables", "rename");
   }
 }

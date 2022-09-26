@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
@@ -28,26 +27,33 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
 /**
+ * A REST response that is used when a table is successfully loaded.
  *
+ * <p>This class is used whenever the response to a request is a table's requested metadata and the
+ * associated location of its metadata, to reduce code duplication. This includes using this class
+ * as the response for {@link org.apache.iceberg.rest.requests.CreateTableRequest}, including when
+ * that request is used to commit an already staged table creation as part of a transaction.
  */
 public class LoadTableResponse implements RESTResponse {
 
   private String metadataLocation;
-  private TableMetadata meta;
+  private TableMetadata metadata;
   private Map<String, String> config;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
   }
 
-  private LoadTableResponse(String metadataLocation, TableMetadata meta, Map<String, String> config) {
+  private LoadTableResponse(
+      String metadataLocation, TableMetadata metadata, Map<String, String> config) {
     this.metadataLocation = metadataLocation;
-    this.meta = meta;
+    this.metadata = metadata;
     this.config = config;
   }
 
   @Override
   public void validate() {
+    Preconditions.checkNotNull(metadata, "Invalid metadata: null");
   }
 
   public String metadataLocation() {
@@ -55,7 +61,7 @@ public class LoadTableResponse implements RESTResponse {
   }
 
   public TableMetadata tableMetadata() {
-    return TableMetadata.buildFrom(meta).withMetadataLocation(metadataLocation).build();
+    return TableMetadata.buildFrom(metadata).withMetadataLocation(metadataLocation).build();
   }
 
   public Map<String, String> config() {
@@ -65,7 +71,8 @@ public class LoadTableResponse implements RESTResponse {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("metadata", meta)
+        .add("metadataLocation", metadataLocation)
+        .add("metadata", metadata)
         .add("config", config)
         .toString();
   }
@@ -76,15 +83,14 @@ public class LoadTableResponse implements RESTResponse {
 
   public static class Builder {
     private String metadataLocation;
-    private TableMetadata meta;
+    private TableMetadata metadata;
     private Map<String, String> config = Maps.newHashMap();
 
-    private Builder() {
-    }
+    private Builder() {}
 
-    public Builder withTableMetadata(TableMetadata metadata) {
-      this.metadataLocation = metadata.metadataFileLocation();
-      this.meta = metadata;
+    public Builder withTableMetadata(TableMetadata tableMetadata) {
+      this.metadataLocation = tableMetadata.metadataFileLocation();
+      this.metadata = tableMetadata;
       return this;
     }
 
@@ -99,8 +105,8 @@ public class LoadTableResponse implements RESTResponse {
     }
 
     public LoadTableResponse build() {
-      Preconditions.checkNotNull(meta, "Invalid metadata: null");
-      return new LoadTableResponse(metadataLocation, meta, config);
+      Preconditions.checkNotNull(metadata, "Invalid metadata: null");
+      return new LoadTableResponse(metadataLocation, metadata, config);
     }
   }
 }

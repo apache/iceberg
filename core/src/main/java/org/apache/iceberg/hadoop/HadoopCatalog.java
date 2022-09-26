@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.Closeable;
@@ -64,25 +63,28 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
- * location. It uses a specified directory under a specified filesystem as the warehouse directory, and organizes
- * multiple levels directories that mapped to the database, namespace and the table respectively. The HadoopCatalog
- * takes a location as the warehouse directory. When creating a table such as $db.$tbl, it creates $db/$tbl
- * directory under the warehouse directory, and put the table metadata into that directory.
+ * HadoopCatalog provides a way to use table names like db.table to work with path-based tables
+ * under a common location. It uses a specified directory under a specified filesystem as the
+ * warehouse directory, and organizes multiple levels directories that mapped to the database,
+ * namespace and the table respectively. The HadoopCatalog takes a location as the warehouse
+ * directory. When creating a table such as $db.$tbl, it creates $db/$tbl directory under the
+ * warehouse directory, and put the table metadata into that directory.
  *
- * The HadoopCatalog now supports {@link org.apache.iceberg.catalog.Catalog#createTable},
- * {@link org.apache.iceberg.catalog.Catalog#dropTable}, the {@link org.apache.iceberg.catalog.Catalog#renameTable}
- * is not supported yet.
+ * <p>The HadoopCatalog now supports {@link org.apache.iceberg.catalog.Catalog#createTable}, {@link
+ * org.apache.iceberg.catalog.Catalog#dropTable}, the {@link
+ * org.apache.iceberg.catalog.Catalog#renameTable} is not supported yet.
  *
- * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
+ * <p>Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
-public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class HadoopCatalog extends BaseMetastoreCatalog
+    implements Closeable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private static final Joiner SLASH = Joiner.on("/");
-  private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
+  private static final PathFilter TABLE_FILTER =
+      path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
   private static final String HADOOP_SUPPRESS_PERMISSION_ERROR = "suppress-permission-error";
 
   private String catalogName;
@@ -93,14 +95,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private FileIO fileIO;
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
+  private Map<String, String> catalogProperties;
 
-  public HadoopCatalog() {
-  }
+  public HadoopCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+    Preconditions.checkArgument(
+        inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
         "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
@@ -108,7 +112,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    this.fileIO =
+        fileIOImpl == null
+            ? new HadoopFileIO(conf)
+            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.lockManager = LockManagers.from(properties);
 
@@ -116,7 +123,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     closeableGroup.addCloseable(lockManager);
     closeableGroup.setSuppressCloseFailure(true);
 
-    this.suppressPermissionError = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
+    this.suppressPermissionError =
+        Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
   }
 
   /**
@@ -137,9 +145,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private boolean shouldSuppressPermissionError(IOException ioException) {
     if (suppressPermissionError) {
-      return ioException instanceof AccessDeniedException ||
-              (ioException.getMessage() != null &&
-                      ioException.getMessage().contains("AuthorizationPermissionMismatch"));
+      return ioException instanceof AccessDeniedException
+          || (ioException.getMessage() != null
+              && ioException.getMessage().contains("AuthorizationPermissionMismatch"));
     }
     return false;
   }
@@ -179,8 +187,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    Preconditions.checkArgument(namespace.levels().length >= 1,
-        "Missing database in table identifier: %s", namespace);
+    Preconditions.checkArgument(
+        namespace.levels().length >= 1, "Missing database in table identifier: %s", namespace);
 
     Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
     Set<TableIdentifier> tblIdents = Sets.newHashSet();
@@ -217,7 +225,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
+    return new HadoopTableOperations(
+        new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
   }
 
   @Override
@@ -268,10 +277,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
-        !namespace.isEmpty(),
-        "Cannot create namespace with invalid name: %s", namespace);
+        !namespace.isEmpty(), "Cannot create namespace with invalid name: %s", namespace);
     if (!meta.isEmpty()) {
-      throw new UnsupportedOperationException("Cannot create namespace " + namespace + ": metadata is not supported");
+      throw new UnsupportedOperationException(
+          "Cannot create namespace " + namespace + ": metadata is not supported");
     }
 
     Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
@@ -290,8 +299,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    Path nsPath = namespace.isEmpty() ? new Path(warehouseLocation)
-        : new Path(warehouseLocation, SLASH.join(namespace.levels()));
+    Path nsPath =
+        namespace.isEmpty()
+            ? new Path(warehouseLocation)
+            : new Path(warehouseLocation, SLASH.join(namespace.levels()));
     if (!isNamespace(nsPath)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -339,13 +350,13 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   @Override
-  public boolean setProperties(Namespace namespace,  Map<String, String> properties) {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     throw new UnsupportedOperationException(
         "Cannot set namespace properties " + namespace + " : setProperties is not supported");
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace,  Set<String> properties) {
+  public boolean removeProperties(Namespace namespace, Set<String> properties) {
     throw new UnsupportedOperationException(
         "Cannot remove properties " + namespace + " : removeProperties is not supported");
   }
@@ -393,6 +404,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     return conf;
   }
 
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
   private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
     private final String defaultLocation;
 
@@ -403,8 +419,12 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     @Override
     public TableBuilder withLocation(String location) {
-      Preconditions.checkArgument(location == null || location.equals(defaultLocation),
-          "Cannot set a custom location for a path-based table. Expected " + defaultLocation + " but got " + location);
+      Preconditions.checkArgument(
+          location == null || location.equals(defaultLocation),
+          "Cannot set a custom location for a path-based table. Expected "
+              + defaultLocation
+              + " but got "
+              + location);
       return this;
     }
   }

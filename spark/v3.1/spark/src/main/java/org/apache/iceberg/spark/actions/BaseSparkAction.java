@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 import java.util.Iterator;
 import java.util.List;
@@ -48,8 +49,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-
-import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
@@ -111,15 +110,25 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
-  protected Dataset<Row> buildValidDataFileDF(Table table) {
+  // builds a DF of delete and data file locations by reading all manifests
+  protected Dataset<Row> buildValidContentFileDF(Table table) {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
-        .dropDuplicates("path")
-        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
-        .as(Encoders.bean(ManifestFileBean.class));
+    Dataset<ManifestFileBean> allManifests =
+        loadMetadataTable(table, ALL_MANIFESTS)
+            .selectExpr(
+                "path",
+                "length",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId")
+            .dropDuplicates("path")
+            .repartition(
+                spark
+                    .sessionState()
+                    .conf()
+                    .numShufflePartitions()) // avoid adaptive execution combining tasks
+            .as(Encoders.bean(ManifestFileBean.class));
 
     return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
   }

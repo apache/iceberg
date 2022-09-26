@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -30,8 +28,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class ErrorResponseParser {
 
-  private ErrorResponseParser() {
-  }
+  private ErrorResponseParser() {}
 
   private static final String ERROR = "error";
   private static final String MESSAGE = "message";
@@ -44,21 +41,11 @@ public class ErrorResponseParser {
   }
 
   public static String toJson(ErrorResponse errorResponse, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(errorResponse, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write error response json for: %s", errorResponse), e);
-    }
+    return JsonUtil.generate(gen -> toJson(errorResponse, gen), pretty);
   }
 
-  public static void toJson(ErrorResponse errorResponse, JsonGenerator generator) throws IOException {
+  public static void toJson(ErrorResponse errorResponse, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeObjectFieldStart(ERROR);
@@ -94,10 +81,12 @@ public class ErrorResponseParser {
   }
 
   public static ErrorResponse fromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null && jsonNode.isObject(),
-        "Cannot parse error respone from non-object value: %s", jsonNode);
+    Preconditions.checkArgument(
+        jsonNode != null && jsonNode.isObject(),
+        "Cannot parse error response from non-object value: %s",
+        jsonNode);
     Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
-    JsonNode error = jsonNode.get(ERROR);
+    JsonNode error = JsonUtil.get(ERROR, jsonNode);
     String message = JsonUtil.getStringOrNull(MESSAGE, error);
     String type = JsonUtil.getStringOrNull(TYPE, error);
     Integer code = JsonUtil.getIntOrNull(CODE, error);
@@ -110,4 +99,3 @@ public class ErrorResponseParser {
         .build();
   }
 }
-

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Set;
@@ -24,71 +23,64 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
 
-  private TableProperties() {
-  }
+  private TableProperties() {}
 
   /**
    * Reserved table property for table format version.
-   * <p>
-   * Iceberg will default a new table's format version to the latest stable and recommended version.
-   * This reserved property keyword allows users to override the Iceberg format version of the table metadata.
-   * <p>
-   * If this table property exists when creating a table, the table will use the specified format version.
-   * If a table updates this property, it will try to upgrade to the specified format version.
-   * <p>
-   * Note: incomplete or unstable versions cannot be selected using this property.
+   *
+   * <p>Iceberg will default a new table's format version to the latest stable and recommended
+   * version. This reserved property keyword allows users to override the Iceberg format version of
+   * the table metadata.
+   *
+   * <p>If this table property exists when creating a table, the table will use the specified format
+   * version. If a table updates this property, it will try to upgrade to the specified format
+   * version.
+   *
+   * <p>Note: incomplete or unstable versions cannot be selected using this property.
    */
   public static final String FORMAT_VERSION = "format-version";
 
-  /**
-   * Reserved table property for UUID.
-   * <p>
-   * This reserved property is used to store the UUID of the table.
-   */
+  /** Reserved table property for table UUID. */
   public static final String UUID = "uuid";
 
-  /**
-   * Reserved table property for the total number of snapshots.
-   * <p>
-   * This reserved property is used to store the total number of snapshots.
-   */
+  /** Reserved table property for the total number of snapshots. */
   public static final String SNAPSHOT_COUNT = "snapshot-count";
 
-  /**
-   * Reserved table property for current snapshot summary.
-   * <p>
-   * This reserved property is used to store the current snapshot summary.
-   */
+  /** Reserved table property for current snapshot summary. */
   public static final String CURRENT_SNAPSHOT_SUMMARY = "current-snapshot-summary";
 
-  /**
-   * Reserved table property for current snapshot id.
-   * <p>
-   * This reserved property is used to store the current snapshot id.
-   */
+  /** Reserved table property for current snapshot id. */
   public static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
 
-  /**
-   * Reserved table property for current snapshot timestamp.
-   * <p>
-   * This reserved property is used to store the current snapshot timestamp.
-   */
+  /** Reserved table property for current snapshot timestamp. */
   public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
+
+  /** Reserved table property for the JSON representation of current schema. */
+  public static final String CURRENT_SCHEMA = "current-schema";
+
+  /** Reserved table property for the JSON representation of current(default) partition spec. */
+  public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
+
+  /** Reserved table property for the JSON representation of current(default) sort order. */
+  public static final String DEFAULT_SORT_ORDER = "default-sort-order";
 
   /**
    * Reserved Iceberg table properties list.
-   * <p>
-   * Reserved table properties are only used to control behaviors when creating or updating a table.
-   * The value of these properties are not persisted as a part of the table metadata.
+   *
+   * <p>Reserved table properties are only used to control behaviors when creating or updating a
+   * table. The value of these properties are not persisted as a part of the table metadata.
    */
-  public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      FORMAT_VERSION,
-      UUID,
-      SNAPSHOT_COUNT,
-      CURRENT_SNAPSHOT_ID,
-      CURRENT_SNAPSHOT_SUMMARY,
-      CURRENT_SNAPSHOT_TIMESTAMP
-  );
+  public static final Set<String> RESERVED_PROPERTIES =
+      ImmutableSet.of(
+          FORMAT_VERSION,
+          UUID,
+          SNAPSHOT_COUNT,
+          CURRENT_SNAPSHOT_ID,
+          CURRENT_SNAPSHOT_SUMMARY,
+          CURRENT_SNAPSHOT_TIMESTAMP,
+          CURRENT_SCHEMA,
+          DEFAULT_PARTITION_SPEC,
+          DEFAULT_SORT_ORDER);
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
@@ -111,8 +103,10 @@ public class TableProperties {
   public static final String COMMIT_STATUS_CHECKS_MAX_WAIT_MS = "commit.status-check.max-wait-ms";
   public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60 * 1000; // 1 minute
 
-  public static final String COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS = "commit.status-check.total-timeout-ms";
-  public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT = 30 * 60 * 1000; // 30 minutes
+  public static final String COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS =
+      "commit.status-check.total-timeout-ms";
+  public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT =
+      30 * 60 * 1000; // 30 minutes
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8 * 1024 * 1024; // 8 MB
@@ -128,15 +122,22 @@ public class TableProperties {
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
-  public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
+  public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES =
+      "write.delete.parquet.row-group-size-bytes";
   public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
-  public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
+  public static final String DELETE_PARQUET_PAGE_SIZE_BYTES =
+      "write.delete.parquet.page-size-bytes";
   public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
+  public static final String PARQUET_PAGE_ROW_LIMIT = "write.parquet.page-row-limit";
+  public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";
+  public static final int PARQUET_PAGE_ROW_LIMIT_DEFAULT = 20_000;
+
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
-  public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
+  public static final String DELETE_PARQUET_DICT_SIZE_BYTES =
+      "write.delete.parquet.dict-size-bytes";
   public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
@@ -144,7 +145,8 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
-  public static final String DELETE_PARQUET_COMPRESSION_LEVEL = "write.delete.parquet.compression-level";
+  public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
+      "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
@@ -158,6 +160,13 @@ public class TableProperties {
   public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
       "write.delete.parquet.row-group-check-max-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
+
+  public static final String PARQUET_BLOOM_FILTER_MAX_BYTES =
+      "write.parquet.bloom-filter-max-bytes";
+  public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
+
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
+      "write.parquet.bloom-filter-enabled.column.";
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
@@ -184,7 +193,8 @@ public class TableProperties {
   public static final String ORC_COMPRESSION_DEFAULT = "zlib";
 
   public static final String ORC_COMPRESSION_STRATEGY = "write.orc.compression-strategy";
-  public static final String DELETE_ORC_COMPRESSION_STRATEGY = "write.delete.orc.compression-strategy";
+  public static final String DELETE_ORC_COMPRESSION_STRATEGY =
+      "write.delete.orc.compression-strategy";
   public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "speed";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
@@ -214,17 +224,12 @@ public class TableProperties {
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
-  /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
-   */
-  @Deprecated
-  public static final String OBJECT_STORE_PATH = "write.object-storage.path";
+  /** @deprecated Use {@link #WRITE_DATA_LOCATION} instead. */
+  @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
-  /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
-   */
+  /** @deprecated Use {@link #WRITE_DATA_LOCATION} instead. */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
 
@@ -247,12 +252,18 @@ public class TableProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
 
-  public static final String METADATA_PREVIOUS_VERSIONS_MAX = "write.metadata.previous-versions-max";
+  public static final String METADATA_PREVIOUS_VERSIONS_MAX =
+      "write.metadata.previous-versions-max";
   public static final int METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT = 100;
 
   // This enables to delete the oldest metadata file after commit.
-  public static final String METADATA_DELETE_AFTER_COMMIT_ENABLED = "write.metadata.delete-after-commit.enabled";
+  public static final String METADATA_DELETE_AFTER_COMMIT_ENABLED =
+      "write.metadata.delete-after-commit.enabled";
   public static final boolean METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT = false;
+
+  public static final String METRICS_MAX_INFERRED_COLUMN_DEFAULTS =
+      "write.metadata.metrics.max-inferred-column-defaults";
+  public static final int METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT = 32;
 
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
@@ -275,7 +286,8 @@ public class TableProperties {
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
-  public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
+  public static final String SNAPSHOT_ID_INHERITANCE_ENABLED =
+      "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
@@ -294,6 +306,9 @@ public class TableProperties {
 
   public static final String MIN_SNAPSHOTS_TO_KEEP = "history.expire.min-snapshots-to-keep";
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
+
+  public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
+  public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
@@ -318,15 +333,17 @@ public class TableProperties {
   public static final String MERGE_MODE_DEFAULT = "copy-on-write";
 
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from 0.13.0.
+   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
+   *     0.13.0.
    */
   @Deprecated
-  public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
+  public static final String MERGE_CARDINALITY_CHECK_ENABLED =
+      "write.merge.cardinality-check.enabled";
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from 0.13.0.
+   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
+   *     0.13.0.
    */
-  @Deprecated
-  public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+  @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 

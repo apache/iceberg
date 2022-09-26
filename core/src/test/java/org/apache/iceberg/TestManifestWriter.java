@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.File;
@@ -37,7 +36,7 @@ import org.junit.runners.Parameterized;
 public class TestManifestWriter extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestManifestWriter(int formatVersion) {
@@ -46,25 +45,28 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testManifestStats() throws IOException {
-    ManifestFile manifest = writeManifest(
-        "manifest.avro",
-        manifestEntry(Status.ADDED, null, newFile(10)),
-        manifestEntry(Status.ADDED, null, newFile(20)),
-        manifestEntry(Status.ADDED, null, newFile(5)),
-        manifestEntry(Status.ADDED, null, newFile(5)),
-        manifestEntry(Status.EXISTING, null, newFile(15)),
-        manifestEntry(Status.EXISTING, null, newFile(10)),
-        manifestEntry(Status.EXISTING, null, newFile(1)),
-        manifestEntry(Status.DELETED, null, newFile(5)),
-        manifestEntry(Status.DELETED, null, newFile(2)));
+    ManifestFile manifest =
+        writeManifest(
+            "manifest.avro",
+            manifestEntry(Status.ADDED, null, newFile(10)),
+            manifestEntry(Status.ADDED, null, newFile(20)),
+            manifestEntry(Status.ADDED, null, newFile(5)),
+            manifestEntry(Status.ADDED, null, newFile(5)),
+            manifestEntry(Status.EXISTING, null, newFile(15)),
+            manifestEntry(Status.EXISTING, null, newFile(10)),
+            manifestEntry(Status.EXISTING, null, newFile(1)),
+            manifestEntry(Status.DELETED, null, newFile(5)),
+            manifestEntry(Status.DELETED, null, newFile(2)));
 
     Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
     Assert.assertEquals("Added files count should match", 4, (int) manifest.addedFilesCount());
     Assert.assertEquals("Added rows count should match", 40L, (long) manifest.addedRowsCount());
 
     Assert.assertTrue("Existing files should be present", manifest.hasExistingFiles());
-    Assert.assertEquals("Existing files count should match", 3, (int) manifest.existingFilesCount());
-    Assert.assertEquals("Existing rows count should match", 26L, (long) manifest.existingRowsCount());
+    Assert.assertEquals(
+        "Existing files count should match", 3, (int) manifest.existingFilesCount());
+    Assert.assertEquals(
+        "Existing rows count should match", 26L, (long) manifest.existingRowsCount());
 
     Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
     Assert.assertEquals("Deleted files count should match", 2, (int) manifest.deletedFilesCount());
@@ -73,20 +75,25 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testManifestPartitionStats() throws IOException {
-    ManifestFile manifest = writeManifest(
-        "manifest.avro",
-        manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
-        manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
-        manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
+    ManifestFile manifest =
+        writeManifest(
+            "manifest.avro",
+            manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
+            manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
+            manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
 
     List<ManifestFile.PartitionFieldSummary> partitions = manifest.partitions();
     Assert.assertEquals("Partition field summaries count should match", 1, partitions.size());
     ManifestFile.PartitionFieldSummary partitionFieldSummary = partitions.get(0);
     Assert.assertFalse("contains_null should be false", partitionFieldSummary.containsNull());
     Assert.assertFalse("contains_nan should be false", partitionFieldSummary.containsNaN());
-    Assert.assertEquals("Lower bound should match", Integer.valueOf(1),
+    Assert.assertEquals(
+        "Lower bound should match",
+        Integer.valueOf(1),
         Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.lowerBound()));
-    Assert.assertEquals("Upper bound should match", Integer.valueOf(3),
+    Assert.assertEquals(
+        "Upper bound should match",
+        Integer.valueOf(3),
         Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.upperBound()));
   }
 
@@ -96,15 +103,18 @@ public class TestManifestWriter extends TableTestBase {
     File manifestFile = temp.newFile("manifest.avro");
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
     writer.add(newFile(10, TestHelpers.Row.of(1)), 1000L);
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
     Assert.assertEquals("Manifest should have no sequence number", -1L, manifest.sequenceNumber());
     ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
     for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
-      Assert.assertEquals("Custom sequence number should be used for all manifest entries",
-          1000L, (long) entry.sequenceNumber());
+      Assert.assertEquals(
+          "Custom sequence number should be used for all manifest entries",
+          1000L,
+          (long) entry.sequenceNumber());
     }
   }
 
@@ -114,10 +124,11 @@ public class TestManifestWriter extends TableTestBase {
 
   private DataFile newFile(long recordCount, StructLike partition) {
     String fileName = UUID.randomUUID().toString();
-    DataFiles.Builder builder = DataFiles.builder(SPEC)
-        .withPath("data_bucket=0/" + fileName + ".parquet")
-        .withFileSizeInBytes(1024)
-        .withRecordCount(recordCount);
+    DataFiles.Builder builder =
+        DataFiles.builder(SPEC)
+            .withPath("data_bucket=0/" + fileName + ".parquet")
+            .withFileSizeInBytes(1024)
+            .withRecordCount(recordCount);
     if (partition != null) {
       builder.withPartition(partition);
     }

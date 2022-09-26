@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
@@ -26,12 +25,10 @@ import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
 /**
- * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the Spark data source for
- * Iceberg.
- * <p>
- * This class uses a dataset with a flat schema.
- * To run this benchmark for spark-3.2:
- * <code>
+ * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the
+ * Spark data source for Iceberg.
+ *
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.2: <code>
  *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetPosDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-pos-delete-benchmark-result.txt
@@ -49,7 +46,7 @@ public class IcebergSourceParquetPosDeleteBenchmark extends IcebergSourceDeleteB
       if (percentDeleteRow > 0) {
         // add pos-deletes
         table().refresh();
-        for (DataFile file : table().currentSnapshot().addedFiles()) {
+        for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
           writePosDeletes(file.path(), NUM_ROWS, percentDeleteRow);
         }
       }

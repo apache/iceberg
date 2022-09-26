@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
@@ -28,9 +27,9 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 /**
- * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized read path. The
- * {@link ColumnarBatch} returned is created by passing in the Arrow vectors populated via delegated read calls to
- * {@linkplain VectorizedArrowReader VectorReader(s)}.
+ * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized
+ * read path. The {@link ColumnarBatch} returned is created by passing in the Arrow vectors
+ * populated via delegated read calls to {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
@@ -40,7 +39,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   @Override
   public final ColumnarBatch read(ColumnarBatch reuse, int numRowsToRead) {
-    Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
+    Preconditions.checkArgument(
+        numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
     ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
     if (reuse == null) {
@@ -52,10 +52,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       int numRowsInVector = vectorHolders[i].numValues();
       Preconditions.checkState(
           numRowsInVector == numRowsToRead,
-          "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
+          "Number of rows in the vector %s didn't match expected %s ",
+          numRowsInVector,
           numRowsToRead);
-      arrowColumnVectors[i] =
-          IcebergArrowColumnVector.forHolder(vectorHolders[i], numRowsInVector);
+      arrowColumnVectors[i] = IcebergArrowColumnVector.forHolder(vectorHolders[i], numRowsInVector);
     }
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
     batch.setNumRows(numRowsToRead);

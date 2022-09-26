@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -40,6 +39,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
@@ -52,9 +52,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private Throwable failure;
 
-  protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected BaseTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
@@ -67,12 +73,19 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return spec;
   }
 
+  protected void setFailure(Throwable throwable) {
+    if (failure == null) {
+      this.failure = throwable;
+    }
+  }
+
   @Override
   public void abort() throws IOException {
     close();
 
     // clean up files created by this writer
     Tasks.foreach(Iterables.concat(completedDataFiles, completedDeleteFiles))
+        .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
@@ -82,6 +95,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   public WriteResult complete() throws IOException {
     close();
 
+    Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
+
     return WriteResult.builder()
         .addDataFiles(completedDataFiles)
         .addDeleteFiles(completedDeleteFiles)
@@ -89,9 +104,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .build();
   }
 
-  /**
-   * Base equality delta writer to write both insert records and equality-deletes.
-   */
+  /** Base equality delta writer to write both insert records and equality-deletes. */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
     private RollingFileWriter dataWriter;
@@ -106,18 +119,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
-      this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+      this.posDeleteWriter =
+          new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
-    /**
-     * Wrap the data as a {@link StructLike}.
-     */
+    /** Wrap the data as a {@link StructLike}. */
     protected abstract StructLike asStructLike(T data);
 
-    /**
-     * Wrap the passed in key of a row as a {@link StructLike}
-     */
+    /** Wrap the passed in key of a row as a {@link StructLike} */
     protected abstract StructLike asStructLikeKey(T key);
 
     public void write(T row) throws IOException {
@@ -154,8 +164,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Delete those rows whose equality fields has the same values with the given row. It will write the entire row into
-     * the equality-delete file.
+     * Delete those rows whose equality fields has the same values with the given row. It will write
+     * the entire row into the equality-delete file.
      *
      * @param row the given row to delete.
      */
@@ -166,8 +176,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Delete those rows with the given key. It will only write the values of equality fields into the equality-delete
-     * file.
+     * Delete those rows with the given key. It will only write the values of equality fields into
+     * the equality-delete file.
      *
      * @param key is the projected data whose columns are the same as the equality fields.
      */
@@ -179,28 +189,43 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     public void close() throws IOException {
-      // Close data writer and add completed data files.
-      if (dataWriter != null) {
-        dataWriter.close();
-        dataWriter = null;
-      }
+      try {
+        // Close data writer and add completed data files.
+        if (dataWriter != null) {
+          try {
+            dataWriter.close();
+          } finally {
+            dataWriter = null;
+          }
+        }
 
-      // Close eq-delete writer and add completed equality-delete files.
-      if (eqDeleteWriter != null) {
-        eqDeleteWriter.close();
-        eqDeleteWriter = null;
-      }
+        // Close eq-delete writer and add completed equality-delete files.
+        if (eqDeleteWriter != null) {
+          try {
+            eqDeleteWriter.close();
+          } finally {
+            eqDeleteWriter = null;
+          }
+        }
 
-      if (insertedRowMap != null) {
-        insertedRowMap.clear();
-        insertedRowMap = null;
-      }
+        if (insertedRowMap != null) {
+          insertedRowMap.clear();
+          insertedRowMap = null;
+        }
 
-      // Add the completed pos-delete files.
-      if (posDeleteWriter != null) {
-        completedDeleteFiles.addAll(posDeleteWriter.complete());
-        referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
-        posDeleteWriter = null;
+        // Add the completed pos-delete files.
+        if (posDeleteWriter != null) {
+          try {
+            // complete will call close
+            completedDeleteFiles.addAll(posDeleteWriter.complete());
+            referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
+          } finally {
+            posDeleteWriter = null;
+          }
+        }
+      } catch (IOException | RuntimeException e) {
+        setFailure(e);
+        throw e;
       }
     }
   }
@@ -285,21 +310,29 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     private void closeCurrent() throws IOException {
       if (currentWriter != null) {
-        currentWriter.close();
+        try {
+          currentWriter.close();
 
-        if (currentRows == 0L) {
-          try {
-            io.deleteFile(currentFile.encryptingOutputFile());
-          } catch (UncheckedIOException e) {
-            // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          if (currentRows == 0L) {
+            try {
+              io.deleteFile(currentFile.encryptingOutputFile());
+            } catch (UncheckedIOException e) {
+              // the file may not have been created, and it isn't worth failing the job to clean up,
+              // skip deleting
+            }
+          } else {
+            complete(currentWriter);
           }
-        } else {
-          complete(currentWriter);
-        }
 
-        this.currentFile = null;
-        this.currentWriter = null;
-        this.currentRows = 0;
+        } catch (IOException | RuntimeException e) {
+          setFailure(e);
+          throw e;
+
+        } finally {
+          this.currentFile = null;
+          this.currentWriter = null;
+          this.currentRows = 0;
+        }
       }
     }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -31,6 +30,10 @@ public class SnapshotSummary {
   public static final String DELETED_FILES_PROP = "deleted-data-files";
   public static final String TOTAL_DATA_FILES_PROP = "total-data-files";
   public static final String ADDED_DELETE_FILES_PROP = "added-delete-files";
+  public static final String ADD_EQ_DELETE_FILES_PROP = "added-equality-delete-files";
+  public static final String REMOVED_EQ_DELETE_FILES_PROP = "removed-equality-delete-files";
+  public static final String ADD_POS_DELETE_FILES_PROP = "added-position-delete-files";
+  public static final String REMOVED_POS_DELETE_FILES_PROP = "removed-position-delete-files";
   public static final String REMOVED_DELETE_FILES_PROP = "removed-delete-files";
   public static final String TOTAL_DELETE_FILES_PROP = "total-delete-files";
   public static final String ADDED_RECORDS_PROP = "added-records";
@@ -57,8 +60,7 @@ public class SnapshotSummary {
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
-  private SnapshotSummary() {
-  }
+  private SnapshotSummary() {}
 
   public static Builder builder() {
     return new Builder();
@@ -73,8 +75,7 @@ public class SnapshotSummary {
     private long deletedDuplicateFiles = 0L;
     private boolean trustPartitionMetrics = true;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public void clear() {
       partitionMetrics.clear();
@@ -85,10 +86,11 @@ public class SnapshotSummary {
 
     /**
      * Sets the maximum number of changed partitions before partition summaries will be excluded.
-     * <p>
-     * If the number of changed partitions is over this max, summaries will not be included. If the number of changed
-     * partitions is &lt;= this limit, then partition-level summaries will be included in the summary if they are
-     * available, and "partition-summaries-included" will be set to "true".
+     *
+     * <p>If the number of changed partitions is over this max, summaries will not be included. If
+     * the number of changed partitions is &lt;= this limit, then partition-level summaries will be
+     * included in the summary if they are available, and "partition-summaries-included" will be set
+     * to "true".
      *
      * @param max maximum number of changed partitions
      */
@@ -120,7 +122,8 @@ public class SnapshotSummary {
       } else if (file instanceof DeleteFile) {
         deletedFile(spec, (DeleteFile) file);
       } else {
-        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
+        throw new IllegalArgumentException(
+            "Unsupported file type: " + file.getClass().getSimpleName());
       }
     }
 
@@ -146,9 +149,9 @@ public class SnapshotSummary {
 
     private void updatePartitions(PartitionSpec spec, ContentFile<?> file, boolean isAddition) {
       if (trustPartitionMetrics) {
-        UpdateMetrics partMetrics = partitionMetrics.computeIfAbsent(
-            spec.partitionToPath(file.partition()),
-            key -> new UpdateMetrics());
+        UpdateMetrics partMetrics =
+            partitionMetrics.computeIfAbsent(
+                spec.partitionToPath(file.partition()), key -> new UpdateMetrics());
 
         if (isAddition) {
           partMetrics.addedFile(file);
@@ -165,7 +168,9 @@ public class SnapshotSummary {
       this.trustPartitionMetrics = trustPartitionMetrics && builder.trustPartitionMetrics;
       if (trustPartitionMetrics) {
         for (Map.Entry<String, UpdateMetrics> entry : builder.partitionMetrics.entrySet()) {
-          partitionMetrics.computeIfAbsent(entry.getKey(), key -> new UpdateMetrics()).merge(entry.getValue());
+          partitionMetrics
+              .computeIfAbsent(entry.getKey(), key -> new UpdateMetrics())
+              .merge(entry.getValue());
         }
       } else {
         partitionMetrics.clear();
@@ -188,7 +193,11 @@ public class SnapshotSummary {
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
         setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
-          setIf(key != null, builder, CHANGED_PARTITION_PREFIX + key, partitionSummary(partitionMetrics.get(key)));
+          setIf(
+              key != null,
+              builder,
+              CHANGED_PARTITION_PREFIX + key,
+              partitionSummary(partitionMetrics.get(key)));
         }
       }
 
@@ -207,6 +216,10 @@ public class SnapshotSummary {
     private long removedSize = 0L;
     private int addedFiles = 0;
     private int removedFiles = 0;
+    private int addedEqDeleteFiles = 0;
+    private int removedEqDeleteFiles = 0;
+    private int addedPosDeleteFiles = 0;
+    private int removedPosDeleteFiles = 0;
     private int addedDeleteFiles = 0;
     private int removedDeleteFiles = 0;
     private long addedRecords = 0L;
@@ -222,6 +235,10 @@ public class SnapshotSummary {
       this.removedSize = 0L;
       this.addedFiles = 0;
       this.removedFiles = 0;
+      this.addedEqDeleteFiles = 0;
+      this.removedEqDeleteFiles = 0;
+      this.addedPosDeleteFiles = 0;
+      this.removedPosDeleteFiles = 0;
       this.addedDeleteFiles = 0;
       this.removedDeleteFiles = 0;
       this.addedRecords = 0L;
@@ -236,6 +253,11 @@ public class SnapshotSummary {
     void addTo(ImmutableMap.Builder<String, String> builder) {
       setIf(addedFiles > 0, builder, ADDED_FILES_PROP, addedFiles);
       setIf(removedFiles > 0, builder, DELETED_FILES_PROP, removedFiles);
+      setIf(addedEqDeleteFiles > 0, builder, ADD_EQ_DELETE_FILES_PROP, addedEqDeleteFiles);
+      setIf(removedEqDeleteFiles > 0, builder, REMOVED_EQ_DELETE_FILES_PROP, removedEqDeleteFiles);
+      setIf(addedPosDeleteFiles > 0, builder, ADD_POS_DELETE_FILES_PROP, addedPosDeleteFiles);
+      setIf(
+          removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
       setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
       setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
@@ -260,14 +282,17 @@ public class SnapshotSummary {
           break;
         case POSITION_DELETES:
           this.addedDeleteFiles += 1;
+          this.addedPosDeleteFiles += 1;
           this.addedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
           this.addedDeleteFiles += 1;
+          this.addedEqDeleteFiles += 1;
           this.addedEqDeletes += file.recordCount();
           break;
         default:
-          throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
       }
     }
 
@@ -280,14 +305,17 @@ public class SnapshotSummary {
           break;
         case POSITION_DELETES:
           this.removedDeleteFiles += 1;
+          this.removedPosDeleteFiles += 1;
           this.removedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
           this.removedDeleteFiles += 1;
+          this.removedEqDeleteFiles += 1;
           this.removedEqDeletes += file.recordCount();
           break;
         default:
-          throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
       }
     }
 
@@ -310,6 +338,10 @@ public class SnapshotSummary {
     void merge(UpdateMetrics other) {
       this.addedFiles += other.addedFiles;
       this.removedFiles += other.removedFiles;
+      this.addedEqDeleteFiles += other.addedEqDeleteFiles;
+      this.removedEqDeleteFiles += other.removedEqDeleteFiles;
+      this.addedPosDeleteFiles += other.addedPosDeleteFiles;
+      this.removedPosDeleteFiles += other.removedPosDeleteFiles;
       this.addedDeleteFiles += other.addedDeleteFiles;
       this.removedDeleteFiles += other.removedDeleteFiles;
       this.addedSize += other.addedSize;
@@ -324,8 +356,11 @@ public class SnapshotSummary {
     }
   }
 
-  private static void setIf(boolean expression, ImmutableMap.Builder<String, String> builder,
-                            String property, Object value) {
+  private static void setIf(
+      boolean expression,
+      ImmutableMap.Builder<String, String> builder,
+      String property,
+      Object value) {
     if (expression) {
       builder.put(property, String.valueOf(value));
     }

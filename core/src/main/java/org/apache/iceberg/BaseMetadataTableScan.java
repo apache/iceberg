@@ -16,42 +16,59 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import org.apache.iceberg.events.Listeners;
-import org.apache.iceberg.events.ScanEvent;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 abstract class BaseMetadataTableScan extends BaseTableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseMetadataTableScan.class);
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema) {
+  private final MetadataTableType tableType;
+
+  protected BaseMetadataTableScan(
+      TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
     super(ops, table, schema);
+    this.tableType = tableType;
   }
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected BaseMetadataTableScan(
+      TableOperations ops,
+      Table table,
+      Schema schema,
+      MetadataTableType tableType,
+      TableScanContext context) {
     super(ops, table, schema, context);
+    this.tableType = tableType;
+  }
+
+  /**
+   * Type of scan being performed, such as {@link MetadataTableType#ALL_DATA_FILES} when scanning a
+   * table's {@link org.apache.iceberg.AllDataFilesTable}.
+   *
+   * <p>Used for logging and error messages.
+   */
+  protected MetadataTableType tableType() {
+    return tableType;
+  }
+
+  @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
   }
 
   @Override
   public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.METADATA_SPLIT_SIZE,
-        TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
+    long tableValue =
+        tableOps()
+            .current()
+            .propertyAsLong(
+                TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
-  }
-
-  /**
-   * Alternative to {@link #planFiles()}, allows exploring old snapshots even for an empty table.
-   */
-  protected CloseableIterable<FileScanTask> planFilesAllSnapshots() {
-    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
-    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
-
-    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
   }
 }

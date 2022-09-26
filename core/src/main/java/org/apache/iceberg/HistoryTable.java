@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -30,16 +29,17 @@ import org.apache.iceberg.util.SnapshotUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's history as rows.
- * <p>
- * History is based on the table's snapshot log, which logs each update to the table's current snapshot.
+ *
+ * <p>History is based on the table's snapshot log, which logs each update to the table's current
+ * snapshot.
  */
 public class HistoryTable extends BaseMetadataTable {
-  private static final Schema HISTORY_SCHEMA = new Schema(
-      Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
-      Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
-      Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
-      Types.NestedField.required(4, "is_current_ancestor", Types.BooleanType.get())
-  );
+  private static final Schema HISTORY_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
+          Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
+          Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
+          Types.NestedField.required(4, "is_current_ancestor", Types.BooleanType.get()));
 
   HistoryTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".history");
@@ -68,29 +68,32 @@ public class HistoryTable extends BaseMetadataTable {
     TableOperations ops = operations();
     return StaticDataTask.of(
         ops.io().newInputFile(ops.current().metadataFileLocation()),
-        schema(), scan.schema(), ops.current().snapshotLog(),
-        convertHistoryEntryFunc(table())
-    );
+        schema(),
+        scan.schema(),
+        ops.current().snapshotLog(),
+        convertHistoryEntryFunc(table()));
   }
 
   private class HistoryScan extends StaticTableScan {
     HistoryScan(TableOperations ops, Table table) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(), HistoryTable.this::task);
+      super(ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task);
     }
 
     HistoryScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(),
-              HistoryTable.this::task, context);
+      super(
+          ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new HistoryScan(ops, table, context);
     }
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
+      // override planFiles to avoid the check for a current snapshot because this metadata table is
+      // for all snapshots
       return CloseableIterable.withNoopClose(HistoryTable.this.task(this));
     }
   }
@@ -110,8 +113,7 @@ public class HistoryTable extends BaseMetadataTable {
           historyEntry.timestampMillis() * 1000,
           historyEntry.snapshotId(),
           snap != null ? snap.parentId() : null,
-          ancestorIds.contains(snapshotId)
-      );
+          ancestorIds.contains(snapshotId));
     };
   }
 }

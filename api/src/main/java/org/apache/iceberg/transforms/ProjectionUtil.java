@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
+
+import static org.apache.iceberg.expressions.Expressions.predicate;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
@@ -33,15 +35,12 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
-import static org.apache.iceberg.expressions.Expressions.predicate;
-
 class ProjectionUtil {
 
-  private ProjectionUtil() {
-  }
+  private ProjectionUtil() {}
 
   static <T> UnboundPredicate<T> truncateInteger(
-      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -62,7 +61,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateIntegerStrict(
-      String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {
+      String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -76,7 +75,8 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent ints transform to the same value
+        // there is no predicate that guarantees equality because adjacent ints transform to the
+        // same value
         return null;
       default:
         return null;
@@ -84,7 +84,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLongStrict(
-      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -98,7 +98,8 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent longs transform to the same value
+        // there is no predicate that guarantees equality because adjacent longs transform to the
+        // same value
         return null;
       default:
         return null;
@@ -106,7 +107,7 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateLong(
-      String name, BoundLiteralPredicate<Long> pred, Transform<Long, T> transform) {
+      String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -127,23 +128,20 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimal(
-      String name, BoundLiteralPredicate<BigDecimal> pred,
-      Transform<BigDecimal, T> transform) {
+      String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
         // adjust closed and then transform ltEq
-        BigDecimal minusOne = new BigDecimal(
-            boundary.unscaledValue().subtract(BigInteger.ONE),
-            boundary.scale());
+        BigDecimal minusOne =
+            new BigDecimal(boundary.unscaledValue().subtract(BigInteger.ONE), boundary.scale());
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
       case LT_EQ:
         return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
       case GT:
         // adjust closed and then transform gtEq
-        BigDecimal plusOne = new BigDecimal(
-            boundary.unscaledValue().add(BigInteger.ONE),
-            boundary.scale());
+        BigDecimal plusOne =
+            new BigDecimal(boundary.unscaledValue().add(BigInteger.ONE), boundary.scale());
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
       case GT_EQ:
         return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
@@ -155,17 +153,14 @@ class ProjectionUtil {
   }
 
   static <T> UnboundPredicate<T> truncateDecimalStrict(
-      String name, BoundLiteralPredicate<BigDecimal> pred,
-      Transform<BigDecimal, T> transform) {
+      String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
 
-    BigDecimal minusOne = new BigDecimal(
-        boundary.unscaledValue().subtract(BigInteger.ONE),
-        boundary.scale());
+    BigDecimal minusOne =
+        new BigDecimal(boundary.unscaledValue().subtract(BigInteger.ONE), boundary.scale());
 
-    BigDecimal plusOne = new BigDecimal(
-        boundary.unscaledValue().add(BigInteger.ONE),
-        boundary.scale());
+    BigDecimal plusOne =
+        new BigDecimal(boundary.unscaledValue().add(BigInteger.ONE), boundary.scale());
 
     switch (pred.op()) {
       case LT:
@@ -179,7 +174,8 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent decimals transform to the same value
+        // there is no predicate that guarantees equality because adjacent decimals transform to the
+        // same value
         return null;
       default:
         return null;
@@ -187,7 +183,7 @@ class ProjectionUtil {
   }
 
   static <S, T> UnboundPredicate<T> truncateArray(
-      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -200,15 +196,15 @@ class ProjectionUtil {
         return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
       case STARTS_WITH:
         return predicate(Expression.Operation.STARTS_WITH, name, transform.apply(boundary));
-//        case IN: // TODO
-//          return Expressions.predicate(Operation.IN, name, transform.apply(boundary));
+        //        case IN: // TODO
+        //          return Expressions.predicate(Operation.IN, name, transform.apply(boundary));
       default:
         return null;
     }
   }
 
   static <S, T> UnboundPredicate<T> truncateArrayStrict(
-      String name, BoundLiteralPredicate<S> pred, Transform<S, T> transform) {
+      String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
     switch (pred.op()) {
       case LT:
@@ -220,7 +216,8 @@ class ProjectionUtil {
       case NOT_EQ:
         return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
       case EQ:
-        // there is no predicate that guarantees equality because adjacent values transform to the same partition
+        // there is no predicate that guarantees equality because adjacent values transform to the
+        // same partition
         return null;
       default:
         return null;
@@ -231,16 +228,18 @@ class ProjectionUtil {
    * If the predicate has a transformed child that matches the given transform, return a predicate.
    */
   @SuppressWarnings("unchecked")
-  static <T> UnboundPredicate<T> projectTransformPredicate(Transform<?, T> transform,
-                                                           String partitionName, BoundPredicate<?> pred) {
-    if (pred.term() instanceof BoundTransform && transform.equals(((BoundTransform<?, ?>) pred.term()).transform())) {
+  static <T> UnboundPredicate<T> projectTransformPredicate(
+      Transform<?, T> transform, String partitionName, BoundPredicate<?> pred) {
+    if (pred.term() instanceof BoundTransform
+        && transform.equals(((BoundTransform<?, ?>) pred.term()).transform())) {
       // the bound value must be a T because the transform matches
       return (UnboundPredicate<T>) removeTransform(partitionName, pred);
     }
     return null;
   }
 
-  private static <T> UnboundPredicate<T> removeTransform(String partitionName, BoundPredicate<T> pred) {
+  private static <T> UnboundPredicate<T> removeTransform(
+      String partitionName, BoundPredicate<T> pred) {
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), partitionName);
     } else if (pred.isLiteralPredicate()) {
@@ -248,24 +247,28 @@ class ProjectionUtil {
     } else if (pred.isSetPredicate()) {
       return Expressions.predicate(pred.op(), partitionName, pred.asSetPredicate().literalSet());
     }
-    throw new UnsupportedOperationException("Cannot replace transform in unknown predicate: " + pred);
+    throw new UnsupportedOperationException(
+        "Cannot replace transform in unknown predicate: " + pred);
   }
 
-  static <S, T> UnboundPredicate<T> transformSet(String fieldName,
-                                                 BoundSetPredicate<S> predicate,
-                                                 Transform<S, T> transform) {
-    return predicate(predicate.op(), fieldName,
+  static <S, T> UnboundPredicate<T> transformSet(
+      String fieldName, BoundSetPredicate<S> predicate, Function<S, T> transform) {
+    return predicate(
+        predicate.op(),
+        fieldName,
         Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
   }
 
   /**
    * Fixes an inclusive projection to account for incorrectly transformed values.
-   * <p>
-   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
-   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
-   * written by versions with this bug, this method adjusts the inclusive projection. The current inclusive projection
-   * is correct, so this modifies the "correct" projection when needed. For example, < day(1969-12-31 10:00:00) will
-   * produce <= -1 (= 1969-12-31) and is adjusted to <= 0 (= 1970-01-01) because the incorrect transformed value was 0.
+   *
+   * <p>A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and
+   * timestamp transforms to 1 larger than the correct value. For example, day(1969-12-31 10:00:00)
+   * produced 0 instead of -1. To read data written by versions with this bug, this method adjusts
+   * the inclusive projection. The current inclusive projection is correct, so this modifies the
+   * "correct" projection when needed. For example, < day(1969-12-31 10:00:00) will produce <= -1 (=
+   * 1969-12-31) and is adjusted to <= 0 (= 1970-01-01) because the incorrect transformed value was
+   * 0.
    */
   static UnboundPredicate<Integer> fixInclusiveTimeProjection(UnboundPredicate<Integer> projected) {
     if (projected == null) {
@@ -295,8 +298,10 @@ class ProjectionUtil {
 
       case EQ:
         if (projected.literal().value() < 0) {
-          // match either the incorrect value (projectedValue + 1) or the correct value (projectedValue)
-          return Expressions.in(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+          // match either the incorrect value (projectedValue + 1) or the correct value
+          // (projectedValue)
+          return Expressions.in(
+              projected.term(), projected.literal().value(), projected.literal().value() + 1);
         }
 
         return projected;
@@ -331,10 +336,11 @@ class ProjectionUtil {
 
   /**
    * Fixes a strict projection to account for incorrectly transformed values.
-   * <p>
-   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
-   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
-   * written by versions with this bug, this method adjusts the strict projection.
+   *
+   * <p>A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and
+   * timestamp transforms to 1 larger than the correct value. For example, day(1969-12-31 10:00:00)
+   * produced 0 instead of -1. To read data written by versions with this bug, this method adjusts
+   * the strict projection.
    */
   static UnboundPredicate<Integer> fixStrictTimeProjection(UnboundPredicate<Integer> projected) {
     if (projected == null) {
@@ -348,9 +354,12 @@ class ProjectionUtil {
         return projected;
 
       case GT:
-        // GT and GT_EQ need to be adjusted because values that do not match the predicate may have been transformed
-        // into partition values that match the projected predicate. For example, >= month(1969-11-31) is > -2, but
-        // 1969-10-31 was previously transformed to month -2 instead of -3. This must use the more strict value.
+        // GT and GT_EQ need to be adjusted because values that do not match the predicate may have
+        // been transformed
+        // into partition values that match the projected predicate. For example, >=
+        // month(1969-11-31) is > -2, but
+        // 1969-10-31 was previously transformed to month -2 instead of -3. This must use the more
+        // strict value.
         if (projected.literal().value() <= 0) {
           return Expressions.greaterThan(projected.term(), projected.literal().value() + 1);
         }
@@ -371,7 +380,8 @@ class ProjectionUtil {
 
       case NOT_EQ:
         if (projected.literal().value() < 0) {
-          return Expressions.notIn(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+          return Expressions.notIn(
+              projected.term(), projected.literal().value(), projected.literal().value() + 1);
         }
 
         return projected;

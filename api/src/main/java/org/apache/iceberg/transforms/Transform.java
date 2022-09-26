@@ -16,18 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A transform function used for partitioning.
- * <p>
- * Implementations of this interface can be used to transform values, check or types, and project
+ *
+ * <p>Implementations of this interface can be used to transform values, check or types, and project
  * {@link BoundPredicate predicates} to predicates on partition values.
  *
  * @param <S> Java class of source values
@@ -39,8 +42,23 @@ public interface Transform<S, T> extends Serializable {
    *
    * @param value a source value
    * @return a transformed partition value
+   * @deprecated use {@link #bind(Type)} instead; will be removed in 2.0.0
    */
-  T apply(S value);
+  @Deprecated
+  default T apply(S value) {
+    throw new UnsupportedOperationException(
+        "apply(value) is deprecated, use bind(Type).apply(value)");
+  }
+
+  /**
+   * Returns a function that applies this transform to values of the given {@link Type type}.
+   *
+   * @param type an Iceberg {@link Type}
+   * @return a {@link Function} that applies this transform to values of the given type.
+   */
+  default SerializableFunction<S, T> bind(Type type) {
+    throw new UnsupportedOperationException("bind is not implemented");
+  }
 
   /**
    * Checks whether this function can be applied to the given {@link Type}.
@@ -60,8 +78,9 @@ public interface Transform<S, T> extends Serializable {
 
   /**
    * Whether the transform preserves the order of values (is monotonic).
-   * <p>
-   * A transform preserves order for values when for any given a and b, if a &lt; b then apply(a) &lt;= apply(b).
+   *
+   * <p>A transform preserves order for values when for any given a and b, if a &lt; b then apply(a)
+   * &lt;= apply(b).
    *
    * @return true if the transform preserves the order of values
    */
@@ -70,10 +89,11 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
-   * Whether ordering by this transform's result satisfies the ordering of another transform's result.
-   * <p>
-   * For example, sorting by day(ts) will produce an ordering that is also by month(ts) or year(ts). However, sorting
-   * by day(ts) will not satisfy the order of hour(ts) or identity(ts).
+   * Whether ordering by this transform's result satisfies the ordering of another transform's
+   * result.
+   *
+   * <p>For example, sorting by day(ts) will produce an ordering that is also by month(ts) or
+   * year(ts). However, sorting by day(ts) will not satisfy the order of hour(ts) or identity(ts).
    *
    * @return true if ordering by this transform is equivalent to ordering by the other transform
    */
@@ -82,10 +102,11 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
-   * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition
-   * values produced by {@link #apply(Object)}.
-   * <p>
-   * This inclusive transform guarantees that if pred(v) is true, then projected(apply(v)) is true.
+   * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition values
+   * produced by the transform.
+   *
+   * <p>This inclusive transform guarantees that if pred(v) is true, then projected(apply(v)) is
+   * true.
    *
    * @param name the field name for partition values
    * @param predicate a predicate for source values
@@ -95,9 +116,10 @@ public interface Transform<S, T> extends Serializable {
 
   /**
    * Transforms a {@link BoundPredicate predicate} to a strict predicate on the partition values
-   * produced by {@link #apply(Object)}.
-   * <p>
-   * This strict transform guarantees that if strict(apply(v)) is true, then pred(v) is also true.
+   * produced by the transform.
+   *
+   * <p>This strict transform guarantees that if strict(apply(v)) is true, then pred(v) is also
+   * true.
    *
    * @param name the field name for partition values
    * @param predicate a predicate for source values
@@ -116,19 +138,57 @@ public interface Transform<S, T> extends Serializable {
 
   /**
    * Returns a human-readable String representation of a transformed value.
-   * <p>
-   * null values will return "null"
+   *
+   * <p>null values will return "null"
    *
    * @param value a transformed value
    * @return a human-readable String representation of the value
+   * @deprecated use {@link #toHumanString(Type, Object)} instead; will be removed in 2.0.0
    */
+  @Deprecated
   default String toHumanString(T value) {
-    return String.valueOf(value);
+    if (value instanceof ByteBuffer) {
+      return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
+    } else if (value instanceof byte[]) {
+      return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
+    } else {
+      return String.valueOf(value);
+    }
+  }
+
+  default String toHumanString(Type type, T value) {
+    if (value == null) {
+      return "null";
+    }
+
+    switch (type.typeId()) {
+      case DATE:
+        return TransformUtil.humanDay((Integer) value);
+      case TIME:
+        return TransformUtil.humanTime((Long) value);
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return TransformUtil.humanTimestampWithZone((Long) value);
+        } else {
+          return TransformUtil.humanTimestampWithoutZone((Long) value);
+        }
+      case FIXED:
+      case BINARY:
+        if (value instanceof ByteBuffer) {
+          return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
+        } else if (value instanceof byte[]) {
+          return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
+        } else {
+          throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
+        }
+      default:
+        return value.toString();
+    }
   }
 
   /**
-   * Return the unique transform name to check if similar transforms for the same source field
-   * are added multiple times in partition spec builder.
+   * Return the unique transform name to check if similar transforms for the same source field are
+   * added multiple times in partition spec builder.
    *
    * @return a name used for dedup
    */

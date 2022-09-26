@@ -33,6 +33,8 @@ configure(sparkProjects) {
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-core:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.11.4'
       }
     }
   }
@@ -64,8 +66,12 @@ project(':iceberg-spark:iceberg-spark-3.0_2.12') {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       exclude group: 'org.roaringbitmap'
     }
+
+    implementation("org.apache.parquet:parquet-column")
+    implementation("org.apache.parquet:parquet-hadoop")
 
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
@@ -136,6 +142,7 @@ project(":iceberg-spark:iceberg-spark-extensions-3.0_2.12") {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       exclude group: 'org.roaringbitmap'
     }
 
@@ -243,6 +250,7 @@ project(':iceberg-spark:iceberg-spark-runtime-3.0_2.12') {
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'

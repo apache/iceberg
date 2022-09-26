@@ -32,6 +32,7 @@ spark/v2.4/spark/benchmark/*
 spark/v3.0/spark/benchmark/*
 spark/v3.1/spark/benchmark/*
 spark/v3.2/spark/benchmark/*
+spark/v3.3/spark/benchmark/*
 data/benchmark/*
 
 __pycache__/
@@ -65,3 +66,5 @@ derby.log
 # Python stuff
 python_legacy/.mypy_cache/
 python/.mypy_cache/
+python/htmlcov
+python/coverage.xml

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -27,8 +26,8 @@ import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
 
 /**
- * Implements a {@link ValuesReader} specifically to read given number of bytes from the underlying {@link
- * ByteBufferInputStream}.
+ * Implements a {@link ValuesReader} specifically to read given number of bytes from the underlying
+ * {@link ByteBufferInputStream}.
  */
 public class ValuesAsBytesReader extends ValuesReader {
   private ByteBufferInputStream valuesInputStream = null;
@@ -36,8 +35,7 @@ public class ValuesAsBytesReader extends ValuesReader {
   private int bitOffset;
   private byte currentByte = 0;
 
-  public ValuesAsBytesReader() {
-  }
+  public ValuesAsBytesReader() {}
 
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream in) {
@@ -91,9 +89,7 @@ public class ValuesAsBytesReader extends ValuesReader {
     return value;
   }
 
-  /**
-   * Returns 1 if true, 0 otherwise.
-   */
+  /** Returns 1 if true, 0 otherwise. */
   public final int readBooleanAsInt() {
     if (bitOffset == 0) {
       currentByte = getByte();

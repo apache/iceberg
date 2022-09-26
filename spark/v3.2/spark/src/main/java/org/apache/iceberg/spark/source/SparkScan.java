@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
@@ -39,11 +38,16 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.source.metrics.NumDeletes;
+import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
+import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -57,10 +61,9 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkScan implements Scan, SupportsReportStatistics {
+abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
 
-  private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
@@ -69,14 +72,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final boolean readTimestampWithoutZone;
 
   // lazy variables
-  private StructType readSchema = null;
+  private StructType readSchema;
 
-  SparkScan(SparkSession spark, Table table, SparkReadConf readConf,
-            Schema expectedSchema, List<Expression> filters) {
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(spark, table, readConf, expectedSchema);
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -101,23 +108,23 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected abstract List<CombinedScanTask> tasks();
-
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema);
+    return this;
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(sparkContext, table, readConf, expectedSchema, checkpointLocation);
+    return new SparkMicroBatchStream(
+        sparkContext(), table, readConf, expectedSchema, checkpointLocation);
   }
 
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
-              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+      Preconditions.checkArgument(
+          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
+          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
@@ -134,14 +141,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
+    // unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(snapshot.summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      return new Stats(
-          SparkSchemaUtil.estimateSize(readSchema(), totalRecords),
-          totalRecords);
+      long totalRecords =
+          PropertyUtil.propertyAsLong(
+              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
     long numRows = 0L;
@@ -160,8 +167,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public String description() {
-    String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+    String filters =
+        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
     return String.format("%s [filters=%s]", table, filters);
+  }
+
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return new CustomMetric[] {new NumSplits(), new NumDeletes()};
   }
 
   static class ReaderFactory implements PartitionReaderFactory {
@@ -196,14 +209,41 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
+    private long numSplits;
+
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
+      numSplits = task.task.files().size();
+      LOG.debug(
+          "Reading {} file split(s) for table {} using RowReader", numSplits, task.table().name());
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] {
+        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      };
     }
   }
 
-  private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
+  private static class BatchReader extends BatchDataReader
+      implements PartitionReader<ColumnarBatch> {
+    private long numSplits;
+
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
+      numSplits = task.task.files().size();
+      LOG.debug(
+          "Reading {} file split(s) for table {} using BatchReader",
+          numSplits,
+          task.table().name());
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] {
+        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+      };
     }
   }
 
@@ -216,8 +256,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     private transient Schema expectedSchema = null;
     private transient String[] preferredLocations = null;
 
-    ReadTask(CombinedScanTask task, Broadcast<Table> tableBroadcast, String expectedSchemaString,
-             boolean caseSensitive, boolean localityPreferred) {
+    ReadTask(
+        CombinedScanTask task,
+        Broadcast<Table> tableBroadcast,
+        String expectedSchemaString,
+        boolean caseSensitive,
+        boolean localityPreferred) {
       this.task = task;
       this.tableBroadcast = tableBroadcast;
       this.expectedSchemaString = expectedSchemaString;

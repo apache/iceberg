@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
@@ -26,12 +25,10 @@ import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
 /**
- * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the Spark data source for
- * Iceberg.
- * <p>
- * This class uses a dataset with a flat schema.
- * To run this benchmark for spark-3.2:
- * <code>
+ * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the
+ * Spark data source for Iceberg.
+ *
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.2: <code>
  *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetWithUnrelatedDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-with-unrelated-delete-benchmark-result.txt
@@ -39,6 +36,7 @@ import org.openjdk.jmh.annotations.Param;
  */
 public class IcebergSourceParquetWithUnrelatedDeleteBenchmark extends IcebergSourceDeleteBenchmark {
   private static final double PERCENT_DELETE_ROW = 0.05;
+
   @Param({"0", "0.05", "0.25", "0.5"})
   private double percentUnrelatedDeletes;
 
@@ -48,9 +46,13 @@ public class IcebergSourceParquetWithUnrelatedDeleteBenchmark extends IcebergSou
       writeData(fileNum);
 
       table().refresh();
-      for (DataFile file : table().currentSnapshot().addedFiles()) {
-        writePosDeletesWithNoise(file.path(), NUM_ROWS, PERCENT_DELETE_ROW,
-            (int) (percentUnrelatedDeletes / PERCENT_DELETE_ROW), 1);
+      for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
+        writePosDeletesWithNoise(
+            file.path(),
+            NUM_ROWS,
+            PERCENT_DELETE_ROW,
+            (int) (percentUnrelatedDeletes / PERCENT_DELETE_ROW),
+            1);
       }
     }
   }

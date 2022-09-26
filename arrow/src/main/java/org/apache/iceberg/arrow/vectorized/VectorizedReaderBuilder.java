@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
@@ -50,12 +49,14 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
-      boolean setArrowValidityVector, Map<Integer, ?> idToConstant,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
       Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
-    this.rootAllocator = ArrowAllocation.rootAllocator()
-        .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+    this.rootAllocator =
+        ArrowAllocation.rootAllocator()
+            .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
@@ -63,8 +64,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
 
   @Override
   public VectorizedReader<?> message(
-      Types.StructType expected, MessageType message,
-      List<VectorizedReader<?>> fieldReaders) {
+      Types.StructType expected, MessageType message, List<VectorizedReader<?>> fieldReaders) {
     GroupType groupType = message.asGroupType();
     Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
     List<Type> fields = groupType.getFields();
@@ -73,11 +73,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         .filter(pos -> fields.get(pos).getId() != null)
         .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
-    List<Types.NestedField> icebergFields = expected != null ?
-        expected.fields() : ImmutableList.of();
+    List<Types.NestedField> icebergFields =
+        expected != null ? expected.fields() : ImmutableList.of();
 
-    List<VectorizedReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
-        icebergFields.size());
+    List<VectorizedReader<?>> reorderedFields =
+        Lists.newArrayListWithExpectedSize(icebergFields.size());
 
     for (Types.NestedField field : icebergFields) {
       int id = field.fieldId();
@@ -91,7 +91,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
           reorderedFields.add(VectorizedArrowReader.positions());
         }
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-        reorderedFields.add(new VectorizedArrowReader.ConstantVectorReader<>(false));
+        reorderedFields.add(new VectorizedArrowReader.DeletedVectorReader());
       } else if (reader != null) {
         reorderedFields.add(reader);
       } else {
@@ -107,18 +107,17 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
 
   @Override
   public VectorizedReader<?> struct(
-      Types.StructType expected, GroupType groupType,
-      List<VectorizedReader<?>> fieldReaders) {
+      Types.StructType expected, GroupType groupType, List<VectorizedReader<?>> fieldReaders) {
     if (expected != null) {
-      throw new UnsupportedOperationException("Vectorized reads are not supported yet for struct fields");
+      throw new UnsupportedOperationException(
+          "Vectorized reads are not supported yet for struct fields");
     }
     return null;
   }
 
   @Override
   public VectorizedReader<?> primitive(
-      org.apache.iceberg.types.Type.PrimitiveType expected,
-      PrimitiveType primitive) {
+      org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
 
     // Create arrow vector for this field
     if (primitive.getId() == null) {

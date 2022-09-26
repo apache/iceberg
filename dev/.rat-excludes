@@ -1,6 +1,7 @@
 version.txt
 versions.lock
 versions.props
+iceberg-build.properties
 .java-version
 books.json
 new-books.json
@@ -9,6 +10,7 @@ build
 .rat-excludes
 LICENSE
 NOTICE
+revapi.yml
 gradlew
 examples/*
 gradle/*
@@ -21,6 +23,7 @@ gradle/*
 .*\.svg
 .*\.lock
 .*\.json
+.*\.bin
 package-list
 sitemap.xml
 derby.log

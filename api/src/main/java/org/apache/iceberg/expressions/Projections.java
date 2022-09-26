@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.Collection;
@@ -25,23 +24,20 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
 
-/**
- * Utils to project expressions on rows to expressions on partitions.
- */
+/** Utils to project expressions on rows to expressions on partitions. */
 public class Projections {
-  private Projections() {
-  }
+  private Projections() {}
 
   /**
    * A class that projects expressions for a table's data rows into expressions on the table's
    * partition values, for a table's {@link PartitionSpec partition spec}.
-   * <p>
-   * There are two types of projections: inclusive and strict.
-   * <p>
-   * An inclusive projection guarantees that if an expression matches a row, the projected
+   *
+   * <p>There are two types of projections: inclusive and strict.
+   *
+   * <p>An inclusive projection guarantees that if an expression matches a row, the projected
    * expression will match the row's partition.
-   * <p>
-   * A strict projection guarantees that if a partition matches a projected expression, then all
+   *
+   * <p>A strict projection guarantees that if a partition matches a projected expression, then all
    * rows in that partition will match the original expression.
    */
   public abstract static class ProjectionEvaluator extends ExpressionVisitor<Expression> {
@@ -57,14 +53,14 @@ public class Projections {
   /**
    * Creates an inclusive {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, defaulting
    * to case sensitive mode.
-   * <p>
-   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   *
+   * <p>An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is inclusive and will build
    * expressions with the following guarantee: if the original expression matches a row, then the
    * projected expression will match that row's partition.
-   * <p>
-   * Each predicate in the expression is projected using
-   * {@link Transform#project(String, BoundPredicate)}.
+   *
+   * <p>Each predicate in the expression is projected using {@link Transform#project(String,
+   * BoundPredicate)}.
    *
    * @param spec a partition spec
    * @return an inclusive projection evaluator for the partition spec
@@ -76,17 +72,18 @@ public class Projections {
 
   /**
    * Creates an inclusive {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
-   * <p>
-   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   *
+   * <p>An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is inclusive and will build
    * expressions with the following guarantee: if the original expression matches a row, then the
    * projected expression will match that row's partition.
-   * <p>
-   * Each predicate in the expression is projected using
-   * {@link Transform#project(String, BoundPredicate)}.
+   *
+   * <p>Each predicate in the expression is projected using {@link Transform#project(String,
+   * BoundPredicate)}.
    *
    * @param spec a partition spec
-   * @param caseSensitive whether the Projection should consider case sensitivity on column names or not.
+   * @param caseSensitive whether the Projection should consider case sensitivity on column names or
+   *     not.
    * @return an inclusive projection evaluator for the partition spec
    * @see Transform#project(String, BoundPredicate) Inclusive transform used for each predicate
    */
@@ -95,16 +92,16 @@ public class Projections {
   }
 
   /**
-   * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, defaulting
-   * to case sensitive mode.
-   * <p>
-   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, defaulting to
+   * case sensitive mode.
+   *
+   * <p>An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is strict and will build
-   * expressions with the following guarantee: if the projected expression matches a partition,
-   * then the original expression will match all rows in that partition.
-   * <p>
-   * Each predicate in the expression is projected using
-   * {@link Transform#projectStrict(String, BoundPredicate)}.
+   * expressions with the following guarantee: if the projected expression matches a partition, then
+   * the original expression will match all rows in that partition.
+   *
+   * <p>Each predicate in the expression is projected using {@link Transform#projectStrict(String,
+   * BoundPredicate)}.
    *
    * @param spec a partition spec
    * @return a strict projection evaluator for the partition spec
@@ -116,17 +113,18 @@ public class Projections {
 
   /**
    * Creates a strict {@code ProjectionEvaluator} for the {@link PartitionSpec spec}.
-   * <p>
-   * An evaluator is used to project expressions for a table's data rows into expressions on the
+   *
+   * <p>An evaluator is used to project expressions for a table's data rows into expressions on the
    * table's partition values. The evaluator returned by this function is strict and will build
-   * expressions with the following guarantee: if the projected expression matches a partition,
-   * then the original expression will match all rows in that partition.
-   * <p>
-   * Each predicate in the expression is projected using
-   * {@link Transform#projectStrict(String, BoundPredicate)}.
+   * expressions with the following guarantee: if the projected expression matches a partition, then
+   * the original expression will match all rows in that partition.
+   *
+   * <p>Each predicate in the expression is projected using {@link Transform#projectStrict(String,
+   * BoundPredicate)}.
    *
    * @param spec a partition spec
-   * @param caseSensitive whether the Projection should consider case sensitivity on column names or not.
+   * @param caseSensitive whether the Projection should consider case sensitivity on column names or
+   *     not.
    * @return a strict projection evaluator for the partition spec
    * @see Transform#projectStrict(String, BoundPredicate) Strict transform used for each predicate
    */
@@ -221,7 +219,8 @@ public class Projections {
         // similarly, if partitioning by day(ts) and hour(ts), the more restrictive
         // projection should be used. ts = 2019-01-01T01:00:00 produces day=2019-01-01 and
         // hour=2019-01-01-01. the value will be in 2019-01-01-01 and not in 2019-01-01-02.
-        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        UnboundPredicate<?> inclusiveProjection =
+            ((Transform<T, ?>) part.transform()).project(part.name(), pred);
         if (inclusiveProjection != null) {
           result = Expressions.and(result, inclusiveProjection);
         }
@@ -252,7 +251,8 @@ public class Projections {
         // any timestamp where either projection predicate is true must match the original
         // predicate. For example, ts = 2019-01-01T03:00:00 matches the hour projection but not
         // the day, but does match the original predicate.
-        UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        UnboundPredicate<?> strictProjection =
+            ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
         if (strictProjection != null) {
           result = Expressions.or(result, strictProjection);
         }

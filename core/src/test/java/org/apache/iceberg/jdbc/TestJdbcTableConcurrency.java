@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.jdbc;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,20 +50,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestJdbcTableConcurrency {
 
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("db", "test_table");
-  static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get(), "unique ID"),
-      required(2, "data", Types.StringType.get())
-  );
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "data", Types.StringType.get()));
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   File tableDir;
 
   @Test
@@ -77,36 +75,40 @@ public class TestJdbcTableConcurrency {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
+    DataFile file =
+        DataFiles.builder(icebergTable.spec())
+            .withPath(FileFormat.PARQUET.addExtension(fileName))
+            .withRecordCount(2)
+            .withFileSizeInBytes(0)
+            .build();
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
     Tasks.range(2)
-        .stopOnFailure().throwFailureWhenFinished()
+        .stopOnFailure()
+        .throwFailureWhenFinished()
         .executeWith(executorService)
-        .run(index -> {
-          for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
-            while (barrier.get() < numCommittedFiles * 2) {
-              try {
-                Thread.sleep(10);
-              } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-            }
+        .run(
+            index -> {
+              for (int numCommittedFiles = 0; numCommittedFiles < 10; numCommittedFiles++) {
+                while (barrier.get() < numCommittedFiles * 2) {
+                  try {
+                    Thread.sleep(10);
+                  } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                  }
+                }
 
-            icebergTable.newFastAppend().appendFile(file).commit();
-            barrier.incrementAndGet();
-          }
-        });
+                icebergTable.newFastAppend().appendFile(file).commit();
+                barrier.incrementAndGet();
+              }
+            });
 
     icebergTable.refresh();
-    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests().size());
+    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests(icebergTable.io()).size());
   }
 
   @Test
@@ -123,21 +125,24 @@ public class TestJdbcTableConcurrency {
 
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    icebergTable.updateProperties()
+    icebergTable
+        .updateProperties()
         .set(COMMIT_NUM_RETRIES, "20")
         .set(COMMIT_MIN_RETRY_WAIT_MS, "25")
         .set(COMMIT_MAX_RETRY_WAIT_MS, "25")
         .commit();
 
     String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(icebergTable.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
+    DataFile file =
+        DataFiles.builder(icebergTable.spec())
+            .withPath(FileFormat.PARQUET.addExtension(fileName))
+            .withRecordCount(2)
+            .withFileSizeInBytes(0)
+            .build();
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(7));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(7));
 
     for (int i = 0; i < 7; i++) {
       executorService.submit(() -> icebergTable.newAppend().appendFile(file).commit());
