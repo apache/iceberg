@@ -423,62 +423,74 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
   @Test
   public void testUnboundPartitionSpecFormatVersion1() throws Exception {
-    sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, ts timestamp, data string) USING iceberg " +
-            "TBLPROPERTIES ('format-version' = 1, 'write.delete.mode' = 'merge-on-read')", tableName);
-    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, ts timestamp, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = 1, 'write.delete.mode' = 'merge-on-read')",
+        tableName);
+    Assert.assertEquals(
+        "spark table partition should be empty", 0, sparkTable().partitioning().length);
 
     sql("INSERT INTO %s VALUES (1, current_timestamp(), 'format-version-1-first-data')", tableName);
-    Assert.assertEquals("Should have 1 rows after insert", 1L,
-        scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 1 rows after insert", 1L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
     assertPartitioningEquals(sparkTable(), 1, "truncate(data, 4)");
 
-    sql("INSERT INTO %s VALUES (2, current_timestamp(), 'format-version-1-second-data')", tableName);
-    Assert.assertEquals("Should have 2 rows after insert", 2L,
-        scalarSql("SELECT count(*) FROM %s", tableName));
+    sql(
+        "INSERT INTO %s VALUES (2, current_timestamp(), 'format-version-1-second-data')",
+        tableName);
+    Assert.assertEquals(
+        "Should have 2 rows after insert", 2L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s DROP PARTITION FIELD truncate(data, 4)", tableName);
-    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+    Assert.assertEquals(
+        "spark table partition should be empty", 0, sparkTable().partitioning().length);
 
     sql("INSERT INTO %s VALUES (3, current_timestamp(), 'format-version-1-third-data')", tableName);
-    Assert.assertEquals("Should have 3 rows after insert", 3L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s DROP COLUMN data", tableName);
 
-    Assert.assertEquals("Should have 3 rows after insert", 3L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
   }
 
   @Test
   public void testUnboundPartitionSpecFormatVersion2() throws Exception {
-    sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, ts timestamp, data string) USING iceberg " +
-            "TBLPROPERTIES ('format-version' = 2, 'write.delete.mode' = 'merge-on-read')", tableName);
-    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, ts timestamp, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = 2, 'write.delete.mode' = 'merge-on-read')",
+        tableName);
+    Assert.assertEquals(
+        "spark table partition should be empty", 0, sparkTable().partitioning().length);
 
     sql("INSERT INTO %s VALUES (1, current_timestamp(), 'format-version-2-first-data')", tableName);
-    Assert.assertEquals("Should have 1 rows after insert", 1L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 1 rows after insert", 1L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
     assertPartitioningEquals(sparkTable(), 1, "truncate(data, 4)");
 
-    sql("INSERT INTO %s VALUES (2, current_timestamp(), 'format-version-2-second-data')", tableName);
-    Assert.assertEquals("Should have 2 rows after insert", 2L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    sql(
+        "INSERT INTO %s VALUES (2, current_timestamp(), 'format-version-2-second-data')",
+        tableName);
+    Assert.assertEquals(
+        "Should have 2 rows after insert", 2L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s DROP PARTITION FIELD truncate(data, 4)", tableName);
-    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+    Assert.assertEquals(
+        "spark table partition should be empty", 0, sparkTable().partitioning().length);
 
     sql("INSERT INTO %s VALUES (3, current_timestamp(), 'format-version-2-third-data')", tableName);
-    Assert.assertEquals("Should have 3 rows after insert", 3L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     sql("ALTER TABLE %s DROP COLUMN data", tableName);
 
-    Assert.assertEquals("Should have 3 rows after insert", 3L,
-            scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {
