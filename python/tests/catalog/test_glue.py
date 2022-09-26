@@ -77,3 +77,6 @@ def test_rename_table():
         ('fokko', 'test2')
     )
     assert table is None
+
+def test_drop_table():
+    GlueCatalog('glue', {}).drop_table(('reviews', 'create_test'))
