@@ -21,5 +21,11 @@ from pyiceberg import __version__
 
 
 def test_version_format():
-    # We should be able to parse the version
-    assert Version(__version__)
+    from importlib import metadata
+
+    installed_version = Version(metadata.version("pyiceberg"))
+    installed_base_version = installed_version.base_version
+
+    assert (
+        __version__ == installed_base_version
+    ), f"{__version__} <> {installed_base_version}, the installed version does not match with the current codebase"
