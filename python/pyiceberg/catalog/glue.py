@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import boto3
-
+from datetime import datetime
 from typing import Union, Optional, List, Set, Dict
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
@@ -26,36 +26,84 @@ from pyiceberg.table import Table
 from pyiceberg.table.partitioning import PartitionSpec, UNPARTITIONED_PARTITION_SPEC
 from pyiceberg.table.sorting import SortOrder, UNSORTED_SORT_ORDER, SortDirection
 from pyiceberg.typedef import Identifier, Properties, EMPTY_DICT
+from pyiceberg.types import NestedField
 
 
 class GlueCatalog(Catalog):
 
     def __init__(self, name: str, properties: Properties):
         self.client = boto3.client("glue")
-        super().__init__(name, properties)
+        super().__init__(name, **properties)
 
     def _check_response(self, response: Dict[str, Dict[str, str]]):
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise ValueError(f"Got unexpected status code {response['HttpStatusCode']}")
 
     def create_table(
-        self,
-        identifier: str | Identifier,
-        schema: Schema,
-        location: str | None = None,
-        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-        sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Properties = EMPTY_DICT,
+            self,
+            identifier: str | Identifier,
+            schema: Schema,
+            location: str | None = None,
+            partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+            sort_order: SortOrder = UNSORTED_SORT_ORDER,
+            properties: Properties = EMPTY_DICT,
     ) -> Table:
-        pass
+        database_name, table_name = self.identifier_to_tuple(identifier)
+
+        now = datetime.now()
+
+        def _convert_column(field: NestedField):
+            d = {'Name': field.name, 'Type': str(field.field_type)}
+
+            if field.doc:
+                d['Comment'] = field.doc
+
+            return d
+
+        # Do all the metadata foo once the Hive PR has been merged
+
+        response = self.client.create_table(
+            DatabaseName=database_name,
+            TableInput={
+                'Name': table_name,
+                'Description': 'string',  # To be fixed
+                'Owner': properties[OWNER] if properties and OWNER in properties else getpass.getuser(),
+                'LastAccessTime': now,
+                'LastAnalyzedTime': now,
+                'StorageDescriptor': {
+                    'Columns': list(map(_convert_column, schema.fields)),
+                    'Location': location or 's3://',  # To be fixed
+                    'BucketColumns': [
+                        'string',
+                    ],
+                    'SortColumns': [{
+                        schema.find_column_name(field.source_id),
+                        1 if field.direction == SortDirection.ASC else 0
+                    } for field in sort_order.fields]
+                },
+                'PartitionKeys': [
+                    {
+                        'Name': schema.find_column_name(spec.source_id),
+                        'Type': str(schema.find_type(spec.source_id)),
+                        'Comment': str(spec.transform)
+                    }
+                    for spec in partition_spec.fields],
+                'TableType': 'EXTERNAL_TABLE',
+                'Parameters': properties,
+            }
+        )
 
     def load_table(self, identifier: str | Identifier) -> Table:
         database_name, table_name = self.identifier_to_tuple(identifier)
-
-        response = self.client.get_table(DatabseName=database_name, Name=table_name)
-
-        self._check_response(response)
-        # TODO: metadata stuff
+        response = None
+        try:
+            response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+        except self.client.exceptions.EntityNotFoundException:
+            # TODO: log not found message
+            pass
+        if not (response is None):
+            self._check_response(response)
+            return response['Table']
         return None
 
     def drop_table(self, identifier: str | Identifier) -> None:
@@ -123,7 +171,7 @@ class GlueCatalog(Catalog):
         return self._get_database(database_name)['Parameters']
 
     def update_namespace_properties(
-        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+            self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         identifier = self.identifier_to_tuple(namespace)
         database_name, = identifier
@@ -166,5 +214,3 @@ class GlueCatalog(Catalog):
     def _get_database(self, database_name: str):
         databases = self.client.get_databases()['DatabaseList']
         return next(database for database in databases if database['Name'] == database_name)
-
-
