@@ -31,13 +31,16 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,16 +51,19 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final TableIdentifier tableIdentifier;
   private final FileIO fileIO;
   private final JdbcClientPool connections;
+  private final Map<String, String> catalogProperties;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
       FileIO fileIO,
       String catalogName,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      Map<String, String> catalogProperties) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
+    this.catalogProperties = catalogProperties;
   }
 
   @Override
@@ -167,13 +173,21 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
+    Namespace namespace = tableIdentifier.namespace();
+    if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
+        && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
+      throw new NoSuchNamespaceException(
+          "Cannot create table %s in catalog %s. Namespace %s does not exist",
+          tableIdentifier, catalogName, namespace);
+    }
+
     int insertRecord =
         connections.run(
             conn -> {
               try (PreparedStatement sql =
                   conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_TABLE_SQL)) {
                 sql.setString(1, catalogName);
-                sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
+                sql.setString(2, JdbcUtil.namespaceToString(namespace));
                 sql.setString(3, tableIdentifier.name());
                 sql.setString(4, newMetadataLocation);
                 return sql.executeUpdate();
