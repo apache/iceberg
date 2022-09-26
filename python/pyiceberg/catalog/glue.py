@@ -16,9 +16,13 @@
 #  under the License.
 from __future__ import annotations
 
+import getpass
+
 import boto3
 from datetime import datetime
 from typing import Union, Optional, List, Set, Dict
+
+from pyiceberg.catalog.hive import OWNER
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.schema import Schema

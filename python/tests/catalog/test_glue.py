@@ -56,7 +56,7 @@ def test_update_namespace_properties():
 @patch("time.time", MagicMock(return_value=12345))
 @patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_nested: Schema):
-    table = GlueCatalog('glue', {}).create_table(('fokko', 'test'), table_schema_nested)
+    table = GlueCatalog('glue', {}).create_table(('reviews', 'createTestDb'), table_schema_nested, "s3://myicebergtest/glueiceberg2/test.db/")
     assert table is None
 
 
