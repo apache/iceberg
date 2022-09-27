@@ -37,12 +37,14 @@ class GlueCatalog(Catalog):
 
     def __init__(self, name: str, properties: Properties):
         self.client = boto3.client("glue")
+        self.sts_client = boto3.client("sts")
         super().__init__(name, **properties)
 
     def _check_response(self, response: Dict[str, Dict[str, str]]):
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise ValueError(f"Got unexpected status code {response['HttpStatusCode']}")
 
+    # tested on pre-existing database
     def create_table(
             self,
             identifier: str | Identifier,
@@ -65,50 +67,56 @@ class GlueCatalog(Catalog):
             return d
 
         # Do all the metadata foo once the Hive PR has been merged
+        try:
+            create_table_response = self.client.create_table(
+                DatabaseName=database_name,
+                TableInput={
+                    'Name': table_name,
+                    'Description': 'string',  # To be fixed
+                    'Owner': properties[OWNER] if properties and OWNER in properties
+                    else boto3.client("sts").get_caller_identity().get("Account"),
+                    'LastAccessTime': now,
+                    'LastAnalyzedTime': now,
+                    'StorageDescriptor': {
+                        'Columns': list(map(_convert_column, schema.fields)),
+                        'Location': location or 's3://',  # To be fixed
+                        'BucketColumns': [
+                            'string',
+                        ],
+                        'SortColumns': [{
+                            schema.find_column_name(field.source_id),
+                            1 if field.direction == SortDirection.ASC else 0
+                        } for field in sort_order.fields]
+                    },
+                    'PartitionKeys': [
+                        {
+                            'Name': schema.find_column_name(spec.source_id),
+                            'Type': str(schema.find_type(spec.source_id)),
+                            'Comment': str(spec.transform)
+                        }
+                        for spec in partition_spec.fields],
+                    'TableType': 'EXTERNAL_TABLE',
+                    'Parameters': properties,
+                }
+            )
 
-        response = self.client.create_table(
-            DatabaseName=database_name,
-            TableInput={
-                'Name': table_name,
-                'Description': 'string',  # To be fixed
-                'Owner': properties[OWNER] if properties and OWNER in properties else getpass.getuser(),
-                'LastAccessTime': now,
-                'LastAnalyzedTime': now,
-                'StorageDescriptor': {
-                    'Columns': list(map(_convert_column, schema.fields)),
-                    'Location': location or 's3://',  # To be fixed
-                    'BucketColumns': [
-                        'string',
-                    ],
-                    'SortColumns': [{
-                        schema.find_column_name(field.source_id),
-                        1 if field.direction == SortDirection.ASC else 0
-                    } for field in sort_order.fields]
-                },
-                'PartitionKeys': [
-                    {
-                        'Name': schema.find_column_name(spec.source_id),
-                        'Type': str(schema.find_type(spec.source_id)),
-                        'Comment': str(spec.transform)
-                    }
-                    for spec in partition_spec.fields],
-                'TableType': 'EXTERNAL_TABLE',
-                'Parameters': properties,
-            }
-        )
+            load_table_response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+            print(load_table_response)
+            return load_table_response['Table']  # TODO: convert glue to iceberg
+        except self.client.exceptions.AlreadyExistsException:
+            # TODO log already exists info
+            return None
 
+    # tested
     def load_table(self, identifier: str | Identifier) -> Table:
         database_name, table_name = self.identifier_to_tuple(identifier)
-        response = None
         try:
-            response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+            load_table_response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+            self._check_response(load_table_response)
+            return load_table_response['Table']
         except self.client.exceptions.EntityNotFoundException:
             # TODO: log not found message
-            pass
-        if not (response is None):
-            self._check_response(response)
-            return response['Table']
-        return None
+            return None
 
     def drop_table(self, identifier: str | Identifier) -> None:
         database_name, table_name = self.identifier_to_tuple(identifier)
@@ -124,6 +132,7 @@ class GlueCatalog(Catalog):
     def rename_table(self, from_identifier: str | Identifier, to_identifier: str | Identifier) -> Table:
         raise NotImplementedError("AWS Glue does not support renaming of tables")
 
+    # tested but cannot see on glueCatalog
     def create_namespace(self, namespace: str | Identifier, properties: Properties = EMPTY_DICT) -> None:
         identifier = self.identifier_to_tuple(namespace)
         database_name, = identifier
