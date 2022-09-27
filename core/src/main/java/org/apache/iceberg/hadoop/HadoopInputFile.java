@@ -161,7 +161,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
       try {
         this.stat = fs.getFileStatus(path);
       } catch (FileNotFoundException e) {
-        throw new NotFoundException(e, "Path does not exist: %s", path);
+        throw new NotFoundException(e, "File does not exist: %s", path);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
       }
