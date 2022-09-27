@@ -22,25 +22,35 @@ from pyiceberg.catalog import PropertiesUpdateSummary
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.schema import Schema
 
+import random
+import string
+
+
+def get_randam_table_name():
+    prefix = "my_iceberg_table-"
+    random_tag = "".join(random.choice(string.ascii_letters) for _ in range(20))
+    return prefix + random_tag
+
 
 def test_get_namespaces():
     namespaces = GlueCatalog('glue', {}).list_namespaces()
-    assert namespaces == []
+    print(namespaces)
 
 
 def test_get_tables():
-    tables = GlueCatalog('glue', {}).list_tables('nyc')
-    assert tables == []
+    tables = GlueCatalog('glue', {}).list_tables('reviews')
+    print(tables)
+    assert tables != []
 
 
 def test_create_namespace():
     # AccessDeniedException
     # EntityNotFoundException
-    GlueCatalog('glue', {}).create_namespace('fokko', {'foo': 'bar'})
+    GlueCatalog('glue', {}).create_namespace('testDB3', {'foo': 'bar'})
 
 
 def test_drop_namespace():
-    GlueCatalog('glue', {}).drop_namespace('fokko')
+    GlueCatalog('glue', {}).drop_namespace('myiceberg')
 
 
 def test_load_namespace_properties():
@@ -56,8 +66,8 @@ def test_update_namespace_properties():
 @patch("time.time", MagicMock(return_value=12345))
 @patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_nested: Schema):
-    table = GlueCatalog('glue', {}).create_table(('reviews', 'createTestDb'), table_schema_nested, "s3://myicebergtest/glueiceberg2/test.db/")
-    assert table is None
+    table = GlueCatalog('glue', {}).create_table(('reviews', get_randam_table_name()), table_schema_nested)
+    assert not (table is None)
 
 
 def test_load_table_not_found(table_schema_nested: Schema):
@@ -77,6 +87,7 @@ def test_rename_table():
         ('fokko', 'test2')
     )
     assert table is None
+
 
 def test_drop_table():
     GlueCatalog('glue', {}).drop_table(('reviews', 'create_test'))
