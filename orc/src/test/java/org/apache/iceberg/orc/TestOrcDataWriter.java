@@ -19,7 +19,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -28,13 +27,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -130,147 +125,5 @@ public class TestOrcDataWriter {
     }
 
     Assert.assertEquals("Written records should match", records, writtenRecords);
-  }
-
-  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
-  @Test
-  public void testInvalidUpperBoundString() throws Exception {
-    OutputFile file = Files.localOutput(temp.newFile());
-
-    Table testTable =
-        TestTables.create(
-            temp.newFile(),
-            "test_invalid_string_bound",
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            SortOrder.unsorted(),
-            2);
-    testTable
-        .updateProperties()
-        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
-        .commit();
-
-    DataWriter<Record> dataWriter =
-        ORC.writeData(file)
-            .metricsConfig(MetricsConfig.forTable(testTable))
-            .schema(SCHEMA)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .overwrite()
-            .withSpec(PartitionSpec.unpartitioned())
-            .build();
-
-    // These high code points cause an overflow
-    GenericRecord genericRecord = GenericRecord.create(SCHEMA);
-    ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    char[] charArray = new char[61];
-    for (int i = 0; i < 60; i = i + 2) {
-      charArray[i] = '\uDBFF';
-      charArray[i + 1] = '\uDFFF';
-    }
-    builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "data", String.valueOf(charArray))));
-    List<Record> overflowRecords = builder.build();
-
-    try {
-      for (Record record : overflowRecords) {
-        dataWriter.write(record);
-      }
-    } finally {
-      dataWriter.close();
-    }
-
-    DataFile dataFile = dataWriter.toDataFile();
-    Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile));
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals(
-        "Record count should match", overflowRecords.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
-
-    List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader =
-        ORC.read(file.toInputFile())
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
-            .build()) {
-      writtenRecords = Lists.newArrayList(reader);
-    }
-
-    Assert.assertEquals("Written records should match", overflowRecords, writtenRecords);
-
-    Assert.assertTrue("Should have a valid lower bound", dataFile.lowerBounds().containsKey(1));
-    Assert.assertTrue("Should have a valid upper bound", dataFile.upperBounds().containsKey(1));
-    Assert.assertTrue("Should have a valid lower bound", dataFile.lowerBounds().containsKey(2));
-    Assert.assertTrue("Should have a valid upper bound", dataFile.upperBounds().containsKey(2));
-  }
-
-  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
-  @Test
-  public void testInvalidUpperBoundBinary() throws Exception {
-    OutputFile file = Files.localOutput(temp.newFile());
-
-    Table testTable =
-        TestTables.create(
-            temp.newFile(),
-            "test_invalid_binary_bound",
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            SortOrder.unsorted(),
-            2);
-    testTable
-        .updateProperties()
-        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
-        .commit();
-
-    DataWriter<Record> dataWriter =
-        ORC.writeData(file)
-            .metricsConfig(MetricsConfig.forTable(testTable))
-            .schema(SCHEMA)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .overwrite()
-            .withSpec(PartitionSpec.unpartitioned())
-            .build();
-
-    // This max binary value causes an overflow
-    GenericRecord genericRecord = GenericRecord.create(SCHEMA);
-    ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    ByteBuffer bytes = ByteBuffer.allocate(17);
-    for (int i = 0; i < 17; i++) {
-      bytes.put(i, (byte) 0xff);
-    }
-    builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "binary", bytes)));
-    List<Record> overflowRecords = builder.build();
-
-    try {
-      for (Record record : overflowRecords) {
-        dataWriter.write(record);
-      }
-    } finally {
-      dataWriter.close();
-    }
-
-    DataFile dataFile = dataWriter.toDataFile();
-    Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile));
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals(
-        "Record count should match", overflowRecords.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
-
-    List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader =
-        ORC.read(file.toInputFile())
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
-            .build()) {
-      writtenRecords = Lists.newArrayList(reader);
-    }
-
-    Assert.assertEquals("Written records should match", overflowRecords, writtenRecords);
-
-    // Expect bounds on LONG column
-    Assert.assertTrue("Should have a valid lower bound", dataFile.lowerBounds().containsKey(1));
-    Assert.assertTrue("Should have a valid upper bound", dataFile.upperBounds().containsKey(1));
   }
 }

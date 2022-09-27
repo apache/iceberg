@@ -151,7 +151,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
       return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
     } catch (IOException e) {
       throw new RuntimeIOException(
-          e, "Cannot receive stripe information from writer for %s", file.location());
+          e, "Failed to get stripe information from writer for: %s", file.location());
     }
   }
 
