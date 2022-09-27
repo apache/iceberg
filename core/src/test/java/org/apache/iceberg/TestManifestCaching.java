@@ -172,7 +172,7 @@ public class TestManifestCaching {
     int maxIO = SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
     FileIO firstIO = null;
     ContentCache firstCache = null;
-    for (int i = 0; i < maxIO; i++) {
+    for (int i = 0; i < maxIO - 1; i++) {
       FileIO io = cacheEnabledHadoopFileIO();
       ContentCache cache = contentCache(manifestCache, io);
       if (i == 0) {
@@ -181,11 +181,7 @@ public class TestManifestCaching {
       }
     }
 
-    GcFinalization.awaitFullGc();
-    manifestCache.cleanUp();
-    Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
-
-    // Insert one more FileIO to trigger cache eviction.
+    // Insert the last FileIO and trigger GC + cleanup.
     FileIO lastIO = cacheEnabledHadoopFileIO();
     ContentCache lastCache = contentCache(manifestCache, lastIO);
     GcFinalization.awaitFullGc();
@@ -194,11 +190,11 @@ public class TestManifestCaching {
     // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
     ContentCache cache1 = contentCache(manifestCache, firstIO);
     ContentCache cacheN = contentCache(manifestCache, lastIO);
-    Assert.assertEquals(firstCache, cache1);
-    Assert.assertEquals(lastCache, cacheN);
+    Assert.assertSame(firstCache, cache1);
+    Assert.assertSame(lastCache, cacheN);
     Assert.assertEquals(2, manifestCache.estimatedSize());
-    Assert.assertEquals(maxIO + 1, manifestCache.stats().loadCount());
-    Assert.assertEquals(maxIO - 1, manifestCache.stats().evictionCount());
+    Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
+    Assert.assertEquals(maxIO - 2, manifestCache.stats().evictionCount());
   }
 
   /**
@@ -236,7 +232,7 @@ public class TestManifestCaching {
         .create();
   }
 
-  protected HadoopCatalog hadoopCatalog(Map<String, String> catalogProperties) throws IOException {
+  private HadoopCatalog hadoopCatalog(Map<String, String> catalogProperties) throws IOException {
     HadoopCatalog hadoopCatalog = new HadoopCatalog();
     hadoopCatalog.setConf(new Configuration());
     hadoopCatalog.initialize(
