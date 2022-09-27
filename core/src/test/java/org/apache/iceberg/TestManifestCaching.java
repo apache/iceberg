@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestManifestCaching extends HadoopTableTestBase {
@@ -162,6 +163,7 @@ public class TestManifestCaching extends HadoopTableTestBase {
   }
 
   @Test
+  @Ignore("will be fixed by https://github.com/apache/iceberg/issues/5861")
   public void testWeakFileIOReferenceCleanUp() {
     Cache<FileIO, ContentCache> manifestCache = ManifestFiles.newManifestCache();
     int maxIO = SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
