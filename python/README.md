@@ -35,7 +35,7 @@ Development is made easy using [Poetry](https://python-poetry.org/docs/#installa
 
 ```bash
 poetry shell
-poetry install -E pyarrow
+poetry install -E pyarrow -E hive -E s3fs
 pytest
 ```
 
