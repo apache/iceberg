@@ -49,7 +49,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 In Spark 3, tables use identifiers that include a [catalog name](../spark-configuration#using-catalogs).
 
 ```sql
-SELECT * FROM prod.db.table -- catalog: prod, namespace: db, table: table
+SELECT * FROM prod.db.table; -- catalog: prod, namespace: db, table: table
 ```
 
 Metadata tables, like `history` and `snapshots`, can use the Iceberg table name as a namespace.
@@ -57,7 +57,7 @@ Metadata tables, like `history` and `snapshots`, can use the Iceberg table name 
 For example, to read from the `files` metadata table for `prod.db.table`:
 
 ```sql
-SELECT * FROM prod.db.table.files
+SELECT * FROM prod.db.table.files;
 ```
 |content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
@@ -211,7 +211,7 @@ For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#re
 To show table history:
 
 ```sql
-SELECT * FROM prod.db.table.history
+SELECT * FROM prod.db.table.history;
 ```
 
 | made_current_at | snapshot_id  | parent_id | is_current_ancestor |
@@ -232,7 +232,7 @@ SELECT * FROM prod.db.table.history
 To show table metadata log entries:
 
 ```sql
-SELECT * from prod.db.table.metadata_log_entries
+SELECT * from prod.db.table.metadata_log_entries;
 ```
 
 | timestamp | file | latest_snapshot_id | latest_schema_id | latest_sequence_number |
@@ -246,7 +246,7 @@ SELECT * from prod.db.table.metadata_log_entries
 To show the valid snapshots for a table:
 
 ```sql
-SELECT * FROM prod.db.table.snapshots
+SELECT * FROM prod.db.table.snapshots;
 ```
 
 | committed_at | snapshot_id | parent_id | operation | manifest_list | summary |
@@ -280,7 +280,7 @@ order by made_current_at
 To show a table's current data files:
 
 ```sql
-SELECT * FROM prod.db.table.files
+SELECT * FROM prod.db.table.files;
 ```
 
 |content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
@@ -294,7 +294,7 @@ SELECT * FROM prod.db.table.files
 To show a table's current file manifests:
 
 ```sql
-SELECT * FROM prod.db.table.manifests
+SELECT * FROM prod.db.table.manifests;
 ```
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries |
@@ -315,7 +315,7 @@ Note:
 To show a table's current partitions:
 
 ```sql
-SELECT * FROM prod.db.table.partitions
+SELECT * FROM prod.db.table.partitions;
 ```
 
 | partition | record_count | file_count | spec_id |
@@ -341,7 +341,7 @@ The "all" metadata tables may produce more than one row per data file or manifes
 To show all of the table's data files and each file's metadata:
 
 ```sql
-SELECT * FROM prod.db.table.all_data_files
+SELECT * FROM prod.db.table.all_data_files;
 ```
 
 | content | file_path | file_format | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|
@@ -355,7 +355,7 @@ SELECT * FROM prod.db.table.all_data_files
 To show all of the table's manifest files:
 
 ```sql
-SELECT * FROM prod.db.table.all_manifests
+SELECT * FROM prod.db.table.all_manifests;
 ```
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
@@ -376,7 +376,7 @@ Note:
 To show a table's known snapshot references:
 
 ```sql
-SELECT * FROM prod.db.table.refs
+SELECT * FROM prod.db.table.refs;
 ```
 
 | name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
