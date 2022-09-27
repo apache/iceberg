@@ -36,7 +36,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -48,6 +47,13 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
     new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
     new StructField("ts", DataTypes.DateType, true, Metadata.empty())
+  };
+
+  private static final StructField[] timeStampStruct = {
+    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
   };
 
   public TestRewriteManifestsProcedure(
@@ -91,53 +97,75 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testRewriteLargeManifestsWithDatePartitionedTables() {
+  public void testRewriteLargeManifestsWithDateOrTimestampPartitionedTables() {
     String[] scenarios = new String[] {"true", "false"};
+    String[] partitionColTypes = new String[] {"DATE", "TIMESTAMP"};
     for (String scenario : scenarios) {
-      withSQLConf(
-          ImmutableMap.of("spark.sql.datetime.java8API.enabled", scenario),
-          () -> {
-            String createIceberg =
-                "CREATE TABLE %s (id Integer, name String, dept String, ts Date) USING iceberg PARTITIONED BY (ts)";
-            sql(createIceberg, tableName);
-            try {
-              spark
-                  .createDataFrame(
-                      ImmutableList.of(
-                          RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
-                          RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-02")),
-                          RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-03")),
-                          RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-04"))),
-                      new StructType(dateStruct))
-                  .writeTo(tableName)
-                  .append();
-            } catch (NoSuchTableException e) {
-              // not possible as we already created the table above.
-              throw new RuntimeException(e);
-            }
+      for (String partitionColType : partitionColTypes) {
+        withSQLConf(
+            ImmutableMap.of("spark.sql.datetime.java8API.enabled", scenario),
+            () -> {
+              String createIceberg =
+                  "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts %s) USING iceberg PARTITIONED BY (ts)";
+              sql(createIceberg, tableName, partitionColType);
+              try {
+                spark
+                    .createDataFrame(
+                        ImmutableList.of(
+                            RowFactory.create(
+                                1,
+                                "John Doe",
+                                "hr",
+                                partitionColumn(partitionColType, "2021-01-01")),
+                            RowFactory.create(
+                                2,
+                                "Jane Doe",
+                                "hr",
+                                partitionColumn(partitionColType, "2021-01-02")),
+                            RowFactory.create(
+                                3,
+                                "Matt Doe",
+                                "hr",
+                                partitionColumn(partitionColType, "2021-01-03")),
+                            RowFactory.create(
+                                4,
+                                "Will Doe",
+                                "facilities",
+                                partitionColumn(partitionColType, "2021-01-04"))),
+                        new StructType(
+                            ("DATE".equals(partitionColType) ? dateStruct : timeStampStruct)))
+                    .writeTo(tableName)
+                    .append();
+              } catch (NoSuchTableException e) {
+                // not possible as we already created the table above.
+                throw new RuntimeException(e);
+              }
 
-            Table table = validationCatalog.loadTable(tableIdent);
+              Table table = validationCatalog.loadTable(tableIdent);
 
-            Assert.assertEquals(
-                "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+              Assert.assertEquals(
+                  "Must have 1 manifest",
+                  1,
+                  table.currentSnapshot().allManifests(table.io()).size());
 
-            sql(
-                "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
-                tableName);
+              sql(
+                  "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+                  tableName);
 
-            List<Object[]> output =
-                sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
-            assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+              List<Object[]> output =
+                  sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+              assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
 
-            table.refresh();
+              table.refresh();
 
-            Assert.assertEquals(
-                "Must have 4 manifests",
-                4,
-                table.currentSnapshot().allManifests(table.io()).size());
+              Assert.assertEquals(
+                  "Must have 4 manifests",
+                  4,
+                  table.currentSnapshot().allManifests(table.io()).size());
 
-            sql("DROP TABLE IF EXISTS %s", tableName);
-          });
+              sql("DROP TABLE IF EXISTS %s", tableName);
+            });
+      }
     }
   }
 
@@ -289,7 +317,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
   }
 
-  private static java.sql.Date toDate(String value) {
-    return new java.sql.Date(DateTime.parse(value).getMillis());
+  private Object partitionColumn(String partitionColType, String value) {
+    return "DATE".equals(partitionColType)
+        ? Date.valueOf(value)
+        : Timestamp.valueOf(value + " 00:00:00");
   }
 }
