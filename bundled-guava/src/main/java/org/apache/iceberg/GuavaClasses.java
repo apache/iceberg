@@ -51,6 +51,7 @@ import com.google.common.io.CountingOutputStream;
 import com.google.common.io.Files;
 import com.google.common.io.Resources;
 import com.google.common.primitives.Bytes;
+import com.google.common.testing.GcFinalization;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -98,5 +99,6 @@ public class GuavaClasses {
     CountingOutputStream.class.getName();
     Suppliers.class.getName();
     Stopwatch.class.getName();
+    GcFinalization.class.getName();
   }
 }

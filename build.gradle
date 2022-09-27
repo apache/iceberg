@@ -112,6 +112,7 @@ subprojects {
       // do not exclude Guava so the bundle project can reference classes.
       if (project.name != 'iceberg-bundled-guava') {
         exclude group: 'com.google.guava', module: 'guava'
+        exclude group: 'com.google.guava', module: 'guava-testlib'
       }
       // contains a copy of Guava
       exclude group: 'org.apache.spark', module: 'spark-network-common_2.12'
@@ -195,6 +196,7 @@ project(':iceberg-bundled-guava') {
       exclude group: 'com.google.errorprone'
       exclude group: 'com.google.j2objc'
     }
+    compileOnly('com.google.guava:guava-testlib')
   }
 
   shadowJar {
@@ -286,7 +288,6 @@ project(':iceberg-core') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation "com.esotericsoftware:kryo"
-    testImplementation "com.google.guava:guava-testlib"
   }
 }
 
