@@ -21,17 +21,17 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.google.common.testing.GcFinalization;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.hadoop.HadoopTableTestBase;
 import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -39,10 +39,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
-public class TestManifestCaching extends HadoopTableTestBase {
+public class TestManifestCaching {
 
   // Schema passed to create tables
   static final Schema SCHEMA =
@@ -52,6 +53,8 @@ public class TestManifestCaching extends HadoopTableTestBase {
 
   // Partition spec used to create tables
   static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
+
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testPlanWithCache() throws Exception {
@@ -163,9 +166,9 @@ public class TestManifestCaching extends HadoopTableTestBase {
   }
 
   @Test
-  @Ignore("will be fixed by https://github.com/apache/iceberg/issues/5861")
   public void testWeakFileIOReferenceCleanUp() {
-    Cache<FileIO, ContentCache> manifestCache = ManifestFiles.newManifestCache();
+    Cache<FileIO, ContentCache> manifestCache =
+        ManifestFiles.newManifestCacheBuilder().executor(Runnable::run).build();
     int maxIO = SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
     FileIO firstIO = null;
     ContentCache firstCache = null;
@@ -178,22 +181,15 @@ public class TestManifestCaching extends HadoopTableTestBase {
       }
     }
 
-    System.gc();
+    GcFinalization.awaitFullGc();
     manifestCache.cleanUp();
-    awaitQuiescence();
-    Assert.assertEquals(maxIO, manifestCache.estimatedSize());
     Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
-    Assert.assertEquals(
-        "No entries should be evicted before IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT exceeded.",
-        0,
-        manifestCache.stats().evictionCount());
 
     // Insert one more FileIO to trigger cache eviction.
     FileIO lastIO = cacheEnabledHadoopFileIO();
     ContentCache lastCache = contentCache(manifestCache, lastIO);
-    System.gc();
+    GcFinalization.awaitFullGc();
     manifestCache.cleanUp();
-    awaitQuiescence();
 
     // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
     ContentCache cache1 = contentCache(manifestCache, firstIO);
@@ -232,22 +228,24 @@ public class TestManifestCaching extends HadoopTableTestBase {
     return io;
   }
 
-  /**
-   * Wait until Caffeine cache complete its background maintenance tasks.
-   *
-   * <p>By default, Caffeine use {@link ForkJoinPool#commonPool()} as its executor.
-   */
-  private void awaitQuiescence() {
-    boolean quiescent = ForkJoinPool.commonPool().awaitQuiescence(10, TimeUnit.SECONDS);
-    Assert.assertTrue("ForkJoinPool.commonPool() does not quiesce within 10s.", quiescent);
-  }
-
   private Table createTable(Map<String, String> properties) throws Exception {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     return hadoopCatalog(properties)
         .buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .create();
+  }
+
+  protected HadoopCatalog hadoopCatalog(Map<String, String> catalogProperties) throws IOException {
+    HadoopCatalog hadoopCatalog = new HadoopCatalog();
+    hadoopCatalog.setConf(new Configuration());
+    hadoopCatalog.initialize(
+        "hadoop",
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .build());
+    return hadoopCatalog;
   }
 
   private void appendFiles(Iterable<DataFile> files, Table table) {
