@@ -280,6 +280,22 @@ public class Expressions {
     return False.INSTANCE;
   }
 
+  public static UnboundAggregate<String> count(String name) {
+    return new UnboundAggregate<>(Operation.COUNT, ref(name));
+  }
+
+  public static UnboundAggregate<String> countStar() {
+    return new UnboundAggregate<>(Operation.COUNTSTAR, null);
+  }
+
+  public static UnboundAggregate<String> max(String name) {
+    return new UnboundAggregate<>(Operation.MAX, ref(name));
+  }
+
+  public static UnboundAggregate<String> min(String name) {
+    return new UnboundAggregate<>(Operation.MIN, ref(name));
+  }
+
   public static Expression rewriteNot(Expression expr) {
     return ExpressionVisitors.visit(expr, RewriteNot.get());
   }

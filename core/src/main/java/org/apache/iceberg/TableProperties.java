@@ -349,4 +349,7 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String AGGREGATE_PUSHDOWN_ENABLED = "aggregate.pushdown.enabled";
+  public static final String AGGREGATE_PUSHDOWN_ENABLED_DEFAULT = "false";
 }

@@ -18,6 +18,15 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.TableProperties.AGGREGATE_PUSHDOWN_ENABLED;
+import static org.apache.iceberg.TableProperties.AGGREGATE_PUSHDOWN_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.MERGE_MODE;
+import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,6 +40,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundAggregate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
@@ -41,13 +51,21 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
+import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
+import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -56,6 +74,7 @@ import org.slf4j.LoggerFactory;
 
 public class SparkScanBuilder
     implements ScanBuilder,
+        SupportsPushDownAggregates,
         SupportsPushDownFilters,
         SupportsPushDownRequiredColumns,
         SupportsReportStatistics {
@@ -72,7 +91,10 @@ public class SparkScanBuilder
   private Schema schema = null;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
+  private List<Expression> aggregateExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
+  private Aggregation pushedAggregations;
+  private StructType pushedAggregateSchema;
 
   SparkScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
@@ -143,6 +165,67 @@ public class SparkScanBuilder
   @Override
   public Filter[] pushedFilters() {
     return pushedFilters;
+  }
+
+  @Override
+  public boolean pushAggregation(Aggregation aggregation) {
+    boolean aggregatePushdown =
+        Boolean.parseBoolean(
+            table
+                .properties()
+                .getOrDefault(AGGREGATE_PUSHDOWN_ENABLED, AGGREGATE_PUSHDOWN_ENABLED_DEFAULT));
+    if (!aggregatePushdown) {
+      return false;
+    }
+
+    String deleteMode = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+    String updateMode = table.properties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+    String mergeMode = table.properties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
+    // the statistics might be changed for merge on read and can't be used to calculate
+    // min/max/count, so disable aggregate push down
+    // Todo: enable aggregate push down if there are not deletes files for merge-on-read
+    if (deleteMode.equals("merge-on-read")
+        || updateMode.equals("merge-on-read")
+        || mergeMode.equals("merge-on-read")) {
+      return false;
+    }
+
+    // If the group by expression is not the same as the partition, the statistics information
+    // in manifest files cannot be used to calculate min/max/count. However, if the
+    // group by expression is not the same as the partition, the statistics information can still
+    // be used to calculate min/max/count.
+    // Todo: enable aggregate push down for partition col group by expression
+    if (aggregation.groupByExpressions().length > 0) {
+      return false;
+    }
+
+    List<Expression> expressions =
+        Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
+    List<AggregateFunc> pushed =
+        Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
+    for (AggregateFunc aggregate : aggregation.aggregateExpressions()) {
+      Expression expr = SparkAggregates.convert(aggregate);
+      if (expr != null) {
+        try {
+          Binder.bind(schema.asStruct(), expr, caseSensitive);
+          expressions.add(expr);
+          pushed.add(aggregate);
+        } catch (ValidationException e) {
+          // binding to the table schema failed, so this expression cannot be pushed down
+          // disable aggregate push down
+          return false;
+        }
+      } else {
+        // only push down aggregates iff all of them can be pushed down.
+        return false;
+      }
+    }
+
+    this.aggregateExpressions = expressions;
+    this.pushedAggregations = aggregation;
+
+    pushedAggregateSchema = buildSchemaForPushedDownAggregate(aggregateExpressions);
+    return pushedAggregateSchema.length() > 0;
   }
 
   @Override
@@ -231,6 +314,15 @@ public class SparkScanBuilder
       } else {
         scan = scan.appendsAfter(startSnapshotId);
       }
+    }
+
+    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file read tasks
+    // and sending over the tasks to Spark executors, a SparkLocalScan will be created and the scan is done
+    // locally on the Spark driver instead of the executors. The statistics info will be retrieved from
+    // manifest file and used to build a Spark internal row, which contains the pushed down aggregate values.
+    if (pushedAggregateSchema != null && pushedAggregateSchema.length() != 0) {
+      return new SparkLocalScan(
+          spark, table, readConf, aggregateExpressions, pushedAggregateSchema);
     }
 
     scan = configureSplitPlanning(scan);
@@ -338,5 +430,52 @@ public class SparkScanBuilder
   @Override
   public StructType readSchema() {
     return build().readSchema();
+  }
+
+  // Build schema for pushed down aggregates. This will be used as the scan schema.
+  private StructType buildSchemaForPushedDownAggregate(List<Expression> aggregates) {
+    StructType finalSchema = new StructType();
+    for (int index = 0; index < aggregates.size(); index++) {
+      if ((aggregates.get(index)).op().name().equals("COUNTSTAR")) {
+        StructField field =
+            new StructField("COUNT(*)", DataTypes.LongType, false, Metadata.empty());
+        finalSchema = finalSchema.add(field);
+      } else {
+        String colName = ((UnboundAggregate) aggregates.get(index)).ref().name();
+        DataType dataType = getDataTypeForAggregateColumn(colName);
+        // disable aggregate push down for complex types because the statistics info are not available.
+        if (dataType instanceof StructType
+            || dataType instanceof ArrayType
+            || dataType instanceof MapType) {
+          return finalSchema;
+        }
+        if ((aggregates.get(index)).op().name().equals("COUNT")) {
+          StructField field =
+              new StructField(
+                  "COUNT(" + colName + ")", DataTypes.LongType, false, Metadata.empty());
+          finalSchema = finalSchema.add(field);
+        } else if ((aggregates.get(index)).op().name().equals("MAX")) {
+          StructField field =
+              new StructField("MAX(" + colName + ")", dataType, false, Metadata.empty());
+          finalSchema = finalSchema.add(field);
+        } else if ((aggregates.get(index)).op().name().equals("MIN")) {
+          StructField field =
+              new StructField("MIN(" + colName + ")", dataType, false, Metadata.empty());
+          finalSchema = finalSchema.add(field);
+        }
+      }
+    }
+    return finalSchema;
+  }
+
+  private DataType getDataTypeForAggregateColumn(String colName) {
+    org.apache.iceberg.types.Type type = null;
+    for (int i = 0; i < schema.columns().size(); i++) {
+      if ((caseSensitive && schema.columns().get(i).name().equals(colName))
+          || (!caseSensitive && schema.columns().get(i).name().equalsIgnoreCase(colName))) {
+        type = schema.columns().get(i).type();
+      }
+    }
+    return SparkSchemaUtil.convert(type);
   }
 }

@@ -158,6 +158,16 @@ public class Binder {
     public <T> Expression predicate(UnboundPredicate<T> pred) {
       return pred.bind(struct, caseSensitive);
     }
+
+    @Override
+    public <T> Expression aggregate(UnboundAggregate<T> agg) {
+      return agg.bind(struct, caseSensitive);
+    }
+
+    @Override
+    public <T> Expression aggregate(BoundAggregate<T> agg) {
+      throw new IllegalStateException("Found already bound aggregate: " + agg);
+    }
   }
 
   private static class ReferenceVisitor extends ExpressionVisitor<Set<Integer>> {

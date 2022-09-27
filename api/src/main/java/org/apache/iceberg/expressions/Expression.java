@@ -41,7 +41,11 @@ public interface Expression extends Serializable {
     AND,
     OR,
     STARTS_WITH,
-    NOT_STARTS_WITH;
+    NOT_STARTS_WITH,
+    COUNT,
+    COUNTSTAR,
+    MAX,
+    MIN;
 
     /** Returns the operation used when this is negated. */
     public Operation negate() {
