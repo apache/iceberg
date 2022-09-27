@@ -131,7 +131,7 @@ nyc.taxis
 ```
 
 ```sh
-pyiceberg describe nyc.taxis
+➜  pyiceberg describe nyc.taxis
 Table format version  1
 Metadata location     file:/.../nyc.db/taxis/metadata/00000-aa3a3eac-ea08-4255-b890-383a64a94e42.metadata.json
 Table UUID            6cdfda33-bfa3-48a7-a09e-7abb462e3460
@@ -168,7 +168,7 @@ write.format.default  parquet
 Or output in JSON for automation:
 
 ```sh
-pyiceberg --output json describe nyc.taxis | jq
+➜  pyiceberg --output json describe nyc.taxis | jq
 {
   "identifier": [
     "nyc",
