@@ -180,12 +180,14 @@ class SparkLocalScan implements LocalScan {
                     Types.BooleanType.get(), ByteBuffer.wrap(map.get(index)));
             if (isMin) {
               if (result == null
-                  || Literal.of(booleanValue).comparator().compare(booleanValue, (boolean) result) < 0) {
+                  || Literal.of(booleanValue).comparator().compare(booleanValue, (boolean) result)
+                      < 0) {
                 result = booleanValue;
               }
             } else {
               if (result == null
-                  || Literal.of(booleanValue).comparator().compare(booleanValue, (boolean) result) > 0) {
+                  || Literal.of(booleanValue).comparator().compare(booleanValue, (boolean) result)
+                      > 0) {
                 result = booleanValue;
               }
             }
@@ -244,12 +246,14 @@ class SparkLocalScan implements LocalScan {
                 Conversions.fromByteBuffer(Types.DoubleType.get(), ByteBuffer.wrap(map.get(index)));
             if (isMin) {
               if (result == null
-                  || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result) < 0) {
+                  || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result)
+                      < 0) {
                 result = doubleValue;
               }
             } else {
               if (result == null
-                  || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result) > 0) {
+                  || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result)
+                      > 0) {
                 result = doubleValue;
               }
             }
@@ -260,12 +264,14 @@ class SparkLocalScan implements LocalScan {
                     .toString();
             if (isMin) {
               if (result == null
-                  || (Literal.of(stringValue)).comparator().compare(stringValue, (String) result) < 0) {
+                  || (Literal.of(stringValue)).comparator().compare(stringValue, (String) result)
+                      < 0) {
                 result = stringValue;
               }
             } else {
               if (result == null
-                  || (Literal.of(stringValue)).comparator().compare(stringValue, (String) result) > 0) {
+                  || (Literal.of(stringValue)).comparator().compare(stringValue, (String) result)
+                      > 0) {
                 result = stringValue;
               }
             }

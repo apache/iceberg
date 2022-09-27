@@ -316,10 +316,11 @@ public class SparkScanBuilder
       }
     }
 
-    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file read tasks
-    // and sending over the tasks to Spark executors, a SparkLocalScan will be created and the scan is done
-    // locally on the Spark driver instead of the executors. The statistics info will be retrieved from
-    // manifest file and used to build a Spark internal row, which contains the pushed down aggregate values.
+    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file
+    // read tasks and sending over the tasks to Spark executors, a SparkLocalScan will be created
+    // and the scan is done locally on the Spark driver instead of the executors. The statistics
+    // info will be retrieved from manifest file and used to build a Spark internal row, which
+    // contains the pushed down aggregate values.
     if (pushedAggregateSchema != null && pushedAggregateSchema.length() != 0) {
       return new SparkLocalScan(
           spark, table, readConf, aggregateExpressions, pushedAggregateSchema);
@@ -443,7 +444,8 @@ public class SparkScanBuilder
       } else {
         String colName = ((UnboundAggregate) aggregates.get(index)).ref().name();
         DataType dataType = getDataTypeForAggregateColumn(colName);
-        // disable aggregate push down for complex types because the statistics info are not available.
+        // disable aggregate push down for complex types because the statistics info are not
+        // available.
         if (dataType instanceof StructType
             || dataType instanceof ArrayType
             || dataType instanceof MapType) {
