@@ -44,6 +44,14 @@ class GlueCatalog(Catalog):
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise ValueError(f"Got unexpected status code {response['HttpStatusCode']}")
 
+    def _glue_to_iceberg(self, glue_table):
+        # TODO
+        pass
+
+    def _iceberg_to_glue(self, iceberg_table):
+        # TODO
+        pass
+
     # tested on pre-existing database
     def create_table(
             self,
