@@ -197,7 +197,10 @@ project(':iceberg-bundled-guava') {
       exclude group: 'com.google.j2objc'
     }
     compileOnly('com.google.guava:guava-testlib') {
+      exclude group: 'com.google.code.findbugs'
+      // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
+      exclude group: 'com.google.j2objc'
     }
   }
 
