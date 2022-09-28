@@ -34,13 +34,21 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
+from pyiceberg.exceptions import ValidationError
 from pyiceberg.files import StructProtocol
 from pyiceberg.types import (
+    BinaryType,
+    DecimalType,
+    DoubleType,
+    FloatType,
     IcebergType,
+    IntegerType,
     ListType,
+    LongType,
     MapType,
     NestedField,
     PrimitiveType,
+    StringType,
     StructType,
 )
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -782,3 +790,149 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
     def primitive(self, primitive: PrimitiveType) -> PrimitiveType:
         return primitive
+
+
+@singledispatch
+def project(original_schema: Union[Schema, IcebergType], projected_schema: Union[Schema, IcebergType]) -> IcebergType:
+    """This resolves the projected
+
+    The function traverses the schema in post-order fashion
+
+     Args:
+         original_schema (Schema | IcebergType): The original schema
+         projected_schema (Schema | IcebergType): The projected read schema which is equal, subset or superset of the original
+
+     Raises:
+         NotImplementedError: If attempting to resolve an unrecognized object type
+    """
+    raise NotImplementedError(f"Cannot resolve non-type: {original_schema}")
+
+
+@project.register
+def _(original_schema: Schema, projected_schema: Schema) -> IcebergType:
+    """Visit a Schema and starts resolving it by converting it to a struct"""
+    if not isinstance(projected_schema, Schema):
+        raise ValidationError(f"Projected schema should be a schema, got: {projected_schema}")
+
+    return project(original_schema.as_struct(), projected_schema.as_struct())
+
+
+@project.register
+def _(original_struct: StructType, projected_struct: IcebergType) -> StructType:
+    """Iterates over the file schema, and checks if the field is in the read schema"""
+
+    if not isinstance(projected_struct, StructType):
+        raise ValidationError(f"Invalid projection: {original_struct} → {projected_struct}")
+
+    original_fields = {field.field_id: field for pos, field in enumerate(original_struct.fields)}
+
+    for projected_field in projected_struct.fields:
+        if original_field := original_fields.get(projected_field.field_id):
+            if not original_field.required and projected_field.required:
+                raise ValidationError(f"{original_field} optional in the original schema, and required in the projected schema")
+        else:
+            raise ValidationError(f"Could not find field {projected_field} in {original_struct}")
+
+    return projected_struct
+
+
+@project.register
+def _(original_list: ListType, projected_list: IcebergType) -> IcebergType:
+    if not isinstance(projected_list, ListType):
+        raise ValidationError(f"Schemas are not aligned for {original_list}, got {projected_list}")
+
+    if not original_list.element_required and projected_list.element_required:
+        raise ValidationError(f"{original_list} element is optional in the original schema, and required in the projected list")
+
+    element = project(original_list.element_type, projected_list.element_type)
+    return ListType(element_id=projected_list.element_id, element=element, element_required=projected_list.element_required)
+
+
+@project.register
+def _(original_map: MapType, projected_map: IcebergType) -> IcebergType:
+    if not isinstance(projected_map, MapType):
+        raise ValidationError(f"Schemas are not aligned for {original_map}, got {projected_map}")
+    # Traverse to check if everything is okay
+    project(original_map.key_type, projected_map.key_type)
+    project(original_map.value_type, projected_map.value_type)
+
+    if not original_map.value_required and projected_map.value_required:
+        raise ValidationError(f"{original_map} value is optional in the original schema, and required in the projected list")
+
+    return projected_map
+
+
+@project.register
+def _(original_type: PrimitiveType, projected_type: IcebergType) -> IcebergType:
+    """Converting the primitive type into an actual reader that will decode the physical data"""
+    if not isinstance(projected_type, PrimitiveType):
+        raise ValidationError(f"Cannot promote {original_type} to {projected_type}")
+
+    # In the case of a promotion, we want to check if it is valid
+    if original_type != projected_type:
+        return promote(original_type, projected_type)
+    return projected_type
+
+
+@singledispatch
+def promote(original_type: IcebergType, promoted_type: IcebergType) -> IcebergType:
+    """Promotes reading a file type to a read type
+
+    Args:
+        original_type (IcebergType): The type of the file
+        promoted_type (IcebergType): The requested read type
+
+    Raises:
+        ValidationError: If attempting to resolve an unrecognized object type
+    """
+    raise ValidationError(f"Cannot promote {original_type} to {promoted_type}")
+
+
+@promote.register
+def _(_: IntegerType, promoted_type: IcebergType) -> IcebergType:
+    """Integer to Long"""
+    if isinstance(promoted_type, LongType):
+        # Ints/Longs are binary compatible
+        return promoted_type
+    else:
+        raise ValidationError(f"Cannot promote an int to {promoted_type}")
+
+
+@promote.register
+def _(_: FloatType, promoted_type: IcebergType) -> IcebergType:
+    """Float to Double"""
+    if isinstance(promoted_type, DoubleType):
+        # We should just read the float, and return it, since it both returns a float
+        return promoted_type
+    else:
+        raise ValidationError(f"Cannot promote an float to {promoted_type}")
+
+
+@promote.register
+def _(_: StringType, promoted_type: IcebergType) -> IcebergType:
+    """String to Binary"""
+    if isinstance(promoted_type, BinaryType):
+        return promoted_type
+    else:
+        raise ValidationError(f"Cannot promote an string to {promoted_type}")
+
+
+@promote.register
+def _(_: BinaryType, promoted_type: IcebergType) -> IcebergType:
+    """Binary to String"""
+    if isinstance(promoted_type, StringType):
+        return promoted_type
+    else:
+        raise ValidationError(f"Cannot promote an binary to {promoted_type}")
+
+
+@promote.register
+def _(original_type: DecimalType, promoted_type: IcebergType) -> IcebergType:
+    """Decimal to Decimal"""
+    if isinstance(promoted_type, DecimalType):
+        if original_type.precision <= promoted_type.precision and original_type.scale == promoted_type.scale:
+            return promoted_type
+        else:
+            raise ValidationError(f"Cannot reduce precision from {original_type} to {promoted_type}")
+    else:
+        raise ValidationError(f"Cannot promote an decimal to {promoted_type}")

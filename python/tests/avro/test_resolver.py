@@ -17,23 +17,18 @@
 import pytest
 
 from pyiceberg.avro.reader import (
-    DecimalReader,
     DoubleReader,
-    FloatReader,
     IntegerReader,
     MapReader,
     StringReader,
     StructReader,
 )
-from pyiceberg.avro.resolver import ResolveException, promote, resolve
+from pyiceberg.avro.resolver import resolve
+from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
-    DecimalType,
     DoubleType,
-    FloatType,
-    IntegerType,
-    ListType,
     LongType,
     MapType,
     NestedField,
@@ -101,7 +96,7 @@ def test_resolver_new_required_field():
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "2: data: required string is non-optional, and not part of the file schema" in str(exc_info.value)
@@ -117,7 +112,7 @@ def test_resolver_invalid_evolution():
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "Cannot promote long to double" in str(exc_info.value)
@@ -145,81 +140,3 @@ def test_resolver_promotion_binary_to_string():
         schema_id=1,
     )
     resolve(write_schema, read_schema)
-
-
-def test_resolver_change_type():
-    write_schema = Schema(
-        NestedField(1, "properties", ListType(2, StringType())),
-        schema_id=1,
-    )
-    read_schema = Schema(
-        NestedField(1, "properties", MapType(2, StringType(), 3, StringType())),
-        schema_id=1,
-    )
-
-    with pytest.raises(ResolveException) as exc_info:
-        resolve(write_schema, read_schema)
-
-    assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
-
-
-def test_promote_int_to_long():
-    assert promote(IntegerType(), LongType()) == IntegerReader()
-
-
-def test_promote_float_to_double():
-    # We should still read floats, because it is encoded in 4 bytes
-    assert promote(FloatType(), DoubleType()) == FloatReader()
-
-
-def test_promote_decimal_to_decimal():
-    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
-
-
-def test_struct_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(StructType(), StringType())
-
-
-def test_map_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
-
-
-def test_primitive_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
-
-
-def test_integer_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), StringType())
-
-
-def test_float_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(FloatType(), StringType())
-
-
-def test_string_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(StringType(), FloatType())
-
-
-def test_binary_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(BinaryType(), FloatType())
-
-
-def test_decimal_not_aligned():
-    with pytest.raises(ResolveException):
-        assert promote(DecimalType(22, 19), StringType())
-
-
-def test_promote_decimal_to_decimal_reduce_precision():
-    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    with pytest.raises(ResolveException) as exc_info:
-        _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
-
-    assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)

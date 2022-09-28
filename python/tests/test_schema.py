@@ -21,15 +21,27 @@ from typing import Any, Dict
 import pytest
 
 from pyiceberg import schema
+from pyiceberg.avro.reader import DecimalReader
+from pyiceberg.avro.resolver import resolve
+from pyiceberg.exceptions import ValidationError
 from pyiceberg.expressions.base import Accessor
 from pyiceberg.files import StructProtocol
-from pyiceberg.schema import Schema, build_position_accessors
+from pyiceberg.schema import (
+    Schema,
+    build_position_accessors,
+    project,
+    promote,
+)
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
+    BinaryType,
     BooleanType,
+    DecimalType,
+    DoubleType,
     FloatType,
     IntegerType,
     ListType,
+    LongType,
     MapType,
     NestedField,
     StringType,
@@ -415,3 +427,258 @@ def test_deserialize_schema(table_schema_simple: Schema):
     )
     expected = table_schema_simple
     assert actual == expected
+
+
+def test_resolver_change_type():
+    write_schema = Schema(
+        NestedField(1, "properties", ListType(2, StringType())),
+        schema_id=1,
+    )
+    read_schema = Schema(
+        NestedField(1, "properties", MapType(2, StringType(), 3, StringType())),
+        schema_id=1,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        resolve(write_schema, read_schema)
+
+    assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
+
+
+def test_promote_int_to_long():
+    assert promote(IntegerType(), LongType()) == LongType()
+
+
+def test_promote_float_to_double():
+    # We should still read floats, because it is encoded in 4 bytes
+    assert promote(FloatType(), DoubleType()) == DoubleType()
+
+
+def test_promote_decimal_to_decimal():
+    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
+    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalType(22, 25)
+
+
+def test_struct_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(StructType(), StringType())
+
+
+def test_map_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
+
+
+def test_primitive_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
+
+
+def test_integer_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(IntegerType(), StringType())
+
+
+def test_float_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(FloatType(), StringType())
+
+
+def test_string_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(StringType(), FloatType())
+
+
+def test_binary_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(BinaryType(), FloatType())
+
+
+def test_decimal_not_aligned():
+    with pytest.raises(ValidationError):
+        assert promote(DecimalType(22, 19), StringType())
+
+
+def test_promote_decimal_to_decimal_reduce_precision():
+    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
+    with pytest.raises(ValidationError) as exc_info:
+        _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
+
+    assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)
+
+
+def test_project_simple():
+    projected = project(
+        StructType(NestedField(1, "name", StringType(), required=True)),
+        StructType(NestedField(1, "name", StringType(), required=True)),
+    )
+
+    assert projected == StructType(NestedField(1, "name", StringType(), required=True))
+
+
+def test_project_simple_prune():
+    projected = project(
+        StructType(NestedField(1, "name", StringType(), required=True), NestedField(2, "age", IntegerType(), required=True)),
+        StructType(NestedField(1, "name", StringType(), required=True)),
+    )
+
+    assert projected == StructType(NestedField(1, "name", StringType(), required=True))
+
+
+def test_project_simple_id_mismatch():
+    with pytest.raises(ValidationError) as exc_info:
+        project(
+            StructType(NestedField(1, "name", StringType(), required=True)),
+            StructType(NestedField(2, "name", StringType(), required=True)),
+        )
+
+    assert "Could not find field 2: name: required string in struct<1: name: required string>" in str(exc_info.value)
+
+
+def test_project_simple_rename():
+    projected = project(
+        StructType(NestedField(1, "name", StringType(), required=True)),
+        StructType(NestedField(1, "first_name", StringType(), required=True)),
+    )
+
+    assert projected == StructType(NestedField(1, "first_name", StringType(), required=True))
+
+
+def test_project_optional_to_required():
+    with pytest.raises(ValidationError) as exc_info:
+        project(
+            StructType(NestedField(1, "name", StringType(), required=False)),
+            StructType(NestedField(1, "name", StringType(), required=True)),
+        )
+
+    assert "1: name: optional string optional in the original schema, and required in the projected schema" in str(exc_info.value)
+
+
+def test_project_complex_projection():
+    projected = project(
+        Schema(
+            NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+            NestedField(
+                field_id=4,
+                name="qux",
+                field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+                required=True,
+            ),
+            NestedField(
+                field_id=6,
+                name="quux",
+                field_type=MapType(
+                    key_id=7,
+                    key_type=StringType(),
+                    value_id=8,
+                    value_type=MapType(
+                        key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                    ),
+                    value_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=11,
+                name="location",
+                field_type=ListType(
+                    element_id=12,
+                    element_type=StructType(
+                        NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                        NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
+                    ),
+                    element_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=15,
+                name="person",
+                field_type=StructType(
+                    NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+                ),
+                required=False,
+            ),
+            schema_id=1,
+            identifier_field_ids=[1],
+        ),
+        Schema(
+            NestedField(field_id=1, name="foo", field_type=BinaryType(), required=False),  # Promoted to binary
+            NestedField(field_id=2, name="bar", field_type=LongType(), required=True),  # Promoted to long
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+            NestedField(
+                field_id=4,
+                name="qux",
+                field_type=ListType(element_id=5, element_type=StringType(), element_required=True),
+                required=True,
+            ),
+            NestedField(
+                field_id=6,
+                name="quux",
+                field_type=MapType(
+                    key_id=7,
+                    key_type=StringType(),
+                    value_id=8,
+                    value_type=MapType(
+                        key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                    ),
+                    value_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=15,
+                name="person",
+                field_type=StructType(
+                    NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+                ),
+                required=False,
+            ),
+            schema_id=1,
+            identifier_field_ids=[1],
+        ),
+    )
+
+    assert projected == StructType(
+        fields=(
+            NestedField(field_id=1, name="foo", field_type=BinaryType(), required=False),
+            NestedField(field_id=2, name="bar", field_type=LongType(), required=True),
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+            NestedField(
+                field_id=4,
+                name="qux",
+                field_type=ListType(type="list", element_id=5, element_type=StringType(), element_required=True),
+                required=True,
+            ),
+            NestedField(
+                field_id=6,
+                name="quux",
+                field_type=MapType(
+                    type="map",
+                    key_id=7,
+                    key_type=StringType(),
+                    value_id=8,
+                    value_type=MapType(
+                        type="map", key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                    ),
+                    value_required=True,
+                ),
+                required=True,
+            ),
+            NestedField(
+                field_id=15,
+                name="person",
+                field_type=StructType(
+                    fields=(
+                        NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                        NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
+                    )
+                ),
+                required=False,
+            ),
+        )
+    )

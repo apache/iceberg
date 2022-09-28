@@ -21,7 +21,7 @@ from io import SEEK_SET
 import pytest
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.resolver import promote
+from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
@@ -217,6 +217,7 @@ def test_skip_utf8():
 def test_read_int_as_float():
     mis = MemoryInputStream(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
-    reader = promote(FloatType(), DoubleType())
+
+    reader = resolve(FloatType(), DoubleType())
 
     assert reader.read(decoder) == 19.25
