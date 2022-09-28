@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -165,6 +166,9 @@ public class SparkScanBuilder
 
   @Override
   public boolean pushAggregation(Aggregation aggregation) {
+    if (!(table instanceof BaseTable)) {
+      return false;
+    }
     boolean aggregatePushdown =
         Boolean.parseBoolean(
             table
