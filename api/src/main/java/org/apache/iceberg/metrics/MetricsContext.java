@@ -51,7 +51,9 @@ public interface MetricsContext extends Serializable {
 
   default void initialize(Map<String, String> properties) {}
 
-  /** @deprecated Use {@link org.apache.iceberg.metrics.Counter} instead. */
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.metrics.Counter} instead.
+   */
   @Deprecated
   interface Counter<T extends Number> {
     /** Increment the counter by a single whole number value (i.e. 1). */
@@ -102,7 +104,7 @@ public interface MetricsContext extends Serializable {
    * @param type numeric type of the counter value
    * @param unit the unit designation of the metric
    * @return a counter implementation
-   * @deprecated Use {@link MetricsContext#counter(String, Unit)} instead.
+   * @deprecated will be removed in 2.0.0, use {@link MetricsContext#counter(String, Unit)} instead.
    */
   @Deprecated
   default <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
