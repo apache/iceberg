@@ -30,7 +30,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteStrategy;
@@ -251,7 +250,6 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-          .option(SnapshotSummary.EXTRA_METADATA_PREFIX + SnapshotSummary.IS_COMPACTED , "1")
           .mode("append")
           .save(groupID);
 

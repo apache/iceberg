@@ -284,6 +284,10 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
+  public static final String ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED =
+      "rollback.compaction.on-conflicts.enabled";
+  public static final boolean ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED_DEFAULT = false;
+
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 512 * 1024 * 1024; // 512 MB
 

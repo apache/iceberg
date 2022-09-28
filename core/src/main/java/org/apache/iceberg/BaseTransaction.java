@@ -73,8 +73,11 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+<<<<<<< HEAD
   private final MetricsReporter reporter;
   private boolean shouldRollbackCompaction;
+=======
+>>>>>>> f51f7d44b (Add table level properties)
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
@@ -310,11 +313,6 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  @Override
-  public void rollbackCompactionOnConflicts() {
-    this.shouldRollbackCompaction = true;
-  }
-
   private void commitCreateTransaction() {
     // this operation creates the table. if the commit fails, this cannot retry because another
     // process has created the same table.
@@ -497,6 +495,7 @@ public class BaseTransaction implements Transaction {
         .run(ops.io()::deleteFile);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
       // use refreshed the metadata
@@ -506,32 +505,55 @@ public class BaseTransaction implements Transaction {
         // re-commit each update in the chain to apply it and update current
         try {
           update.commit();
-        } catch (CommitFailedException ce) {
+        } catch (CommitFailedException e) {
           // Cannot pass even with retry due to conflicting metadata changes. So, break the
           // retry-loop.
-          throw new PendingUpdateFailedException(ce);
+          throw new PendingUpdateFailedException(e);
 
         } catch (ValidationException e) {
+          if (PropertyUtil.propertyAsBoolean(
+              base.properties(),
+              TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED,
+              TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED_DEFAULT)) {
 
-          // if we have enabled rollback compaction required, check current snapshot
-          if (shouldRollbackCompaction) {
-            // check parent snapshot
-            Snapshot parentSnapshot = current.snapshot(current.currentSnapshot().parentId());
-            if (current.currentSnapshot().summary().containsKey("is-compacted")) {
-              // rollback to parent snapshot
+            // use refreshed metadata
+            this.base = underlyingOps.current();
+            this.current = underlyingOps.current();
+            Long rollbackToSnapshotId = current.currentSnapshot().parentId();
+            long currentSnapshotId = current.currentSnapshot().snapshotId();
+            boolean updatesAppliedSuccessfully = false;
+
+            while (rollbackToSnapshotId != null
+                && !updatesAppliedSuccessfully
+                && DataOperations.REPLACE.equals(current.snapshot(currentSnapshotId).operation())) {
               SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(transactionOps);
-              setSnapshotOp.rollbackTo(parentSnapshot.snapshotId());
+              setSnapshotOp.rollbackTo(rollbackToSnapshotId);
+
               List<PendingUpdate> modifiedUpdates = Lists.newArrayList();
               modifiedUpdates.add(setSnapshotOp);
               modifiedUpdates.addAll(updates);
 
+              boolean allUpdatedApplied = true;
               for (PendingUpdate pendingUpdate : modifiedUpdates) {
                 try {
                   pendingUpdate.commit();
                 } catch (CommitFailedException ex) {
                   throw new PendingUpdateFailedException(ex);
+                } catch (ValidationException ve) {
+                  // use refreshed metadata
+                  this.base = underlyingOps.current();
+                  this.current = underlyingOps.current();
+                  currentSnapshotId = rollbackToSnapshotId;
+                  rollbackToSnapshotId = current.snapshot(rollbackToSnapshotId).parentId();
+                  allUpdatedApplied = false;
+                  break;
                 }
               }
+              updatesAppliedSuccessfully = allUpdatedApplied;
+            }
+            // if all updates were not applied successfully, re-throw the validation exception.
+            if (!updatesAppliedSuccessfully) {
+              throw e;
             }
           } else {
             throw e;

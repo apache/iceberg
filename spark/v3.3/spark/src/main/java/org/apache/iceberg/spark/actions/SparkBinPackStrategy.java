@@ -24,7 +24,6 @@ import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -91,7 +90,6 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode)
-          .option(SnapshotSummary.EXTRA_METADATA_PREFIX + SnapshotSummary.IS_COMPACTED , "1")
           .mode("append")
           .save(groupID);
 

@@ -764,9 +764,14 @@ public class TestTransaction extends TableTestBase {
   }
 
   @Test
-  public void testSimpleConcurrentTransaction() {
+  public void testSimpleConcurrentTransactionWithCommitRollback() {
     Assume.assumeTrue(formatVersion == 2);
     Table table = load();
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED, "true")
+        .commit();
     table.newAppend().appendFile(FILE_A).commit();
 
     // start a transaction
@@ -774,9 +779,6 @@ public class TestTransaction extends TableTestBase {
     // on refreshing the base / current and then applying updates on top causes conflict
     // add a new update to rollback snapshot to parent and then re-apply updates
     Transaction transaction = table.newTransaction();
-
-    // enable rollback.
-    transaction.rollbackCompactionOnConflicts();
 
     // position delete of FILE_A
     transaction
@@ -787,21 +789,17 @@ public class TestTransaction extends TableTestBase {
 
     // don't close transaction
     // remove FILE_A and rewrite FILE_B
-    table
-        .newRewrite()
-        .set("is-compacted", "1") // mark this commit compacted explicitly for now
-        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
-        .commit();
+    table.newRewrite().rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B)).commit();
 
     // now commit transaction should conflict as FILE_A is deleted.
     transaction.commitTransaction();
 
-    // assert no lineage of is_compacted true
+    table.refresh();
     Snapshot currentSnapshot = table.currentSnapshot();
     int totalSnapshots = 1;
     while (currentSnapshot.parentId() != null) {
-      // no snapshot in the hierarchy should have is_compacted in snapshot summary
-      Assert.assertFalse(currentSnapshot.summary().containsKey("is_compacted"));
+      // no snapshot in the hierarchy for REPLACE operations
+      Assert.assertNotEquals(DataOperations.REPLACE, currentSnapshot.operation());
       currentSnapshot = table.snapshot(currentSnapshot.parentId());
       totalSnapshots += 1;
     }

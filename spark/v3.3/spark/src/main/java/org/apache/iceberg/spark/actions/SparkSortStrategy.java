@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.actions.SortStrategy;
@@ -149,7 +148,6 @@ public class SparkSortStrategy extends SortStrategy {
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-          .option(SnapshotSummary.EXTRA_METADATA_PREFIX + SnapshotSummary.IS_COMPACTED , "1")
           .mode("append") // This will only write files without modifying the table, see
           // SparkWrite.RewriteFiles
           .save(groupID);
