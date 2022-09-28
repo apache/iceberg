@@ -36,7 +36,7 @@ public class CommitStateUnknownException extends RuntimeException {
     super(cause.getMessage() + "\n" + COMMON_INFO, cause);
   }
 
-  public CommitStateUnknownException(String message, Throwable cause) {
-    super(message + "\n" + cause.getMessage() + "\n" + COMMON_INFO, cause);
+  public CommitStateUnknownException(String message) {
+    super(message + "\n" + COMMON_INFO);
   }
 }
