@@ -517,7 +517,7 @@ public class BaseTransaction implements Transaction {
           if (shouldRollbackCompaction) {
             // check parent snapshot
             Snapshot parentSnapshot = current.snapshot(current.currentSnapshot().parentId());
-            if (current.currentSnapshot().summary().containsKey("is_compacted")) {
+            if (current.currentSnapshot().summary().containsKey("is-compacted")) {
               // rollback to parent snapshot
               SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(transactionOps);
               setSnapshotOp.rollbackTo(parentSnapshot.snapshotId());

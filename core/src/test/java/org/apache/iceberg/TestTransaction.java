@@ -789,7 +789,7 @@ public class TestTransaction extends TableTestBase {
     // remove FILE_A and rewrite FILE_B
     table
         .newRewrite()
-        .set("is_compacted", "1") // mark this commit compacted explicitly for now
+        .set("is-compacted", "1") // mark this commit compacted explicitly for now
         .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
         .commit();
 
