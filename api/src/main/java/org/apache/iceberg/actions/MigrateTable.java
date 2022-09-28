@@ -42,9 +42,9 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   MigrateTable tableProperty(String name, String value);
 
   /**
-   * Sets the dropBackup property to drop backup table after a successful table Migration
+   * Sets the dropBackup property to drop backup table after a successful table migration.
    *
-   * @param dropBackup flag to remove backup table
+   * @param dropBackup If set to true, removes the backup table
    * @return this for method chaining
    */
   MigrateTable dropBackup(boolean dropBackup);

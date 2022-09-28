@@ -235,7 +235,7 @@ public class BaseMigrateTableSparkAction
     try {
       destCatalog().dropTable(backupIdent);
     } catch (Exception e) {
-      LOG.error("Cannot drop the backup table {} after migrate is completed.", backupIdent, e);
+      LOG.error("Cannot drop the backup table {} after migration is completed.", backupIdent, e);
     }
   }
 }
