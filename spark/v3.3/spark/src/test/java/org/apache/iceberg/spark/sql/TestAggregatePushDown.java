@@ -80,11 +80,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             + "max(decimalData), min(decimalData), count(decimalData), "
             + "max(binaryData), min(binaryData), count(binaryData) FROM %s";
 
-    List<Object[]> expected = sql(select, tableName);
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
-
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
@@ -119,6 +114,11 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "false");
+    List<Object[]> expected = sql(select, tableName);
     assertEquals("min/max/count push down", expected, actual);
   }
 
@@ -137,11 +137,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         tableName);
     String select = "SELECT max(d), min(d), count(d), max(ts), min(ts), count(ts) FROM %s";
 
-    List<Object[]> expected = sql(select, tableName);
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
-
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
@@ -156,6 +151,10 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     Assert.assertTrue(
         "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
 
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "false");
+    List<Object[]> expected = sql(select, tableName);
     List<Object[]> actual = sql(select, tableName);
     assertEquals("min/max/count push down", expected, actual);
   }
@@ -167,9 +166,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
         tableName);
     String select = "SELECT COUNT(data), SUM(data) FROM %s";
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
@@ -189,9 +185,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\"))",
         tableName);
     String select = "SELECT max(complex), min(complex), count(complex) FROM %s";
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
@@ -214,11 +207,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     sql("DELETE FROM %s WHERE data = 1111", tableName);
     String select = "SELECT max(data), min(data), count(data) FROM %s";
 
-    List<Object[]> expected = sql(select, tableName);
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
-
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
@@ -231,6 +219,11 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         "min/max/count not pushed down for deleted", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "false");
+    List<Object[]> expected = sql(select, tableName);
     assertEquals("min/max/count push down", expected, actual);
   }
 
@@ -241,9 +234,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
         tableName);
     String select = "SELECT max(data), min(data) FROM %s GROUP BY id";
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "true");
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
