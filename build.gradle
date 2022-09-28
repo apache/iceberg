@@ -196,7 +196,9 @@ project(':iceberg-bundled-guava') {
       exclude group: 'com.google.errorprone'
       exclude group: 'com.google.j2objc'
     }
-    compileOnly('com.google.guava:guava-testlib')
+    compileOnly('com.google.guava:guava-testlib') {
+      exclude group: 'com.google.errorprone'
+    }
   }
 
   shadowJar {
