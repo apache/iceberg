@@ -183,7 +183,6 @@ public class SchemaParser {
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
       return Types.fromPrimitiveString(json.asText());
-
     } else if (json.isObject()) {
       String type = json.get(TYPE).asText();
       if (STRUCT.equals(type)) {
@@ -199,7 +198,7 @@ public class SchemaParser {
   }
 
   private static Types.StructType structFromJson(JsonNode json) {
-    JsonNode fieldArray = json.get(FIELDS);
+    JsonNode fieldArray = JsonUtil.get(FIELDS, json);
     Preconditions.checkArgument(
         fieldArray.isArray(), "Cannot parse struct fields from non-array: %s", fieldArray);
 
@@ -212,7 +211,7 @@ public class SchemaParser {
 
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
-      Type type = typeFromJson(field.get(TYPE));
+      Type type = typeFromJson(JsonUtil.get(TYPE, field));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
@@ -228,7 +227,7 @@ public class SchemaParser {
 
   private static Types.ListType listFromJson(JsonNode json) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
-    Type elementType = typeFromJson(json.get(ELEMENT));
+    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json));
     boolean isRequired = JsonUtil.getBool(ELEMENT_REQUIRED, json);
 
     if (isRequired) {
@@ -240,10 +239,10 @@ public class SchemaParser {
 
   private static Types.MapType mapFromJson(JsonNode json) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
-    Type keyType = typeFromJson(json.get(KEY));
+    Type keyType = typeFromJson(JsonUtil.get(KEY, json));
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
-    Type valueType = typeFromJson(json.get(VALUE));
+    Type valueType = typeFromJson(JsonUtil.get(VALUE, json));
 
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
 

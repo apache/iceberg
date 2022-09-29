@@ -190,7 +190,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     table
         .currentSnapshot()
-        .addedFiles()
+        .addedDataFiles(table.io())
         .forEach(
             dataFile ->
                 Assert.assertTrue(

@@ -55,7 +55,7 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     AssertHelpers.assertThrows(
         "A JSON request with an invalid source table identifier, with null for the name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse name to a string value: null",
+        "Cannot parse to a string value: name: null",
         () -> deserialize(jsonSourceNullName));
 
     String jsonDestinationNullName =
@@ -64,7 +64,7 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     AssertHelpers.assertThrows(
         "A JSON request with an invalid destination table, with null for the name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse name to a string value: null",
+        "Cannot parse to a string value: name: null",
         () -> deserialize(jsonDestinationNullName));
 
     String jsonSourceMissingName =
@@ -73,7 +73,7 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     AssertHelpers.assertThrows(
         "A JSON request with an invalid source table identifier, with no name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse missing string name",
+        "Cannot parse missing string: name",
         () -> deserialize(jsonSourceMissingName));
 
     String jsonDestinationMissingName =
@@ -82,7 +82,7 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     AssertHelpers.assertThrows(
         "A JSON request with an invalid destination table identifier, with no name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse missing string name",
+        "Cannot parse missing string: name",
         () -> deserialize(jsonDestinationMissingName));
 
     String emptyJson = "{}";
