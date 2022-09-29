@@ -199,6 +199,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
       exclude group: 'org.antlr'
+      exclude group: 'org.scala-lang'
+      exclude group: 'org.scala-lang.modules'
     }
   }
 
