@@ -42,7 +42,10 @@ class V1Metadata {
           ManifestFile.PARTITION_SUMMARIES,
           ManifestFile.ADDED_ROWS_COUNT,
           ManifestFile.EXISTING_ROWS_COUNT,
-          ManifestFile.DELETED_ROWS_COUNT);
+          ManifestFile.DELETED_ROWS_COUNT,
+          ManifestFile.ADDED_FILE_SIZE_IN_BYTES,
+          ManifestFile.EXISTING_FILE_SIZE_IN_BYTES,
+          ManifestFile.DELETED_FILE_SIZE_IN_BYTES);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v1 schema.
@@ -96,6 +99,12 @@ class V1Metadata {
           return existingRowsCount();
         case 10:
           return deletedRowsCount();
+        case 11:
+          return addedFileSizeInBytes();
+        case 12:
+          return existingFileSizeInBytes();
+        case 13:
+          return deletedFileSizeInBytes();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -179,6 +188,21 @@ class V1Metadata {
     @Override
     public Long deletedRowsCount() {
       return wrapped.deletedRowsCount();
+    }
+
+    @Override
+    public Long addedFileSizeInBytes() {
+      return wrapped.addedFileSizeInBytes();
+    }
+
+    @Override
+    public Long existingFileSizeInBytes() {
+      return wrapped.existingFileSizeInBytes();
+    }
+
+    @Override
+    public Long deletedFileSizeInBytes() {
+      return wrapped.deletedFileSizeInBytes();
     }
 
     @Override

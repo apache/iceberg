@@ -87,7 +87,15 @@ public interface ManifestFile {
           "Summary for each partition");
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField ADDED_FILE_SIZE_IN_BYTES =
+      optional(520, "added_files_size_in_bytes", Types.LongType.get(), "Added File Size In Bytes");
+  Types.NestedField EXISTING_FILE_SIZE_IN_BYTES =
+      optional(
+          521, "existing_files_size_in_bytes", Types.LongType.get(), "Existing File Size In Bytes");
+  Types.NestedField DELETED_FILE_SIZE_IN_BYTES =
+      optional(
+          522, "deleted_files_size_in_bytes", Types.LongType.get(), "Deleted File Size In Bytes");
+  // next ID to assign: 523
 
   Schema SCHEMA =
       new Schema(
@@ -105,7 +113,10 @@ public interface ManifestFile {
           EXISTING_ROWS_COUNT,
           DELETED_ROWS_COUNT,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          ADDED_FILE_SIZE_IN_BYTES,
+          EXISTING_FILE_SIZE_IN_BYTES,
+          DELETED_FILE_SIZE_IN_BYTES);
 
   static Schema schema() {
     return SCHEMA;
@@ -199,6 +210,15 @@ public interface ManifestFile {
   default ByteBuffer keyMetadata() {
     return null;
   }
+
+  /** Returns the size of data files with status ADDED in the manifest file. */
+  Long addedFileSizeInBytes();
+
+  /** Returns the size of data files with status ADDED in the manifest file. */
+  Long existingFileSizeInBytes();
+
+  /** Returns the size of data files with status ADDED in the manifest file. */
+  Long deletedFileSizeInBytes();
 
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use
