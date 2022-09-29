@@ -29,65 +29,30 @@ import string
 def get_randam_table_name():
     prefix = "my_iceberg_table-"
     random_tag = "".join(random.choice(string.ascii_letters) for _ in range(20))
-    return prefix + random_tag
+    return (prefix + random_tag).lower()
 
 
-def test_get_namespaces():
-    namespaces = GlueCatalog('glue', {}).list_namespaces()
-    print(namespaces)
-
-
-def test_get_tables():
-    tables = GlueCatalog('glue', {}).list_tables('reviews')
-    print(tables)
-    assert tables != []
-
-
-def test_create_namespace():
-    # AccessDeniedException
-    # EntityNotFoundException
-    GlueCatalog('glue', {}).create_namespace('testDB3', {'foo': 'bar'})
-
-
-def test_drop_namespace():
-    GlueCatalog('glue', {}).drop_namespace('myiceberg')
-
-
-def test_load_namespace_properties():
-    tables = GlueCatalog('glue', {}).load_namespace_properties('nyc')
-    assert tables == []
-
-
-def test_update_namespace_properties():
-    tables = GlueCatalog('glue', {}).update_namespace_properties('nyc', updates={'foo': 'bar'})
-    assert tables == PropertiesUpdateSummary(removed=[], updated=['foo'], missing=[])
-
-
-@patch("time.time", MagicMock(return_value=12345))
-@patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_nested: Schema):
-    table = GlueCatalog('glue', {}).create_table(('reviews', get_randam_table_name()), table_schema_nested)
-    assert not (table is None)
+    table_name = get_randam_table_name()
+    identifier = ('reviewsjonas', table_name)
+    table = GlueCatalog('glue').create_table(
+        identifier,
+        table_schema_nested,
+        f"s3://myicebergtest/glueiceberg2/reviewsjonas.db/{table_name}"
+    )
+    print(table)
+    assert table.identifier == identifier
 
 
-def test_load_table_not_found(table_schema_nested: Schema):
-    testGlueCatalog = GlueCatalog('glue', {})
-    table = testGlueCatalog.load_table(('fokko', 'test'))
-    assert table is None
+def test_create_table_with_default_location(table_schema_nested: Schema):
+    table_name = get_randam_table_name()
+    identifier = ('reviewsjonas', table_name)
+    test_catalog = GlueCatalog('glue', warehouse_path= 's3://myicebergtest/glueiceberg2')
+    table = test_catalog.create_table(identifier, table_schema_nested)
+    assert table.identifier == identifier
 
 
 def test_load_table():
-    table = GlueCatalog('glue', {}).load_table(('reviews', 'book_reviews2'))
-    assert not (table is None)
+    table = GlueCatalog('glue').load_table(('reviews', 'book_reviews2'))
+    assert table.identifier == ('reviews', 'book_reviews2')
 
-
-def test_rename_table():
-    table = GlueCatalog('glue', {}).rename_table(
-        ('fokko', 'test'),
-        ('fokko', 'test2')
-    )
-    assert table is None
-
-
-def test_drop_table():
-    GlueCatalog('glue', {}).drop_table(('reviews', 'create_test'))
