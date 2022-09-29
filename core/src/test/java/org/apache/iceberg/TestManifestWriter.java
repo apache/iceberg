@@ -110,7 +110,7 @@ public class TestManifestWriter extends TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L, table.properties());
     writer.add(newFile(10, TestHelpers.Row.of(1)), 1000L);
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
