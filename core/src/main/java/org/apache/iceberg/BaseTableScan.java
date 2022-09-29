@@ -116,12 +116,12 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
-      Timer.Timed scanDuration = scanMetrics().totalPlanningDuration().start();
+      Timer.Timed planningDuration = scanMetrics().totalPlanningDuration().start();
 
       return CloseableIterable.whenComplete(
           doPlanFiles(),
           () -> {
-            scanDuration.stop();
+            planningDuration.stop();
             ScanReport scanReport =
                 ImmutableScanReport.builder()
                     .projection(schema())
