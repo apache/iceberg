@@ -42,9 +42,13 @@ class FlinkManifestUtil {
   private FlinkManifestUtil() {}
 
   static ManifestFile writeDataFiles(
-      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles) throws IOException {
+      OutputFile outputFile,
+      PartitionSpec spec,
+      List<DataFile> dataFiles,
+      Map<String, String> config)
+      throws IOException {
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
+        ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID, config);
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -79,7 +83,10 @@ class FlinkManifestUtil {
    *     partition spec
    */
   static DeltaManifests writeCompletedFiles(
-      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      WriteResult result,
+      Supplier<OutputFile> outputFileSupplier,
+      PartitionSpec spec,
+      Map<String, String> config)
       throws IOException {
 
     ManifestFile dataManifest = null;
@@ -88,7 +95,8 @@ class FlinkManifestUtil {
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
       dataManifest =
-          writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
+          writeDataFiles(
+              outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()), config);
     }
 
     // Write the completed delete files into a newly created delete manifest file.
@@ -96,7 +104,8 @@ class FlinkManifestUtil {
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter =
-          ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
+          ManifestFiles.writeDeleteManifest(
+              FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID, config);
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);

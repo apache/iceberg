@@ -369,7 +369,8 @@ public class SparkTableUtil {
       SerializableConfiguration conf,
       PartitionSpec spec,
       String basePath,
-      Iterator<Tuple2<String, DataFile>> fileTuples) {
+      Iterator<Tuple2<String, DataFile>> fileTuples,
+      Map<String, String> config) {
     if (fileTuples.hasNext()) {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
@@ -380,7 +381,7 @@ public class SparkTableUtil {
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
+      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile, config);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -628,7 +629,13 @@ public class SparkTableUtil {
             .orderBy(col("_1"))
             .mapPartitions(
                 (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
-                    fileTuple -> buildManifest(serializableConf, spec, stagingDir, fileTuple),
+                    fileTuple ->
+                        buildManifest(
+                            serializableConf,
+                            spec,
+                            stagingDir,
+                            fileTuple,
+                            targetTable.properties()),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 

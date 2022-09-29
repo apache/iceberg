@@ -452,7 +452,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
+            result,
+            () -> manifestOutputFileFactory.create(checkpointId),
+            table.spec(),
+            table.properties());
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

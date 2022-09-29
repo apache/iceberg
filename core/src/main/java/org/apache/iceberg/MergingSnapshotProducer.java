@@ -292,7 +292,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         current.specsById(),
         newManifestPath,
         snapshotId(),
-        appendedManifestsSummary);
+        appendedManifestsSummary,
+        current.properties());
   }
 
   /**

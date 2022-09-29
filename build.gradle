@@ -364,6 +364,8 @@ project(':iceberg-core') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
+    testImplementation "org.xerial.snappy:snappy-java"
+    testImplementation "com.github.luben:zstd-jni"
   }
 }
 

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
@@ -102,7 +104,8 @@ public class TestManifestListVersions {
 
   @Test
   public void testV1WriteDeleteManifest() {
-    Assertions.assertThatThrownBy(() -> writeManifestList(TEST_DELETE_MANIFEST, 1))
+    Assertions.assertThatThrownBy(
+            () -> writeManifestList(TEST_DELETE_MANIFEST, 1, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot store delete manifests in a v1 table");
   }
@@ -155,7 +158,7 @@ public class TestManifestListVersions {
 
   @Test
   public void testV1ForwardCompatibility() throws IOException {
-    InputFile manifestList = writeManifestList(TEST_MANIFEST, 1);
+    InputFile manifestList = writeManifestList(TEST_MANIFEST, 1, ImmutableMap.of());
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
@@ -182,7 +185,7 @@ public class TestManifestListVersions {
   public void testV2ForwardCompatibility() throws IOException {
     // v2 manifest list files can be read by v1 readers, but the sequence numbers and content will
     // be ignored.
-    InputFile manifestList = writeManifestList(TEST_MANIFEST, 2);
+    InputFile manifestList = writeManifestList(TEST_MANIFEST, 2, ImmutableMap.of());
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
@@ -294,7 +297,7 @@ public class TestManifestListVersions {
             partitionFieldSummaries,
             KEY_METADATA);
 
-    InputFile manifestList = writeManifestList(manifest, 2);
+    InputFile manifestList = writeManifestList(manifest, 2, ImmutableMap.of());
 
     List<ManifestFile> files = ManifestLists.read(manifestList);
     ManifestFile returnedManifest = Iterables.getOnlyElement(files);
@@ -330,7 +333,8 @@ public class TestManifestListVersions {
         second.upperBound());
   }
 
-  private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
+  private InputFile writeManifestList(
+      ManifestFile manifest, int formatVersion, Map<String, String> config) throws IOException {
     OutputFile manifestList = new InMemoryOutputFile();
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
@@ -338,7 +342,8 @@ public class TestManifestListVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQ_NUM : 0)) {
+            formatVersion > 1 ? SEQ_NUM : 0,
+            config)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
@@ -355,7 +360,7 @@ public class TestManifestListVersions {
 
   private ManifestFile writeAndReadManifestList(int formatVersion) throws IOException {
     List<ManifestFile> manifests =
-        ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion));
+        ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion, ImmutableMap.of()));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
   }

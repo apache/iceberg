@@ -244,7 +244,8 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+        ManifestFiles.write(
+            formatVersion, table.spec(), outputFile, snapshotId, table.properties());
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -275,12 +276,13 @@ public class TableTestBase {
     if (entries[0].file() instanceof DataFile) {
       writer =
           (ManifestWriter<F>)
-              ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+              ManifestFiles.write(
+                  formatVersion, table.spec(), outputFile, snapshotId, table.properties());
     } else {
       writer =
           (ManifestWriter<F>)
               ManifestFiles.writeDeleteManifest(
-                  formatVersion, table.spec(), outputFile, snapshotId);
+                  formatVersion, table.spec(), outputFile, snapshotId, table.properties());
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -299,7 +301,8 @@ public class TableTestBase {
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
+        ManifestFiles.writeDeleteManifest(
+            newFormatVersion, SPEC, manifestFile, snapshotId, table.properties());
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -316,7 +319,7 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, null, table.properties());
     try {
       for (DataFile file : files) {
         writer.add(file);

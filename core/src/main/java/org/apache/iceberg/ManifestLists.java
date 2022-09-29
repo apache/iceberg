@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
@@ -55,17 +56,19 @@ class ManifestLists {
       OutputFile manifestListFile,
       long snapshotId,
       Long parentSnapshotId,
-      long sequenceNumber) {
+      long sequenceNumber,
+      Map<String, String> config) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
             sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
-        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+        return new ManifestListWriter.V1Writer(
+            manifestListFile, snapshotId, parentSnapshotId, config);
       case 2:
         return new ManifestListWriter.V2Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, config);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
