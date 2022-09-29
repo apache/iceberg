@@ -962,7 +962,7 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestEntry<DataFile> appendEntry =
         manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
-    appendEntry.setSequenceNumber(snapshot.sequenceNumber());
+    appendEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
     ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
 
@@ -980,7 +980,7 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestEntry<DataFile> deleteEntry =
         manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
-    deleteEntry.setSequenceNumber(snapshot.sequenceNumber());
+    deleteEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
     ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
 

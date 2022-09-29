@@ -290,7 +290,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateDeleteManifest(
         pending.allManifests(table.io()).get(2),
-        seqs(2, 1),
+        seqs(1, 1),
         ids(pendingId, baseSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, EXISTING));
@@ -354,7 +354,7 @@ public class TestRewriteFiles extends TableTestBase {
       Assert.assertEquals(
           "Should have old sequence number for manifest entries",
           oldSequenceNumber,
-          (long) entry.sequenceNumber());
+          (long) entry.dataSequenceNumber());
     }
     Assert.assertEquals(
         "Should use new sequence number for the manifest file",
@@ -455,7 +455,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateDeleteManifest(
         pending.allManifests(table.io()).get(2),
-        seqs(2, 2),
+        seqs(1, 1),
         ids(pending.snapshotId(), pending.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, DELETED));
@@ -549,7 +549,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     validateDeleteManifest(
         manifest3,
-        seqs(2, 2),
+        seqs(1, 1),
         ids(pending.snapshotId(), pending.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, DELETED));
@@ -601,7 +601,7 @@ public class TestRewriteFiles extends TableTestBase {
         manifest2, seqs(2), ids(pending.snapshotId()), files(FILE_B_DELETES), statuses(ADDED));
 
     validateDeleteManifest(
-        manifest3, seqs(2), ids(pending.snapshotId()), files(FILE_A2_DELETES), statuses(DELETED));
+        manifest3, seqs(1), ids(pending.snapshotId()), files(FILE_A2_DELETES), statuses(DELETED));
 
     rewrite.commit();
 
@@ -644,7 +644,7 @@ public class TestRewriteFiles extends TableTestBase {
     validateManifestEntries(manifest1, ids(pending.snapshotId()), files(FILE_A), statuses(DELETED));
 
     validateDeleteManifest(
-        manifest2, seqs(2), ids(pending.snapshotId()), files(FILE_A_DELETES), statuses(DELETED));
+        manifest2, seqs(1), ids(pending.snapshotId()), files(FILE_A_DELETES), statuses(DELETED));
 
     rewrite.commit();
 

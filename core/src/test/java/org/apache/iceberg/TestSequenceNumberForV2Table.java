@@ -69,12 +69,12 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
       if (entry.file().path().equals(FILE_A.path())) {
         V2Assert.assertEquals(
-            "FILE_A sequence number should be 1", 1, entry.sequenceNumber().longValue());
+            "FILE_A sequence number should be 1", 1, entry.dataSequenceNumber().longValue());
       }
 
       if (entry.file().path().equals(FILE_B.path())) {
         V2Assert.assertEquals(
-            "FILE_b sequence number should be 2", 2, entry.sequenceNumber().longValue());
+            "FILE_b sequence number should be 2", 2, entry.dataSequenceNumber().longValue());
       }
     }
   }
@@ -238,7 +238,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
             .collect(Collectors.toList())
             .get(0);
     validateManifest(
-        manifestFile, seqs(4), ids(commitId4), files(FILE_A), statuses(Status.DELETED));
+        manifestFile, seqs(1), ids(commitId4), files(FILE_A), statuses(Status.DELETED));
     V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
     V2Assert.assertEquals(
         "Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
