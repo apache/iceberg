@@ -166,7 +166,9 @@ class GlueCatalog(Catalog):
         except self.client.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
         # TODO: may need to add table properties to the io too
-        io = load_file_io({**self.properties}, load_table_response['Table']['StorageDescriptor']['Location'])
+        io = load_file_io(
+            {**self.properties, **load_table_response['Table']['Parameters']},
+            load_table_response['Table']['StorageDescriptor']['Location'])
         return self._glue_to_iceberg(load_table_response['Table'], io)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
