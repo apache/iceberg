@@ -224,11 +224,6 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   }
 
   @Override
-  public Rollback rollback() {
-    throw new UnsupportedOperationException("Cannot roll back a metadata table");
-  }
-
-  @Override
   public ManageSnapshots manageSnapshots() {
     throw new UnsupportedOperationException("Cannot manage snapshots in a metadata table");
   }

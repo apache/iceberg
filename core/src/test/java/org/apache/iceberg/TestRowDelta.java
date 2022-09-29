@@ -350,7 +350,8 @@ public class TestRowDelta extends V2TableTestBase {
                 .newRowDelta()
                 .addDeletes(FILE_A_DELETES)
                 .validateFromSnapshot(validateFromSnapshotId)
-                .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .validateNoConflictingDataFiles()
                 .commit());
 
     Assert.assertEquals(
@@ -383,7 +384,8 @@ public class TestRowDelta extends V2TableTestBase {
         .validateDeletedFiles()
         .validateFromSnapshot(validateFromSnapshotId)
         .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
-        .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .validateNoConflictingDataFiles()
         .commit();
 
     Snapshot snap = table.currentSnapshot();
@@ -741,7 +743,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition B
     table.newDelete().deleteFile(dataFile2).commit();
@@ -803,7 +806,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition A
     table.newDelete().deleteFile(dataFile1).commit();
@@ -1077,7 +1081,8 @@ public class TestRowDelta extends V2TableTestBase {
         .newRowDelta()
         .addDeletes(FILE_A_DELETES)
         .validateFromSnapshot(firstSnapshot.snapshotId())
-        .validateNoConflictingAppends(conflictDetectionFilter)
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
         .commit();
 
     AssertHelpers.assertThrows(

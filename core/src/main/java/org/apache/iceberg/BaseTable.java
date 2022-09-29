@@ -199,11 +199,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
-  public Rollback rollback() {
-    return new RollbackToSnapshot(name, ops);
-  }
-
-  @Override
   public ManageSnapshots manageSnapshots() {
     return new SnapshotManager(name, ops);
   }

@@ -190,7 +190,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C")); // 3
     // Go back to snapshot "B"
-    table.rollback().toSnapshotId(2).commit(); // 2
+    table.manageSnapshots().rollbackTo(2).commit(); // 2
     Assert.assertEquals(2, table.currentSnapshot().snapshotId());
     filesMatch(Lists.newArrayList("B"), appendsBetweenScan(1, 2));
     filesMatch(Lists.newArrayList("B"), appendsAfterScan(1));
@@ -201,7 +201,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(transaction.newAppend(), files("F"));
     transaction.commitTransaction();
     // Go back to snapshot "E"
-    table.rollback().toSnapshotId(5).commit();
+    table.manageSnapshots().rollbackTo(5).commit();
     Assert.assertEquals(5, table.currentSnapshot().snapshotId());
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsBetweenScan(1, 5));
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsAfterScan(1));
