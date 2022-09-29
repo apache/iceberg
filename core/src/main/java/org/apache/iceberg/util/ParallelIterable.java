@@ -54,7 +54,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private boolean closed = false;
+    private volatile boolean closed = false;
 
     private ParallelIterator(
         Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool) {
@@ -81,13 +81,18 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
     @Override
     public void close() {
+      // close first, avoid new task submit
+      this.closed = true;
+
       // cancel background tasks
       for (int i = 0; i < taskFutures.length; i += 1) {
-        if (taskFutures[i] != null && !taskFutures[i].isDone()) {
-          taskFutures[i].cancel(true);
+        Future<?> taskFuture = taskFutures[i];
+        if (taskFuture != null && !taskFuture.isDone()) {
+          taskFuture.cancel(true);
         }
       }
-      this.closed = true;
+      // clean queue
+      this.queue.clear();
     }
 
     /**
@@ -126,11 +131,11 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
       }
 
-      return tasks.hasNext() || hasRunningTask;
+      return !closed && (tasks.hasNext() || hasRunningTask);
     }
 
     private Future<?> submitNextTask() {
-      if (tasks.hasNext()) {
+      if (!closed && tasks.hasNext()) {
         return workerPool.submit(tasks.next());
       }
       return null;
