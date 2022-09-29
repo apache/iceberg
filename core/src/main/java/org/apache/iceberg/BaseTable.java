@@ -245,6 +245,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ops.current().statisticsFiles();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return ops.current().refs();
   }

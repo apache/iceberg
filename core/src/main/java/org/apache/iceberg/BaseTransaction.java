@@ -756,6 +756,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public List<StatisticsFile> statisticsFiles() {
+      return current.statisticsFiles();
+    }
+
+    @Override
     public Map<String, SnapshotRef> refs() {
       return current.refs();
     }
