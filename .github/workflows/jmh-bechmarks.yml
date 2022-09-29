@@ -85,9 +85,11 @@ jobs:
         java-version: 11
     - uses: actions/cache@v3
       with:
-        path: ~/.gradle/caches
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-        restore-keys: ${{ runner.os }}-gradle
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
     - name: Run Benchmark
