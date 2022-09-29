@@ -176,6 +176,8 @@ public class TestScanMetricsResultParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
     scanMetrics.skippedDataFiles().increment(3L);
     scanMetrics.skippedDeleteFiles().increment(3L);
+    scanMetrics.scannedDeleteManifests().increment(3L);
+    scanMetrics.skippedDeleteManifests().increment(3L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
     Assertions.assertThat(
@@ -191,6 +193,8 @@ public class TestScanMetricsResultParser {
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
                     + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"scanned-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"skipped-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
                     + "\"extra\": \"value\",\"extra2\":23}"))
         .isEqualTo(scanMetricsResult);
   }
@@ -230,6 +234,8 @@ public class TestScanMetricsResultParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
     scanMetrics.skippedDataFiles().increment(3L);
     scanMetrics.skippedDeleteFiles().increment(3L);
+    scanMetrics.scannedDeleteManifests().increment(3L);
+    scanMetrics.skippedDeleteManifests().increment(3L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
 
@@ -277,6 +283,14 @@ public class TestScanMetricsResultParser {
             + "    \"value\" : 3\n"
             + "  },\n"
             + "  \"skipped-delete-files\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 3\n"
+            + "  },\n"
+            + "  \"scanned-delete-manifests\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 3\n"
+            + "  },\n"
+            + "  \"skipped-delete-manifests\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 3\n"
             + "  }\n"
