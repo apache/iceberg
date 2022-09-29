@@ -286,6 +286,8 @@ project(':iceberg-core') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation "com.esotericsoftware:kryo"
+    testImplementation "org.xerial.snappy:snappy-java"
+    testImplementation "com.github.luben:zstd-jni"
   }
 }
 

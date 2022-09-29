@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -263,6 +264,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
             : scanMetrics.skippedDeleteFiles(),
         entries(),
         entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
+  }
+
+  @VisibleForTesting
+  Map<String, String> metadata() {
+    return metadata;
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */

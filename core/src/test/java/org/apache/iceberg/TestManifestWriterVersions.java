@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
@@ -40,6 +41,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestManifestWriterVersions {
   private static final FileIO FILE_IO = new TestTables.LocalFileIO();
+  private static final String AVRO_CODEC_KEY = "avro.codec";
 
   private static final Schema SCHEMA =
       new Schema(
@@ -95,6 +97,13 @@ public class TestManifestWriterVersions {
           SORT_ORDER_ID,
           null);
 
+  private static final Map<String, String> CODEC_METADATA_MAPPING =
+      ImmutableMap.<String, String>builder()
+          .put("uncompressed", "null")
+          .put("zstd", "zstandard")
+          .put("gzip", "deflate")
+          .build();
+
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
@@ -102,6 +111,12 @@ public class TestManifestWriterVersions {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+  }
+
+  @Test
+  public void testV1WriteWithConfig() throws IOException {
+    checkManifestMetadata(config -> writeManifest(DATA_FILE, 1, config),
+            manifest -> ManifestFiles.read(manifest, FILE_IO));
   }
 
   @Test
@@ -131,6 +146,13 @@ public class TestManifestWriterVersions {
   }
 
   @Test
+  public void testV2WriteWithConfig() throws IOException {
+    checkManifestMetadata(
+        config -> writeManifest(DATA_FILE, 2, config),
+        manifest -> ManifestFiles.read(manifest, FILE_IO));
+  }
+
+  @Test
   public void testV2WriteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(2), 2);
     checkManifest(manifest, SEQUENCE_NUMBER);
@@ -147,6 +169,13 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
     checkEntry(
         readDeleteManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.EQUALITY_DELETES);
+  }
+
+  @Test
+  public void testV2WriteDeleteWithConfig() throws IOException {
+    checkManifestMetadata(
+        config -> writeDeleteManifest(2, config),
+        manifest -> ManifestFiles.readDeleteManifest(manifest, FILE_IO, null));
   }
 
   @Test
@@ -257,7 +286,27 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
   }
 
-  private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
+  <F extends ContentFile<F>> void checkManifestMetadata(
+      CheckedFunction<Map<String, String>, ManifestFile> createManifestFunc,
+      CheckedFunction<ManifestFile, ManifestReader<F>> manifestReaderFunc)
+      throws IOException {
+    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
+      String codec = entry.getKey();
+      String expectedCodecValue = entry.getValue();
+
+      Map<String, String> config = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, codec);
+      ManifestFile manifest = createManifestFunc.apply(config);
+
+      try (ManifestReader<F> manifestReader = manifestReaderFunc.apply(manifest)) {
+        Map<String, String> metadata = manifestReader.metadata();
+        Assert.assertEquals(
+            "Codec value must match", expectedCodecValue, metadata.get(AVRO_CODEC_KEY));
+      }
+    }
+  }
+
+  private InputFile writeManifestList(
+      ManifestFile manifest, int formatVersion, Map<String, String> config) throws IOException {
     OutputFile manifestList = new InMemoryOutputFile();
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
@@ -265,7 +314,8 @@ public class TestManifestWriterVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
+            formatVersion > 1 ? SEQUENCE_NUMBER : 0,
+            config)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
@@ -273,7 +323,8 @@ public class TestManifestWriterVersions {
 
   private ManifestFile writeAndReadManifestList(ManifestFile manifest, int formatVersion)
       throws IOException {
-    List<ManifestFile> manifests = ManifestLists.read(writeManifestList(manifest, formatVersion));
+    List<ManifestFile> manifests =
+        ManifestLists.read(writeManifestList(manifest, formatVersion, ImmutableMap.of()));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
   }
@@ -283,7 +334,7 @@ public class TestManifestWriterVersions {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, ImmutableMap.of());
     try {
       writer.existing(readManifest(manifest));
     } finally {
@@ -293,14 +344,15 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeManifest(int formatVersion) throws IOException {
-    return writeManifest(DATA_FILE, formatVersion);
+    return writeManifest(DATA_FILE, formatVersion, ImmutableMap.of());
   }
 
-  private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
+  private ManifestFile writeManifest(DataFile file, int formatVersion, Map<String, String> config)
+      throws IOException {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, config);
     try {
       writer.add(file);
     } finally {
@@ -319,10 +371,15 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
+    return writeDeleteManifest(formatVersion, ImmutableMap.of());
+  }
+
+  private ManifestFile writeDeleteManifest(int formatVersion, Map<String, String> config)
+      throws IOException {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, config);
     try {
       writer.add(DELETE_FILE);
     } finally {
@@ -338,5 +395,9 @@ public class TestManifestWriterVersions {
       Assert.assertEquals("Should contain only one data file", 1, entries.size());
       return entries.get(0);
     }
+  }
+
+  interface CheckedFunction<T, R> {
+    R apply(T t) throws IOException;
   }
 }

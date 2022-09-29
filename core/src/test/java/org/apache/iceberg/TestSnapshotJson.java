@@ -140,7 +140,8 @@ public class TestSnapshotJson {
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), id, parentId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), id, parentId, 0, ImmutableMap.of())) {
       writer.addAll(manifests);
     }
 

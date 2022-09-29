@@ -31,14 +31,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
-  private ManifestListWriter(OutputFile file, Map<String, String> meta) {
-    this.writer = newAppender(file, meta);
+  private ManifestListWriter(
+      OutputFile file, Map<String, String> meta, Map<String, String> config) {
+    this.writer = newAppender(file, meta, ImmutableMap.copyOf(config));
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta);
+      OutputFile file, Map<String, String> meta, Map<String, String> config);
 
   @Override
   public void add(ManifestFile manifest) {
@@ -73,14 +74,20 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 
-    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    V2Writer(
+        OutputFile snapshotFile,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber,
+        Map<String, String> config) {
       super(
           snapshotFile,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
-              "format-version", "2"));
+              "format-version", "2"),
+          config);
       this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 
@@ -90,12 +97,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> config) {
       try {
         return Avro.write(file)
             .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .setAll(config)
             .overwrite()
             .build();
 
@@ -108,13 +117,18 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V1Writer extends ManifestListWriter {
     private final V1Metadata.IndexedManifestFile wrapper = new V1Metadata.IndexedManifestFile();
 
-    V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+    V1Writer(
+        OutputFile snapshotFile,
+        long snapshotId,
+        Long parentSnapshotId,
+        Map<String, String> config) {
       super(
           snapshotFile,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
-              "format-version", "1"));
+              "format-version", "1"),
+          config);
     }
 
     @Override
@@ -126,12 +140,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> config) {
       try {
         return Avro.write(file)
             .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .setAll(config)
             .overwrite()
             .build();
 
