@@ -47,7 +47,7 @@ def test_create_table(table_schema_nested: Schema):
 def test_create_table_with_default_location(table_schema_nested: Schema):
     table_name = get_randam_table_name()
     identifier = ('reviewsjonas', table_name)
-    test_catalog = GlueCatalog('glue', warehouse_path= 's3://myicebergtest/glueiceberg2')
+    test_catalog = GlueCatalog('glue', warehouse='s3://myicebergtest/glueiceberg2')
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
 
