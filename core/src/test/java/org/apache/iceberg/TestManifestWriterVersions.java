@@ -115,8 +115,9 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV1WriteWithConfig() throws IOException {
-    checkManifestMetadata(config -> writeManifest(DATA_FILE, 1, config),
-            manifest -> ManifestFiles.read(manifest, FILE_IO));
+    checkManifestMetadata(
+        config -> writeManifest(DATA_FILE, 1, config),
+        manifest -> ManifestFiles.read(manifest, FILE_IO));
   }
 
   @Test
