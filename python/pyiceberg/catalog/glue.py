@@ -20,10 +20,7 @@ import getpass
 import uuid
 
 import boto3
-from datetime import datetime
-from typing import Union, Optional, List, Set, Dict
-
-from pyiceberg.catalog.hive import OWNER
+from typing import Union, Optional, Dict, Any
 
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
@@ -56,9 +53,10 @@ EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE"
 PROP_TABLE_TYPE = "table_type"
 PROP_WAREHOUSE = "warehouse"
 PROP_METADATA_LOCATION = "metadata_location"
-PROP_TABLE_DESCRIPTION = "description"
 
 PROP_GLUE_TABLE = "Table"
+Prop_GLUE_TABLE_TYPE = "TableType"
+PROP_GLUE_TABLE_DESCRIPTION = "description"
 PROP_GLUE_TABLE_PARAMETERS = "Parameters"
 PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
 PROP_GLUE_TABLE_NAME = "Name"
@@ -70,6 +68,19 @@ PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 def _construct_parameters(metadata_location: str) -> Dict[str, str]:
     properties = {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
     return properties
+
+
+def _construct_table_input(table_name: str, metadata_location: str, properties: Dict[str, str]) -> Dict[str, Any]:
+    table_input = {
+        PROP_GLUE_TABLE_NAME: table_name,
+        Prop_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
+        PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location)
+    }
+
+    if properties and PROP_GLUE_TABLE_DESCRIPTION in properties:
+        table_input[PROP_GLUE_TABLE_DESCRIPTION] = properties[PROP_GLUE_TABLE_DESCRIPTION]
+
+    return table_input
 
 
 def _convert_glue_to_iceberg(glue_table, io: FileIO) -> Table:
@@ -115,7 +126,7 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"The database: {database_name} does not exist")
 
         if PROP_GLUE_DATABASE_LOCATION in response[PROP_GLUE_DATABASE]:
-            return f"{response[PROP_GLUE_DATABASE][PROP_GLUE_DATABASE]}/table_name"
+            return f"{response[PROP_GLUE_DATABASE][PROP_GLUE_DATABASE]}/{table_name}"
 
         if PROP_WAREHOUSE in self.properties:
             return f"{self.properties[PROP_WAREHOUSE]}/{database_name}.db/{table_name}"
@@ -127,7 +138,6 @@ class GlueCatalog(Catalog):
             return self._default_warehouse_location(database_name, table_name)
         return location
 
-    # tested on pre-existing database
     def create_table(
             self,
             identifier: Union[str, Identifier],
@@ -167,13 +177,7 @@ class GlueCatalog(Catalog):
         try:
             self.glue.create_table(
                 DatabaseName=database_name,
-                TableInput={
-                    'Name': table_name,
-                    'Description': properties[PROP_TABLE_DESCRIPTION]
-                    if properties and PROP_TABLE_DESCRIPTION in properties else "",
-                    'TableType': EXTERNAL_TABLE_TYPE,
-                    'Parameters': _construct_parameters(metadata_location),
-                }
+                TableInput=_construct_table_input(table_name, metadata_location, properties)
             )
         except self.glue.exceptions.AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
@@ -188,7 +192,6 @@ class GlueCatalog(Catalog):
         glue_table = load_table_response[PROP_GLUE_TABLE]
         return _convert_glue_to_iceberg(glue_table, io)
 
-    # tested
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
 
@@ -211,7 +214,7 @@ class GlueCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
         loaded_table = load_table_response[PROP_GLUE_TABLE]
         io = load_file_io(
-            {**self.properties},
+            self.properties,
             loaded_table[PROP_GLUE_TABLE_PARAMETERS][PROP_METADATA_LOCATION])
         return _convert_glue_to_iceberg(loaded_table, io)
 
@@ -224,7 +227,6 @@ class GlueCatalog(Catalog):
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         raise NotImplementedError("currently unsupported")
 
-    # tested but cannot see on glueCatalog
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         raise NotImplementedError("currently unsupported")
 
