@@ -50,16 +50,20 @@ from pyiceberg.typedef import EMPTY_DICT
 
 from pyiceberg.types import NestedField
 
+COMMENT = "comment"
+OWNER = "owner"
+TABLE_TYPE = "table_type"
 METADATA_LOCATION = "metadata_location"
 ICEBERG = "iceberg"
+LOCATION = "location"
+WAREHOUSE = "warehouse"
 
 
 class GlueCatalog(Catalog):
 
     def __init__(self, name: str, **properties: Properties):
         super().__init__(name, **properties)
-        self.client = boto3.client("glue")
-        self.sts_client = boto3.client("sts")
+        self.glue = boto3.client("glue")
 
 
     def _check_response(self, response: Dict[str, Dict[str, str]]):
@@ -99,7 +103,7 @@ class GlueCatalog(Catalog):
 
     def _default_warehouse_location(self, database_name: str, table_name: str):
         try:
-            response = self.client.get_database(Name=database_name)
+            response = self.glue.get_database(Name=database_name)
         # TODO: handle response and errors
         except:
             raise NoSuchNamespaceError("Database not found")
@@ -107,8 +111,8 @@ class GlueCatalog(Catalog):
         if "LocationUri" in response["Database"]:
             return f"{response['Database']['LocationUri']}/table_name"
 
-        # TODO: should extract warehouse path from the properties and handle potential errors
-        return f"{self.properties['warehouse_path']}/{database_name}.db/{table_name}"
+        # TODO: should handle potential errors
+        return f"{self.properties[WAREHOUSE]}/{database_name}.db/{table_name}"
 
     def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str):
         if not location:
@@ -132,7 +136,7 @@ class GlueCatalog(Catalog):
 
         location = self._resolve_table_location(location, database_name, table_name)
         # TODO: give it correct path based on java version of glueCatalog
-        metadata_location = f"{location}/metadata/{uuid.uuid4()}.metadata.json"
+        metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
         metadata = new_table_metadata(
             location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order,
             properties=properties
@@ -140,7 +144,7 @@ class GlueCatalog(Catalog):
         io = load_file_io({**self.properties, **properties}, location=location)
         self._write_metadata(metadata, io, metadata_location)
         try:
-            create_table_response = self.client.create_table(
+            create_table_response = self.glue.create_table(
                 DatabaseName=database_name,
                 TableInput={
                     'Name': table_name,
@@ -150,9 +154,9 @@ class GlueCatalog(Catalog):
                 }
             )
             # TODO: check response
-            load_table_response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+            load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
             glue_table = load_table_response['Table']
-        except self.client.exceptions.AlreadyExistsException as e:
+        except self.glue.exceptions.AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
         return self._glue_to_iceberg(glue_table, io)
@@ -161,9 +165,9 @@ class GlueCatalog(Catalog):
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         database_name, table_name = self.identifier_to_tuple(identifier)
         try:
-            load_table_response = self.client.get_table(DatabaseName=database_name, Name=table_name)
+            load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
             self._check_response(load_table_response)
-        except self.client.exceptions.EntityNotFoundException as e:
+        except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
         # TODO: may need to add table properties to the io too
         io = load_file_io(
