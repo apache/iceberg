@@ -25,16 +25,17 @@ import java.time.Duration;
 import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.metrics.LoggingScanReporter;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
-import org.apache.iceberg.metrics.ScanReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
 public class TestScanPlanningAndReporting extends TableTestBase {
 
-  private final TestScanReporter reporter = new TestScanReporter();
+  private final TestMetricsReporter reporter = new TestMetricsReporter();
 
   public TestScanPlanningAndReporting() {
     super(2);
@@ -244,22 +245,22 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
   }
 
-  private static class TestScanReporter implements ScanReporter {
-    private final List<ScanReport> reports = Lists.newArrayList();
+  private static class TestMetricsReporter implements MetricsReporter {
+    private final List<MetricsReport> reports = Lists.newArrayList();
     // this is mainly so that we see scan reports being logged during tests
-    private final LoggingScanReporter delegate = new LoggingScanReporter();
+    private final LoggingMetricsReporter delegate = new LoggingMetricsReporter();
 
     @Override
-    public void reportScan(ScanReport scanReport) {
-      reports.add(scanReport);
-      delegate.reportScan(scanReport);
+    public void report(MetricsReport report) {
+      reports.add(report);
+      delegate.report(report);
     }
 
     public ScanReport lastReport() {
       if (reports.isEmpty()) {
         return null;
       }
-      return reports.get(reports.size() - 1);
+      return (ScanReport) reports.get(reports.size() - 1);
     }
   }
 }

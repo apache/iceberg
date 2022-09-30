@@ -74,4 +74,15 @@ public class ResourcePaths {
   public String rename() {
     return SLASH.join("v1", prefix, "tables", "rename");
   }
+
+  public String metrics(TableIdentifier identifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(identifier.namespace()),
+        "tables",
+        RESTUtil.encodeString(identifier.name()),
+        "metrics");
+  }
 }
