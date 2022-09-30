@@ -113,4 +113,19 @@ public class ReachableFileUtil {
     }
     return manifestListLocations;
   }
+
+  /**
+   * Returns locations of statistics files in a table.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @return the location of statistics files
+   */
+  public static List<String> statisticsFilesLocations(Table table) {
+    List<String> statisticsFilesLocations = Lists.newArrayList();
+    for (StatisticsFile statisticsFile : table.statisticsFiles()) {
+      statisticsFilesLocations.add(statisticsFile.path());
+    }
+
+    return statisticsFilesLocations;
+  }
 }

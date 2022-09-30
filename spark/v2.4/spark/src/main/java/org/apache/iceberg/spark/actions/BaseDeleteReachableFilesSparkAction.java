@@ -151,6 +151,7 @@ public class BaseDeleteReachableFilesSparkAction
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    otherMetadataFiles.addAll(ReachableFileUtil.statisticsFilesLocations(table));
     return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 

@@ -181,6 +181,7 @@ abstract class BaseSparkAction<ThisT> {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, recursive));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    otherMetadataFiles.addAll(ReachableFileUtil.statisticsFilesLocations(table));
     return toFileInfoDS(otherMetadataFiles, OTHERS);
   }
 
