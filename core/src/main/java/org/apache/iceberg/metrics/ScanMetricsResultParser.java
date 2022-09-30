@@ -108,6 +108,21 @@ class ScanMetricsResultParser {
       CounterResultParser.toJson(metrics.skippedDeleteManifests(), gen);
     }
 
+    if (null != metrics.indexedDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.INDEXED_DELETE_FILES);
+      CounterResultParser.toJson(metrics.indexedDeleteFiles(), gen);
+    }
+
+    if (null != metrics.equalityDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.EQUALITY_DELETE_FILES);
+      CounterResultParser.toJson(metrics.equalityDeleteFiles(), gen);
+    }
+
+    if (null != metrics.positionalDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.POSITIONAL_DELETE_FILES);
+      CounterResultParser.toJson(metrics.positionalDeleteFiles(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -142,6 +157,10 @@ class ScanMetricsResultParser {
             CounterResultParser.fromJson(ScanMetrics.SCANNED_DELETE_MANIFESTS, json))
         .skippedDeleteManifests(
             CounterResultParser.fromJson(ScanMetrics.SKIPPED_DELETE_MANIFESTS, json))
+        .indexedDeleteFiles(CounterResultParser.fromJson(ScanMetrics.INDEXED_DELETE_FILES, json))
+        .equalityDeleteFiles(CounterResultParser.fromJson(ScanMetrics.EQUALITY_DELETE_FILES, json))
+        .positionalDeleteFiles(
+            CounterResultParser.fromJson(ScanMetrics.POSITIONAL_DELETE_FILES, json))
         .build();
   }
 }

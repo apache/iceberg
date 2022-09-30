@@ -137,6 +137,15 @@ public interface ScanReport {
     @Nullable
     CounterResult skippedDeleteManifests();
 
+    @Nullable
+    CounterResult indexedDeleteFiles();
+
+    @Nullable
+    CounterResult equalityDeleteFiles();
+
+    @Nullable
+    CounterResult positionalDeleteFiles();
+
     static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
       Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
       return ImmutableScanMetricsResult.builder()
@@ -154,6 +163,9 @@ public interface ScanReport {
           .skippedDeleteFiles(CounterResult.fromCounter(scanMetrics.skippedDeleteFiles()))
           .scannedDeleteManifests(CounterResult.fromCounter(scanMetrics.scannedDeleteManifests()))
           .skippedDeleteManifests(CounterResult.fromCounter(scanMetrics.skippedDeleteManifests()))
+          .indexedDeleteFiles(CounterResult.fromCounter(scanMetrics.indexedDeleteFiles()))
+          .equalityDeleteFiles(CounterResult.fromCounter(scanMetrics.equalityDeleteFiles()))
+          .positionalDeleteFiles(CounterResult.fromCounter(scanMetrics.positionalDeleteFiles()))
           .build();
     }
   }
@@ -174,6 +186,9 @@ public interface ScanReport {
     public static final String SKIPPED_DELETE_MANIFESTS = "skipped-delete-manifests";
     public static final String SKIPPED_DATA_FILES = "skipped-data-files";
     public static final String SKIPPED_DELETE_FILES = "skipped-delete-files";
+    public static final String INDEXED_DELETE_FILES = "indexed-delete-files";
+    public static final String EQUALITY_DELETE_FILES = "equality-delete-files";
+    public static final String POSITIONAL_DELETE_FILES = "positional-delete-files";
 
     public static ScanMetrics noop() {
       return ScanMetrics.of(MetricsContext.nullMetrics());
@@ -244,6 +259,21 @@ public interface ScanReport {
     @Value.Derived
     public Counter skippedDeleteManifests() {
       return metricsContext().counter(SKIPPED_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter indexedDeleteFiles() {
+      return metricsContext().counter(INDEXED_DELETE_FILES, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter equalityDeleteFiles() {
+      return metricsContext().counter(EQUALITY_DELETE_FILES, MetricsContext.Unit.COUNT);
+    }
+
+    @Value.Derived
+    public Counter positionalDeleteFiles() {
+      return metricsContext().counter(POSITIONAL_DELETE_FILES, MetricsContext.Unit.COUNT);
     }
 
     public static ScanMetrics of(MetricsContext metricsContext) {

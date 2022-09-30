@@ -141,6 +141,9 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(20L);
     assertThat(result.skippedDataFiles().value()).isEqualTo(0);
     assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.indexedDeleteFiles().value()).isEqualTo(2);
+    assertThat(result.equalityDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.positionalDeleteFiles().value()).isEqualTo(2);
   }
 
   @Test
@@ -212,6 +215,33 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(result.totalDeleteManifests().value()).isEqualTo(2);
     assertThat(result.totalFileSizeInBytes().value()).isEqualTo(10L);
     assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(10L);
+    assertThat(result.indexedDeleteFiles().value()).isEqualTo(1);
+    assertThat(result.equalityDeleteFiles().value()).isEqualTo(1);
+    assertThat(result.positionalDeleteFiles().value()).isEqualTo(0);
+  }
+
+  @Test
+  public void scanningWithEqualityAndPositionalDeleteFiles() throws IOException {
+    String tableName = "scan-planning-with-eq-and-pos-delete-files";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+    table.newAppend().appendFile(FILE_A).commit();
+    // FILE_A_DELETES = positionalDelete / FILE_A2_DELETES = equalityDelete
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    TableScan tableScan = table.newScan();
+
+    try (CloseableIterable<FileScanTask> fileScanTasks =
+        tableScan.filter(Expressions.equal("data", "6")).planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.indexedDeleteFiles().value()).isEqualTo(2);
+    assertThat(result.equalityDeleteFiles().value()).isEqualTo(1);
+    assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
   }
 
   private static class TestScanReporter implements ScanReporter {

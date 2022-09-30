@@ -509,6 +509,19 @@ class DeleteFileIndex {
         }
       }
 
+      scanMetrics.indexedDeleteFiles().increment(deleteEntries.size());
+      deleteFilesByPartition
+          .values()
+          .forEach(
+              entry -> {
+                FileContent content = entry.file().content();
+                if (content == FileContent.EQUALITY_DELETES) {
+                  scanMetrics.equalityDeleteFiles().increment();
+                } else if (content == FileContent.POSITION_DELETES) {
+                  scanMetrics.positionalDeleteFiles().increment();
+                }
+              });
+
       return new DeleteFileIndex(
           specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
     }
