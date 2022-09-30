@@ -56,11 +56,11 @@ public class TestTableIdentifier {
   public void testInvalidTableName() {
     Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), ""))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid table name: null or empty");
+        .hasMessage("Invalid table name: empty");
 
     Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid table name: null or empty");
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("name");
   }
 
   @Test
@@ -74,7 +74,7 @@ public class TestTableIdentifier {
         .hasMessage("Cannot parse table identifier: null");
 
     Assertions.assertThatThrownBy(() -> TableIdentifier.of(null, "name"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid Namespace: null");
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("namespace");
   }
 }

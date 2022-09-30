@@ -19,29 +19,35 @@
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.immutables.value.Value;
 
 /** Identifies a table in iceberg catalog. */
-public class TableIdentifier {
+@Value.Immutable
+public abstract class TableIdentifier {
 
   private static final Splitter DOT = Splitter.on('.');
 
-  private final Namespace namespace;
-  private final String name;
+  /** Returns the identifier namespace. */
+  public abstract Namespace namespace();
+
+  /** Returns the identifier name. */
+  public abstract String name();
 
   public static TableIdentifier of(String... names) {
     Preconditions.checkArgument(names != null, "Cannot create table identifier from null array");
     Preconditions.checkArgument(
         names.length > 0, "Cannot create table identifier without a table name");
-    return new TableIdentifier(
-        Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
+    return ImmutableTableIdentifier.builder()
+        .namespace(Namespace.of(Arrays.copyOf(names, names.length - 1)))
+        .name(names[names.length - 1])
+        .build();
   }
 
   public static TableIdentifier of(Namespace namespace, String name) {
-    return new TableIdentifier(namespace, name);
+    return ImmutableTableIdentifier.builder().namespace(namespace).name(name).build();
   }
 
   public static TableIdentifier parse(String identifier) {
@@ -50,12 +56,9 @@ public class TableIdentifier {
     return TableIdentifier.of(Iterables.toArray(parts, String.class));
   }
 
-  private TableIdentifier(Namespace namespace, String name) {
-    Preconditions.checkArgument(
-        name != null && !name.isEmpty(), "Invalid table name: null or empty");
-    Preconditions.checkArgument(namespace != null, "Invalid Namespace: null");
-    this.namespace = namespace;
-    this.name = name;
+  @Value.Check
+  protected void check() {
+    Preconditions.checkArgument(!name().isEmpty(), "Invalid table name: empty");
   }
 
   /**
@@ -64,17 +67,7 @@ public class TableIdentifier {
    * @return true if the namespace is not empty, false otherwise
    */
   public boolean hasNamespace() {
-    return !namespace.isEmpty();
-  }
-
-  /** Returns the identifier namespace. */
-  public Namespace namespace() {
-    return namespace;
-  }
-
-  /** Returns the identifier name. */
-  public String name() {
-    return name;
+    return !namespace().isEmpty();
   }
 
   public TableIdentifier toLowerCase() {
@@ -85,30 +78,11 @@ public class TableIdentifier {
   }
 
   @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    TableIdentifier that = (TableIdentifier) other;
-    return namespace.equals(that.namespace) && name.equals(that.name);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(namespace, name);
-  }
-
-  @Override
   public String toString() {
     if (hasNamespace()) {
-      return namespace.toString() + "." + name;
+      return namespace().toString() + "." + name();
     } else {
-      return name;
+      return name();
     }
   }
 }

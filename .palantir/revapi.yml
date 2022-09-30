@@ -3,6 +3,41 @@ versionOverrides:
 acceptedBreaks:
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
+    - code: "java.annotation.added"
+      old: "class org.apache.iceberg.catalog.Namespace"
+      new: "class org.apache.iceberg.catalog.Namespace"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.annotation.added"
+      old: "class org.apache.iceberg.catalog.TableIdentifier"
+      new: "class org.apache.iceberg.catalog.TableIdentifier"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.class.nowAbstract"
+      old: "class org.apache.iceberg.catalog.Namespace"
+      new: "class org.apache.iceberg.catalog.Namespace"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.class.nowAbstract"
+      old: "class org.apache.iceberg.catalog.TableIdentifier"
+      new: "class org.apache.iceberg.catalog.TableIdentifier"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.method.nowAbstract"
+      old: "method java.lang.String org.apache.iceberg.catalog.TableIdentifier::name()"
+      new: "method java.lang.String org.apache.iceberg.catalog.TableIdentifier::name()"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.method.nowAbstract"
+      old: "method java.lang.String[] org.apache.iceberg.catalog.Namespace::levels()"
+      new: "method java.lang.String[] org.apache.iceberg.catalog.Namespace::levels()"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
+    - code: "java.method.nowAbstract"
+      old: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.catalog.TableIdentifier::namespace()"
+      new: "method org.apache.iceberg.catalog.Namespace org.apache.iceberg.catalog.TableIdentifier::namespace()"
+      justification: "false positive - converting to an Immutable class doesn't break\
+        \ the API"
     - code: "java.class.defaultSerializationChanged"
       old: "class org.apache.iceberg.PartitionKey"
       new: "class org.apache.iceberg.PartitionKey"

@@ -18,21 +18,21 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.Arrays;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.immutables.value.Value;
 
 /** A namespace in a {@link Catalog}. */
-public class Namespace {
-  private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
+@Value.Immutable
+public abstract class Namespace {
   private static final Joiner DOT = Joiner.on('.');
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
   public static Namespace empty() {
-    return EMPTY_NAMESPACE;
+    return ImmutableNamespace.builder().levels(new String[] {}).build();
   }
 
   public static Namespace of(String... levels) {
@@ -48,52 +48,25 @@ public class Namespace {
           "Cannot create a namespace with the null-byte character");
     }
 
-    return new Namespace(levels);
+    return ImmutableNamespace.builder().levels(levels).build();
   }
 
-  private final String[] levels;
-
-  private Namespace(String[] levels) {
-    this.levels = levels;
-  }
-
-  public String[] levels() {
-    return levels;
-  }
+  public abstract String[] levels();
 
   public String level(int pos) {
-    return levels[pos];
+    return levels()[pos];
   }
 
   public boolean isEmpty() {
-    return levels.length == 0;
+    return levels().length == 0;
   }
 
   public int length() {
-    return levels.length;
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    Namespace namespace = (Namespace) other;
-    return Arrays.equals(levels, namespace.levels);
-  }
-
-  @Override
-  public int hashCode() {
-    return Arrays.hashCode(levels);
+    return levels().length;
   }
 
   @Override
   public String toString() {
-    return DOT.join(levels);
+    return DOT.join(levels());
   }
 }
