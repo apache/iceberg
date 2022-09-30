@@ -347,9 +347,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     PositionDeleteWriter<T> writer =
         writerFactory.newPositionDeleteWriter(file, spec, partitionKey);
 
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closableWriter = writer) {
       for (PositionDelete<T> delete : deletes) {
-        PositionDelete<T> posDelete = PositionDelete.create();
         closableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }

@@ -134,10 +134,10 @@ public class TestParquetDeleteWriters {
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
+    PositionDelete<Record> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        PositionDelete<Record> positionDelete = PositionDelete.create();
         writer.write(positionDelete.set(deletePath, pos, records.get(i)));
         expectedDeleteRecords.add(
             posDelete.copy(
@@ -191,10 +191,10 @@ public class TestParquetDeleteWriters {
                 })
             .buildPositionWriter();
 
+    PositionDelete<Void> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        PositionDelete<Void> positionDelete = PositionDelete.create();
         writer.write(positionDelete.set(deletePath, pos, null));
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));

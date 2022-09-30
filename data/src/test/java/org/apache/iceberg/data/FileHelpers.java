@@ -62,9 +62,9 @@ public class FileHelpers {
 
     PositionDeleteWriter<Record> writer =
         factory.newPosDeleteWriter(encrypt(out), format, partition);
+    PositionDelete<Record> posDelete = PositionDelete.create();
     try (Closeable toClose = writer) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        PositionDelete<Record> posDelete = PositionDelete.create();
         writer.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
