@@ -21,6 +21,13 @@ import botocore.exceptions
 from pyiceberg.catalog import PropertiesUpdateSummary
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.schema import Schema
+from pyiceberg.exceptions import (
+    NamespaceAlreadyExistsError,
+    NamespaceNotEmptyError,
+    NoSuchNamespaceError,
+    NoSuchTableError,
+    TableAlreadyExistsError,
+)
 
 import random
 import string
@@ -40,7 +47,6 @@ def test_create_table(table_schema_nested: Schema):
         table_schema_nested,
         f"s3://myicebergtest/glueiceberg2/reviewsjonas.db/{table_name}"
     )
-    print(table)
     assert table.identifier == identifier
 
 
@@ -52,7 +58,28 @@ def test_create_table_with_default_location(table_schema_nested: Schema):
     assert table.identifier == identifier
 
 
+def test_create_table_with_invalid_database(table_schema_nested: Schema):
+    try:
+        table_name = get_randam_table_name()
+        identifier = ('invalid', table_name)
+        test_catalog = GlueCatalog('glue', warehouse='s3://myicebergtest/glueiceberg2')
+        table = test_catalog.create_table(identifier, table_schema_nested)
+    except NoSuchNamespaceError:
+        return
+    assert False
+
+
+def test_create_table_with_invalid_location(table_schema_nested: Schema):
+    try:
+        table_name = get_randam_table_name()
+        identifier = ('reviewsjonas', table_name)
+        test_catalog = GlueCatalog('glue')
+        table = test_catalog.create_table(identifier, table_schema_nested)
+    except ValueError:
+        return
+    assert False
+
+
 def test_load_table():
     table = GlueCatalog('glue').load_table(('reviews', 'book_reviews2'))
     assert table.identifier == ('reviews', 'book_reviews2')
-
