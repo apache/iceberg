@@ -26,7 +26,7 @@ from typing import (
 )
 
 import requests
-from pydantic import Field
+from pydantic import Field, ValidationError
 from requests import HTTPError
 
 from pyiceberg import __version__
@@ -300,6 +300,11 @@ class RestCatalog(Catalog):
         except JSONDecodeError:
             # In the case we don't have a proper response
             response = f"RESTError {exc.response.status_code}: Could not decode json payload: {exc.response.text}"
+        except ValidationError as e:
+            # In the case we don't have a proper response
+            response = (
+                f"RESTError {exc.response.status_code}: Received unexpected JSON Payload: {exc.response.text}, errors: {e.errors}"
+            )
 
         raise exception(response) from exc
 
