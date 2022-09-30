@@ -59,6 +59,9 @@ LOCATION = "location"
 WAREHOUSE = "warehouse"
 
 
+PROP_TABLE_TYPE = "table_type"
+# TODO: refactor these types
+
 class GlueCatalog(Catalog):
 
     def __init__(self, name: str, **properties: Properties):
@@ -66,17 +69,13 @@ class GlueCatalog(Catalog):
         self.glue = boto3.client("glue")
 
 
-    def _check_response(self, response: Dict[str, Dict[str, str]]):
-        if response['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise ValueError(f"Got unexpected status code {response['HttpStatusCode']}")
-
     def _glue_to_iceberg(self, glue_table, io: FileIO) -> Table:
         properties: Dict[str, str] = glue_table["Parameters"]
 
-        if "table_type" not in properties:
+        if TABLE_TYPE not in properties:
             raise NoSuchTableError(
                 f"Property table_type missing, could not determine type: {glue_table['DatabaseName']}.{glue_table['Name']}")
-        glue_table_type = properties.get("table_type")
+        glue_table_type = properties.get(TABLE_TYPE)
         if glue_table_type.lower() != ICEBERG:
             raise NoSuchTableError(
                 f"Property table_type is {glue_table_type}, expected {ICEBERG}: {glue_table['DatabaseName']}.{glue_table['Name']}")
@@ -98,7 +97,7 @@ class GlueCatalog(Catalog):
         pass
 
     def _construct_parameters(self, metadata_location: str) -> Dict[str, str]:
-        properties = {"table_type": "ICEBERG", "metadata_location": metadata_location}
+        properties = {TABLE_TYPE: "ICEBERG", METADATA_LOCATION: metadata_location}
         return properties
 
     def _default_warehouse_location(self, database_name: str, table_name: str):
@@ -132,6 +131,23 @@ class GlueCatalog(Catalog):
             sort_order: SortOrder = UNSORTED_SORT_ORDER,
             properties: Properties = EMPTY_DICT,
     ) -> Table:
+        """Create a table
+
+        Args:
+            identifier: Table identifier.
+            schema: Table's schema.
+            location: Location for the table. Optional Argument.
+            partition_spec: PartitionSpec for the table.
+            sort_order: SortOrder for the table.
+            properties: Table properties that can be a string based dictionary.
+
+        Returns:
+            Table: the created table instance
+
+        Raises:
+            AlreadyExistsError: If a table with the name already exists
+            ValueError: If the identifier is invalid
+        """
         database_name, table_name = self.identifier_to_tuple(identifier)
 
         location = self._resolve_table_location(location, database_name, table_name)
@@ -148,7 +164,7 @@ class GlueCatalog(Catalog):
                 DatabaseName=database_name,
                 TableInput={
                     'Name': table_name,
-                    'Description': '',  # To be fixed
+                    'Description': '',  # TODO: metadata does not have a description field, come back later
                     'TableType': 'EXTERNAL_TABLE',
                     'Parameters': self._construct_parameters(metadata_location),
                 }
@@ -163,16 +179,29 @@ class GlueCatalog(Catalog):
 
     # tested
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
+        """Loads the table's metadata and returns the table instance.
+
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        Note: This method doesn't scan data stored in the table.
+
+        Args:
+            identifier: Table identifier.
+
+        Returns:
+            Table: the table instance with its metadata
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
         database_name, table_name = self.identifier_to_tuple(identifier)
         try:
             load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
-            self._check_response(load_table_response)
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
         # TODO: may need to add table properties to the io too
         io = load_file_io(
-            {**self.properties, **load_table_response['Table']['Parameters']},
-            load_table_response['Table']['StorageDescriptor']['Location'])
+            {**self.properties},
+            load_table_response['Table']['Parameters'][METADATA_LOCATION])
         return self._glue_to_iceberg(load_table_response['Table'], io)
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
