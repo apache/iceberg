@@ -399,6 +399,6 @@ public class TestManifestWriterVersions {
   }
 
   interface CheckedFunction<T, R> {
-    R apply(T t) throws IOException;
+    R apply(T args) throws IOException;
   }
 }
