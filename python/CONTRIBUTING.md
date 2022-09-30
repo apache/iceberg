@@ -108,15 +108,20 @@ If you want to remove a method, please add a deprecation notice by annotating th
 ```python
 from pyiceberg.utils.deprecated import deprecated
 
-@deprecated(deprecated_in="0.1.0", removed_in="0.2.0")
+
+@deprecated(
+    deprecated_in="0.1.0",
+    removed_in="0.2.0",
+    help_message="Please use load_something_else() instead",
+)
 def load_something():
     pass
 ```
 
-Which will return:
+Which will warn:
 
 ```
-DeprecationWarning: Call to deprecated function load_something, deprecated in 0.1.0, will be removed in 0.2.0.
+Call to load_something, deprecated in 0.1.0, will be removed in 0.2.0. Please use load_something_else() instead.
 ```
 
 ## Third party libraries

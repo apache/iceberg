@@ -14,25 +14,32 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-import warnings
 import functools
-from typing import Callable
+import warnings
+from typing import Callable, Optional
 
 
-def deprecated(deprecated_in: str, removed_in: str):
+def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] = None):
     """This is a decorator which can be used to mark functions
     as deprecated. It will result in a warning being emitted
     when the function is used."""
 
+    if help_message is not None:
+        help_message = f" {help_message}."
+
     def decorator(func: Callable):
         @functools.wraps(func)
         def new_func(*args, **kwargs):
-            warnings.simplefilter('always', DeprecationWarning)  # turn off filter
-            warnings.warn(f"Call to deprecated function {func.__name__}, deprecated in {deprecated_in}, will be removed in {removed_in}.",
-                          category=DeprecationWarning,
-                          stacklevel=2)
-            warnings.simplefilter('default', DeprecationWarning)  # reset filter
+            warnings.simplefilter("always", DeprecationWarning)  # turn off filter
+
+            warnings.warn(
+                f"Call to {func.__name__}, deprecated in {deprecated_in}, will be removed in {removed_in}.{help_message}",
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
+            warnings.simplefilter("default", DeprecationWarning)  # reset filter
             return func(*args, **kwargs)
+
         return new_func
 
     return decorator
