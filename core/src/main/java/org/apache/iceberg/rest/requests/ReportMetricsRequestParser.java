@@ -31,7 +31,6 @@ import org.apache.iceberg.util.JsonUtil;
 public class ReportMetricsRequestParser {
 
   private static final String REPORT_TYPE = "report-type";
-  private static final String REPORT = "report";
 
   private ReportMetricsRequestParser() {}
 
@@ -47,24 +46,14 @@ public class ReportMetricsRequestParser {
     Preconditions.checkArgument(null != request, "Invalid metrics request: null");
 
     gen.writeStartObject();
-    metricsToJson(request, gen);
-    gen.writeEndObject();
-  }
 
-  private static void metricsToJson(ReportMetricsRequest request, JsonGenerator gen)
-      throws IOException {
-    if (null != request.report()) {
-      gen.writeStringField(REPORT_TYPE, fromReportType(request.reportType()));
+    gen.writeStringField(REPORT_TYPE, fromReportType(request.reportType()));
 
-      switch (request.reportType()) {
-        case SCAN_REPORT:
-          gen.writeFieldName(REPORT);
-          ScanReportParser.toJson((ScanReport) request.report(), gen);
-          return;
-        default:
-          // nothing to do by default
-      }
+    if (ReportType.SCAN_REPORT == request.reportType()) {
+      ScanReportParser.toJsonWithoutStartEnd((ScanReport) request.report(), gen);
     }
+
+    gen.writeEndObject();
   }
 
   private static String fromReportType(ReportType reportType) {
@@ -84,12 +73,14 @@ public class ReportMetricsRequestParser {
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse metrics request from non-object: %s", json);
 
-    String type = JsonUtil.getString(REPORT_TYPE, json);
-    if (ReportType.SCAN_REPORT == toReportType(type)) {
-      return ReportMetricsRequest.builder()
-          .fromReport(ScanReportParser.fromJson(JsonUtil.get(REPORT, json)))
+    ReportType type = toReportType(JsonUtil.getString(REPORT_TYPE, json));
+    if (ReportType.SCAN_REPORT == type) {
+      return ImmutableReportMetricsRequest.builder()
+          .reportType(type)
+          .report(ScanReportParser.fromJson(json))
           .build();
     }
+
     throw new IllegalArgumentException(String.format("Cannot build metrics request from %s", json));
   }
 }

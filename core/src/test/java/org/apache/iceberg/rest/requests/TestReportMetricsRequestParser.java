@@ -52,15 +52,20 @@ public class TestReportMetricsRequestParser {
     Assertions.assertThatThrownBy(
             () -> ReportMetricsRequestParser.fromJson("{\"report-type\":\"scan-report\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: report");
-  }
+        .hasMessage("Cannot parse missing string: table-name");
 
-  @Test
-  public void invalidOrUnknownReportType() {
     Assertions.assertThatThrownBy(
             () ->
                 ReportMetricsRequestParser.fromJson(
-                    "{\"report-type\":\"invalid\", \"report\" : { }}"))
+                    "{\"report-type\":\"scan-report\", \"table-name\" : \"x\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing long: snapshot-id");
+  }
+
+  @Test
+  public void invalidReportType() {
+    Assertions.assertThatThrownBy(
+            () -> ReportMetricsRequestParser.fromJson("{\"report-type\":\"invalid\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "No enum constant org.apache.iceberg.rest.requests.ReportMetricsRequest.ReportType.INVALID");
@@ -68,61 +73,11 @@ public class TestReportMetricsRequestParser {
     Assertions.assertThatThrownBy(
             () ->
                 ReportMetricsRequestParser.fromJson(
-                    "{\"report-type\":\"unknown\", \"report\" : { }}"))
+                    ReportMetricsRequestParser.toJson(
+                        ReportMetricsRequest.of(new MetricsReport() {}))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot build metrics request from {\"report-type\":\"unknown\",\"report\":{}}");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                ReportMetricsRequestParser.fromJson(
-                    ReportMetricsRequestParser.toJson(
-                        ReportMetricsRequest.builder().fromReport(new MetricsReport() {}).build())))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot build metrics request from {\"report-type\":\"unknown\"}");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                // this is a valid report but wrong report-type
-                ReportMetricsRequestParser.fromJson(
-                    "{\n"
-                        + "  \"report-type\" : \"unknown\",\n"
-                        + "  \"report\" : {\n"
-                        + "    \"table-name\" : \"roundTripTableName\",\n"
-                        + "    \"snapshot-id\" : 23,\n"
-                        + "    \"filter\" : true,\n"
-                        + "    \"projection\" : {\n"
-                        + "      \"type\" : \"struct\",\n"
-                        + "      \"schema-id\" : 0,\n"
-                        + "      \"fields\" : [ {\n"
-                        + "        \"id\" : 1,\n"
-                        + "        \"name\" : \"c1\",\n"
-                        + "        \"required\" : true,\n"
-                        + "        \"type\" : \"string\",\n"
-                        + "        \"doc\" : \"c1\"\n"
-                        + "      } ]\n"
-                        + "    },\n"
-                        + "    \"metrics\" : { }\n"
-                        + "  }\n"
-                        + "}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith(
-            "Cannot build metrics request from {\"report-type\":\"unknown\",\"report\"");
-  }
-
-  @Test
-  public void invalidReport() {
-    Assertions.assertThatThrownBy(
-            () -> ReportMetricsRequestParser.toJson(ReportMetricsRequest.builder().build()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid metrics report: null");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                ReportMetricsRequestParser.fromJson(
-                    "{\"report-type\":\"scan-report\", \"report\" : { }}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: table-name");
+            "Unsupported report type: org.apache.iceberg.rest.requests.TestReportMetricsRequestParser$1");
   }
 
   @Test
@@ -142,27 +97,24 @@ public class TestReportMetricsRequestParser {
     String expectedJson =
         "{\n"
             + "  \"report-type\" : \"scan-report\",\n"
-            + "  \"report\" : {\n"
-            + "    \"table-name\" : \"roundTripTableName\",\n"
-            + "    \"snapshot-id\" : 23,\n"
-            + "    \"filter\" : true,\n"
-            + "    \"projection\" : {\n"
-            + "      \"type\" : \"struct\",\n"
-            + "      \"schema-id\" : 0,\n"
-            + "      \"fields\" : [ {\n"
-            + "        \"id\" : 1,\n"
-            + "        \"name\" : \"c1\",\n"
-            + "        \"required\" : true,\n"
-            + "        \"type\" : \"string\",\n"
-            + "        \"doc\" : \"c1\"\n"
-            + "      } ]\n"
-            + "    },\n"
-            + "    \"metrics\" : { }\n"
-            + "  }\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
+            + "  \"projection\" : {\n"
+            + "    \"type\" : \"struct\",\n"
+            + "    \"schema-id\" : 0,\n"
+            + "    \"fields\" : [ {\n"
+            + "      \"id\" : 1,\n"
+            + "      \"name\" : \"c1\",\n"
+            + "      \"required\" : true,\n"
+            + "      \"type\" : \"string\",\n"
+            + "      \"doc\" : \"c1\"\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"metrics\" : { }\n"
             + "}";
 
-    ReportMetricsRequest metricsRequest =
-        ReportMetricsRequest.builder().fromReport(scanReport).build();
+    ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(scanReport);
 
     String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
     Assertions.assertThat(json).isEqualTo(expectedJson);

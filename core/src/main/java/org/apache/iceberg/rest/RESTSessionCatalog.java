@@ -306,7 +306,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     reporter.report(report);
     client.post(
         paths.metrics(tableIdentifier),
-        ReportMetricsRequest.builder().fromReport(report).build(),
+        ReportMetricsRequest.of(report),
         null,
         headers,
         ErrorHandlers.defaultErrorHandler());

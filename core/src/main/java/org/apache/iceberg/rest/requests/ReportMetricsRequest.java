@@ -20,66 +20,32 @@ package org.apache.iceberg.rest.requests;
 
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
+import org.immutables.value.Value;
 
-public class ReportMetricsRequest implements RESTRequest {
+@Value.Immutable
+public interface ReportMetricsRequest extends RESTRequest {
 
-  public enum ReportType {
-    UNKNOWN,
+  enum ReportType {
     SCAN_REPORT
   }
 
-  private MetricsReport report;
-  private ReportType reportType;
+  ReportType reportType();
 
-  @SuppressWarnings("unused")
-  public ReportMetricsRequest() {
-    // Needed for Jackson Deserialization.
-  }
-
-  private ReportMetricsRequest(MetricsReport report) {
-    this.report = report;
-    reportType = report instanceof ScanReport ? ReportType.SCAN_REPORT : ReportType.UNKNOWN;
-    validate();
-  }
-
-  public MetricsReport report() {
-    return report;
-  }
-
-  public ReportType reportType() {
-    return reportType;
-  }
+  MetricsReport report();
 
   @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this).add("report", report).toString();
+  default void validate() {
+    // nothing to do here as it's not possible to create a ReportMetricsRequest where
+    // report/reportType is null
   }
 
-  @Override
-  public void validate() {
-    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
-  }
+  static ReportMetricsRequest of(MetricsReport report) {
+    ReportType reportType = report instanceof ScanReport ? ReportType.SCAN_REPORT : null;
+    Preconditions.checkArgument(
+        null != reportType, "Unsupported report type: %s", report.getClass().getName());
 
-  public static ReportMetricsRequest.Builder builder() {
-    return new ReportMetricsRequest.Builder();
-  }
-
-  public static class Builder {
-    private MetricsReport report;
-
-    private Builder() {}
-
-    public Builder fromReport(MetricsReport newReport) {
-      this.report = newReport;
-      return this;
-    }
-
-    public ReportMetricsRequest build() {
-      Preconditions.checkArgument(null != report, "Invalid metrics report: null");
-      return new ReportMetricsRequest(report);
-    }
+    return ImmutableReportMetricsRequest.builder().reportType(reportType).report(report).build();
   }
 }

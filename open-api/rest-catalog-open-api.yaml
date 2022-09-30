@@ -1839,19 +1839,13 @@ components:
         $ref: '#/components/schemas/MetricResult'
 
     ReportMetricsRequest:
-      type: object
+      anyOf:
+        - $ref: '#/components/schemas/ScanReport'
       required:
         - report-type
-        - report
       properties:
         report-type:
           type: string
-        report:
-          $ref: '#/components/schemas/MetricsReport'
-
-    MetricsReport:
-      anyOf:
-        - $ref: '#/components/schemas/ScanReport'
 
     ScanReport:
       type: object

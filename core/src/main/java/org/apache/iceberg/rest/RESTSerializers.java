@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
@@ -78,8 +79,11 @@ public class RESTSerializers {
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
         .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
-        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer())
-        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer());
+        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
+        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
+        .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
+        .addDeserializer(
+            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
     mapper.registerModule(module);
   }
 
@@ -259,22 +263,21 @@ public class RESTSerializers {
     }
   }
 
-  public static class ReportMetricsRequestSerializer extends JsonSerializer<ReportMetricsRequest> {
+  public static class ReportMetricsRequestSerializer<T extends ReportMetricsRequest>
+      extends JsonSerializer<T> {
     @Override
-    public void serialize(
-        ReportMetricsRequest request, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       ReportMetricsRequestParser.toJson(request, gen);
     }
   }
 
-  public static class ReportMetricsRequestDeserializer
-      extends JsonDeserializer<ReportMetricsRequest> {
+  public static class ReportMetricsRequestDeserializer<T extends ReportMetricsRequest>
+      extends JsonDeserializer<T> {
     @Override
-    public ReportMetricsRequest deserialize(JsonParser p, DeserializationContext context)
-        throws IOException {
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return ReportMetricsRequestParser.fromJson(jsonNode);
+      return (T) ReportMetricsRequestParser.fromJson(jsonNode);
     }
   }
 }
