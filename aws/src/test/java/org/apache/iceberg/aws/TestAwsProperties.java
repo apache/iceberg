@@ -387,4 +387,25 @@ public class TestAwsProperties {
         102,
         capturedConnectionMaxIdleTime.toMillis());
   }
+
+  @Test
+  public void testApacheConnectionTimeToLiveConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS, "103");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionTimeToLiveCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionTimeToLive(connectionTimeToLiveCaptor.capture());
+
+    Duration capturedConnectionTimeToLive = connectionTimeToLiveCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection acquisition timeout should be 101 ms",
+        103,
+        capturedConnectionTimeToLive.toMillis());
+  }
 }

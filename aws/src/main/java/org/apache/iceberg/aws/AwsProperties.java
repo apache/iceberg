@@ -407,6 +407,14 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
       "http-client.apache.connection-max-idle-time-ms";
 
+  /**
+   * Used to configure the connection time to live in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
       "http-client.apache.connection-time-to-live-ms";
 
@@ -555,6 +563,7 @@ public class AwsProperties implements Serializable {
   private String httpClientType;
   private Long httpClientApacheConnectionAcquisitionTimeoutMS;
   private Long httpClientApacheConnectionMaxIdleTimeMS;
+  private Long httpClientApacheConnectionTimeToLiveMs;
   private Long httpClientApacheConnectionTimeoutMs;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -605,6 +614,7 @@ public class AwsProperties implements Serializable {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientApacheConnectionAcquisitionTimeoutMS = null;
     this.httpClientApacheConnectionMaxIdleTimeMS = null;
+    this.httpClientApacheConnectionTimeToLiveMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -666,6 +676,9 @@ public class AwsProperties implements Serializable {
     this.httpClientApacheConnectionMaxIdleTimeMS =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
+    this.httpClientApacheConnectionTimeToLiveMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
     this.httpClientApacheSocketTimeoutMs =
@@ -1144,6 +1157,7 @@ public class AwsProperties implements Serializable {
     if (httpClientApacheConnectionTimeoutMs != null) {
       builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
     }
+
     if (httpClientApacheSocketTimeoutMs != null) {
       builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
     }
@@ -1155,6 +1169,10 @@ public class AwsProperties implements Serializable {
 
     if (httpClientApacheConnectionMaxIdleTimeMS != null) {
       builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMS));
+    }
+
+    if (httpClientApacheConnectionTimeToLiveMs != null) {
+      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
     }
   }
 }
