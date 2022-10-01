@@ -539,6 +539,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private Long httpClientUrlConnectionConnectionTimeoutMs;
+  private Long httpClientUrlConnectionSocketTimeoutMS;
   private Long httpClientApacheConnectionTimeoutMs;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -587,6 +589,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.httpClientUrlConnectionConnectionTimeoutMs = null;
+    this.httpClientUrlConnectionSocketTimeoutMS = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -642,6 +646,12 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.httpClientUrlConnectionConnectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
+    this.httpClientUrlConnectionSocketTimeoutMS =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
     this.httpClientApacheSocketTimeoutMs =
@@ -1022,7 +1032,9 @@ public class AwsProperties implements Serializable {
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(UrlConnectionHttpClient.builder());
+        builder.httpClientBuilder(
+            UrlConnectionHttpClient.builder()
+                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         builder.httpClientBuilder(
@@ -1112,6 +1124,18 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  @VisibleForTesting
+  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
+      T builder) {
+    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
+      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
+    }
+
+    if (httpClientUrlConnectionSocketTimeoutMS != null) {
+      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMS));
     }
   }
 
