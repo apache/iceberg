@@ -359,11 +359,32 @@ public class TestAwsProperties {
     Mockito.verify(spyApacheHttpClientBuilder)
         .connectionAcquisitionTimeout(connectionAcquisitionTimeoutCaptor.capture());
 
-    Duration capturedSocketTimeout = connectionAcquisitionTimeoutCaptor.getValue();
+    Duration capturedConnectionAcquisitionTimeout = connectionAcquisitionTimeoutCaptor.getValue();
 
     Assert.assertEquals(
         "The configured connection acquisition timeout should be 101 ms",
         101,
-        capturedSocketTimeout.toMillis());
+        capturedConnectionAcquisitionTimeout.toMillis());
+  }
+
+  @Test
+  public void testApacheConnectionMaxIdleTimeConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS, "102");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionMaxIdleTimeCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionMaxIdleTime(connectionMaxIdleTimeCaptor.capture());
+
+    Duration capturedConnectionMaxIdleTime = connectionMaxIdleTimeCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection acquisition timeout should be 101 ms",
+        102,
+        capturedConnectionMaxIdleTime.toMillis());
   }
 }
