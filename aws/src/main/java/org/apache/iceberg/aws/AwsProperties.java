@@ -440,9 +440,29 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
       "http-client.apache.max-connections";
 
+  /**
+   * Used to configure whether to enable the tcp keep alive setting for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}.
+   *
+   * <p>In default, this is disabled.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
   public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE =
       "http-client.apache.tcp-keep-alive";
 
+  /**
+   * Used to configure whether to use idle connection reaper for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}.
+   *
+   * <p>In default, this is enabled.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
   public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER =
       "http-client.apache.use-idle-connection-reaper";
   /**
@@ -584,6 +604,8 @@ public class AwsProperties implements Serializable {
   private Boolean httpClientApacheExpectContinueEnabled;
   private Integer httpClientApacheMaxConnections;
   private Long httpClientApacheSocketTimeoutMs;
+  private Boolean httpClientApacheTcpKeepAlive;
+  private Boolean httpClientApacheUseIdleConnectionReaper;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -637,6 +659,8 @@ public class AwsProperties implements Serializable {
     this.httpClientApacheExpectContinueEnabled = null;
     this.httpClientApacheMaxConnections = null;
     this.httpClientApacheSocketTimeoutMs = null;
+    this.httpClientApacheTcpKeepAlive = null;
+    this.httpClientApacheUseIdleConnectionReaper = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -708,6 +732,11 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
     this.httpClientApacheSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
+    this.httpClientApacheTcpKeepAlive =
+        PropertyUtil.propertyAsNullableBoolean(properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE);
+    this.httpClientApacheUseIdleConnectionReaper =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
@@ -1206,6 +1235,14 @@ public class AwsProperties implements Serializable {
 
     if (httpClientApacheMaxConnections != null) {
       builder.maxConnections(httpClientApacheMaxConnections);
+    }
+
+    if (httpClientApacheTcpKeepAlive != null) {
+      builder.tcpKeepAlive(httpClientApacheTcpKeepAlive);
+    }
+
+    if (httpClientApacheUseIdleConnectionReaper != null) {
+      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaper);
     }
   }
 }

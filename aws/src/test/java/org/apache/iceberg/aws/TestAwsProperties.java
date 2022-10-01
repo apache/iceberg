@@ -445,4 +445,40 @@ public class TestAwsProperties {
     Assert.assertEquals(
         "The configured max connections should be 104", 104, capturedMaxConnections.intValue());
   }
+
+  @Test
+  public void testApacheTcpKeepAliveConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE, "true");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> tcpKeepAliveCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).tcpKeepAlive(tcpKeepAliveCaptor.capture());
+
+    Boolean capturedTcpKeepAlive = tcpKeepAliveCaptor.getValue();
+
+    Assert.assertTrue("The configured tcp keep live should be true", capturedTcpKeepAlive);
+  }
+
+  @Test
+  public void testUseIdleConnectionReaperConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER, "false");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> useIdleConnectionReaperCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .useIdleConnectionReaper(useIdleConnectionReaperCaptor.capture());
+
+    Boolean capturedUseIdleConnectionReaper = useIdleConnectionReaperCaptor.getValue();
+
+    Assert.assertFalse(
+        "The configured expect continue enabled should be false", capturedUseIdleConnectionReaper);
+  }
 }
