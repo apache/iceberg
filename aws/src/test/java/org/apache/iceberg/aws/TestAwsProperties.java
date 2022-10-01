@@ -344,4 +344,26 @@ public class TestAwsProperties {
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .socketTimeout(socketTimeoutCaptor.capture());
   }
+
+  @Test
+  public void testApacheConnectionAcquisitionTimeoutConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS, "101");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionAcquisitionTimeoutCaptor =
+        ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionAcquisitionTimeout(connectionAcquisitionTimeoutCaptor.capture());
+
+    Duration capturedSocketTimeout = connectionAcquisitionTimeoutCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection acquisition timeout should be 101 ms",
+        101,
+        capturedSocketTimeout.toMillis());
+  }
 }

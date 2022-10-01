@@ -385,19 +385,34 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
       "http-client.apache.socket-timeout-ms";
 
-  public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS = "http-client.apache.connection-acquisition-timeout-ms";
+  /**
+   * Used to configure the connection acquisition timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
+      "http-client.apache.connection-acquisition-timeout-ms";
 
-  public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS = "http-client.apache.connection-max-idle-time-ms";
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
+      "http-client.apache.connection-max-idle-time-ms";
 
-  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS = "http-client.apache.connection-time-to-live-ms";
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
+      "http-client.apache.connection-time-to-live-ms";
 
-  public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED = "http-client.apache.expect-continue-enabled";
+  public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
+      "http-client.apache.expect-continue-enabled";
 
-  public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS = "http-client.apache.max-connections";
+  public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
+      "http-client.apache.max-connections";
 
-  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE = "http-client.apache.tcp-keep-alive";
+  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE =
+      "http-client.apache.tcp-keep-alive";
 
-  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER = "http-client.apache.use-idle-connection-reaper";
+  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER =
+      "http-client.apache.use-idle-connection-reaper";
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
@@ -530,6 +545,7 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private Long httpClientApacheConnectionAcquisitionTimeoutMS;
   private Long httpClientApacheConnectionTimeoutMs;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -578,6 +594,7 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.httpClientApacheConnectionAcquisitionTimeoutMS = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -633,6 +650,9 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.httpClientApacheConnectionAcquisitionTimeoutMS =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
     this.httpClientApacheSocketTimeoutMs =
@@ -1113,6 +1133,11 @@ public class AwsProperties implements Serializable {
     }
     if (httpClientApacheSocketTimeoutMs != null) {
       builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
+    }
+
+    if (httpClientApacheConnectionAcquisitionTimeoutMS != null) {
+      builder.connectionAcquisitionTimeout(
+          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMS));
     }
   }
 }
