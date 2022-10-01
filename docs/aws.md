@@ -552,12 +552,13 @@ This also serves as an example for users who would like to implement their own A
 
 This client factory has the following configurable catalog properties:
 
-| Property                          | Default                                  | Description                                            |
-| --------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| client.assume-role.arn            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
-| client.assume-role.region         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
-| client.assume-role.external-id    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
-| client.assume-role.timeout-sec    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client.  |
+| Property                          | Default                   | Description                                                                                                                                 |
+|-----------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| client.assume-role.arn            | null, requires user input | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume                                                                  |
+| client.assume-role.region         | null, requires user input | All AWS clients except the STS client will use the given region instead of the default region chain                                         |
+| client.assume-role.external-id    | null                      | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)                        |
+| client.assume-role.timeout-sec    | 1 hour                    | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client. |
+| client.assume-role.session-name   | null                      | An optional [session name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname)  |
 
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
@@ -571,6 +572,55 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersio
     --conf spark.sql.catalog.my_catalog.client.factory=org.apache.iceberg.aws.AssumeRoleAwsClientFactory \
     --conf spark.sql.catalog.my_catalog.client.assume-role.arn=arn:aws:iam::123456789:role/myRoleToAssume \
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
+```
+
+### URL Connection HTTP Client
+In default, AWS clients use the [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) for HTTP connection management.
+
+This HTTP Client has the following configurable properties:
+
+| Property                                        | Default | Description                                                                                                                                                                                                      |
+|-------------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.urlconnection.socket-timeout-ms     | null    | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds         |
+| http-client.urlconnection.connection-timeout-ms | null    | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
+
+Here is an example to start Spark shell with URL Connection HTTP client and some optional settings:
+```shell
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
+    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.http-client.urlconnection.socket-timeout-ms=80 \
+    --conf spark.sql.catalog.my_catalog.http-client.urlconnection.connection-timeout-ms=90
+```
+
+### Apache HTTP Client
+Users can choose [Apache Http Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client) for AWS clients by setting `http-client.type` to `apache`.
+
+This HTTP Client has the following configurable properties:
+
+| Property                                             | Default                   | Description                                                                                                                                                                                                                                 |
+|------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.apache.socket-timeout-ms                 | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds                                                  |
+| http-client.apache.connection-timeout-ms             | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds                                          |
+| http-client.apache.connection-acquisition-timeout-ms | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds                   |
+| http-client.apache.connection-max-idle-time-ms       | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds                             |
+| http-client.apache.connection-time-to-live-ms        | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds                                  |
+| http-client.apache.expect-continue-enabled           | null, disabled by default | An optional `true/false` setting that decide whether to enable [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean))       |
+| http-client.apache.max-connections                   | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer                                                     |
+| http-client.apache.tcp-keep-alive                    | null, disabled by default | An optional `true/false` setting that decide whether to enable [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean))                 |
+| http-client.apache.use-idle-connection-reaper        | null, enabled by default  | An optional `true/false` setting that decide whether to [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) |
+
+Here is an example to start Spark shell with Apache HTTP Client and some optional settings:
+```shell
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
+    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.http-client.type=apache \
+    --conf spark.sql.catalog.my_catalog.http-client.apache.connection-acquisition-timeout-ms=81 \
+    --conf spark.sql.catalog.my_catalog.http-client.apache.expect-continue-enabled=true \
+    --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
 
 ## Run Iceberg on AWS
