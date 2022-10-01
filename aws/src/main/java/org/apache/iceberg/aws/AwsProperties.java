@@ -385,6 +385,19 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
       "http-client.apache.socket-timeout-ms";
 
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS = "http-client.apache.connection-acquisition-timeout-ms";
+
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS = "http-client.apache.connection-max-idle-time-ms";
+
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS = "http-client.apache.connection-time-to-live-ms";
+
+  public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED = "http-client.apache.expect-continue-enabled";
+
+  public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS = "http-client.apache.max-connections";
+
+  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE = "http-client.apache.tcp-keep-alive";
+
+  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER = "http-client.apache.use-idle-connection-reaper";
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
