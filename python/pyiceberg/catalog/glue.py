@@ -20,7 +20,9 @@ import uuid
 from typing import (
     Any,
     Dict,
+    List,
     Optional,
+    Set,
     Union,
 )
 
@@ -225,16 +227,16 @@ class GlueCatalog(Catalog):
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         raise NotImplementedError("currently unsupported")
 
-    def list_tables(self, namespace: Union[str, Identifier]) -> list[Identifier]:
+    def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         raise NotImplementedError("currently unsupported")
 
-    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> list[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         raise NotImplementedError("currently unsupported")
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         raise NotImplementedError("currently unsupported")
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[set[str]] = None, updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         raise NotImplementedError("currently unsupported")
