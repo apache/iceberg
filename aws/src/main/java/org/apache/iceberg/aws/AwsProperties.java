@@ -363,8 +363,27 @@ public class AwsProperties implements Serializable {
 
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
-  public static final String HTTP_CLIENT_URL_CONNECTION_TIMEOUT_MS = "http-client.url.connection-timeout-ms";
-  public static final String HTTP_CLIENT_URL_SOCKET_TIMEOUT_MS = "http-client.url.socket-timeout-ms";
+  /**
+   * Used to configure the connection timeout in milliseconds for {@link
+   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
+   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS =
+      "http-client.urlconnection.connection-timeout-ms";
+
+  /**
+   * Used to configure the socket timeout in milliseconds for {@link
+   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
+   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS =
+      "http-client.urlconnection.socket-timeout-ms";
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
