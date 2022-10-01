@@ -423,6 +423,8 @@ public class AwsProperties implements Serializable {
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
    * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
    *
+   * <p>In default, this is disabled.
+   *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
