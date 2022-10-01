@@ -677,7 +677,6 @@ public class AwsProperties implements Serializable {
     this.s3SessionToken = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
-
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
     this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
@@ -705,7 +704,6 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
-
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
@@ -738,7 +736,6 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsNullableBoolean(
             properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
-
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
         PropertyUtil.propertyAsInt(
@@ -774,7 +771,6 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
-
     this.s3FileIoMultipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties,
@@ -792,7 +788,6 @@ public class AwsProperties implements Serializable {
     this.s3DualStackEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_DUALSTACK_ENABLED, S3_DUALSTACK_ENABLED_DEFAULT);
-
     try {
       this.s3FileIoMultiPartSize =
           PropertyUtil.propertyAsInt(
@@ -802,34 +797,27 @@ public class AwsProperties implements Serializable {
           "Input malformed or exceeded maximum multipart upload size 5GB: %s"
               + properties.get(S3FILEIO_MULTIPART_SIZE));
     }
-
     this.s3FileIoMultipartThresholdFactor =
         PropertyUtil.propertyAsDouble(
             properties,
             S3FILEIO_MULTIPART_THRESHOLD_FACTOR,
             S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
-
     Preconditions.checkArgument(
         s3FileIoMultipartThresholdFactor >= 1.0, "Multipart threshold factor must be >= to 1.0");
-
     Preconditions.checkArgument(
         s3FileIoMultiPartSize >= S3FILEIO_MULTIPART_SIZE_MIN,
         "Minimum multipart upload object size must be larger than 5 MB.");
-
     this.s3fileIoStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, S3FILEIO_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
-
     String aclType = properties.get(S3FILEIO_ACL);
     this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
     Preconditions.checkArgument(
         s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
         "Cannot support S3 CannedACL " + aclType);
-
     this.isS3ChecksumEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_CHECKSUM_ENABLED, S3_CHECKSUM_ENABLED_DEFAULT);
-
     this.s3FileIoDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, S3FILEIO_DELETE_BATCH_SIZE, S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
@@ -837,7 +825,6 @@ public class AwsProperties implements Serializable {
         s3FileIoDeleteBatchSize > 0 && s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
         String.format(
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
-
     this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
     this.s3WriteTableTagEnabled =
         PropertyUtil.propertyAsBoolean(
@@ -860,7 +847,6 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
-
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
