@@ -418,6 +418,14 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
       "http-client.apache.connection-time-to-live-ms";
 
+  /**
+   * Used to configure the expect continue setting for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
   public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
       "http-client.apache.expect-continue-enabled";
 
@@ -565,6 +573,7 @@ public class AwsProperties implements Serializable {
   private Long httpClientApacheConnectionMaxIdleTimeMS;
   private Long httpClientApacheConnectionTimeToLiveMs;
   private Long httpClientApacheConnectionTimeoutMs;
+  private Boolean httpClientApacheExpectContinueEnabled;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
@@ -616,6 +625,7 @@ public class AwsProperties implements Serializable {
     this.httpClientApacheConnectionMaxIdleTimeMS = null;
     this.httpClientApacheConnectionTimeToLiveMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
+    this.httpClientApacheExpectContinueEnabled = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
@@ -681,6 +691,9 @@ public class AwsProperties implements Serializable {
             properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
+    this.httpClientApacheExpectContinueEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
     this.httpClientApacheSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
@@ -1173,6 +1186,10 @@ public class AwsProperties implements Serializable {
 
     if (httpClientApacheConnectionTimeToLiveMs != null) {
       builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
+    }
+
+    if (httpClientApacheExpectContinueEnabled != null) {
+      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
     }
   }
 }

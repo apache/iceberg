@@ -39,6 +39,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Boolean propertyAsNullableBoolean(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+    return null;
+  }
+
   public static double propertyAsDouble(
       Map<String, String> properties, String property, double defaultValue) {
     String value = properties.get(property);

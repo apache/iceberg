@@ -383,7 +383,7 @@ public class TestAwsProperties {
     Duration capturedConnectionMaxIdleTime = connectionMaxIdleTimeCaptor.getValue();
 
     Assert.assertEquals(
-        "The configured connection acquisition timeout should be 101 ms",
+        "The configured connection max idle time should be 102 ms",
         102,
         capturedConnectionMaxIdleTime.toMillis());
   }
@@ -404,8 +404,27 @@ public class TestAwsProperties {
     Duration capturedConnectionTimeToLive = connectionTimeToLiveCaptor.getValue();
 
     Assert.assertEquals(
-        "The configured connection acquisition timeout should be 101 ms",
+        "The configured connection time to live should be 103 ms",
         103,
         capturedConnectionTimeToLive.toMillis());
+  }
+
+  @Test
+  public void testApacheExpectContinueEnabledConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED, "true");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> expectContinueEnabledCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .expectContinueEnabled(expectContinueEnabledCaptor.capture());
+
+    Boolean capturedExpectContinueEnabled = expectContinueEnabledCaptor.getValue();
+
+    Assert.assertTrue(
+        "The configured expect continue enabled should be true", capturedExpectContinueEnabled);
   }
 }
