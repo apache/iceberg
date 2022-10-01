@@ -145,7 +145,7 @@ class GlueCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        """Create a table
+        """Create an Iceberg table in Glue catalog
 
         Args:
             identifier: Table identifier.
