@@ -148,6 +148,25 @@ public class TestManifestReaderStats extends TableTestBase {
   }
 
   @Test
+  public void testReadIteratorWithProjectStats() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE);
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .project(new Schema(ImmutableList.of(DataFile.FILE_PATH, DataFile.VALUE_COUNTS)))) {
+      DataFile entry = reader.iterator().next();
+
+      Assert.assertEquals(FILE_PATH, entry.path());
+      Assert.assertEquals(VALUE_COUNT, entry.valueCounts());
+      Assert.assertNull(entry.columnSizes());
+      Assert.assertNull(entry.nullValueCounts());
+      Assert.assertNull(entry.nanValueCounts());
+      Assert.assertNull(entry.lowerBounds());
+      Assert.assertNull(entry.upperBounds());
+      assertNullRecordCount(entry);
+    }
+  }
+
+  @Test
   public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader =

@@ -92,7 +92,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
   private Collection<String> columns = null;
-  private boolean dropStats = false;
   private boolean caseSensitive = true;
   private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
 
@@ -159,7 +158,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         fileProjection == null,
         "Cannot select columns using both select(String...) and project(Schema)");
     this.columns = newColumns;
-    this.dropStats = dropStats(columns);
     return this;
   }
 
@@ -270,6 +268,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
+    boolean dropStats = dropStats(columns);
     return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
