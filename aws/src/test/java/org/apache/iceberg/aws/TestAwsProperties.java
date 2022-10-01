@@ -427,4 +427,22 @@ public class TestAwsProperties {
     Assert.assertTrue(
         "The configured expect continue enabled should be true", capturedExpectContinueEnabled);
   }
+
+  @Test
+  public void testApacheMaxConnectionsConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS, "104");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Integer> maxConnectionsCaptor = ArgumentCaptor.forClass(Integer.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).maxConnections(maxConnectionsCaptor.capture());
+
+    Integer capturedMaxConnections = maxConnectionsCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured max connections should be 104", 104, capturedMaxConnections.intValue());
+  }
 }

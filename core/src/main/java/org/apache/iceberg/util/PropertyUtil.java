@@ -65,6 +65,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Integer propertyAsNullableInt(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Integer.parseInt(value);
+    }
+    return null;
+  }
+
   public static long propertyAsLong(
       Map<String, String> properties, String property, long defaultValue) {
     String value = properties.get(property);
