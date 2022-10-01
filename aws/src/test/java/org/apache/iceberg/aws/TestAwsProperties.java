@@ -265,10 +265,10 @@ public class TestAwsProperties {
     properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
     properties.put(AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
     AwsProperties awsProperties = new AwsProperties(properties);
-    UrlConnectionHttpClient.Builder UrlConnectionHttpClientBuilder =
+    UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     UrlConnectionHttpClient.Builder spyUrlConnectionHttpClientBuilder =
-        Mockito.spy(UrlConnectionHttpClientBuilder);
+        Mockito.spy(urlConnectionHttpClientBuilder);
     ArgumentCaptor<Duration> socketTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
     ArgumentCaptor<Duration> connectionTimeoutCaptor = ArgumentCaptor.forClass(Duration.class);
 
