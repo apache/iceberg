@@ -552,13 +552,12 @@ This also serves as an example for users who would like to implement their own A
 
 This client factory has the following configurable catalog properties:
 
-| Property                          | Default                   | Description                                                                                                                                 |
-|-----------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| client.assume-role.arn            | null, requires user input | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume                                                                  |
-| client.assume-role.region         | null, requires user input | All AWS clients except the STS client will use the given region instead of the default region chain                                         |
-| client.assume-role.external-id    | null                      | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)                        |
-| client.assume-role.timeout-sec    | 1 hour                    | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client. |
-| client.assume-role.session-name   | null                      | An optional [session name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname)  |
+| Property                          | Default                                  | Description                                            |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
+| client.assume-role.arn            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
+| client.assume-role.region         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
+| client.assume-role.external-id    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
+| client.assume-role.timeout-sec    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client.  |
 
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
