@@ -460,7 +460,7 @@ public class TestAwsProperties {
 
     Boolean capturedTcpKeepAlive = tcpKeepAliveCaptor.getValue();
 
-    Assert.assertTrue("The configured tcp keep live should be true", capturedTcpKeepAlive);
+    Assert.assertTrue("The configured tcp keep live enabled should be true", capturedTcpKeepAlive);
   }
 
   @Test
@@ -479,6 +479,7 @@ public class TestAwsProperties {
     Boolean capturedUseIdleConnectionReaper = useIdleConnectionReaperCaptor.getValue();
 
     Assert.assertFalse(
-        "The configured expect continue enabled should be false", capturedUseIdleConnectionReaper);
+        "The configured use idle connection reaper enabled should be false",
+        capturedUseIdleConnectionReaper);
   }
 }
