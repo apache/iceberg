@@ -452,8 +452,8 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
-  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE =
-      "http-client.apache.tcp-keep-alive";
+  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED =
+      "http-client.apache.tcp-keep-alive-enabled";
 
   /**
    * Used to configure whether to use idle connection reaper for {@link
@@ -465,8 +465,8 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
-  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER =
-      "http-client.apache.use-idle-connection-reaper";
+  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
+      "http-client.apache.use-idle-connection-reaper-enabled";
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
@@ -606,8 +606,8 @@ public class AwsProperties implements Serializable {
   private Boolean httpClientApacheExpectContinueEnabled;
   private Integer httpClientApacheMaxConnections;
   private Long httpClientApacheSocketTimeoutMs;
-  private Boolean httpClientApacheTcpKeepAlive;
-  private Boolean httpClientApacheUseIdleConnectionReaper;
+  private Boolean httpClientApacheTcpKeepAliveEnabled;
+  private Boolean httpClientApacheUseIdleConnectionReaperEnabled;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -661,8 +661,8 @@ public class AwsProperties implements Serializable {
     this.httpClientApacheExpectContinueEnabled = null;
     this.httpClientApacheMaxConnections = null;
     this.httpClientApacheSocketTimeoutMs = null;
-    this.httpClientApacheTcpKeepAlive = null;
-    this.httpClientApacheUseIdleConnectionReaper = null;
+    this.httpClientApacheTcpKeepAliveEnabled = null;
+    this.httpClientApacheUseIdleConnectionReaperEnabled = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -732,11 +732,12 @@ public class AwsProperties implements Serializable {
         PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
     this.httpClientApacheSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheTcpKeepAlive =
-        PropertyUtil.propertyAsNullableBoolean(properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE);
-    this.httpClientApacheUseIdleConnectionReaper =
+    this.httpClientApacheTcpKeepAliveEnabled =
         PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER);
+            properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
+    this.httpClientApacheUseIdleConnectionReaperEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -1225,12 +1226,12 @@ public class AwsProperties implements Serializable {
       builder.maxConnections(httpClientApacheMaxConnections);
     }
 
-    if (httpClientApacheTcpKeepAlive != null) {
-      builder.tcpKeepAlive(httpClientApacheTcpKeepAlive);
+    if (httpClientApacheTcpKeepAliveEnabled != null) {
+      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
     }
 
-    if (httpClientApacheUseIdleConnectionReaper != null) {
-      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaper);
+    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
+      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
     }
   }
 }

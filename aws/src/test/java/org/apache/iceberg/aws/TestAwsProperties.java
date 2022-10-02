@@ -449,7 +449,7 @@ public class TestAwsProperties {
   @Test
   public void testApacheTcpKeepAliveConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE, "true");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
@@ -466,7 +466,7 @@ public class TestAwsProperties {
   @Test
   public void testUseIdleConnectionReaperConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER, "false");
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
