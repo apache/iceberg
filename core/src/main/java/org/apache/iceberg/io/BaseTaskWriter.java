@@ -385,7 +385,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     void write(EqualityDeleteWriter<T> writer, T record) {
-      writer.delete(record);
+      writer.write(record);
     }
 
     @Override

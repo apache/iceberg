@@ -49,6 +49,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
@@ -164,7 +165,7 @@ public class SimpleDataUtil {
     EqualityDeleteWriter<RowData> eqWriter =
         appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
-      writer.deleteAll(deletes);
+      writer.write(deletes);
     }
     return eqWriter.toDeleteFile();
   }
@@ -184,7 +185,8 @@ public class SimpleDataUtil {
         appenderFactory.newPosDeleteWriter(outputFile, format, null);
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
-        writer.delete(p.first(), p.second());
+        PositionDelete<RowData> posDelete = PositionDelete.create();
+        writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }
     return posWriter.toDeleteFile();

@@ -52,7 +52,7 @@ public class TestCounterResultParser {
   public void extraFields() {
     Assertions.assertThat(
             CounterResultParser.fromJson("{\"unit\":\"bytes\",\"value\":23,\"extra\": \"value\"}"))
-        .isEqualTo(new CounterResult(Unit.BYTES, 23L));
+        .isEqualTo(CounterResult.of(Unit.BYTES, 23L));
   }
 
   @Test
@@ -73,7 +73,7 @@ public class TestCounterResultParser {
 
   @Test
   public void roundTripSerde() {
-    CounterResult counter = new CounterResult(Unit.BYTES, Long.MAX_VALUE);
+    CounterResult counter = CounterResult.of(Unit.BYTES, Long.MAX_VALUE);
 
     String json = CounterResultParser.toJson(counter);
     Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);

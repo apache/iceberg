@@ -360,7 +360,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     }.toMap
 
     attrs.zipWithIndex.map { case (attr, index) =>
-      attr.withNullability(nullabilityMap(index))
+      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)()
     }
   }
 

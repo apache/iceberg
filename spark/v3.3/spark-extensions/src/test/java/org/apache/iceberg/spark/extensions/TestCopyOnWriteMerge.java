@@ -20,7 +20,9 @@ package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.Test;
 
 public class TestCopyOnWriteMerge extends TestMerge {
 
@@ -37,5 +39,38 @@ public class TestCopyOnWriteMerge extends TestMerge {
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(TableProperties.MERGE_MODE, "copy-on-write");
+  }
+
+  @Test
+  public void testMergeWithTableWithNonNullableColumn() {
+    createAndInitTable(
+        "id INT NOT NULL, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT NOT NULL, dep STRING",
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+            + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+            + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED AND t.id = 1 THEN "
+            + "  UPDATE SET * "
+            + "WHEN MATCHED AND t.id = 6 THEN "
+            + "  DELETE "
+            + "WHEN NOT MATCHED AND s.id = 2 THEN "
+            + "  INSERT *",
+        tableName);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "emp-id-1"), // updated
+            row(2, "emp-id-2") // new
+            );
+    assertEquals(
+        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 }

@@ -42,6 +42,8 @@ github:
     - SreeramGarlapati
     - samredai
     - Fokko
+  ghp_branch: gh-pages
+  ghp_path: ~
 
 notifications:
     commits:      commits@iceberg.apache.org

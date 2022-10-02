@@ -24,6 +24,9 @@ import java.util.concurrent.TimeUnit;
 public class DefaultMetricsContext implements MetricsContext {
   private static final int DEFAULT_HISTOGRAM_RESERVOIR_SIZE = 10_000;
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.metrics.Counter} instead.
+   */
   @Override
   @Deprecated
   @SuppressWarnings("unchecked")

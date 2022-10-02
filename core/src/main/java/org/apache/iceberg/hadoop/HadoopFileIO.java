@@ -35,11 +35,13 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixOperations {
 
   private SerializableSupplier<Configuration> hadoopConf;
+  private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -59,6 +61,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   public Configuration conf() {
     return hadoopConf.get();
+  }
+
+  @Override
+  public void initialize(Map<String, String> props) {
+    this.properties = SerializableMap.copyOf(props);
   }
 
   @Override
@@ -89,7 +96,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   @Override
   public Map<String, String> properties() {
-    return ImmutableMap.of();
+    return properties.immutableMap();
   }
 
   @Override

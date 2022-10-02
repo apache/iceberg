@@ -30,7 +30,12 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A set of consumers to handle errors for requests for table entities or for namespace entities, to
@@ -38,22 +43,36 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
  */
 public class ErrorHandlers {
 
+  private static final Logger LOG = LoggerFactory.getLogger(ErrorHandlers.class);
+
   private ErrorHandlers() {}
 
   public static Consumer<ErrorResponse> namespaceErrorHandler() {
-    return baseNamespaceErrorHandler().andThen(defaultErrorHandler());
+    return NamespaceErrorHandler.INSTANCE;
   }
 
   public static Consumer<ErrorResponse> tableErrorHandler() {
-    return baseTableErrorHandler().andThen(defaultErrorHandler());
+    return TableErrorHandler.INSTANCE;
   }
 
   public static Consumer<ErrorResponse> tableCommitHandler() {
-    return baseCommitErrorHandler().andThen(defaultErrorHandler());
+    return CommitErrorHandler.INSTANCE;
   }
 
-  private static Consumer<ErrorResponse> baseCommitErrorHandler() {
-    return error -> {
+  public static Consumer<ErrorResponse> defaultErrorHandler() {
+    return DefaultErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> oauthErrorHandler() {
+    return OAuthErrorHandler.INSTANCE;
+  }
+
+  /** Table commit error handler. */
+  private static class CommitErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new CommitErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchTableException("%s", error.message());
@@ -64,15 +83,17 @@ public class ErrorHandlers {
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
-    };
+
+      super.accept(error);
+    }
   }
 
-  /**
-   * Table level error handlers. Should be chained wih the {@link #defaultErrorHandler}, which takes
-   * care of common cases.
-   */
-  private static Consumer<ErrorResponse> baseTableErrorHandler() {
-    return error -> {
+  /** Table level error handler. */
+  private static class TableErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new TableErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
@@ -83,15 +104,17 @@ public class ErrorHandlers {
         case 409:
           throw new AlreadyExistsException("%s", error.message());
       }
-    };
+
+      super.accept(error);
+    }
   }
 
-  /**
-   * Request error handlers specifically for CRUD ops on namespaces. Should be chained wih the
-   * {@link #defaultErrorHandler}, which takes care of common cases.
-   */
-  private static Consumer<ErrorResponse> baseNamespaceErrorHandler() {
-    return error -> {
+  /** Request error handler specifically for CRUD ops on namespaces. */
+  private static class NamespaceErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new NamespaceErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -100,15 +123,30 @@ public class ErrorHandlers {
         case 422:
           throw new RESTException("Unable to process: %s", error.message());
       }
-    };
+
+      super.accept(error);
+    }
   }
 
   /**
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  public static Consumer<ErrorResponse> defaultErrorHandler() {
-    return error -> {
+  private static class DefaultErrorHandler extends ErrorHandler {
+    private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
+
+    @Override
+    public ErrorResponse parseResponse(int code, String json) {
+      try {
+        return ErrorResponseParser.fromJson(json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response", x);
+      }
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
+    }
+
+    @Override
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 400:
           throw new BadRequestException("Malformed request: %s", error.message());
@@ -128,6 +166,39 @@ public class ErrorHandlers {
       }
 
       throw new RESTException("Unable to process: %s", error.message());
-    };
+    }
+  }
+
+  private static class OAuthErrorHandler extends ErrorHandler {
+    private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
+
+    @Override
+    public ErrorResponse parseResponse(int code, String json) {
+      try {
+        return OAuthErrorResponseParser.fromJson(code, json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response", x);
+      }
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
+    }
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.type() != null) {
+        switch (error.type()) {
+          case OAuth2Properties.INVALID_CLIENT_ERROR:
+            throw new NotAuthorizedException(
+                "Not authorized: %s: %s", error.type(), error.message());
+          case OAuth2Properties.INVALID_REQUEST_ERROR:
+          case OAuth2Properties.INVALID_GRANT_ERROR:
+          case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
+          case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
+          case OAuth2Properties.INVALID_SCOPE_ERROR:
+            throw new BadRequestException(
+                "Malformed request: %s: %s", error.type(), error.message());
+        }
+      }
+      throw new RESTException("Unable to process: %s", error.message());
+    }
   }
 }

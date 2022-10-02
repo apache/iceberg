@@ -49,22 +49,20 @@ def test_schema_str(table_schema_simple: Schema):
     )
 
 
-@pytest.mark.parametrize(
-    "schema_repr, expected_repr",
-    [
-        (
-            schema.Schema(NestedField(1, "foo", StringType()), schema_id=1),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), required=True),), schema_id=1, identifier_field_ids=[])",
-        ),
-        (
-            schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False)), schema_id=1, identifier_field_ids=[])",
-        ),
-    ],
-)
-def test_schema_repr(schema_repr: Schema, expected_repr: str):
+def test_schema_repr_single_field():
     """Test schema representation"""
-    assert repr(schema_repr) == expected_repr
+    actual = repr(schema.Schema(NestedField(1, "foo", StringType()), schema_id=1))
+    expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[])"
+    assert expected == actual
+
+
+def test_schema_repr_two_fields():
+    """Test schema representation"""
+    actual = repr(
+        schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1)
+    )
+    expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False), schema_id=1, identifier_field_ids=[])"
+    assert expected == actual
 
 
 def test_schema_raise_on_duplicate_names():

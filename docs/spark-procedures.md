@@ -214,6 +214,8 @@ If `older_than` and `retain_last` are omitted, the table's [expiration propertie
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `deleted_data_files_count` | long | Number of data files deleted by this operation |
+| `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
+| `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
 | `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
 

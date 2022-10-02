@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -76,6 +77,19 @@ public class HadoopFileIOTest {
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     assertEquals(
         totalFiles, Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count());
+  }
+
+  @Test
+  public void testFileExists() throws IOException {
+    Path parent = new Path(tempDir.toURI());
+    Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID().toString());
+    fs.createNewFile(randomFilePath);
+
+    // check existence of the created file
+    Assert.assertTrue(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists());
+
+    fs.delete(randomFilePath, false);
+    Assert.assertFalse(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists());
   }
 
   @Test

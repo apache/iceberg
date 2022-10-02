@@ -29,7 +29,7 @@ repos:
       - id: check-yaml
       - id: check-ast
   - repo: https://github.com/ambv/black
-    rev: 22.6.0
+    rev: 22.8.0
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/mirrors-isort
@@ -48,12 +48,12 @@ repos:
       - id: pycln
         args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.37.3
+    rev: v2.38.0
     hooks:
       - id: pyupgrade
         args: [--py38-plus]
   - repo: https://github.com/pycqa/pylint
-    rev: v2.14.5
+    rev: v2.15.3
     hooks:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
@@ -61,5 +61,13 @@ repos:
     rev: '5.0.4'
     hooks:
       - id: flake8
-        args: [ "--ignore=E501,W503,E203" ]
-        additional_dependencies: [ flake8-bugbear==22.7.1, flake8-comprehensions==3.10.0 ]
+        args: [ "--ignore=E501,W503,E203,B024" ]
+        additional_dependencies: [ flake8-bugbear==22.9.11, flake8-comprehensions==3.10.0 ]
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.16
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-black
+          - mdformat-config
+          - mdformat-beautysh

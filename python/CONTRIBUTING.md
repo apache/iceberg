@@ -26,6 +26,7 @@ pip install poetry
 ```
 
 If you have an older version of pip and virtualenv you need to update these:
+
 ```bash
 pip install --upgrade virtualenv pip
 ```
@@ -37,7 +38,7 @@ If you want to install the library on the host, you can simply run `pip3 install
 To set up IDEA with Poetry ([also on Loom](https://www.loom.com/share/6d36464d45f244729d91003e7f671fd2)):
 
 - Open up the Python project in IntelliJ
-- Make sure that you're on a lastest master (that includes Poetry)
+- Make sure that you're on latest master (that includes Poetry)
 - Go to File -> Project Structure (⌘;)
 - Go to Platform Settings -> SDKs
 - Click the + sign -> Add Python SDK
@@ -72,16 +73,57 @@ For Python, we use pytest in combination with coverage to maintain 90% code cove
 make test
 ```
 
+By default we ignore the s3 tests that require minio to be running. To run this suite, we can run:
+
+```bash
+make test-s3
+```
+
 To pass additional arguments to pytest, you can use `PYTEST_ARGS`.
 
 *Run pytest in verbose mode*
+
 ```sh
 make test PYTEST_ARGS="-v"
 ```
 
 *Run pytest with pdb enabled*
+
 ```sh
 make test PYTEST_ARGS="--pdb"
 ```
 
 To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.
+
+# Code standards
+
+Below are the formalized conventions that we adhere to in the PyIceberg project. The goal of this is to have a common agreement on how to evolve the codebase, but also using it as guidelines for newcomers to the project.
+
+## API Compatibility
+
+We try to keep the Python public API compatible across versions. The Python official [PEP-8](https://peps.python.org/pep-0008/) defines Public methods as: _Public attributes should have no leading underscores_. This means not removing any methods without any notice, or removing or renaming any existing parameters. Adding new optional parameters is okay.
+
+If you want to remove a method, please add a deprecation notice by annotating the function using `@deprecated`:
+
+```python
+from pyiceberg.utils.deprecated import deprecated
+
+
+@deprecated(
+    deprecated_in="0.1.0",
+    removed_in="0.2.0",
+    help_message="Please use load_something_else() instead",
+)
+def load_something():
+    pass
+```
+
+Which will warn:
+
+```
+Call to load_something, deprecated in 0.1.0, will be removed in 0.2.0. Please use load_something_else() instead.
+```
+
+## Third party libraries
+
+Since we expect PyIceberg to be integrated into the Python ecosystem, we want to be hesitant with the use of third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.

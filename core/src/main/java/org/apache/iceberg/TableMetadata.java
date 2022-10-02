@@ -1165,27 +1165,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    /**
-     * Removes the given branch
-     *
-     * @deprecated will be removed in 0.15.0. Use removeRef instead.
-     */
-    @Deprecated
-    public Builder removeBranch(String branch) {
-      if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
-        this.currentSnapshotId = -1;
-        snapshotLog.clear();
-      }
-
-      SnapshotRef ref = refs.remove(branch);
-      if (ref != null) {
-        ValidationException.check(ref.isBranch(), "Cannot remove branch: %s is a tag", branch);
-        changes.add(new MetadataUpdate.RemoveSnapshotRef(branch));
-      }
-
-      return this;
-    }
-
     public Builder setStatistics(long snapshotId, StatisticsFile statisticsFile) {
       Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
       Preconditions.checkArgument(

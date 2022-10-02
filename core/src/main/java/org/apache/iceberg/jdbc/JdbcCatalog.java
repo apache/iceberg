@@ -73,11 +73,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private String warehouseLocation;
   private Object conf;
   private JdbcClientPool connections;
+  private Map<String, String> catalogProperties;
 
   public JdbcCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    Preconditions.checkNotNull(properties, "Invalid catalog properties: null");
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
@@ -87,6 +89,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
         "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
 
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
+    this.catalogProperties = properties;
 
     if (name != null) {
       this.catalogName = name;
@@ -155,7 +158,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new JdbcTableOperations(connections, io, catalogName, tableIdentifier);
+    return new JdbcTableOperations(
+        connections, io, catalogName, tableIdentifier, catalogProperties);
   }
 
   @Override
@@ -457,19 +461,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean namespaceExists(Namespace namespace) {
-    if (exists(
-        JdbcUtil.GET_NAMESPACE_SQL, catalogName, JdbcUtil.namespaceToString(namespace) + "%")) {
-      return true;
-    }
-
-    if (exists(
-        JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL,
-        catalogName,
-        JdbcUtil.namespaceToString(namespace) + "%")) {
-      return true;
-    }
-
-    return false;
+    return JdbcUtil.namespaceExists(catalogName, connections, namespace);
   }
 
   private int execute(String sql, String... args) {
@@ -493,33 +485,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       throw new UncheckedSQLException(e, "Failed to execute: %s", sql);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted in SQL command");
-    }
-  }
-
-  @SuppressWarnings("checkstyle:NestedTryDepth")
-  private boolean exists(String sql, String... args) {
-    try {
-      return connections.run(
-          conn -> {
-            try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-              for (int pos = 0; pos < args.length; pos += 1) {
-                preparedStatement.setString(pos + 1, args[pos]);
-              }
-
-              try (ResultSet rs = preparedStatement.executeQuery()) {
-                if (rs.next()) {
-                  return true;
-                }
-              }
-            }
-
-            return false;
-          });
-    } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to execute exists query: %s", sql);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new UncheckedInterruptedException(e, "Interrupted in SQL query");
     }
   }
 

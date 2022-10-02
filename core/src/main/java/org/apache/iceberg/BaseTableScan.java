@@ -24,7 +24,9 @@ import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ImmutableScanReport;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,7 +63,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   protected ScanReport.ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
-      this.scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+      this.scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
     }
 
     return scanMetrics;
@@ -131,14 +133,14 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           () -> {
             scanDuration.stop();
             ScanReport scanReport =
-                ScanReport.builder()
-                    .withProjection(schema())
-                    .withTableName(table().name())
-                    .withSnapshotId(snapshot.snapshotId())
-                    .withFilter(ExpressionUtil.sanitize(filter()))
-                    .fromScanMetrics(scanMetrics())
+                ImmutableScanReport.builder()
+                    .projection(schema())
+                    .tableName(table().name())
+                    .snapshotId(snapshot.snapshotId())
+                    .filter(ExpressionUtil.sanitize(filter()))
+                    .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
                     .build();
-            context().scanReporter().reportScan(scanReport);
+            context().metricsReporter().report(scanReport);
           });
     } else {
       LOG.info("Scanning empty table {}", table());

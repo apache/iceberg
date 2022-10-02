@@ -93,7 +93,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
-  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
+  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
@@ -206,6 +206,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           requireStatsProjection ? withStatsColumns(columns) : columns;
 
       return CloseableIterable.filter(
+          content == FileType.DATA_FILES
+              ? scanMetrics.skippedDataFiles()
+              : scanMetrics.skippedDeleteFiles(),
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
           entry ->
               entry != null
@@ -255,14 +258,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
     return CloseableIterable.filter(
-        entries(), entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
+        content == FileType.DATA_FILES
+            ? scanMetrics.skippedDataFiles()
+            : scanMetrics.skippedDeleteFiles(),
+        entries(),
+        entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
-    return CloseableIterable.transform(
-            liveEntries(), e -> e.file().copy(!dropStats(rowFilter, columns)))
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats(columns)))
         .iterator();
   }
 
@@ -316,16 +322,14 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         && !columns.containsAll(STATS_COLUMNS);
   }
 
-  static boolean dropStats(Expression rowFilter, Collection<String> columns) {
+  static boolean dropStats(Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns, except for
     // record_count column.
     // Since we don't want to keep stats map which could be huge in size just because we select
     // record_count, which
     // is a primitive type.
-    if (rowFilter != Expressions.alwaysTrue()
-        && columns != null
-        && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+    if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
       return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
     }
