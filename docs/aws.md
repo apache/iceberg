@@ -580,7 +580,7 @@ In default, AWS clients use URL Connection HTTP Client to communicate with the s
 This HTTP client optimizes for minimum dependencies and startup latency but support less functionality than other implementations. 
 In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at cost of extra dependency and additional startup latency. 
 
-For more details of configuration, see sections [URL Connection HTTP Client Configurations](#URL Connection HTTP Client Configurations) and [Apache HTTP Client Configurations](#Apache HTTP Client Configurations).
+For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
 Configure the following property to set the type of HTTP client:
 
