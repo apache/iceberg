@@ -599,8 +599,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
-  private Long httpClientApacheConnectionAcquisitionTimeoutMS;
-  private Long httpClientApacheConnectionMaxIdleTimeMS;
+  private Long httpClientApacheConnectionAcquisitionTimeoutMs;
+  private Long httpClientApacheConnectionMaxIdleTimeMs;
   private Long httpClientApacheConnectionTimeToLiveMs;
   private Long httpClientApacheConnectionTimeoutMs;
   private Boolean httpClientApacheExpectContinueEnabled;
@@ -654,8 +654,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.httpClientApacheConnectionAcquisitionTimeoutMS = null;
-    this.httpClientApacheConnectionMaxIdleTimeMS = null;
+    this.httpClientApacheConnectionAcquisitionTimeoutMs = null;
+    this.httpClientApacheConnectionMaxIdleTimeMs = null;
     this.httpClientApacheConnectionTimeToLiveMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheExpectContinueEnabled = null;
@@ -714,10 +714,10 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.httpClientApacheConnectionAcquisitionTimeoutMS =
+    this.httpClientApacheConnectionAcquisitionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
-    this.httpClientApacheConnectionMaxIdleTimeMS =
+    this.httpClientApacheConnectionMaxIdleTimeMs =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
     this.httpClientApacheConnectionTimeToLiveMs =
@@ -1205,13 +1205,13 @@ public class AwsProperties implements Serializable {
       builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
     }
 
-    if (httpClientApacheConnectionAcquisitionTimeoutMS != null) {
+    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
       builder.connectionAcquisitionTimeout(
-          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMS));
+          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
     }
 
-    if (httpClientApacheConnectionMaxIdleTimeMS != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMS));
+    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
+      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
     }
 
     if (httpClientApacheConnectionTimeToLiveMs != null) {
