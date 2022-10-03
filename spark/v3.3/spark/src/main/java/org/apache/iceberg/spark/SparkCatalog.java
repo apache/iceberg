@@ -102,6 +102,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
+  private static final Pattern TO_BRANCH = Pattern.compile("to_branch_(\\w+)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -140,8 +141,16 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      Pair<Table, Long> icebergTable = load(ident);
-      return new SparkTable(icebergTable.first(), icebergTable.second(), !cacheEnabled);
+      Pair<Table, Pair<Long, String>> icebergTable = load(ident);
+
+      Long snapshotId = null;
+      String toBranch = null;
+      if (icebergTable.second() != null) {
+        snapshotId = icebergTable.second().first();
+        toBranch = icebergTable.second().second();
+      }
+
+      return new SparkTable(icebergTable.first(), snapshotId, toBranch, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -150,9 +159,9 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident, String version) throws NoSuchTableException {
     try {
-      Pair<Table, Long> icebergTable = load(ident);
+      Pair<Table, Pair<Long, String>> icebergTable = load(ident);
       Preconditions.checkArgument(
-          icebergTable.second() == null,
+          icebergTable.second() != null && icebergTable.second().first() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
       return new SparkTable(icebergTable.first(), Long.parseLong(version), !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -163,12 +172,12 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
     try {
-      Pair<Table, Long> icebergTable = load(ident);
+      Pair<Table, Pair<Long, String>> icebergTable = load(ident);
       // spark returns timestamp in micro seconds precision, convert it to milliseconds,
       // as iceberg snapshot's are stored in millisecond precision.
       long timestampMillis = TimeUnit.MICROSECONDS.toMillis(timestamp);
       Preconditions.checkArgument(
-          icebergTable.second() == null,
+          icebergTable.second() != null && icebergTable.second().first() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
       long snapshotIdAsOfTime =
           SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestampMillis);
@@ -579,7 +588,7 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Pair<Table, Long> load(Identifier ident) {
+  private Pair<Table, Pair<Long, String>> load(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return loadFromPathIdentifier((PathIdentifier) ident);
     }
@@ -608,13 +617,19 @@ public class SparkCatalog extends BaseCatalog {
       Matcher at = AT_TIMESTAMP.matcher(ident.name());
       if (at.matches()) {
         long asOfTimestamp = Long.parseLong(at.group(1));
-        return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+        return Pair.of(table, Pair.of(SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp), null));
       }
 
       Matcher id = SNAPSHOT_ID.matcher(ident.name());
       if (id.matches()) {
         long snapshotId = Long.parseLong(id.group(1));
-        return Pair.of(table, snapshotId);
+        return Pair.of(table, Pair.of(snapshotId, null));
+      }
+
+      Matcher branchMatcher = TO_BRANCH.matcher(ident.name());
+      if (branchMatcher.matches()) {
+        String branch = branchMatcher.group(1);
+        return Pair.of(table, Pair.of(null, branch));
       }
 
       // the name wasn't a valid snapshot selector. throw the original exception
@@ -633,7 +648,7 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Pair<Table, Long> loadFromPathIdentifier(PathIdentifier ident) {
+  private Pair<Table, Pair<Long, String>> loadFromPathIdentifier(PathIdentifier ident) {
     Pair<String, List<String>> parsed = parseLocationString(ident.location());
 
     String metadataTableName = null;
@@ -666,9 +681,9 @@ public class SparkCatalog extends BaseCatalog {
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
     if (snapshotId != null) {
-      return Pair.of(table, snapshotId);
+      return Pair.of(table, Pair.of(snapshotId, null));
     } else if (asOfTimestamp != null) {
-      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+      return Pair.of(table, Pair.of(SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp), null));
     } else {
       return Pair.of(table, null);
     }

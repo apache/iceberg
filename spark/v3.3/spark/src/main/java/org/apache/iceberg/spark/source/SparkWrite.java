@@ -112,6 +112,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final boolean partitionedFanoutEnabled;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
+  private final String branch;
 
   private boolean cleanupOnAbort = true;
 
@@ -140,6 +141,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+    this.branch = writeConf.branch();
   }
 
   @Override
@@ -209,6 +211,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
       operation.stageOnly();
     }
+
+    operation.toBranch(branch);
 
     try {
       long start = System.currentTimeMillis();
