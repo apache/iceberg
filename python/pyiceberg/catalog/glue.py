@@ -52,7 +52,7 @@ PROP_WAREHOUSE = "warehouse"
 PROP_METADATA_LOCATION = "metadata_location"
 
 PROP_GLUE_TABLE = "Table"
-Prop_GLUE_TABLE_TYPE = "TableType"
+PROP_GLUE_TABLE_TYPE = "TableType"
 PROP_GLUE_TABLE_DESCRIPTION = "description"
 PROP_GLUE_TABLE_PARAMETERS = "Parameters"
 PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
@@ -70,7 +70,7 @@ def _construct_parameters(metadata_location: str) -> Dict[str, str]:
 def _construct_table_input(table_name: str, metadata_location: str, properties: Dict[str, str]) -> Dict[str, Any]:
     table_input = {
         PROP_GLUE_TABLE_NAME: table_name,
-        Prop_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
+        PROP_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
         PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
     }
 
