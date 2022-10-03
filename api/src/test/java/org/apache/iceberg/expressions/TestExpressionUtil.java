@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -65,6 +69,33 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeLongIn() {
+    Object[] tooLongRange =
+        IntStream.range(95, 95 + ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD)
+            .boxed()
+            .toArray();
+    Object[] almostTooLongRange = Arrays.copyOf(tooLongRange, tooLongRange.length - 1);
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test IN ((2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (3-digit-int), (3-digit-int), (3-digit-int), (3-digit-int))",
+        ExpressionUtil.toSanitizedString(Expressions.in("test", almostTooLongRange)));
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total) ...)",
+        ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongRange)));
+
+    // The sanitization resulting in an expression tree does not abbreviate
+    List<String> expectedValues = Lists.newArrayList();
+    expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));
+    expectedValues.addAll(Collections.nCopies(5, "(3-digit-int)"));
+    assertEquals(
+        Expressions.in("test", expectedValues),
+        ExpressionUtil.sanitize(Expressions.in("test", tooLongRange)));
+  }
+
+  @Test
   public void zeroAndNegativeNumberHandling() {
     Assertions.assertThat(
             ExpressionUtil.toSanitizedString(
@@ -92,6 +123,33 @@ public class TestExpressionUtil {
         "Sanitized string should be identical except for descriptive literal",
         "test NOT IN ((2-digit-int), (3-digit-int))",
         ExpressionUtil.toSanitizedString(Expressions.notIn("test", 34, 345)));
+  }
+
+  @Test
+  public void testSanitizeLongNotIn() {
+    Object[] tooLongRange =
+        IntStream.range(95, 95 + ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD)
+            .boxed()
+            .toArray();
+    Object[] almostTooLongRange = Arrays.copyOf(tooLongRange, tooLongRange.length - 1);
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test NOT IN ((2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (3-digit-int), (3-digit-int), (3-digit-int), (3-digit-int))",
+        ExpressionUtil.toSanitizedString(Expressions.notIn("test", almostTooLongRange)));
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test NOT IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total) ...)",
+        ExpressionUtil.toSanitizedString(Expressions.notIn("test", tooLongRange)));
+
+    // The sanitization resulting in an expression tree does not abbreviate
+    List<String> expectedValues = Lists.newArrayList();
+    expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));
+    expectedValues.addAll(Collections.nCopies(5, "(3-digit-int)"));
+    assertEquals(
+        Expressions.notIn("test", expectedValues),
+        ExpressionUtil.sanitize(Expressions.notIn("test", tooLongRange)));
   }
 
   @Test
