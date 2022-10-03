@@ -573,10 +573,24 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersio
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
 ```
 
-### URL Connection HTTP Client
-In default, AWS clients use the [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) for HTTP connection management.
+### HTTP Client Configurations
+AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
+and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
+In default, AWS clients use URL Connection HTTP Client to communicate with the service. 
+This HTTP client optimizes for minimum dependencies and startup latency but support less functionality than other implementations. 
+In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at cost of extra dependency and additional startup latency. 
 
-This HTTP Client has the following configurable properties:
+For more details of configuration, see sections [URL Connection HTTP Client Configurations](#URL Connection HTTP Client Configurations) and [Apache HTTP Client Configurations](#Apache HTTP Client Configurations).
+
+Configure the following property to set the type of HTTP client:
+
+| Property         | Default       | Description                                                                                                |
+|------------------|---------------|------------------------------------------------------------------------------------------------------------|
+| http-client.type | urlconnection | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+
+#### URL Connection HTTP Client Configurations
+
+URL Connection HTTP Client has the following configurable properties:
 
 | Property                                        | Default | Description                                                                                                                                                                                                      |
 |-------------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -593,10 +607,9 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersio
     --conf spark.sql.catalog.my_catalog.http-client.urlconnection.connection-timeout-ms=90
 ```
 
-### Apache HTTP Client
-Users can choose [Apache Http Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client) for AWS clients by setting `http-client.type` to `apache`.
+#### Apache HTTP Client Configurations
 
-This HTTP Client has the following configurable properties:
+Apache HTTP Client has the following configurable properties:
 
 | Property                                              | Default                   | Description                                                                                                                                                                                                                                 |
 |-------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
