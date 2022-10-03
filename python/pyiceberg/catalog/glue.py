@@ -62,12 +62,12 @@ PROP_GLUE_DATABASE = "Database"
 PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
-def _construct_parameters(metadata_location: str) -> Dict[str, str]:
+def _construct_parameters(metadata_location: str) -> Properties:
     properties = {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
     return properties
 
 
-def _construct_table_input(table_name: str, metadata_location: str, properties: Dict[str, str]) -> Dict[str, Any]:
+def _construct_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
     table_input = {
         PROP_GLUE_TABLE_NAME: table_name,
         PROP_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
@@ -81,7 +81,7 @@ def _construct_table_input(table_name: str, metadata_location: str, properties: 
 
 
 def _convert_glue_to_iceberg(glue_table, io: FileIO) -> Table:
-    properties: Dict[str, str] = glue_table[PROP_GLUE_TABLE_PARAMETERS]
+    properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
 
     if PROP_TABLE_TYPE not in properties:
         raise NoSuchTableError(
