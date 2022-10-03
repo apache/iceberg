@@ -540,7 +540,7 @@ public class AwsProperties implements Serializable {
 
   private String httpClientType;
   private Long httpClientUrlConnectionConnectionTimeoutMs;
-  private Long httpClientUrlConnectionSocketTimeoutMS;
+  private Long httpClientUrlConnectionSocketTimeoutMs;
   private Long httpClientApacheConnectionTimeoutMs;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -590,7 +590,7 @@ public class AwsProperties implements Serializable {
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientUrlConnectionConnectionTimeoutMs = null;
-    this.httpClientUrlConnectionSocketTimeoutMS = null;
+    this.httpClientUrlConnectionSocketTimeoutMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -649,7 +649,7 @@ public class AwsProperties implements Serializable {
     this.httpClientUrlConnectionConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
-    this.httpClientUrlConnectionSocketTimeoutMS =
+    this.httpClientUrlConnectionSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
     this.httpClientApacheConnectionTimeoutMs =
@@ -1134,8 +1134,8 @@ public class AwsProperties implements Serializable {
       builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
     }
 
-    if (httpClientUrlConnectionSocketTimeoutMS != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMS));
+    if (httpClientUrlConnectionSocketTimeoutMs != null) {
+      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
     }
   }
 
