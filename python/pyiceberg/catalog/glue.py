@@ -63,8 +63,7 @@ PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
 def _construct_parameters(metadata_location: str) -> Properties:
-    properties = {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
-    return properties
+    return {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
 
 
 def _construct_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
@@ -74,14 +73,14 @@ def _construct_table_input(table_name: str, metadata_location: str, properties: 
         PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
     }
 
-    if properties and PROP_GLUE_TABLE_DESCRIPTION in properties:
-        table_input[PROP_GLUE_TABLE_DESCRIPTION] = properties[PROP_GLUE_TABLE_DESCRIPTION]
+    if table_description := properties.get(PROP_GLUE_TABLE_DESCRIPTION):
+        table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
     return table_input
 
 
-def _convert_glue_to_iceberg(glue_table, io: FileIO) -> Table:
-    properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
+def _convert_glue_to_iceberg(glue_table: Dict[str, Any], io: FileIO) -> Table:
+    properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
 
     if PROP_TABLE_TYPE not in properties:
         raise NoSuchTableError(
