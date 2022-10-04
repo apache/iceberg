@@ -182,9 +182,9 @@ public class SimpleDataUtil {
 
     PositionDeleteWriter<RowData> posWriter =
         appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    PositionDelete<RowData> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
-        PositionDelete<RowData> posDelete = PositionDelete.create();
         writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }

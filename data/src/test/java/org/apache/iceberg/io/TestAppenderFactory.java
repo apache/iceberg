@@ -227,9 +227,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        PositionDelete<T> posDelete = PositionDelete.create();
         closeableWriter.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
@@ -275,9 +275,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
-        PositionDelete<T> posDelete = PositionDelete.create();
         closeableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }

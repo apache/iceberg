@@ -39,7 +39,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final PartitionSpec spec;
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
-  private final PositionDelete<T> delete;
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
 
@@ -56,7 +55,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
     this.spec = spec;
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
-    this.delete = PositionDelete.create();
     this.referencedDataFiles = CharSequenceSet.empty();
   }
 

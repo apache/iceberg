@@ -154,6 +154,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
 
     PositionDeleteWriter<T> writer =
         appenderFactory.newPosDeleteWriter(outputFile, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = writer) {
       // Sort all the paths.
       List<CharSequence> paths = Lists.newArrayListWithCapacity(posDeletes.keySet().size());
@@ -167,7 +168,6 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
         List<PosRow<T>> positions = posDeletes.get(wrapper.set(path));
         positions.sort(Comparator.comparingLong(PosRow::pos));
 
-        PositionDelete<T> posDelete = PositionDelete.create();
         positions.forEach(
             posRow -> closeableWriter.write(posDelete.set(path, posRow.pos(), posRow.row())));
       }
