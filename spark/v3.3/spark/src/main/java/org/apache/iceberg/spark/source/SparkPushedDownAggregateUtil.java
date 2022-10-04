@@ -67,11 +67,11 @@ public class SparkPushedDownAggregateUtil {
       } else {
         String colName = ((UnboundAggregate) aggregates.get(index)).ref().name();
         DataType dataType = getDataTypeForAggregateColumn(colName, caseSensitive, schema);
-        // disable aggregate push down for complex types because the statistics info are not
-        // available.
         if (dataType instanceof StructType
             || dataType instanceof ArrayType
             || dataType instanceof MapType) {
+          // not building pushed down aggregate schema for complex types to disable aggregate push down
+          // because the statistic info for complex are not available.
           return finalSchema;
         }
         if ((aggregates.get(index)).op().name().equals("COUNT")) {
@@ -113,72 +113,40 @@ public class SparkPushedDownAggregateUtil {
     Dataset<Row> metadataRows =
         SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.DATA_FILES);
 
-    Row[] lowerBounds = null;
-    Row[] upperBounds = null;
-    Row[] recordCount = null;
-    Row[] nullValueCount = null;
+    Dataset dataset = metadataRows.selectExpr("lower_bounds", "upper_bounds", "record_count", "null_value_counts");
+    Row[] staticticRows = (Row[]) dataset.collect();
 
     StructField[] fields = pushedAggregateSchema.fields();
     List<Object> valuesInSparkInternalRow = Lists.newArrayList();
 
     for (int i = 0; i < fields.length; i++) {
       if (fields[i].name().contains("MIN")) {
-        if (lowerBounds == null) {
-          lowerBounds = (Row[]) metadataRows.selectExpr("lower_bounds").collect();
-          if (lowerBounds == null) {
-            return null; // if lower_bounds not available, don't push down aggregate
-          }
-        }
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        Object min = getMinOrMax(lowerBounds, index + 1, fields[i], true);
+        Object min = getMinOrMax(staticticRows, index + 1, fields[i], true);
         if (min == null) {
           return null; // if min is not available, don't push down aggregate
         }
         valuesInSparkInternalRow.add(min);
       } else if (fields[i].name().contains("MAX")) {
-        if (upperBounds == null) {
-          upperBounds = (Row[]) metadataRows.selectExpr("upper_bounds").collect();
-          if (upperBounds == null) {
-            return null; // if upper_bounds not available, don't push down aggregate
-          }
-        }
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        Object max = getMinOrMax(upperBounds, index + 1, fields[i], false);
+        Object max = getMinOrMax(staticticRows, index + 1, fields[i], false);
         if (max == null) {
           return null; // if max is not available, don't push down aggregate
         }
         valuesInSparkInternalRow.add(max);
       } else if (fields[i].name().contains("COUNT(*)")) {
-        if (recordCount == null) {
-          recordCount = (Row[]) metadataRows.selectExpr("record_count").collect();
-          if (recordCount == null) {
-            return null; // if recordCount not available, don't push down aggregate
-          }
-        }
         long count = 0;
-        for (int j = 0; j < recordCount.length; j++) {
-          count += recordCount[j].getLong(0);
+        for (int j = 0; j < staticticRows.length; j++) {
+          count += staticticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
         }
         valuesInSparkInternalRow.add(count);
       } else if (fields[i].name().contains("COUNT")) {
-        if (recordCount == null) {
-          recordCount = (Row[]) metadataRows.selectExpr("record_count").collect();
-          if (recordCount == null) {
-            return null; // if recordCount not available, don't push down aggregate
-          }
-        }
-        if (nullValueCount == null) {
-          nullValueCount = (Row[]) metadataRows.selectExpr("null_value_counts").collect();
-          if (nullValueCount == null) {
-            return null; // if nullValueCount not available, don't push down aggregate
-          }
-        }
         long count = 0;
-        for (int j = 0; j < recordCount.length; j++) {
-          count += recordCount[j].getLong(0);
+        for (int j = 0; j < staticticRows.length; j++) {
+          count += staticticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
         }
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        long numOfNulls = getNullValueCount(nullValueCount, index + 1);
+        long numOfNulls = getNullValueCount(staticticRows, index + 1);
         valuesInSparkInternalRow.add(count - numOfNulls);
       }
     }
@@ -209,7 +177,8 @@ public class SparkPushedDownAggregateUtil {
   private static long getNullValueCount(Row[] nullValueCount, int index) {
     long numOfNlls = 0L;
     for (int i = 0; i < nullValueCount.length; i++) {
-      Map<Integer, Long> map = nullValueCount[i].getJavaMap(0);
+      // null_value_count is the 4th column in staticticRows
+      Map<Integer, Long> map = nullValueCount[i].getJavaMap(3);
       Long value = map.get(index);
       numOfNlls += value;
     }
@@ -222,9 +191,13 @@ public class SparkPushedDownAggregateUtil {
     boolean isString = false;
     boolean isBinary = false;
     boolean isDecimal = false;
+    int columIndex = 0; // lower_bound is the 1st column in staticticRows
+    if (!isMin) {
+      columIndex = 1; // upper_bound is the 2nd column in staticticRows
+    }
 
     for (int i = 0; i < rows.length; i++) {
-      Map<Integer, byte[]> map = rows[i].getJavaMap(0);
+      Map<Integer, byte[]> map = rows[i].getJavaMap(columIndex);
       byte[] valueInBytes = map.get(index);
       if (valueInBytes != null) {
         Type type = SparkSchemaUtil.convert(field.dataType());
