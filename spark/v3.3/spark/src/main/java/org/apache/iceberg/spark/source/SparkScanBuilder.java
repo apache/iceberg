@@ -227,7 +227,8 @@ public class SparkScanBuilder
     pushedAggregateSchema =
         SparkPushedDownAggregateUtil.buildSchemaForPushedDownAggregate(
             aggregateExpressions, caseSensitive, schema);
-    if (pushedAggregateSchema != null && pushedAggregateSchema.length() == aggregation.aggregateExpressions().length) {
+    if (pushedAggregateSchema != null
+        && pushedAggregateSchema.length() == aggregation.aggregateExpressions().length) {
       this.pushedAggregateRows =
           SparkPushedDownAggregateUtil.constructInternalRowForPushedDownAggregate(
               spark, table, pushedAggregateSchema, caseSensitive);

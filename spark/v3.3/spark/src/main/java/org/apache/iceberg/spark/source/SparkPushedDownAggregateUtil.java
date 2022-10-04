@@ -70,8 +70,8 @@ public class SparkPushedDownAggregateUtil {
         if (dataType instanceof StructType
             || dataType instanceof ArrayType
             || dataType instanceof MapType) {
-          // not building pushed down aggregate schema for complex types to disable aggregate push down
-          // because the statistic info for complex are not available.
+          // not building pushed down aggregate schema for complex types to disable aggregate push
+          // down because the statistic info for complex are not available.
           return finalSchema;
         }
         if ((aggregates.get(index)).op().name().equals("COUNT")) {
@@ -113,7 +113,9 @@ public class SparkPushedDownAggregateUtil {
     Dataset<Row> metadataRows =
         SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.DATA_FILES);
 
-    Dataset dataset = metadataRows.selectExpr("lower_bounds", "upper_bounds", "record_count", "null_value_counts");
+    Dataset dataset =
+        metadataRows.selectExpr(
+            "lower_bounds", "upper_bounds", "record_count", "null_value_counts");
     Row[] staticticRows = (Row[]) dataset.collect();
 
     StructField[] fields = pushedAggregateSchema.fields();
