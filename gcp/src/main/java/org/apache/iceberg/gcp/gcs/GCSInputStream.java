@@ -67,7 +67,7 @@ class GCSInputStream extends SeekableInputStream {
     this.gcpProperties = gcpProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
 
     createStack = Thread.currentThread().getStackTrace();
 

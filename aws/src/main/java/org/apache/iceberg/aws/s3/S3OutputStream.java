@@ -146,7 +146,7 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
 
     newStream();
   }
