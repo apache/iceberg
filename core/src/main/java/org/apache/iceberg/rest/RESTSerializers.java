@@ -20,12 +20,15 @@ package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.BeanDescription;
+import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
 import org.apache.iceberg.MetadataUpdate;
@@ -42,7 +45,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
@@ -79,11 +81,24 @@ public class RESTSerializers {
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
         .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
-        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
-        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
-        .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
-        .addDeserializer(
-            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
+        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer())
+        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer())
+        .setDeserializerModifier(
+            new BeanDeserializerModifier() {
+              @Override
+              public JsonDeserializer<?> modifyDeserializer(
+                  DeserializationConfig config,
+                  BeanDescription beanDesc,
+                  JsonDeserializer<?> deserializer) {
+                // we can use the same deserializer for ReportMetricsRequest and its
+                // subclasses (ImmutableReportMetricsRequest)
+                if (ReportMetricsRequest.class.isAssignableFrom(beanDesc.getBeanClass())) {
+                  return new ReportMetricsRequestDeserializer();
+                } else {
+                  return deserializer;
+                }
+              }
+            });
     mapper.registerModule(module);
   }
 
@@ -263,21 +278,22 @@ public class RESTSerializers {
     }
   }
 
-  public static class ReportMetricsRequestSerializer<T extends ReportMetricsRequest>
-      extends JsonSerializer<T> {
+  public static class ReportMetricsRequestSerializer extends JsonSerializer<ReportMetricsRequest> {
     @Override
-    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(
+        ReportMetricsRequest request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       ReportMetricsRequestParser.toJson(request, gen);
     }
   }
 
-  public static class ReportMetricsRequestDeserializer<T extends ReportMetricsRequest>
-      extends JsonDeserializer<T> {
+  public static class ReportMetricsRequestDeserializer
+      extends JsonDeserializer<ReportMetricsRequest> {
     @Override
-    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public ReportMetricsRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) ReportMetricsRequestParser.fromJson(jsonNode);
+      return ReportMetricsRequestParser.fromJson(jsonNode);
     }
   }
 }
