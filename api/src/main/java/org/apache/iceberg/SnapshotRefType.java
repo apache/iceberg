@@ -18,7 +18,20 @@
  */
 package org.apache.iceberg;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 enum SnapshotRefType {
   BRANCH,
-  TAG
+  TAG;
+
+  public static SnapshotRefType fromString(String snapshotRefType) {
+    Preconditions.checkArgument(null != snapshotRefType, "Invalid snapshot ref type: null");
+    try {
+      return SnapshotRefType.valueOf(snapshotRefType.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid snapshot ref type: %s", snapshotRefType), e);
+    }
+  }
 }

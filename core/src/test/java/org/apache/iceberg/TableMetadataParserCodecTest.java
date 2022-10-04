@@ -42,7 +42,7 @@ public class TableMetadataParserCodecTest {
   public void testInvalidCodecName() {
     Assertions.assertThatThrownBy(() -> Codec.fromName("invalid"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.TableMetadataParser.Codec.INVALID");
+        .hasMessage("Invalid codec name: invalid");
   }
 
   @Test

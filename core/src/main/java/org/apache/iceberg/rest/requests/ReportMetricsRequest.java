@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.requests;
 
+import java.util.Locale;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,7 +29,16 @@ import org.immutables.value.Value;
 public interface ReportMetricsRequest extends RESTRequest {
 
   enum ReportType {
-    SCAN_REPORT
+    SCAN_REPORT;
+
+    static ReportType fromString(String reportType) {
+      Preconditions.checkArgument(null != reportType, "Invalid report type: null");
+      try {
+        return ReportType.valueOf(reportType.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid report type: %s", reportType), e);
+      }
+    }
   }
 
   ReportType reportType();

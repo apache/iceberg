@@ -54,4 +54,23 @@ public class TestSortOrderParser extends TableTestBase {
     Assert.assertEquals(DESC, order.fields().get(0).direction());
     Assert.assertEquals(NULLS_FIRST, order.fields().get(0).nullOrder());
   }
+
+  @Test
+  public void invalidSortDirection() {
+    String jsonString =
+        "{\n"
+            + "  \"order-id\" : 10,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"transform\" : \"custom_transform\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"direction\" : \"invalid\",\n"
+            + "    \"null-order\" : \"nulls-first\"\n"
+            + "  } ]\n"
+            + "}";
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> SortOrderParser.fromJson(table.schema(), jsonString))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid sort direction: invalid");
+  }
 }

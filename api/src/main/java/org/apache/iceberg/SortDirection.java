@@ -18,7 +18,20 @@
  */
 package org.apache.iceberg;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public enum SortDirection {
   ASC,
-  DESC
+  DESC;
+
+  public static SortDirection fromString(String directionAsString) {
+    Preconditions.checkArgument(null != directionAsString, "Invalid sort direction: null");
+    try {
+      return SortDirection.valueOf(directionAsString.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid sort direction: %s", directionAsString), e);
+    }
+  }
 }
