@@ -425,7 +425,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
   public void testDropColumnOfOldPartitionFieldV1() {
     // default table created in v1 format
     sql(
-        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '1')",
         tableName);
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
@@ -436,10 +436,8 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
   @Test
   public void testDropColumnOfOldPartitionFieldV2() {
     sql(
-        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '2')",
         tableName);
-
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version' = '2');", tableName);
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
 
