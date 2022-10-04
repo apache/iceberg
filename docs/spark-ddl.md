@@ -132,12 +132,28 @@ The new table properties in the `REPLACE TABLE` command will be merged with any 
 
 ## `DROP TABLE`
 
-To delete a table, run:
+The drop table behavior changed in 0.14.
+
+Prior to 0.14, running `DROP TABLE` would remove the table from the catalog and delete the table contents as well.
+
+From 0.14 onwards, `DROP TABLE` would only remove the table from the catalog.
+In order to delete the table contents `DROP TABLE PURGE` should be used.
+
+### `DROP TABLE`
+
+To drop the table from the catalog, run:
 
 ```sql
 DROP TABLE prod.db.sample
 ```
 
+### `DROP TABLE PURGE`
+
+To drop the table from the catalog and delete the table's contents, run:
+
+```sql
+DROP TABLE prod.db.sample PURGE
+```
 
 ## `ALTER TABLE`
 
