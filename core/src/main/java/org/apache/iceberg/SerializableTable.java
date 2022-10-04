@@ -238,6 +238,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return lazyTable().statisticsFiles();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
   }

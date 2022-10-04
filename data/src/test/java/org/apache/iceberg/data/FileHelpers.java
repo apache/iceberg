@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -59,10 +60,12 @@ public class FileHelpers {
     FileFormat format = defaultFormat(table.properties());
     FileAppenderFactory<Record> factory = new GenericAppenderFactory(table.schema(), table.spec());
 
-    PositionDeleteWriter<?> writer = factory.newPosDeleteWriter(encrypt(out), format, partition);
+    PositionDeleteWriter<Record> writer =
+        factory.newPosDeleteWriter(encrypt(out), format, partition);
     try (Closeable toClose = writer) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        writer.delete(delete.first(), delete.second());
+        PositionDelete<Record> posDelete = PositionDelete.create();
+        writer.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
 
@@ -92,7 +95,7 @@ public class FileHelpers {
     EqualityDeleteWriter<Record> writer =
         factory.newEqDeleteWriter(encrypt(out), format, partition);
     try (Closeable toClose = writer) {
-      writer.deleteAll(deletes);
+      writer.write(deletes);
     }
 
     return writer.toDeleteFile();

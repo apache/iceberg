@@ -169,7 +169,7 @@ public class CatalogUtil {
         SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
         bulkIO.deleteFiles(files);
       } catch (RuntimeException e) {
-        LOG.warn("Failed to bulk delete {} files: {}", type, e);
+        LOG.warn("Failed to bulk delete {} files", type, e);
       }
     } else {
       if (concurrent) {
@@ -185,7 +185,7 @@ public class CatalogUtil {
         .executeWith(ThreadPools.getWorkerPool())
         .noRetry()
         .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file {}: {}", type, file, exc))
+        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file {}", type, file, exc))
         .run(io::deleteFile);
   }
 
@@ -193,7 +193,7 @@ public class CatalogUtil {
     try {
       io.deleteFile(file);
     } catch (RuntimeException e) {
-      LOG.warn("Failed to delete {} file {}: {}", type, file, e);
+      LOG.warn("Failed to delete {} file {}", type, file, e);
     }
   }
 

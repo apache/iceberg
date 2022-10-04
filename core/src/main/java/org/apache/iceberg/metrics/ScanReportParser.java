@@ -50,6 +50,21 @@ public class ScanReportParser {
     Preconditions.checkArgument(null != scanReport, "Invalid scan report: null");
 
     gen.writeStartObject();
+    toJsonWithoutStartEnd(scanReport, gen);
+    gen.writeEndObject();
+  }
+
+  /**
+   * This serializes the {@link ScanReport} without writing a start/end object and is mainly used by
+   * {@link org.apache.iceberg.rest.requests.ReportMetricsRequestParser}.
+   *
+   * @param scanReport The {@link ScanReport} to serialize
+   * @param gen The {@link JsonGenerator} to use
+   * @throws IOException If an error occurs while serializing
+   */
+  public static void toJsonWithoutStartEnd(ScanReport scanReport, JsonGenerator gen)
+      throws IOException {
+    Preconditions.checkArgument(null != scanReport, "Invalid scan report: null");
 
     gen.writeStringField(TABLE_NAME, scanReport.tableName());
     gen.writeNumberField(SNAPSHOT_ID, scanReport.snapshotId());
@@ -62,8 +77,6 @@ public class ScanReportParser {
 
     gen.writeFieldName(METRICS);
     ScanMetricsResultParser.toJson(scanReport.scanMetrics(), gen);
-
-    gen.writeEndObject();
   }
 
   public static ScanReport fromJson(String json) {

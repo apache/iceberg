@@ -60,7 +60,7 @@ class OSSInputStream extends SeekableInputStream {
     this.createStack = Thread.currentThread().getStackTrace();
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
 
   @Override

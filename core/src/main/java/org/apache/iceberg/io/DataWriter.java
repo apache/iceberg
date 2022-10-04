@@ -71,16 +71,6 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
     appender.add(row);
   }
 
-  /**
-   * Writes a data record.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(Object)} instead.
-   */
-  @Deprecated
-  public void add(T row) {
-    write(row);
-  }
-
   @Override
   public long length() {
     return appender.length();

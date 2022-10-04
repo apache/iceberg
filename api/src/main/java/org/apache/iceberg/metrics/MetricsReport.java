@@ -18,20 +18,4 @@
  */
 package org.apache.iceberg.metrics;
 
-import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
-
-/**
- * This interface defines the basic API for a Table Scan Reporter that can be used to report
- * different metrics after a Table scan is done.
- */
-@FunctionalInterface
-public interface ScanReporter {
-
-  /**
-   * Indicates that a Scan is done by reporting a {@link ScanReport}. A {@link ScanReport} is
-   * usually directly derived from a {@link ScanMetrics} instance.
-   *
-   * @param scanReport The {@link ScanReport} to report.
-   */
-  void reportScan(ScanReport scanReport);
-}
+public interface MetricsReport {}

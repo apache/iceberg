@@ -417,7 +417,7 @@ public class LakeFormationTestBase {
       // propagation delay
       waitForIamConsistency();
     } catch (AlreadyExistsException e) {
-      LOG.warn("Resource {} already registered. Error: {}", arn, e);
+      LOG.warn("Resource {} already registered. Error: {}", arn, e.getMessage(), e);
     } catch (Exception e) {
       // ignore exception
     }
@@ -429,7 +429,7 @@ public class LakeFormationTestBase {
       lakeformation.deregisterResource(
           DeregisterResourceRequest.builder().resourceArn(arn).build());
     } catch (EntityNotFoundException e) {
-      LOG.info("Resource {} not found. Error: {}", arn, e);
+      LOG.info("Resource {} not found. Error: {}", arn, e.getMessage(), e);
     }
   }
 
@@ -454,7 +454,7 @@ public class LakeFormationTestBase {
           GetRolePolicyRequest.builder().roleName(roleName).policyName(policyName).build());
       LOG.info("Policy {} already attached to role {}", policyName, roleName);
     } catch (NoSuchEntityException e) {
-      LOG.info("Attaching policy {} to role {} {}", policyName, roleName, e);
+      LOG.info("Attaching policy {} to role {}", policyName, roleName, e);
       iam.attachRolePolicy(
           AttachRolePolicyRequest.builder().roleName(roleName).policyArn(policyArn).build());
     }

@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
@@ -36,6 +37,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -57,10 +60,12 @@ import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTableVersionsRequest;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 public class TestGlueCatalogTable extends GlueTestBase {
 
@@ -549,5 +554,39 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .isInstanceOf(AlreadyExistsException.class);
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testTableLevelS3Tags() {
+    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            "true",
+            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            "true");
+    glueCatalog.initialize(
+        catalogName, testBucketPath, new AwsProperties(properties), glue, null, fileIO);
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+
+    // Get metadata object tag from S3
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    String metaLocation =
+        response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    String key = metaLocation.split(testBucketName, -1)[1].substring(1);
+    List<Tag> tags =
+        s3.getObjectTagging(
+                GetObjectTaggingRequest.builder().bucket(testBucketName).key(key).build())
+            .tagSet();
+    Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(Tag::key, Tag::value));
+
+    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertEquals(tableName, tagMap.get(AwsProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertEquals(namespace, tagMap.get(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
   }
 }

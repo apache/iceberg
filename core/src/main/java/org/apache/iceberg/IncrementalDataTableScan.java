@@ -47,6 +47,14 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   @Override
+  public TableScan useRef(String ref) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot scan table using ref %s: configured for incremental data in snapshots (%s, %s]",
+            ref, context().fromSnapshotId(), context().toSnapshotId()));
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     throw new UnsupportedOperationException(
         String.format(

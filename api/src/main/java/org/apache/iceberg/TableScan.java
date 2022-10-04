@@ -40,12 +40,24 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
   TableScan useSnapshot(long snapshotId);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the given
+   * reference.
+   *
+   * @param ref reference
+   * @return a new scan based on the given reference.
+   * @throws IllegalArgumentException if a reference with the given name could not be found
+   */
+  TableScan useRef(String ref);
+
+  /**
    * Create a new {@link TableScan} from this scan's configuration that will use the most recent
-   * snapshot as of the given time in milliseconds.
+   * snapshot as of the given time in milliseconds on the branch in the scan or main if no branch is
+   * set.
    *
    * @param timestampMillis a timestamp in milliseconds.
    * @return a new scan based on this with the current snapshot at the given time
-   * @throws IllegalArgumentException if the snapshot cannot be found
+   * @throws IllegalArgumentException if the snapshot cannot be found or time travel is attempted on
+   *     a tag
    */
   TableScan asOfTime(long timestampMillis);
 

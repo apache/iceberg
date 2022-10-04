@@ -492,6 +492,47 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     Assert.assertEquals(
         "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
   }
+  
+  @Test
+  public void testDropColumnOfOldPartitionFieldV1() {
+    // default table created in v1 format
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '1')",
+        tableName);
+
+    sql(
+        "INSERT INTO %s VALUES (1, CAST('2022-01-01 10:00:00' AS TIMESTAMP), CAST('2022-01-01' AS DATE))",
+        tableName);
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+
+    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, Timestamp.valueOf("2022-01-01 10:00:00"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+  }
+
+  @Test
+  public void testDropColumnOfOldPartitionFieldV2() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '2')",
+        tableName);
+
+    sql(
+        "INSERT INTO %s VALUES (1, CAST('2022-01-01 10:00:00' AS TIMESTAMP), CAST('2022-01-01' AS DATE))",
+        tableName);
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+
+    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, Timestamp.valueOf("2022-01-01 10:00:00"))),
+        sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
+  }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {
     Assert.assertEquals("spark table partition should be " + len, len, table.partitioning().length);

@@ -208,6 +208,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
+    integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
@@ -263,6 +264,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     inputs.file(shadowJar.archiveFile.get().asFile.path)
   }
   integrationTest.dependsOn shadowJar
+  check.dependsOn integrationTest
 
   jar {
     enabled = false
