@@ -123,6 +123,16 @@ public interface MetricsContext extends Serializable {
   }
 
   /**
+   * Get a named counter using {@link Unit#COUNT}
+   *
+   * @param name The name of the counter
+   * @return a {@link org.apache.iceberg.metrics.Counter} implementation
+   */
+  default org.apache.iceberg.metrics.Counter counter(String name) {
+    return counter(name, Unit.COUNT);
+  }
+
+  /**
    * Get a named timer.
    *
    * @param name name of the metric

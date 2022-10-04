@@ -203,27 +203,27 @@ public interface ScanReport extends MetricsReport {
 
     @Value.Derived
     public Counter resultDataFiles() {
-      return metricsContext().counter(RESULT_DATA_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(RESULT_DATA_FILES);
     }
 
     @Value.Derived
     public Counter resultDeleteFiles() {
-      return metricsContext().counter(RESULT_DELETE_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(RESULT_DELETE_FILES);
     }
 
     @Value.Derived
     public Counter scannedDataManifests() {
-      return metricsContext().counter(SCANNED_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SCANNED_DATA_MANIFESTS);
     }
 
     @Value.Derived
     public Counter totalDataManifests() {
-      return metricsContext().counter(TOTAL_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(TOTAL_DATA_MANIFESTS);
     }
 
     @Value.Derived
     public Counter totalDeleteManifests() {
-      return metricsContext().counter(TOTAL_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(TOTAL_DELETE_MANIFESTS);
     }
 
     @Value.Derived
@@ -238,42 +238,42 @@ public interface ScanReport extends MetricsReport {
 
     @Value.Derived
     public Counter skippedDataManifests() {
-      return metricsContext().counter(SKIPPED_DATA_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SKIPPED_DATA_MANIFESTS);
     }
 
     @Value.Derived
     public Counter skippedDataFiles() {
-      return metricsContext().counter(SKIPPED_DATA_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SKIPPED_DATA_FILES);
     }
 
     @Value.Derived
     public Counter skippedDeleteFiles() {
-      return metricsContext().counter(SKIPPED_DELETE_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SKIPPED_DELETE_FILES);
     }
 
     @Value.Derived
     public Counter scannedDeleteManifests() {
-      return metricsContext().counter(SCANNED_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SCANNED_DELETE_MANIFESTS);
     }
 
     @Value.Derived
     public Counter skippedDeleteManifests() {
-      return metricsContext().counter(SKIPPED_DELETE_MANIFESTS, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(SKIPPED_DELETE_MANIFESTS);
     }
 
     @Value.Derived
     public Counter indexedDeleteFiles() {
-      return metricsContext().counter(INDEXED_DELETE_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(INDEXED_DELETE_FILES);
     }
 
     @Value.Derived
     public Counter equalityDeleteFiles() {
-      return metricsContext().counter(EQUALITY_DELETE_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(EQUALITY_DELETE_FILES);
     }
 
     @Value.Derived
     public Counter positionalDeleteFiles() {
-      return metricsContext().counter(POSITIONAL_DELETE_FILES, MetricsContext.Unit.COUNT);
+      return metricsContext().counter(POSITIONAL_DELETE_FILES);
     }
 
     public static ScanMetrics of(MetricsContext metricsContext) {

@@ -57,7 +57,7 @@ class EcsAppendOutputStream extends PositionOutputStream {
     this.uri = uri;
     this.localCache = ByteBuffer.wrap(localCache);
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
   }
 
   /** Use built-in 1 KiB byte buffer */
