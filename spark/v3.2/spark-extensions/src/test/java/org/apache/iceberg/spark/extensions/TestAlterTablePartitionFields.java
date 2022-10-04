@@ -492,7 +492,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     Assert.assertEquals(
         "Should have 3 rows after insert", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
   }
-  
+
   @Test
   public void testDropColumnOfOldPartitionFieldV1() {
     // default table created in v1 format
