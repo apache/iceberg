@@ -301,7 +301,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
 
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
-    val projections = buildWriteDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
+    val projections = buildMergeDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
     WriteDelta(writeRelation, mergeRows, relation, projections)
   }
 
@@ -389,7 +389,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand {
     ExtendedV2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
   }
 
-  private def buildWriteDeltaProjections(
+  private def buildMergeDeltaProjections(
       mergeRows: MergeRows,
       rowAttrs: Seq[Attribute],
       rowIdAttrs: Seq[Attribute],
