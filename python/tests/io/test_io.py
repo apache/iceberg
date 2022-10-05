@@ -392,17 +392,6 @@ def test_deleting_local_file_using_file_io_output_file(CustomFileIO):
         assert not os.path.exists(file_location)
 
 
-class MockFileIO(FileIO):
-    def new_input(self, location: str):
-        raise NotImplementedError()
-
-    def new_output(self, location: str):
-        raise NotImplementedError()
-
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        raise NotImplementedError()
-
-
 def test_import_file_io():
     assert isinstance(_import_file_io(ARROW_FILE_IO, {}), PyArrowFileIO)
 
@@ -438,16 +427,18 @@ def test_load_file_io_location_no_schema():
     assert isinstance(load_file_io({"location": "/no-schema/"}), PyArrowFileIO)
 
 
-@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
+@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.LocalFileIO"]})
 def test_mock_warehouse_location_file_io():
     # For testing the selection logic
-    assert isinstance(load_file_io({"warehouse": "test://some-path/"}), MockFileIO)
+    io = load_file_io({"warehouse": "test://some-path/"})
+    assert io.properties["warehouse"] == "test://some-path/"
 
 
-@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.MockFileIO"]})
+@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.LocalFileIO"]})
 def test_mock_table_location_file_io():
     # For testing the selection logic
-    assert isinstance(load_file_io({}, "test://some-path/"), MockFileIO)
+    io = load_file_io({}, "test://some-path/")
+    assert io.properties == {}
 
 
 def test_gibberish_table_location_file_io():
