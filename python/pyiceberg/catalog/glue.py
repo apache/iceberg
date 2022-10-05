@@ -59,6 +59,8 @@ PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
 PROP_GLUE_TABLE_NAME = "Name"
 
 PROP_GLUE_DATABASE = "Database"
+PROP_GLUE_DATABASE_LIST = "DatabaseList"
+PROP_GLUE_DATABASE_NAME = "Name"
 PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
@@ -230,7 +232,19 @@ class GlueCatalog(Catalog):
         raise NotImplementedError("currently unsupported")
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        raise NotImplementedError("currently unsupported")
+        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+
+        Returns:
+            List[Identifier]: a List of namespace identifiers
+        """
+        # Glue does not support hierarchical namespace, therefore return an empty list
+        if namespace:
+            return []
+        databases_response = self.glue.get_databases()
+        return [
+            self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME])
+            for database in databases_response[PROP_GLUE_DATABASE_LIST]
+        ]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         raise NotImplementedError("currently unsupported")
