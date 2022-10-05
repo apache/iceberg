@@ -73,11 +73,11 @@ class BoundTerm(Term[T], Bound, ABC):
 
     @abstractmethod
     def ref(self) -> BoundReference[T]:
-        ...
+        """Returns the bound reference"""
 
     @abstractmethod
-    def eval(self, struct: StructProtocol):  # pylint: disable=W0613
-        ...  # pragma: no cover
+    def eval(self, struct: StructProtocol) -> T:  # pylint: disable=W0613
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol"""
 
 
 @dataclass(frozen=True)
@@ -137,13 +137,7 @@ class Reference(UnboundTerm[T]):
             BoundReference: A reference bound to the specific field in the Iceberg schema
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
-        if not field:
-            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
-
         accessor = schema.accessor_for_field(field.field_id)
-        if not accessor:
-            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
-
         return BoundReference(field=field, accessor=accessor)
 
 
@@ -241,6 +235,7 @@ class BoundPredicate(Generic[T], Bound, BooleanExpression):
     term: BoundTerm[T]
 
     def __invert__(self) -> BoundPredicate[T]:
+        """Inverts the predicate"""
         raise NotImplementedError
 
 
@@ -250,9 +245,11 @@ class UnboundPredicate(Generic[T], Unbound[BooleanExpression], BooleanExpression
     term: UnboundTerm[T]
 
     def __invert__(self) -> UnboundPredicate[T]:
+        """Inverts the predicate"""
         raise NotImplementedError
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
+        """Binds the predicate to a schema"""
         raise NotImplementedError
 
 
@@ -263,12 +260,14 @@ class UnaryPredicate(UnboundPredicate[T]):
         return self.as_bound(bound_term)
 
     def __invert__(self) -> UnaryPredicate[T]:
+        """Inverts the unary predicate"""
         raise NotImplementedError
 
 
 @dataclass(frozen=True)
 class BoundUnaryPredicate(BoundPredicate[T]):
     def __invert__(self) -> BoundUnaryPredicate[T]:
+        """Inverts the unary predicate"""
         raise NotImplementedError
 
 
@@ -355,6 +354,7 @@ class SetPredicate(UnboundPredicate[T]):
     literals: tuple[Literal[T], ...]
 
     def __invert__(self) -> SetPredicate[T]:
+        """Inverted expression of the SetPredicate"""
         raise NotImplementedError
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
@@ -367,6 +367,7 @@ class BoundSetPredicate(BoundPredicate[T]):
     literals: set[Literal[T]]
 
     def __invert__(self) -> BoundSetPredicate[T]:
+        """Inverted expression of the SetPredicate"""
         raise NotImplementedError
 
 
@@ -443,6 +444,7 @@ class LiteralPredicate(UnboundPredicate[T]):
         return self.as_bound(bound_term, self.literal.to(bound_term.ref().field.field_type))
 
     def __invert__(self) -> LiteralPredicate[T]:
+        """Inverts the literal predicate"""
         raise NotImplementedError
 
 
@@ -451,6 +453,7 @@ class BoundLiteralPredicate(BoundPredicate[T]):
     literal: Literal[T]
 
     def __invert__(self) -> BoundLiteralPredicate[T]:
+        """Inverts the bound literal predicate"""
         raise NotImplementedError
 
 
@@ -686,10 +689,10 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         return Or(left=left_result, right=right_result)
 
-    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
         return predicate.bind(self._schema, case_sensitive=self._case_sensitive)
 
-    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+    def visit_bound_predicate(self, predicate: BoundPredicate) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
 
 
@@ -843,6 +846,35 @@ def _(expr: BoundLessThan, visitor: BoundBooleanExpressionVisitor[T]) -> T:
 @visit_bound_predicate.register(BoundLessThanOrEqual)
 def _(expr: BoundLessThanOrEqual, visitor: BoundBooleanExpressionVisitor[T]) -> T:
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
+
+
+def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
+    return visit(expr, _RewriteNotVisitor())
+
+
+class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
+    """Inverts the negations"""
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return ~child_result
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+        return predicate
+
+    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+        return predicate
 
 
 ROWS_MIGHT_MATCH = True
