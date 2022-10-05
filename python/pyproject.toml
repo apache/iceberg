@@ -17,7 +17,7 @@
 
 [tool.poetry]
 name = "pyiceberg"
-version = "0.1.0"
+version = "0.2.0.dev0"
 readme = "README.md"
 homepage = "https://iceberg.apache.org/"
 repository = "https://github.com/apache/iceberg/"
@@ -72,7 +72,6 @@ pre-commit = "^2.0.0"
 fastavro = "^1.6.1"
 coverage = { version = "^6.5.0", extras = ["toml"] }
 requests-mock = "^1.9.3"
-packaging = "^21.3"
 
 [tool.poetry.scripts]
 pyiceberg = "pyiceberg.cli.console:run"

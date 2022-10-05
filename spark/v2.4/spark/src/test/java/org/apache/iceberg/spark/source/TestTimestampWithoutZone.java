@@ -60,7 +60,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -158,8 +157,6 @@ public class TestTimestampWithoutZone extends SparkTestBase {
         records.stream().map(r -> projectFlat(projection, r)).collect(Collectors.toList()),
         read(unpartitioned.toString(), vectorized, "id", "ts"));
   }
-
-  @Rule public ExpectedException exception = ExpectedException.none();
 
   @Test
   public void testUnpartitionedTimestampWithoutZoneError() {

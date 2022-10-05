@@ -22,7 +22,7 @@ from typing import List, Set
 import pytest
 
 from pyiceberg.expressions import base
-from pyiceberg.expressions.base import visit_bound_predicate
+from pyiceberg.expressions.base import rewrite_not, visit_bound_predicate
 from pyiceberg.expressions.literals import (
     Literal,
     LongLiteral,
@@ -1433,3 +1433,67 @@ def test_unbound_set_predicate_invert():
 def test_unbound_literal_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~base.LiteralPredicate(term=base.Reference("a"), literal=literal("hello"))
+
+
+def test_rewrite_not_equal_to():
+    assert rewrite_not(base.Not(base.EqualTo(base.Reference("x"), literal(34.56)))) == base.NotEqualTo(
+        base.Reference("x"), literal(34.56)
+    )
+
+
+def test_rewrite_not_not_equal_to():
+    assert rewrite_not(base.Not(base.NotEqualTo(base.Reference("x"), literal(34.56)))) == base.EqualTo(
+        base.Reference("x"), literal(34.56)
+    )
+
+
+def test_rewrite_not_in():
+    assert rewrite_not(base.Not(base.In(base.Reference("x"), (literal(34.56),)))) == base.NotIn(
+        base.Reference("x"), (literal(34.56),)
+    )
+
+
+def test_rewrite_and():
+    assert rewrite_not(
+        base.Not(
+            base.And(
+                base.EqualTo(base.Reference("x"), literal(34.56)),
+                base.EqualTo(base.Reference("y"), literal(34.56)),
+            )
+        )
+    ) == base.Or(
+        base.NotEqualTo(term=base.Reference(name="x"), literal=literal(34.56)),
+        base.NotEqualTo(term=base.Reference(name="y"), literal=literal(34.56)),
+    )
+
+
+def test_rewrite_or():
+    assert rewrite_not(
+        base.Not(
+            base.Or(
+                base.EqualTo(base.Reference("x"), literal(34.56)),
+                base.EqualTo(base.Reference("y"), literal(34.56)),
+            )
+        )
+    ) == base.And(
+        base.NotEqualTo(term=base.Reference(name="x"), literal=literal(34.56)),
+        base.NotEqualTo(term=base.Reference(name="y"), literal=literal(34.56)),
+    )
+
+
+def test_rewrite_always_false():
+    assert rewrite_not(base.Not(base.AlwaysFalse())) == base.AlwaysTrue()
+
+
+def test_rewrite_always_true():
+    assert rewrite_not(base.Not(base.AlwaysTrue())) == base.AlwaysFalse()
+
+
+def test_rewrite_bound():
+    schema = Schema(NestedField(2, "a", IntegerType(), required=False), schema_id=1)
+    assert rewrite_not(base.IsNull(base.Reference("a")).bind(schema)) == base.BoundIsNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=2, name="a", field_type=IntegerType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )

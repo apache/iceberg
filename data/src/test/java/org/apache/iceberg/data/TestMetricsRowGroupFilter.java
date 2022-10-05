@@ -77,12 +77,12 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -351,15 +351,12 @@ public class TestMetricsRowGroupFilter {
     Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
   }
 
-  @Rule public ExpectedException exceptionRule = ExpectedException.none();
-
   @Test
   public void testMissingColumn() {
-    exceptionRule.expect(ValidationException.class);
-    exceptionRule.expectMessage("Cannot find field 'missing'");
-    exceptionRule.reportMissingExceptionWithMessage(
-        "Should complain about missing column in expression");
-    shouldRead(lessThan("missing", 5));
+    Assertions.assertThatThrownBy(() -> shouldRead(lessThan("missing", 5)))
+        .as("Should complain about missing column in expression")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'missing'");
   }
 
   @Test
