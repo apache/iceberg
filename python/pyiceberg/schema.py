@@ -133,27 +133,33 @@ class Schema(IcebergBaseModel):
         """Returns the schema as a struct"""
         return StructType(*self.fields)
 
-    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> Optional[NestedField]:
+    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
         """Find a field using a field name or field ID
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
+        Raises:
+            ValueError: When the value cannot be found
+
         Returns:
             NestedField: The matched NestedField
         """
         if isinstance(name_or_id, int):
-            return self._lazy_id_to_field.get(name_or_id)
+            if name_or_id not in self._lazy_id_to_field:
+                raise ValueError(f"Could not find field with id: {name_or_id}")
+            return self._lazy_id_to_field[name_or_id]
+
         if case_sensitive:
             field_id = self._name_to_id.get(name_or_id)
         else:
             field_id = self._lazy_name_to_id_lower.get(name_or_id.lower())
 
         if field_id is None:
-            raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
+            raise ValueError(f"Could not find field with name {name_or_id}, case_sensitive={case_sensitive}")
 
-        return self._lazy_id_to_field.get(field_id)
+        return self._lazy_id_to_field[field_id]
 
     def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
         """Find a field type using a field name or field ID
@@ -185,16 +191,23 @@ class Schema(IcebergBaseModel):
         """
         return self._lazy_id_to_name.get(column_id)
 
-    def accessor_for_field(self, field_id: int) -> Optional["Accessor"]:
+    def accessor_for_field(self, field_id: int) -> "Accessor":
         """Find a schema position accessor given a field ID
 
         Args:
             field_id (int): The ID of the field
 
+        Raises:
+            ValueError: When the value cannot be found
+
         Returns:
             Accessor: An accessor for the given field ID
         """
-        return self._lazy_id_to_accessor.get(field_id)
+
+        if field_id not in self._lazy_id_to_accessor:
+            raise ValueError(f"Could not find accessor for field with id: {field_id}")
+
+        return self._lazy_id_to_accessor[field_id]
 
     def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns
