@@ -19,13 +19,11 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Writer for manifest files.
@@ -55,10 +53,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private Long minDataSequenceNumber = null;
 
   private ManifestWriter(
-      PartitionSpec spec, OutputFile file, Long snapshotId, Map<String, String> config) {
+      PartitionSpec spec,
+      OutputFile file,
+      Long snapshotId,
+      String compressionCodec,
+      String compressionLevel) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(spec, file, ImmutableMap.copyOf(config));
+    this.writer = newAppender(spec, file, compressionCodec, compressionLevel);
     this.snapshotId = snapshotId;
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
@@ -67,7 +69,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
-      PartitionSpec spec, OutputFile outputFile, Map<String, String> config);
+      PartitionSpec spec, OutputFile outputFile, String compressionCodec, String compressionLevel);
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -219,8 +221,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
-    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId, Map<String, String> config) {
-      super(spec, file, snapshotId, config);
+    V2Writer(
+        PartitionSpec spec,
+        OutputFile file,
+        Long snapshotId,
+        String compressionCodec,
+        String compressionLevel) {
+      super(spec, file, snapshotId, compressionCodec, compressionLevel);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -231,20 +238,26 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
-        PartitionSpec spec, OutputFile file, Map<String, String> config) {
+        PartitionSpec spec, OutputFile file, String compressionCodec, String compressionLevel) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
-            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-            .meta("partition-spec-id", String.valueOf(spec.specId()))
-            .meta("format-version", "2")
-            .meta("content", "data")
-            .setAll(config)
-            .overwrite()
-            .build();
+        Avro.WriteBuilder builder =
+            Avro.write(file)
+                .schema(manifestSchema)
+                .named("manifest_entry")
+                .meta("schema", SchemaParser.toJson(spec.schema()))
+                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+                .meta("partition-spec-id", String.valueOf(spec.specId()))
+                .meta("format-version", "2")
+                .meta("content", "data")
+                .overwrite();
+        if (compressionCodec != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
+        }
+        if (compressionLevel != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
       }
@@ -255,8 +268,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
     V2DeleteWriter(
-        PartitionSpec spec, OutputFile file, Long snapshotId, Map<String, String> config) {
-      super(spec, file, snapshotId, config);
+        PartitionSpec spec,
+        OutputFile file,
+        Long snapshotId,
+        String compressionCodec,
+        String compressionLevel) {
+      super(spec, file, snapshotId, compressionCodec, compressionLevel);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -267,20 +284,26 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
-        PartitionSpec spec, OutputFile file, Map<String, String> config) {
+        PartitionSpec spec, OutputFile file, String compressionCodec, String compressionLevel) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
-            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-            .meta("partition-spec-id", String.valueOf(spec.specId()))
-            .meta("format-version", "2")
-            .meta("content", "deletes")
-            .setAll(config)
-            .overwrite()
-            .build();
+        Avro.WriteBuilder builder =
+            Avro.write(file)
+                .schema(manifestSchema)
+                .named("manifest_entry")
+                .meta("schema", SchemaParser.toJson(spec.schema()))
+                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+                .meta("partition-spec-id", String.valueOf(spec.specId()))
+                .meta("format-version", "2")
+                .meta("content", "deletes")
+                .overwrite();
+        if (compressionCodec != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
+        }
+        if (compressionLevel != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
       }
@@ -295,8 +318,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId, Map<String, String> config) {
-      super(spec, file, snapshotId, config);
+    V1Writer(
+        PartitionSpec spec,
+        OutputFile file,
+        Long snapshotId,
+        String compressionCodec,
+        String compressionLevel) {
+      super(spec, file, snapshotId, compressionCodec, compressionLevel);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 
@@ -307,19 +335,25 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
-        PartitionSpec spec, OutputFile file, Map<String, String> config) {
+        PartitionSpec spec, OutputFile file, String compressionCodec, String compressionLevel) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
-            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-            .meta("partition-spec-id", String.valueOf(spec.specId()))
-            .meta("format-version", "1")
-            .setAll(config)
-            .overwrite()
-            .build();
+        Avro.WriteBuilder builder =
+            Avro.write(file)
+                .schema(manifestSchema)
+                .named("manifest_entry")
+                .meta("schema", SchemaParser.toJson(spec.schema()))
+                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+                .meta("partition-spec-id", String.valueOf(spec.specId()))
+                .meta("format-version", "1")
+                .overwrite();
+        if (compressionCodec != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
+        }
+        if (compressionLevel != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
       }

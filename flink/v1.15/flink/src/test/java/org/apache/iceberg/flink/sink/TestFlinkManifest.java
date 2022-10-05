@@ -38,6 +38,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -109,7 +110,8 @@ public class TestFlinkManifest {
                   .build(),
               () -> factory.create(curCkpId),
               table.spec(),
-              table.properties());
+              table.properties().get(TableProperties.AVRO_COMPRESSION),
+              table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
 
       WriteResult result =
           FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
@@ -151,7 +153,8 @@ public class TestFlinkManifest {
             WriteResult.builder().addDataFiles(dataFiles).build(),
             () -> factory.create(checkpointId),
             table.spec(),
-            table.properties());
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
 
     Assert.assertNotNull("Data manifest shouldn't be null", deltaManifests.dataManifest());
     Assert.assertNull("Delete manifest should be null", deltaManifests.deleteManifest());
@@ -193,7 +196,8 @@ public class TestFlinkManifest {
                 .build(),
             () -> factory.create(checkpointId),
             table.spec(),
-            table.properties());
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
 
     byte[] versionedSerializeData =
         SimpleVersionedSerialization.writeVersionAndSerialize(
@@ -222,7 +226,11 @@ public class TestFlinkManifest {
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest =
         FlinkManifestUtil.writeDataFiles(
-            factory.create(checkpointId), table.spec(), dataFiles, table.properties());
+            factory.create(checkpointId),
+            table.spec(),
+            dataFiles,
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     byte[] dataV1 =
         SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
 

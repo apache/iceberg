@@ -139,7 +139,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         newManifestPath,
         snapshotId(),
         summaryBuilder,
-        current.properties());
+        current.properties().get(TableProperties.AVRO_COMPRESSION),
+        current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   @Override

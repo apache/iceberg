@@ -370,7 +370,8 @@ public class SparkTableUtil {
       PartitionSpec spec,
       String basePath,
       Iterator<Tuple2<String, DataFile>> fileTuples,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     if (fileTuples.hasNext()) {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
@@ -381,7 +382,8 @@ public class SparkTableUtil {
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile, config);
+      ManifestWriter<DataFile> writer =
+          ManifestFiles.write(spec, outputFile, compressionCodec, compressionLevel);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -635,7 +637,8 @@ public class SparkTableUtil {
                             spec,
                             stagingDir,
                             fileTuple,
-                            targetTable.properties()),
+                            targetTable.properties().get(TableProperties.AVRO_COMPRESSION),
+                            targetTable.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 

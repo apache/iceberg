@@ -529,7 +529,11 @@ public class TestTransaction extends TableTestBase {
     OutputFile manifestLocation =
         Files.localOutput("/tmp/" + UUID.randomUUID().toString() + ".avro");
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(table.spec(), manifestLocation, table.properties());
+        ManifestFiles.write(
+            table.spec(),
+            manifestLocation,
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     try {
       writer.add(FILE_D);
     } finally {
