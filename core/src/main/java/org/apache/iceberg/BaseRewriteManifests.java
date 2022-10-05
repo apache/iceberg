@@ -164,7 +164,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         newFile,
         snapshotId(),
         summaryBuilder,
-        current.properties());
+        current.properties().get(TableProperties.AVRO_COMPRESSION),
+        current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   @Override

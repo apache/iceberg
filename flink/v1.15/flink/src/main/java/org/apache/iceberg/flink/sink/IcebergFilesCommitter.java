@@ -47,6 +47,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -455,7 +456,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             result,
             () -> manifestOutputFileFactory.create(checkpointId),
             table.spec(),
-            table.properties());
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

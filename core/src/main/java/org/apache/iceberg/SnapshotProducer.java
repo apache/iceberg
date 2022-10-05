@@ -242,7 +242,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             snapshotId(),
             parentSnapshotId,
             sequenceNumber,
-            ops.current().properties())) {
+            ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
+            ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL))) {
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -513,7 +514,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         spec,
         newManifestOutput(),
         snapshotId(),
-        ops.current().properties());
+        ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
+        ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
@@ -522,7 +524,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         spec,
         newManifestOutput(),
         snapshotId(),
-        ops.current().properties());
+        ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
+        ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
