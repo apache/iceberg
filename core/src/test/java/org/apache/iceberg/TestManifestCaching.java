@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.google.common.testing.GcFinalization;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.testing.GcFinalization;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
