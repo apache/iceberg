@@ -15,17 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from packaging.version import Version
-
 from pyiceberg import __version__
 
 
 def test_version_format():
     from importlib import metadata
 
-    installed_version = Version(metadata.version("pyiceberg"))
-    installed_base_version = installed_version.base_version
+    installed_version = metadata.version("pyiceberg")
 
     assert (
-        __version__ == installed_base_version
-    ), f"{__version__} <> {installed_base_version}, the installed version does not match with the current codebase"
+        __version__ == installed_version
+    ), f"{__version__} <> {installed_version}, the installed version does not match with the current codebase"
