@@ -42,14 +42,11 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 public class TestSchemaUnionByFieldName {
-
-  @Rule public ExpectedException thrown = ExpectedException.none();
 
   private static List<? extends PrimitiveType> primitiveTypes() {
     return Lists.newArrayList(
@@ -243,20 +240,18 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testDetectInvalidTopLevelList() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aList.element: string -> long");
-
     Schema currentSchema =
         new Schema(optional(1, "aList", Types.ListType.ofOptional(2, StringType.get())));
     Schema newSchema =
         new Schema(optional(1, "aList", Types.ListType.ofOptional(2, LongType.get())));
-    new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aList.element: string -> long");
   }
 
   @Test
   public void testDetectInvalidTopLevelMapValue() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aMap.value: string -> long");
 
     Schema currentSchema =
         new Schema(
@@ -265,14 +260,15 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema =
         new Schema(
             optional(1, "aMap", Types.MapType.ofOptional(2, 3, StringType.get(), LongType.get())));
-    Schema apply = new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
+
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aMap.value: string -> long");
   }
 
   @Test
   public void testDetectInvalidTopLevelMapKey() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aMap.key: string -> uuid");
-
     Schema currentSchema =
         new Schema(
             optional(
@@ -280,7 +276,10 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema =
         new Schema(
             optional(1, "aMap", Types.MapType.ofOptional(2, 3, UUIDType.get(), StringType.get())));
-    new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aMap.key: string -> uuid");
   }
 
   @Test
@@ -311,13 +310,13 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testInvalidTypePromoteDoubleToFloat() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aCol: double -> float");
-
     Schema currentSchema = new Schema(required(1, "aCol", DoubleType.get()));
     Schema newSchema = new Schema(required(1, "aCol", FloatType.get()));
 
-    new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aCol: double -> float");
   }
 
   @Test
@@ -394,13 +393,13 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testReplaceListWithPrimitive() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aColumn: list<string> -> string");
-
     Schema currentSchema =
         new Schema(optional(1, "aColumn", Types.ListType.ofOptional(2, StringType.get())));
     Schema newSchema = new Schema(optional(1, "aColumn", StringType.get()));
-    new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aColumn: list<string> -> string");
   }
 
   @Test

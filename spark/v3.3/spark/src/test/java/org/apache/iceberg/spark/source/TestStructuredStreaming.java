@@ -40,12 +40,12 @@ import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import scala.Option;
 import scala.collection.JavaConverters;
@@ -59,7 +59,6 @@ public class TestStructuredStreaming {
   private static SparkSession spark = null;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
-  @Rule public ExpectedException exceptionRule = ExpectedException.none();
 
   @BeforeClass
   public static void startSpark() {
@@ -260,8 +259,6 @@ public class TestStructuredStreaming {
 
   @Test
   public void testStreamingWriteUpdateMode() throws Exception {
-    exceptionRule.expect(StreamingQueryException.class);
-
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -285,7 +282,10 @@ public class TestStructuredStreaming {
       StreamingQuery query = streamWriter.start();
       List<Integer> batch1 = Lists.newArrayList(1, 2);
       send(batch1, inputStream);
-      query.processAllAvailable();
+
+      Assertions.assertThatThrownBy(query::processAllAvailable)
+          .isInstanceOf(StreamingQueryException.class)
+          .hasMessageContaining("does not support Update mode");
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
