@@ -835,3 +835,32 @@ def _(expr: BoundLessThan, visitor: BoundBooleanExpressionVisitor[T]) -> T:
 @visit_bound_predicate.register(BoundLessThanOrEqual)
 def _(expr: BoundLessThanOrEqual, visitor: BoundBooleanExpressionVisitor[T]) -> T:
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
+
+
+def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
+    return visit(expr, _RewriteNotVisitor())
+
+
+class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
+    """Inverts the negations"""
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return ~child_result
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+        return predicate
+
+    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+        return predicate
