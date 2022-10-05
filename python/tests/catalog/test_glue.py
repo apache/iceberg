@@ -37,18 +37,16 @@ def get_random_table_name():
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
 def test_create_table(table_schema_nested: Schema):
     table_name = get_random_table_name()
-    identifier = ("reviewsjonas", table_name)
-    table = GlueCatalog("glue").create_table(
-        identifier, table_schema_nested, f"s3://myicebergtest/glueiceberg2/reviewsjonas.db/{table_name}"
-    )
+    identifier = ("myicebergtest", table_name)
+    table = GlueCatalog("glue").create_table(identifier, table_schema_nested, f"s3://pythongluetest/gluetest.db/{table_name}")
     assert table.identifier == identifier
 
 
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
 def test_create_table_with_default_location(table_schema_nested: Schema):
     table_name = get_random_table_name()
-    identifier = ("reviewsjonas", table_name)
-    test_catalog = GlueCatalog("glue", warehouse="s3://myicebergtest/glueiceberg2")
+    identifier = ("myicebergtest", table_name)
+    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest/gluetest.db")
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
 
@@ -57,7 +55,7 @@ def test_create_table_with_default_location(table_schema_nested: Schema):
 def test_create_table_with_invalid_database(table_schema_nested: Schema):
     table_name = get_random_table_name()
     identifier = ("invalid", table_name)
-    test_catalog = GlueCatalog("glue", warehouse="s3://myicebergtest/glueiceberg2")
+    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest/gluetest.db")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier, table_schema_nested)
 
@@ -65,7 +63,7 @@ def test_create_table_with_invalid_database(table_schema_nested: Schema):
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
 def test_create_table_with_invalid_location(table_schema_nested: Schema):
     table_name = get_random_table_name()
-    identifier = ("reviewsjonas", table_name)
+    identifier = ("myicebergtest", table_name)
     test_catalog = GlueCatalog("glue")
     with pytest.raises(ValueError):
         test_catalog.create_table(identifier, table_schema_nested)
@@ -73,5 +71,11 @@ def test_create_table_with_invalid_location(table_schema_nested: Schema):
 
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
 def test_load_table():
-    table = GlueCatalog("glue").load_table(("reviews", "book_reviews2"))
-    assert table.identifier == ("reviews", "book_reviews2")
+    table = GlueCatalog("glue").load_table(("myicebergtest", "loadtest"))
+    assert table.identifier == ("myicebergtest", "loadtest")
+
+
+@pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")
+def test_list_namespaces():
+    db_list = GlueCatalog("glue").list_namespaces()
+    assert db_list == [("listdatabasetest",), ("myicebergtest",)]
