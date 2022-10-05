@@ -243,7 +243,12 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
-            formatVersion, table.spec(), outputFile, snapshotId, table.properties());
+            formatVersion,
+            table.spec(),
+            outputFile,
+            snapshotId,
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -275,12 +280,22 @@ public class TableTestBase {
       writer =
           (ManifestWriter<F>)
               ManifestFiles.write(
-                  formatVersion, table.spec(), outputFile, snapshotId, table.properties());
+                  formatVersion,
+                  table.spec(),
+                  outputFile,
+                  snapshotId,
+                  table.properties().get(TableProperties.AVRO_COMPRESSION),
+                  table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     } else {
       writer =
           (ManifestWriter<F>)
               ManifestFiles.writeDeleteManifest(
-                  formatVersion, table.spec(), outputFile, snapshotId, table.properties());
+                  formatVersion,
+                  table.spec(),
+                  outputFile,
+                  snapshotId,
+                  table.properties().get(TableProperties.AVRO_COMPRESSION),
+                  table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -300,7 +315,12 @@ public class TableTestBase {
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(
-            newFormatVersion, SPEC, manifestFile, snapshotId, table.properties());
+            newFormatVersion,
+            SPEC,
+            manifestFile,
+            snapshotId,
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -317,7 +337,13 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, table.spec(), outputFile, null, table.properties());
+        ManifestFiles.write(
+            formatVersion,
+            table.spec(),
+            outputFile,
+            null,
+            table.properties().get(TableProperties.AVRO_COMPRESSION),
+            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
     try {
       for (DataFile file : files) {
         writer.add(file);

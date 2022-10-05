@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -47,10 +46,12 @@ class FlinkManifestUtil {
       OutputFile outputFile,
       PartitionSpec spec,
       List<DataFile> dataFiles,
-      Map<String, String> config)
+      String compressionCodec,
+      String compressionLevel)
       throws IOException {
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID, config);
+        ManifestFiles.write(
+            FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID, compressionCodec, compressionLevel);
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -82,7 +83,8 @@ class FlinkManifestUtil {
       WriteResult result,
       Supplier<OutputFile> outputFileSupplier,
       PartitionSpec spec,
-      Map<String, String> config)
+      String compressionCodec,
+      String compressionLevel)
       throws IOException {
 
     ManifestFile dataManifest = null;
@@ -92,7 +94,11 @@ class FlinkManifestUtil {
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
       dataManifest =
           writeDataFiles(
-              outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()), config);
+              outputFileSupplier.get(),
+              spec,
+              Lists.newArrayList(result.dataFiles()),
+              compressionCodec,
+              compressionLevel);
     }
 
     // Write the completed delete files into a newly created delete manifest file.
@@ -101,7 +107,12 @@ class FlinkManifestUtil {
 
       ManifestWriter<DeleteFile> deleteManifestWriter =
           ManifestFiles.writeDeleteManifest(
-              FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID, config);
+              FORMAT_V2,
+              spec,
+              deleteManifestFile,
+              DUMMY_SNAPSHOT_ID,
+              compressionCodec,
+              compressionLevel);
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);

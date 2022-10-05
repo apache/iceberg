@@ -141,7 +141,7 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
-    return write(spec, outputFile, ImmutableMap.of());
+    return write(spec, outputFile, /* compressionCodec */ null, /* compressionLevel */ null);
   }
 
   /**
@@ -152,12 +152,13 @@ public class ManifestFiles {
    *
    * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
    * @param outputFile the destination file location
-   * @param config the configuration used by the Manifest writer
+   * @param compressionCodec compression codec for the manifest file
+   * @param compressionLevel compression level of the compressionCodec
    * @return a manifest writer
    */
   public static ManifestWriter<DataFile> write(
-      PartitionSpec spec, OutputFile outputFile, Map<String, String> config) {
-    return write(1, spec, outputFile, null, config);
+      PartitionSpec spec, OutputFile outputFile, String compressionCodec, String compressionLevel) {
+    return write(1, spec, outputFile, null, compressionCodec, compressionLevel);
   }
 
   /**
@@ -171,7 +172,13 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DataFile> write(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return write(formatVersion, spec, outputFile, snapshotId, ImmutableMap.of());
+    return write(
+        formatVersion,
+        spec,
+        outputFile,
+        snapshotId,
+        /* compressionCodec */ null,
+        /* compressionLevel */ null);
   }
 
   /**
@@ -181,7 +188,8 @@ public class ManifestFiles {
    * @param spec a {@link PartitionSpec}
    * @param outputFile an {@link OutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
-   * @param config the configuration used by the Manifest writer
+   * @param compressionCodec compression codec for the manifest file
+   * @param compressionLevel compression level of the compressionCodec
    * @return a manifest writer
    */
   public static ManifestWriter<DataFile> write(
@@ -189,12 +197,15 @@ public class ManifestFiles {
       PartitionSpec spec,
       OutputFile outputFile,
       Long snapshotId,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, outputFile, snapshotId, config);
+        return new ManifestWriter.V1Writer(
+            spec, outputFile, snapshotId, compressionCodec, compressionLevel);
       case 2:
-        return new ManifestWriter.V2Writer(spec, outputFile, snapshotId, config);
+        return new ManifestWriter.V2Writer(
+            spec, outputFile, snapshotId, compressionCodec, compressionLevel);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -230,7 +241,13 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, ImmutableMap.of());
+    return writeDeleteManifest(
+        formatVersion,
+        spec,
+        outputFile,
+        snapshotId,
+        /* compressionCodec */ null,
+        /* compressionLevel */ null);
   }
 
   /**
@@ -240,7 +257,8 @@ public class ManifestFiles {
    * @param spec a {@link PartitionSpec}
    * @param outputFile an {@link OutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
-   * @param config the configuration used by the Manifest writer
+   * @param compressionCodec compression codec for the manifest file
+   * @param compressionLevel compression level of the compressionCodec
    * @return a manifest writer
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
@@ -248,12 +266,14 @@ public class ManifestFiles {
       PartitionSpec spec,
       OutputFile outputFile,
       Long snapshotId,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
-        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, config);
+        return new ManifestWriter.V2DeleteWriter(
+            spec, outputFile, snapshotId, compressionCodec, compressionLevel);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -307,7 +327,8 @@ public class ManifestFiles {
       OutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
@@ -319,7 +340,8 @@ public class ManifestFiles {
           snapshotId,
           summaryBuilder,
           ManifestEntry.Status.ADDED,
-          config);
+          compressionCodec,
+          compressionLevel);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -332,7 +354,8 @@ public class ManifestFiles {
       OutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
@@ -345,7 +368,8 @@ public class ManifestFiles {
           snapshotId,
           summaryBuilder,
           ManifestEntry.Status.EXISTING,
-          config);
+          compressionCodec,
+          compressionLevel);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -359,9 +383,16 @@ public class ManifestFiles {
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
       ManifestEntry.Status allowedEntryStatus,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
     ManifestWriter<DataFile> writer =
-        write(formatVersion, reader.spec(), outputFile, snapshotId, config);
+        write(
+            formatVersion,
+            reader.spec(),
+            outputFile,
+            snapshotId,
+            compressionCodec,
+            compressionLevel);
     boolean threw = true;
     try {
       for (ManifestEntry<DataFile> entry : reader.entries()) {

@@ -32,14 +32,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
   private ManifestListWriter(
-      OutputFile file, Map<String, String> meta, Map<String, String> config) {
-    this.writer = newAppender(file, meta, ImmutableMap.copyOf(config));
+      OutputFile file, Map<String, String> meta, String compressionCodec, String compressionLevel) {
+    this.writer = newAppender(file, meta, compressionCodec, compressionLevel);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta, Map<String, String> config);
+      OutputFile file, Map<String, String> meta, String compressionCodec, String compressionLevel);
 
   @Override
   public void add(ManifestFile manifest) {
@@ -79,7 +79,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         long snapshotId,
         Long parentSnapshotId,
         long sequenceNumber,
-        Map<String, String> config) {
+        String compressionCodec,
+        String compressionLevel) {
       super(
           snapshotFile,
           ImmutableMap.of(
@@ -87,7 +88,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
               "format-version", "2"),
-          config);
+          compressionCodec,
+          compressionLevel);
       this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 
@@ -98,16 +100,24 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected FileAppender<ManifestFile> newAppender(
-        OutputFile file, Map<String, String> meta, Map<String, String> config) {
+        OutputFile file,
+        Map<String, String> meta,
+        String compressionCodec,
+        String compressionLevel) {
       try {
-        return Avro.write(file)
-            .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
-            .named("manifest_file")
-            .meta(meta)
-            .setAll(config)
-            .overwrite()
-            .build();
-
+        Avro.WriteBuilder builder =
+            Avro.write(file)
+                .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
+                .named("manifest_file")
+                .meta(meta)
+                .overwrite();
+        if (compressionCodec != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
+        }
+        if (compressionLevel != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
       }
@@ -121,14 +131,16 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         OutputFile snapshotFile,
         long snapshotId,
         Long parentSnapshotId,
-        Map<String, String> config) {
+        String compressionCodec,
+        String compressionLevel) {
       super(
           snapshotFile,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "format-version", "1"),
-          config);
+          compressionCodec,
+          compressionLevel);
     }
 
     @Override
@@ -141,16 +153,24 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected FileAppender<ManifestFile> newAppender(
-        OutputFile file, Map<String, String> meta, Map<String, String> config) {
+        OutputFile file,
+        Map<String, String> meta,
+        String compressionCodec,
+        String compressionLevel) {
       try {
-        return Avro.write(file)
-            .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
-            .named("manifest_file")
-            .meta(meta)
-            .setAll(config)
-            .overwrite()
-            .build();
-
+        Avro.WriteBuilder builder =
+            Avro.write(file)
+                .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
+                .named("manifest_file")
+                .meta(meta)
+                .overwrite();
+        if (compressionCodec != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
+        }
+        if (compressionLevel != null) {
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
       }

@@ -141,7 +141,13 @@ public class TestSnapshotJson {
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            1, Files.localOutput(manifestList), id, parentId, 0, ImmutableMap.of())) {
+            1,
+            Files.localOutput(manifestList),
+            id,
+            parentId,
+            0,
+            /* compressionCodec */ null,
+            /* compressionLevel */ null)) {
       writer.addAll(manifests);
     }
 

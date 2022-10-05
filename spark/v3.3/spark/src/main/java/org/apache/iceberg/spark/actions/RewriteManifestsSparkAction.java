@@ -23,7 +23,6 @@ import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -228,7 +227,8 @@ public class RewriteManifestsSparkAction
                 combinedPartitionType,
                 spec,
                 sparkType,
-                table.properties()),
+                table.properties().get(TableProperties.AVRO_COMPRESSION),
+                table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)),
             manifestEncoder)
         .collectAsList();
   }
@@ -259,7 +259,8 @@ public class RewriteManifestsSparkAction
                       combinedPartitionType,
                       spec,
                       sparkType,
-                      table.properties()),
+                      table.properties().get(TableProperties.AVRO_COMPRESSION),
+                      table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)),
                   manifestEncoder)
               .collectAsList();
         });
@@ -359,7 +360,8 @@ public class RewriteManifestsSparkAction
       Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType,
-      Map<String, String> config)
+      String compressionCodec,
+      String compressionLevel)
       throws IOException {
 
     String manifestName = "optimized-m-" + UUID.randomUUID();
@@ -371,7 +373,8 @@ public class RewriteManifestsSparkAction
     Types.StructType manifestFileType = DataFile.getType(spec.partitionType());
     SparkDataFile wrapper = new SparkDataFile(combinedFileType, manifestFileType, sparkType);
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null, config);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(format, spec, outputFile, null, compressionCodec, compressionLevel);
 
     try {
       for (int index = startIndex; index < endIndex; index++) {
@@ -396,7 +399,8 @@ public class RewriteManifestsSparkAction
       Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType,
-      Map<String, String> config) {
+      String compressionCodec,
+      String compressionLevel) {
 
     return rows -> {
       List<Row> rowsAsList = Lists.newArrayList(rows);
@@ -418,7 +422,8 @@ public class RewriteManifestsSparkAction
                 combinedPartitionType,
                 spec,
                 sparkType,
-                config));
+                compressionCodec,
+                compressionLevel));
       } else {
         int midIndex = rowsAsList.size() / 2;
         manifests.add(
@@ -432,7 +437,8 @@ public class RewriteManifestsSparkAction
                 combinedPartitionType,
                 spec,
                 sparkType,
-                config));
+                compressionCodec,
+                compressionLevel));
         manifests.add(
             writeManifest(
                 rowsAsList,
@@ -444,7 +450,8 @@ public class RewriteManifestsSparkAction
                 combinedPartitionType,
                 spec,
                 sparkType,
-                config));
+                compressionCodec,
+                compressionLevel));
       }
 
       return manifests.iterator();
