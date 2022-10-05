@@ -42,12 +42,13 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.apache.iceberg.rest.responses.OAuthErrorResponse;
-import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -60,8 +61,6 @@ public class RESTSerializers {
     module
         .addSerializer(ErrorResponse.class, new ErrorResponseSerializer())
         .addDeserializer(ErrorResponse.class, new ErrorResponseDeserializer())
-        .addSerializer(OAuthErrorResponse.class, new OAuthErrorResponseSerializer())
-        .addDeserializer(OAuthErrorResponse.class, new OAuthErrorResponseDeserializer())
         .addSerializer(TableIdentifier.class, new TableIdentifierSerializer())
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
@@ -79,7 +78,12 @@ public class RESTSerializers {
         .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
-        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer());
+        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
+        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
+        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
+        .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
+        .addDeserializer(
+            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
     mapper.registerModule(module);
   }
 
@@ -150,24 +154,6 @@ public class RESTSerializers {
         ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       ErrorResponseParser.toJson(errorResponse, gen);
-    }
-  }
-
-  public static class OAuthErrorResponseDeserializer extends JsonDeserializer<OAuthErrorResponse> {
-    @Override
-    public OAuthErrorResponse deserialize(JsonParser p, DeserializationContext context)
-        throws IOException {
-      JsonNode node = p.getCodec().readTree(p);
-      return OAuthErrorResponseParser.fromJson(node);
-    }
-  }
-
-  public static class OAuthErrorResponseSerializer extends JsonSerializer<OAuthErrorResponse> {
-    @Override
-    public void serialize(
-        OAuthErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
-      OAuthErrorResponseParser.toJson(errorResponse, gen);
     }
   }
 
@@ -274,6 +260,24 @@ public class RESTSerializers {
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return OAuth2Util.tokenResponseFromJson(jsonNode);
+    }
+  }
+
+  public static class ReportMetricsRequestSerializer<T extends ReportMetricsRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      ReportMetricsRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class ReportMetricsRequestDeserializer<T extends ReportMetricsRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) ReportMetricsRequestParser.fromJson(jsonNode);
     }
   }
 }

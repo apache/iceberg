@@ -364,7 +364,7 @@ class DeleteFileIndex {
     private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
-    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
+    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -509,6 +509,19 @@ class DeleteFileIndex {
         }
       }
 
+      scanMetrics.indexedDeleteFiles().increment(deleteEntries.size());
+      deleteFilesByPartition
+          .values()
+          .forEach(
+              entry -> {
+                FileContent content = entry.file().content();
+                if (content == FileContent.EQUALITY_DELETES) {
+                  scanMetrics.equalityDeleteFiles().increment();
+                } else if (content == FileContent.POSITION_DELETES) {
+                  scanMetrics.positionalDeleteFiles().increment();
+                }
+              });
+
       return new DeleteFileIndex(
           specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
     }
@@ -529,16 +542,21 @@ class DeleteFileIndex {
                             caseSensitive);
                       });
 
-      Iterable<ManifestFile> matchingManifests =
+      CloseableIterable<ManifestFile> closeableDeleteManifests =
+          CloseableIterable.withNoopClose(deleteManifests);
+      CloseableIterable<ManifestFile> matchingManifests =
           evalCache == null
-              ? deleteManifests
-              : Iterables.filter(
-                  deleteManifests,
+              ? closeableDeleteManifests
+              : CloseableIterable.filter(
+                  scanMetrics.skippedDeleteManifests(),
+                  closeableDeleteManifests,
                   manifest ->
                       manifest.content() == ManifestContent.DELETES
                           && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
                           && evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
+      matchingManifests =
+          CloseableIterable.count(scanMetrics.scannedDeleteManifests(), matchingManifests);
       return Iterables.transform(
           matchingManifests,
           manifest ->
@@ -547,6 +565,7 @@ class DeleteFileIndex {
                   .filterPartitions(partitionFilter)
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
+                  .scanMetrics(scanMetrics)
                   .liveEntries());
     }
   }

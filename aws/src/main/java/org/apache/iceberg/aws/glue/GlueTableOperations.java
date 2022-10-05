@@ -355,4 +355,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       }
     }
   }
+
+  @VisibleForTesting
+  Map<String, String> tableCatalogProperties() {
+    return tableCatalogProperties;
+  }
 }

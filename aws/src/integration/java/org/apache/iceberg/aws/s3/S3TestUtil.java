@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 public class S3TestUtil {
 
-  private S3TestUtil() {
-  }
+  private S3TestUtil() {}
 
   public static String getBucketFromUri(String s3Uri) {
     return new S3URI(s3Uri).bucket();

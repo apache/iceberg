@@ -45,7 +45,7 @@ subprojects {
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
         // we use an older version of google-java-format that is compatible with JDK 8
         googleJavaFormat("1.7")
         removeUnusedImports()
@@ -57,8 +57,8 @@ subprojects {
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
-          // error-prone is slow, don't run on tests and generated src
-          '-XepExcludedPaths:.*/(test|generated-src)/.*',
+          // error-prone is slow, don't run on tests/generated-src/generated
+          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
           // specific to Palantir
           '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
           '-Xep:FinalClass:OFF',
@@ -82,7 +82,8 @@ subprojects {
           '-Xep:TypeParameterUnusedInFormals:OFF',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
           // Enforce hashCode over hash
-          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR'
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:PreferSafeLogger:OFF',
       )
     }
   }

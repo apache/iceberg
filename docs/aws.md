@@ -466,6 +466,17 @@ sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkC
 For the above example, the objects in S3 will be saved with tags: `my_key3=my_val3` before deletion.
 Users can also use the catalog property `s3.delete.num-threads` to mention the number of threads to be used for adding delete tags to the S3 objects.
 
+When the catalog property `s3.write.table-tag-enabled` and `s3.write.namespace-tag-enabled` is set to `true` then the objects in S3 will be saved with tags: `iceberg.table=<table-name>` and `iceberg.namespace=<namespace-name>`.
+Users can define access and data retention policy per namespace or table based on these tags.
+For example, to write table and namespace name as S3 tags with Spark 3.0, you can start the Spark SQL shell with:
+```
+sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
+    --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
+```
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
 
 ### S3 Access Points

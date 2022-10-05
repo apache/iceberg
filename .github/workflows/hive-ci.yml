@@ -27,6 +27,7 @@ on:
     - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
+    - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
@@ -67,9 +68,11 @@ jobs:
         java-version: ${{ matrix.jvm }}
     - uses: actions/cache@v3
       with:
-        path: ~/.gradle/caches
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-        restore-keys: ${{ runner.os }}-gradle
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DhiveVersions=2 -DflinkVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
     - uses: actions/upload-artifact@v3
@@ -91,9 +94,11 @@ jobs:
         java-version: 8
     - uses: actions/cache@v3
       with:
-        path: ~/.gradle/caches
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-        restore-keys: ${{ runner.os }}-gradle
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DhiveVersions=3 -DflinkVersions= -Pquick=true :iceberg-hive3-orc-bundle:check :iceberg-hive3:check :iceberg-hive-runtime:check -x javadoc
     - uses: actions/upload-artifact@v3

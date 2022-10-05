@@ -65,6 +65,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
 
   public static final String HIVE_CONF_DIR = "hive-conf-dir";
+  public static final String HADOOP_CONF_DIR = "hadoop-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String BASE_NAMESPACE = "base-namespace";
@@ -103,7 +104,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         // that case it will
         // fallback to parse those values from hadoop configuration which is loaded from classpath.
         String hiveConfDir = properties.get(HIVE_CONF_DIR);
-        Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir);
+        String hadoopConfDir = properties.get(HADOOP_CONF_DIR);
+        Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir, hadoopConfDir);
         return CatalogLoader.hive(name, newHadoopConf, properties);
 
       case ICEBERG_CATALOG_TYPE_HADOOP:
@@ -147,7 +149,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }
 
-  private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
+  private static Configuration mergeHiveConf(
+      Configuration hadoopConf, String hiveConfDir, String hadoopConfDir) {
     Configuration newConf = new Configuration(hadoopConf);
     if (!Strings.isNullOrEmpty(hiveConfDir)) {
       Preconditions.checkState(
@@ -164,6 +167,20 @@ public class FlinkCatalogFactory implements CatalogFactory {
         newConf.addResource(configFile);
       }
     }
+
+    if (!Strings.isNullOrEmpty(hadoopConfDir)) {
+      Preconditions.checkState(
+          Files.exists(Paths.get(hadoopConfDir, "hdfs-site.xml")),
+          "Failed to load Hadoop configuration: missing %s",
+          Paths.get(hadoopConfDir, "hdfs-site.xml"));
+      newConf.addResource(new Path(hadoopConfDir, "hdfs-site.xml"));
+      Preconditions.checkState(
+          Files.exists(Paths.get(hadoopConfDir, "core-site.xml")),
+          "Failed to load Hadoop configuration: missing %s",
+          Paths.get(hadoopConfDir, "core-site.xml"));
+      newConf.addResource(new Path(hadoopConfDir, "core-site.xml"));
+    }
+
     return newConf;
   }
 

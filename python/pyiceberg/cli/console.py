@@ -68,9 +68,11 @@ def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[st
         try:
             ctx.obj["catalog"] = load_catalog(catalog, **properties)
         except ValueError as exc:
-            raise ValueError(
-                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
-            ) from exc
+            if not uri:
+                raise ValueError(
+                    f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
+                ) from exc
+            raise exc
     except Exception as e:
         ctx.obj["output"].exception(e)
         ctx.exit(1)

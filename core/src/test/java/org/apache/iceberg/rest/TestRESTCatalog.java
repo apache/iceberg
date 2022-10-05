@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -42,9 +44,14 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.gzip.GzipHandler;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -61,9 +68,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   private RESTCatalog restCatalog;
   private JdbcCatalog backendCatalog;
+  private Server httpServer;
 
   @BeforeEach
-  public void createCatalog() {
+  public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
     Configuration conf = new Configuration();
 
@@ -96,16 +104,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Object body,
               Class<T> responseType,
               Map<String, String> headers,
-              ErrorHandler errorHandler) {
+              Consumer<ErrorResponse> errorHandler) {
             // this doesn't use a Mockito spy because this is used for catalog tests, which have
             // different method calls
             if (!"v1/oauth/tokens".equals(path)) {
               if ("v1/config".equals(path)) {
-                Assertions.assertEquals(
-                    catalogHeaders, headers, "Headers did not match for path: " + path);
+                assertThat(headers).containsAllEntriesOf(catalogHeaders);
               } else {
-                Assertions.assertEquals(
-                    contextHeaders, headers, "Headers did not match for path: " + path);
+                assertThat(headers).containsAllEntriesOf(contextHeaders);
               }
             }
             Object request = roundTripSerialize(body, "request");
@@ -117,6 +123,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           }
         };
 
+    RESTCatalogServlet servlet = new RESTCatalogServlet(adaptor);
+    ServletContextHandler servletContext =
+        new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
+    servletContext.setContextPath("/");
+    ServletHolder servletHolder = new ServletHolder(servlet);
+    servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
+    servletContext.addServlet(servletHolder, "/*");
+    servletContext.setVirtualHosts(null);
+    servletContext.setGzipHandler(new GzipHandler());
+
+    this.httpServer = new Server(8181);
+    httpServer.setHandler(servletContext);
+    httpServer.start();
+
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             UUID.randomUUID().toString(),
@@ -124,10 +144,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    this.restCatalog = new RESTCatalog(context, (config) -> adaptor);
+    this.restCatalog = new RESTCatalog(context, (config) -> new HTTPClientFactory().apply(config));
     restCatalog.setConf(conf);
     restCatalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:12345"));
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI, "http://localhost:8181/", "credential", "catalog:12345"));
   }
 
   @SuppressWarnings("unchecked")
@@ -149,13 +171,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @AfterEach
-  public void closeCatalog() throws IOException {
+  public void closeCatalog() throws Exception {
     if (restCatalog != null) {
       restCatalog.close();
     }
 
     if (backendCatalog != null) {
       backendCatalog.close();
+    }
+
+    if (httpServer != null) {
+      httpServer.stop();
+      httpServer.join();
     }
   }
 
@@ -191,7 +218,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Map<String, String> queryParams,
               Class<T> responseType,
               Map<String, String> headers,
-              ErrorHandler errorHandler) {
+              Consumer<ErrorResponse> errorHandler) {
             if ("v1/config".equals(path)) {
               return castResponse(
                   responseType,

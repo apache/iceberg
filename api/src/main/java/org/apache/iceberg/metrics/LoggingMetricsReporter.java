@@ -18,20 +18,20 @@
  */
 package org.apache.iceberg.metrics;
 
-import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * This interface defines the basic API for a Table Scan Reporter that can be used to report
- * different metrics after a Table scan is done.
+ * A default {@link MetricsReporter} implementation that logs the {@link ScanReport} to the log
+ * file.
  */
-@FunctionalInterface
-public interface ScanReporter {
+public class LoggingMetricsReporter implements MetricsReporter {
+  private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
 
-  /**
-   * Indicates that a Scan is done by reporting a {@link ScanReport}. A {@link ScanReport} is
-   * usually directly derived from a {@link ScanMetrics} instance.
-   *
-   * @param scanReport The {@link ScanReport} to report.
-   */
-  void reportScan(ScanReport scanReport);
+  @Override
+  public void report(MetricsReport report) {
+    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
+    LOG.info("Received metrics report: {}", report);
+  }
 }

@@ -154,6 +154,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -225,6 +226,12 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    generator.writeArrayFieldStart(STATISTICS);
+    for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
+      StatisticsFileParser.toJson(statisticsFile, generator);
+    }
+    generator.writeEndArray();
+
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
     for (HistoryEntry logEntry : metadata.snapshotLog()) {
       generator.writeStartObject();
@@ -264,7 +271,7 @@ public class TableMetadataParser {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -275,41 +282,39 @@ public class TableMetadataParser {
    *
    * <p>The TableMetadata's metadata file location will be unset.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String json) {
-    return fromJson(io, null, json);
+  public static TableMetadata fromJson(String json) {
+    return fromJson(null, json);
   }
 
   /**
    * Read TableMetadata from a JSON string.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
    * @param metadataLocation metadata location for the returned {@link TableMetadata}
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
+  public static TableMetadata fromJson(String metadataLocation, String json) {
     try {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(io, metadataLocation, node);
+      return fromJson(metadataLocation, node);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read JSON string: " + json, e);
     }
   }
 
-  static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
-    return fromJson(io, file.location(), node);
+  static TableMetadata fromJson(InputFile file, JsonNode node) {
+    return fromJson(file.location(), node);
   }
 
   public static TableMetadata fromJson(JsonNode node) {
-    return fromJson(null, (String) null, node);
+    return fromJson((String) null, node);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
+  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -380,7 +385,12 @@ public class TableMetadataParser {
       // parse the spec array
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
-        builder.add(PartitionSpecParser.fromJson(schema, spec));
+        UnboundPartitionSpec unboundSpec = PartitionSpecParser.fromJson(spec);
+        if (unboundSpec.specId() == defaultSpecId) {
+          builder.add(unboundSpec.bind(schema));
+        } else {
+          builder.add(unboundSpec.bindUnchecked(schema));
+        }
       }
       specs = builder.build();
 
@@ -451,7 +461,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(iterator.next()));
     }
 
     List<StatisticsFile> statisticsFiles;

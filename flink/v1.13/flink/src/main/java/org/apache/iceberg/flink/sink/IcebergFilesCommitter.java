@@ -149,7 +149,18 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
-      String restoredFlinkJobId = jobIdState.get().iterator().next();
+      Iterable<String> jobIdIterable = jobIdState.get();
+      if (jobIdIterable == null || !jobIdIterable.iterator().hasNext()) {
+        LOG.warn(
+            "Failed to restore committer state. This can happen when operator uid changed and Flink "
+                + "allowNonRestoredState is enabled. Best practice is to explicitly set the operator id "
+                + "via FlinkSink#Builder#uidPrefix() so that the committer operator uid is stable. "
+                + "Otherwise, Flink auto generate an operator uid based on job topology."
+                + "With that, operator uid is subjective to change upon topology change.");
+        return;
+      }
+
+      String restoredFlinkJobId = jobIdIterable.iterator().next();
       Preconditions.checkState(
           !Strings.isNullOrEmpty(restoredFlinkJobId),
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");

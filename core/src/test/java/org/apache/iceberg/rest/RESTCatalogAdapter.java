@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -42,11 +43,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
@@ -86,27 +94,59 @@ public class RESTCatalogAdapter implements RESTClient {
     DELETE
   }
 
-  private enum Route {
-    TOKENS(HTTPMethod.POST, "v1/oauth/tokens"),
-    CONFIG(HTTPMethod.GET, "v1/config"),
-    LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces"),
-    CREATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces"),
-    LOAD_NAMESPACE(HTTPMethod.GET, "v1/namespaces/{namespace}"),
+  enum Route {
+    TOKENS(HTTPMethod.POST, "v1/oauth/tokens", null, OAuthTokenResponse.class),
+    CONFIG(HTTPMethod.GET, "v1/config", null, ConfigResponse.class),
+    LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces", null, ListNamespacesResponse.class),
+    CREATE_NAMESPACE(
+        HTTPMethod.POST,
+        "v1/namespaces",
+        CreateNamespaceRequest.class,
+        CreateNamespaceResponse.class),
+    LOAD_NAMESPACE(HTTPMethod.GET, "v1/namespaces/{namespace}", null, GetNamespaceResponse.class),
     DROP_NAMESPACE(HTTPMethod.DELETE, "v1/namespaces/{namespace}"),
-    UPDATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces/{namespace}/properties"),
-    LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables"),
-    CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables"),
-    LOAD_TABLE(HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}"),
-    UPDATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables/{table}"),
+    UPDATE_NAMESPACE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/properties",
+        UpdateNamespacePropertiesRequest.class,
+        UpdateNamespacePropertiesResponse.class),
+    LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables", null, ListTablesResponse.class),
+    CREATE_TABLE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables",
+        CreateTableRequest.class,
+        LoadTableResponse.class),
+    LOAD_TABLE(
+        HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}", null, LoadTableResponse.class),
+    UPDATE_TABLE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables/{table}",
+        UpdateTableRequest.class,
+        LoadTableResponse.class),
     DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}"),
-    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename");
+    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename", RenameTableRequest.class, null),
+    REPORT_METRICS(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables/{table}/metrics",
+        ReportMetricsRequest.class,
+        null);
 
     private final HTTPMethod method;
-    private final int requriedLength;
+    private final int requiredLength;
     private final Map<Integer, String> requirements;
     private final Map<Integer, String> variables;
+    private final Class<? extends RESTRequest> requestClass;
+    private final Class<? extends RESTResponse> responseClass;
 
     Route(HTTPMethod method, String pattern) {
+      this(method, pattern, null, null);
+    }
+
+    Route(
+        HTTPMethod method,
+        String pattern,
+        Class<? extends RESTRequest> requestClass,
+        Class<? extends RESTResponse> responseClass) {
       this.method = method;
 
       // parse the pattern into requirements and variables
@@ -122,14 +162,17 @@ public class RESTCatalogAdapter implements RESTClient {
         }
       }
 
-      this.requriedLength = parts.size();
+      this.requestClass = requestClass;
+      this.responseClass = responseClass;
+
+      this.requiredLength = parts.size();
       this.requirements = requirementsBuilder.build();
       this.variables = variablesBuilder.build();
     }
 
     private boolean matches(HTTPMethod requestMethod, List<String> requestPath) {
       return method == requestMethod
-          && requriedLength == requestPath.size()
+          && requiredLength == requestPath.size()
           && requirements.entrySet().stream()
               .allMatch(
                   requirement ->
@@ -153,6 +196,14 @@ public class RESTCatalogAdapter implements RESTClient {
       }
 
       return null;
+    }
+
+    public Class<? extends RESTRequest> requestClass() {
+      return requestClass;
+    }
+
+    public Class<? extends RESTResponse> responseClass() {
+      return responseClass;
     }
   }
 
@@ -293,6 +344,13 @@ public class RESTCatalogAdapter implements RESTClient {
           return null;
         }
 
+      case REPORT_METRICS:
+        {
+          // nothing to do here other than checking that we're getting the correct request
+          castRequest(ReportMetricsRequest.class, body);
+          return null;
+        }
+
       default:
     }
 
@@ -306,10 +364,8 @@ public class RESTCatalogAdapter implements RESTClient {
       Object body,
       Class<T> responseType,
       Map<String, String> headers,
-      ErrorHandler errorHandler) {
-    // Note: we only handle catalog API errors as OAuth calls are mocked
+      Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
-
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
@@ -333,7 +389,7 @@ public class RESTCatalogAdapter implements RESTClient {
     }
 
     ErrorResponse error = errorBuilder.build();
-    errorHandler.handle(error);
+    errorHandler.accept(error);
 
     // if the error handler doesn't throw an exception, throw a generic one
     throw new RESTException("Unhandled error: %s", error);
@@ -341,7 +397,10 @@ public class RESTCatalogAdapter implements RESTClient {
 
   @Override
   public <T extends RESTResponse> T delete(
-      String path, Class<T> responseType, Map<String, String> headers, ErrorHandler errorHandler) {
+      String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
@@ -351,7 +410,7 @@ public class RESTCatalogAdapter implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
-      ErrorHandler errorHandler) {
+      Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, null, body, responseType, headers, errorHandler);
   }
 
@@ -361,12 +420,12 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
-      ErrorHandler errorHandler) {
+      Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public void head(String path, Map<String, String> headers, ErrorHandler errorHandler) {
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     execute(HTTPMethod.HEAD, path, null, null, null, headers, errorHandler);
   }
 
@@ -376,7 +435,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> formData,
       Class<T> responseType,
       Map<String, String> headers,
-      ErrorHandler errorHandler) {
+      Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, null, formData, responseType, headers, errorHandler);
   }
 

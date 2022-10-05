@@ -22,11 +22,12 @@ javax.xml.bind:jaxb-api = 2.3.1
 javax.activation:activation = 1.1.1
 org.glassfish.jaxb:jaxb-runtime = 2.3.3
 software.amazon.awssdk:* = 2.17.257
-org.projectnessie:* = 0.40.3
+org.projectnessie:* = 0.43.0
 com.google.cloud:libraries-bom = 24.1.0
 org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
+org.immutables:value = 2.9.2
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2
@@ -42,3 +43,4 @@ org.springframework.boot:* = 2.5.4
 org.mock-server:mockserver-netty = 5.13.2
 org.mock-server:mockserver-client-java = 5.13.2
 com.esotericsoftware:kryo = 4.0.2
+org.eclipse.jetty:* = 9.4.43.v20210629

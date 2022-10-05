@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.requests;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
@@ -87,19 +86,7 @@ public class UpdateRequirementParser {
   }
 
   public static String toJson(UpdateRequirement updateRequirement, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(updateRequirement, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to write update requirement json for: %s", updateRequirement), e);
-    }
+    return JsonUtil.generate(gen -> toJson(updateRequirement, gen), pretty);
   }
 
   public static void toJson(UpdateRequirement updateRequirement, JsonGenerator generator)

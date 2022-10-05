@@ -192,7 +192,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EqualityDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newEqDeleteWriter(out, format, partition);
     try (EqualityDeleteWriter<T> closeableWriter = eqDeleteWriter) {
-      closeableWriter.deleteAll(deletes);
+      closeableWriter.write(deletes);
     }
 
     // Check that the delete equality file has the expected equality deletes.
@@ -227,9 +227,10 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        closeableWriter.delete(delete.first(), delete.second());
+        closeableWriter.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
 
@@ -274,9 +275,10 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
-        closeableWriter.delete(delete.path(), delete.pos(), delete.row());
+        closeableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }
 

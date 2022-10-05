@@ -27,6 +27,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class GenericBlobMetadata implements BlobMetadata {
+
+  public static BlobMetadata from(org.apache.iceberg.puffin.BlobMetadata puffinMetadata) {
+    return new GenericBlobMetadata(
+        puffinMetadata.type(),
+        puffinMetadata.snapshotId(),
+        puffinMetadata.sequenceNumber(),
+        puffinMetadata.inputFields(),
+        puffinMetadata.properties());
+  }
+
   private final String type;
   private final long sourceSnapshotId;
   private final long sourceSnapshotSequenceNumber;

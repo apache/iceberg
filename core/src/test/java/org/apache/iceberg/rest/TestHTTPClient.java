@@ -122,7 +122,7 @@ public class TestHTTPClient {
     int statusCode = 200;
 
     ErrorHandler onError = mock(ErrorHandler.class);
-    doThrow(new RuntimeException("Failure response")).when(onError).handle(any());
+    doThrow(new RuntimeException("Failure response")).when(onError).accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -135,7 +135,7 @@ public class TestHTTPClient {
           body);
     }
 
-    verify(onError, never()).handle(any());
+    verify(onError, never()).accept(any());
   }
 
   public static void testHttpMethodOnFailure(HttpMethod method) throws JsonProcessingException {
@@ -149,7 +149,7 @@ public class TestHTTPClient {
                     "Called error handler for method %s due to status code: %d",
                     method, statusCode)))
         .when(onError)
-        .handle(any());
+        .accept(any());
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
@@ -160,7 +160,7 @@ public class TestHTTPClient {
             "Called error handler for method %s due to status code: %d", method, statusCode),
         () -> doExecuteRequest(method, path, body, onError));
 
-    verify(onError).handle(any());
+    verify(onError).accept(any());
   }
 
   // Adds a request that the mock-server can match against, based on the method, path, body, and

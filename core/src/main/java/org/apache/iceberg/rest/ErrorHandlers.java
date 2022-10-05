@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -32,8 +33,9 @@ import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.apache.iceberg.rest.responses.OAuthErrorResponse;
 import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A set of consumers to handle errors for requests for table entities or for namespace entities, to
@@ -41,25 +43,27 @@ import org.apache.iceberg.rest.responses.OAuthErrorResponseParser;
  */
 public class ErrorHandlers {
 
+  private static final Logger LOG = LoggerFactory.getLogger(ErrorHandlers.class);
+
   private ErrorHandlers() {}
 
-  public static ErrorHandler namespaceErrorHandler() {
+  public static Consumer<ErrorResponse> namespaceErrorHandler() {
     return NamespaceErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler tableErrorHandler() {
+  public static Consumer<ErrorResponse> tableErrorHandler() {
     return TableErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler tableCommitHandler() {
+  public static Consumer<ErrorResponse> tableCommitHandler() {
     return CommitErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler defaultErrorHandler() {
+  public static Consumer<ErrorResponse> defaultErrorHandler() {
     return DefaultErrorHandler.INSTANCE;
   }
 
-  public static ErrorHandler oauthErrorHandler() {
+  public static Consumer<ErrorResponse> oauthErrorHandler() {
     return OAuthErrorHandler.INSTANCE;
   }
 
@@ -68,8 +72,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new CommitErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchTableException("%s", error.message());
@@ -81,7 +84,7 @@ public class ErrorHandlers {
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
 
-      super.handle(restError);
+      super.accept(error);
     }
   }
 
@@ -90,8 +93,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new TableErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
@@ -103,7 +105,7 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("%s", error.message());
       }
 
-      super.handle(restError);
+      super.accept(error);
     }
   }
 
@@ -112,8 +114,7 @@ public class ErrorHandlers {
     private static final ErrorHandler INSTANCE = new NamespaceErrorHandler();
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -123,7 +124,7 @@ public class ErrorHandlers {
           throw new RESTException("Unable to process: %s", error.message());
       }
 
-      super.handle(restError);
+      super.accept(error);
     }
   }
 
@@ -131,17 +132,21 @@ public class ErrorHandlers {
    * Request error handler that handles the common cases that are included with all responses, such
    * as 400, 500, etc.
    */
-  private static class DefaultErrorHandler implements ErrorHandler {
+  private static class DefaultErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new DefaultErrorHandler();
 
     @Override
-    public RESTErrorResponse parseResponse(int code, String json) {
-      return ErrorResponseParser.fromJson(json);
+    public ErrorResponse parseResponse(int code, String json) {
+      try {
+        return ErrorResponseParser.fromJson(json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response", x);
+      }
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      ErrorResponse error = (ErrorResponse) restError;
+    public void accept(ErrorResponse error) {
       switch (error.code()) {
         case 400:
           throw new BadRequestException("Malformed request: %s", error.message());
@@ -164,38 +169,36 @@ public class ErrorHandlers {
     }
   }
 
-  private static class OAuthErrorHandler implements ErrorHandler {
+  private static class OAuthErrorHandler extends ErrorHandler {
     private static final ErrorHandler INSTANCE = new OAuthErrorHandler();
-    private static final String SERVER_ERROR = "server_error";
 
     @Override
-    public RESTErrorResponse parseResponse(int code, String json) {
-      if (code == 400 || code == 401) {
-        return OAuthErrorResponseParser.fromJson(json);
+    public ErrorResponse parseResponse(int code, String json) {
+      try {
+        return OAuthErrorResponseParser.fromJson(code, json);
+      } catch (Exception x) {
+        LOG.warn("Unable to parse error response", x);
       }
-      return OAuthErrorResponse.builder()
-          .withError(SERVER_ERROR)
-          .withErrorDescription(json)
-          .build();
+      return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
     @Override
-    public void handle(RESTErrorResponse restError) {
-      if (restError instanceof OAuthErrorResponse) {
-        OAuthErrorResponse error = (OAuthErrorResponse) restError;
-        switch (error.error()) {
+    public void accept(ErrorResponse error) {
+      if (error.type() != null) {
+        switch (error.type()) {
           case OAuth2Properties.INVALID_CLIENT_ERROR:
-            throw new NotAuthorizedException("Not authorized: %s", error.errorDescription());
+            throw new NotAuthorizedException(
+                "Not authorized: %s: %s", error.type(), error.message());
           case OAuth2Properties.INVALID_REQUEST_ERROR:
           case OAuth2Properties.INVALID_GRANT_ERROR:
           case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
           case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
           case OAuth2Properties.INVALID_SCOPE_ERROR:
-            throw new BadRequestException("Malformed request: %s", error.errorDescription());
-          default:
-            throw new RESTException("Unable to process: %s", error.errorDescription());
+            throw new BadRequestException(
+                "Malformed request: %s: %s", error.type(), error.message());
         }
       }
+      throw new RESTException("Unable to process: %s", error.message());
     }
   }
 }

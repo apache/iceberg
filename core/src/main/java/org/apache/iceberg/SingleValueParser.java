@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -240,18 +239,7 @@ public class SingleValueParser {
   }
 
   public static String toJson(Type type, Object defaultValue, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(type, defaultValue, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(type, defaultValue, gen), pretty);
   }
 
   @SuppressWarnings("checkstyle:MethodLength")

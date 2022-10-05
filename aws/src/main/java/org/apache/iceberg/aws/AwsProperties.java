@@ -20,13 +20,16 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -361,6 +364,28 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
   /**
+   * Used to configure the connection timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS =
+      "http-client.apache.connection-timeout-ms";
+
+  /**
+   * Used to configure the socket timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
+      "http-client.apache.socket-timeout-ms";
+
+  /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
    * <p>For more details, see
@@ -369,6 +394,48 @@ public class AwsProperties implements Serializable {
    * <p>Example: s3.write.tags.my_key=my_val
    */
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
+
+  /**
+   * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
+   * property.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   *
+   * <p>Example: s3.write.table-tag-enabled=true
+   */
+  public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
+
+  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
+
+  /**
+   * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
+   * property.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   *
+   * <p>Example: s3.write.namespace-tag-enabled=true
+   */
+  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = "s3.write.namespace-tag-enabled";
+
+  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
+
+  /**
+   * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
+   * #S3_WRITE_TABLE_TAG_ENABLED} is enabled
+   *
+   * <p>Example: iceberg.table=tableName
+   */
+  public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
+
+  /**
+   * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
+   * #S3_WRITE_NAMESPACE_TAG_ENABLED} is enabled
+   *
+   * <p>Example: iceberg.namespace=namespaceName
+   */
+  public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
 
   /**
    * Used by {@link S3FileIO} to tag objects when deleting. When this config is set, objects are
@@ -450,6 +517,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private Long httpClientApacheConnectionTimeoutMs;
+  private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -472,6 +541,8 @@ public class AwsProperties implements Serializable {
   private ObjectCannedACL s3FileIoAcl;
   private boolean isS3ChecksumEnabled;
   private final Set<Tag> s3WriteTags;
+  private boolean s3WriteTableTagEnabled;
+  private boolean s3WriteNamespaceTagEnabled;
   private final Set<Tag> s3DeleteTags;
   private int s3FileIoDeleteThreads;
   private boolean isS3DeleteEnabled;
@@ -494,6 +565,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.httpClientApacheConnectionTimeoutMs = null;
+    this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -518,6 +591,8 @@ public class AwsProperties implements Serializable {
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
     this.s3WriteTags = Sets.newHashSet();
+    this.s3WriteTableTagEnabled = S3_WRITE_TABLE_TAG_ENABLED_DEFAULT;
+    this.s3WriteNamespaceTagEnabled = S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
     this.s3DeleteTags = Sets.newHashSet();
     this.s3FileIoDeleteThreads = Runtime.getRuntime().availableProcessors();
     this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
@@ -545,6 +620,10 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.httpClientApacheConnectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
+    this.httpClientApacheSocketTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
 
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
@@ -647,6 +726,12 @@ public class AwsProperties implements Serializable {
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3WriteTableTagEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_WRITE_TABLE_TAG_ENABLED, S3_WRITE_TABLE_TAG_ENABLED_DEFAULT);
+    this.s3WriteNamespaceTagEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_WRITE_NAMESPACE_TAG_ENABLED, S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT);
     this.s3DeleteTags = toS3Tags(properties, S3_DELETE_TAGS_PREFIX);
     this.s3FileIoDeleteThreads =
         PropertyUtil.propertyAsInt(
@@ -824,6 +909,22 @@ public class AwsProperties implements Serializable {
     return s3WriteTags;
   }
 
+  public boolean s3WriteTableTagEnabled() {
+    return s3WriteTableTagEnabled;
+  }
+
+  public void setS3WriteTableTagEnabled(boolean s3WriteTableNameTagEnabled) {
+    this.s3WriteTableTagEnabled = s3WriteTableNameTagEnabled;
+  }
+
+  public boolean s3WriteNamespaceTagEnabled() {
+    return s3WriteNamespaceTagEnabled;
+  }
+
+  public void setS3WriteNamespaceTagEnabled(boolean s3WriteNamespaceTagEnabled) {
+    this.s3WriteNamespaceTagEnabled = s3WriteNamespaceTagEnabled;
+  }
+
   public Set<Tag> s3DeleteTags() {
     return s3DeleteTags;
   }
@@ -902,7 +1003,8 @@ public class AwsProperties implements Serializable {
         builder.httpClientBuilder(UrlConnectionHttpClient.builder());
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(ApacheHttpClient.builder());
+        builder.httpClientBuilder(
+            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -988,6 +1090,16 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  @VisibleForTesting
+  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
+    if (httpClientApacheConnectionTimeoutMs != null) {
+      builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
+    }
+    if (httpClientApacheSocketTimeoutMs != null) {
+      builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
     }
   }
 }

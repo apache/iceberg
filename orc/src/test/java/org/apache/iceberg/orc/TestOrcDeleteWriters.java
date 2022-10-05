@@ -86,7 +86,7 @@ public class TestOrcDeleteWriters {
             .buildEqualityWriter();
 
     try (EqualityDeleteWriter<Record> writer = deleteWriter) {
-      writer.deleteAll(records);
+      writer.write(records);
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();

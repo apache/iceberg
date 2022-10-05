@@ -128,7 +128,7 @@ public class TestSparkDataWrite {
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
-    for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
@@ -367,7 +367,7 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
@@ -582,7 +582,7 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }

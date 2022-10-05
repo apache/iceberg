@@ -24,7 +24,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestErrorResponseParser {
+public class TestCatalogErrorResponseParser {
 
   @Test
   public void testErrorResponseToJson() {
