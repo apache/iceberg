@@ -52,36 +52,37 @@ PROP_WAREHOUSE = "warehouse"
 PROP_METADATA_LOCATION = "metadata_location"
 
 PROP_GLUE_TABLE = "Table"
-Prop_GLUE_TABLE_TYPE = "TableType"
+PROP_GLUE_TABLE_TYPE = "TableType"
 PROP_GLUE_TABLE_DESCRIPTION = "description"
 PROP_GLUE_TABLE_PARAMETERS = "Parameters"
 PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
 PROP_GLUE_TABLE_NAME = "Name"
 
 PROP_GLUE_DATABASE = "Database"
+PROP_GLUE_DATABASE_LIST = "DatabaseList"
+PROP_GLUE_DATABASE_NAME = "Name"
 PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
-def _construct_parameters(metadata_location: str) -> Dict[str, str]:
-    properties = {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
-    return properties
+def _construct_parameters(metadata_location: str) -> Properties:
+    return {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
 
 
-def _construct_table_input(table_name: str, metadata_location: str, properties: Dict[str, str]) -> Dict[str, Any]:
+def _construct_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
     table_input = {
         PROP_GLUE_TABLE_NAME: table_name,
-        Prop_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
+        PROP_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
         PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
     }
 
-    if properties and PROP_GLUE_TABLE_DESCRIPTION in properties:
-        table_input[PROP_GLUE_TABLE_DESCRIPTION] = properties[PROP_GLUE_TABLE_DESCRIPTION]
+    if table_description := properties.get(PROP_GLUE_TABLE_DESCRIPTION):
+        table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
     return table_input
 
 
-def _convert_glue_to_iceberg(glue_table, io: FileIO) -> Table:
-    properties: Dict[str, str] = glue_table[PROP_GLUE_TABLE_PARAMETERS]
+def _convert_glue_to_iceberg(glue_table: Dict[str, Any], io: FileIO) -> Table:
+    properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
 
     if PROP_TABLE_TYPE not in properties:
         raise NoSuchTableError(
@@ -231,7 +232,19 @@ class GlueCatalog(Catalog):
         raise NotImplementedError("currently unsupported")
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        raise NotImplementedError("currently unsupported")
+        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+
+        Returns:
+            List[Identifier]: a List of namespace identifiers
+        """
+        # Glue does not support hierarchical namespace, therefore return an empty list
+        if namespace:
+            return []
+        databases_response = self.glue.get_databases()
+        return [
+            self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME])
+            for database in databases_response[PROP_GLUE_DATABASE_LIST]
+        ]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         raise NotImplementedError("currently unsupported")
