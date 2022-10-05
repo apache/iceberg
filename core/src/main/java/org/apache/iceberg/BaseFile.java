@@ -249,7 +249,7 @@ abstract class BaseFile<F>
         this.filePath = value.toString();
         return;
       case 2:
-        this.format = FileFormat.valueOf(value.toString());
+        this.format = FileFormat.fromString(value.toString());
         return;
       case 3:
         this.partitionSpecId = (value != null) ? (Integer) value : -1;

@@ -24,7 +24,6 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.io.Serializable;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -192,11 +191,11 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
       String dataFileFormatName =
           properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      this.dataFileFormat = FileFormat.valueOf(dataFileFormatName.toUpperCase(Locale.ENGLISH));
+      this.dataFileFormat = FileFormat.fromString(dataFileFormatName);
 
       String deleteFileFormatName =
           properties.getOrDefault(DELETE_DEFAULT_FILE_FORMAT, dataFileFormatName);
-      this.deleteFileFormat = FileFormat.valueOf(deleteFileFormatName.toUpperCase(Locale.ENGLISH));
+      this.deleteFileFormat = FileFormat.fromString(deleteFileFormatName);
     }
 
     Builder dataFileFormat(FileFormat newDataFileFormat) {

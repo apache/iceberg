@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -112,7 +111,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   public TestFlinkIcebergSinkV2(
       String format, int parallelism, boolean partitioned, String writeDistributionMode) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
     this.writeDistributionMode = writeDistributionMode;

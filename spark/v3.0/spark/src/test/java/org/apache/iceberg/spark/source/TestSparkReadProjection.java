@@ -25,7 +25,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
@@ -75,7 +74,7 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   public TestSparkReadProjection(String format, boolean vectorized) {
     super(format);
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ROOT));
+    this.format = FileFormat.fromString(format);
     this.vectorized = vectorized;
   }
 

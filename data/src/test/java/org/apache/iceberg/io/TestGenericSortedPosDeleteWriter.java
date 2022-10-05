@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -66,7 +65,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
   public TestGenericSortedPosDeleteWriter(String fileFormat) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
   }
 
   @Override

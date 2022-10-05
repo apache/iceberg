@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -133,7 +132,7 @@ public class TestIcebergInputFormats {
   public TestIcebergInputFormats(
       TestInputFormat.Factory<Record> testInputFormat, String fileFormat) {
     this.testInputFormat = testInputFormat;
-    this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.fileFormat = FileFormat.fromString(fileFormat);
   }
 
   @Test

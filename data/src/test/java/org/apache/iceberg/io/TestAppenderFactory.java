@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -77,7 +76,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
   public TestAppenderFactory(String fileFormat, boolean partitioned) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
     this.partitioned = partitioned;
   }
 
