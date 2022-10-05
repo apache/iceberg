@@ -23,7 +23,12 @@ import pytest
 
 from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import base
-from pyiceberg.expressions.base import IN_PREDICATE_LIMIT, ManifestEvaluator, rewrite_not, visit_bound_predicate
+from pyiceberg.expressions.base import (
+    IN_PREDICATE_LIMIT,
+    ManifestEvaluator,
+    rewrite_not,
+    visit_bound_predicate,
+)
 from pyiceberg.expressions.literals import (
     Literal,
     LongLiteral,
