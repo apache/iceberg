@@ -37,7 +37,6 @@ import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
 
 trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
@@ -79,20 +78,15 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
       metadataAttrs: Seq[Attribute]): WriteDeltaProjections = {
 
     val rowProjection = if (rowAttrs.nonEmpty) {
-      Some(newLazyProjection(plan, rowAttrs, usePlanTypes = true))
+      Some(newLazyProjection(plan, rowAttrs))
     } else {
       None
     }
 
-    // in MERGE, the plan may contain both delete and insert records that may affect
-    // the nullability of metadata columns (e.g. metadata columns for new records are always null)
-    // since metadata columns are never passed with new records to insert,
-    // use the actual metadata column types instead of the ones present in the plan
-
-    val rowIdProjection = newLazyProjection(plan, rowIdAttrs, usePlanTypes = false)
+    val rowIdProjection = newLazyProjection(plan, rowIdAttrs)
 
     val metadataProjection = if (metadataAttrs.nonEmpty) {
-      Some(newLazyProjection(plan, metadataAttrs, usePlanTypes = false))
+      Some(newLazyProjection(plan, metadataAttrs))
     } else {
       None
     }
@@ -103,17 +97,11 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
   // the projection is done by name, ignoring expr IDs
   private def newLazyProjection(
       plan: LogicalPlan,
-      attrs: Seq[Attribute],
-      usePlanTypes: Boolean): ProjectingInternalRow = {
+      projectedAttrs: Seq[Attribute]): ProjectingInternalRow = {
 
-    val colOrdinals = attrs.map(attr => plan.output.indexWhere(_.name == attr.name))
-    val schema = if (usePlanTypes) {
-      val planAttrs = colOrdinals.map(plan.output(_))
-      StructType.fromAttributes(planAttrs)
-    } else {
-      StructType.fromAttributes(attrs)
-    }
-    ProjectingInternalRow(schema, colOrdinals)
+    val projectedOrdinals = projectedAttrs.map(attr => plan.output.indexWhere(_.name == attr.name))
+    val schema = StructType.fromAttributes(projectedOrdinals.map(plan.output(_)))
+    ProjectingInternalRow(schema, projectedOrdinals)
   }
 
   protected def resolveRequiredMetadataAttrs(
