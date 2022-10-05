@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.metrics.LoggingScanReporter;
-import org.apache.iceberg.metrics.ScanReporter;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /**
  * Base {@link Table} implementation.
@@ -39,18 +39,18 @@ import org.apache.iceberg.metrics.ScanReporter;
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
   private final String name;
-  private final ScanReporter scanReporter;
+  private final MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
     this.ops = ops;
     this.name = name;
-    this.scanReporter = new LoggingScanReporter();
+    this.reporter = new LoggingMetricsReporter();
   }
 
-  public BaseTable(TableOperations ops, String name, ScanReporter scanReporter) {
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
     this.ops = ops;
     this.name = name;
-    this.scanReporter = scanReporter;
+    this.reporter = reporter;
   }
 
   @Override
@@ -70,13 +70,13 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(scanReporter));
+    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
     return new BaseIncrementalAppendScan(
-        ops, this, schema(), new TableScanContext().reportWith(scanReporter));
+        ops, this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
@@ -210,6 +210,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    return new SetStatistics(ops);
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }
@@ -237,6 +242,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return operations().locationProvider();
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ops.current().statisticsFiles();
   }
 
   @Override

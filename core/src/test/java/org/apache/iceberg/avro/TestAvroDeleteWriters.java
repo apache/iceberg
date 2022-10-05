@@ -33,6 +33,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -84,7 +85,7 @@ public class TestAvroDeleteWriters {
             .buildEqualityWriter();
 
     try (EqualityDeleteWriter<Record> writer = deleteWriter) {
-      writer.deleteAll(records);
+      writer.write(records);
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
@@ -126,10 +127,11 @@ public class TestAvroDeleteWriters {
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
+    PositionDelete<Record> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, records.get(i));
+        writer.write(positionDelete.set(deletePath, pos, records.get(i)));
         expectedDeleteRecords.add(
             posDelete.copy(
                 ImmutableMap.of(
@@ -177,10 +179,11 @@ public class TestAvroDeleteWriters {
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
+    PositionDelete<Void> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, null);
+        writer.write(positionDelete.set(deletePath, pos, null));
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }

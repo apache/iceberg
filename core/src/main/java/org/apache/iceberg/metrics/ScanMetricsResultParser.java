@@ -37,6 +37,7 @@ class ScanMetricsResultParser {
     return JsonUtil.generate(gen -> toJson(metrics, gen), pretty);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static void toJson(ScanMetricsResult metrics, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != metrics, "Invalid scan metrics: null");
 
@@ -97,6 +98,31 @@ class ScanMetricsResultParser {
       CounterResultParser.toJson(metrics.skippedDeleteFiles(), gen);
     }
 
+    if (null != metrics.scannedDeleteManifests()) {
+      gen.writeFieldName(ScanMetrics.SCANNED_DELETE_MANIFESTS);
+      CounterResultParser.toJson(metrics.scannedDeleteManifests(), gen);
+    }
+
+    if (null != metrics.skippedDeleteManifests()) {
+      gen.writeFieldName(ScanMetrics.SKIPPED_DELETE_MANIFESTS);
+      CounterResultParser.toJson(metrics.skippedDeleteManifests(), gen);
+    }
+
+    if (null != metrics.indexedDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.INDEXED_DELETE_FILES);
+      CounterResultParser.toJson(metrics.indexedDeleteFiles(), gen);
+    }
+
+    if (null != metrics.equalityDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.EQUALITY_DELETE_FILES);
+      CounterResultParser.toJson(metrics.equalityDeleteFiles(), gen);
+    }
+
+    if (null != metrics.positionalDeleteFiles()) {
+      gen.writeFieldName(ScanMetrics.POSITIONAL_DELETE_FILES);
+      CounterResultParser.toJson(metrics.positionalDeleteFiles(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -127,6 +153,14 @@ class ScanMetricsResultParser {
             CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES, json))
         .skippedDataFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_FILES, json))
         .skippedDeleteFiles(CounterResultParser.fromJson(ScanMetrics.SKIPPED_DELETE_FILES, json))
+        .scannedDeleteManifests(
+            CounterResultParser.fromJson(ScanMetrics.SCANNED_DELETE_MANIFESTS, json))
+        .skippedDeleteManifests(
+            CounterResultParser.fromJson(ScanMetrics.SKIPPED_DELETE_MANIFESTS, json))
+        .indexedDeleteFiles(CounterResultParser.fromJson(ScanMetrics.INDEXED_DELETE_FILES, json))
+        .equalityDeleteFiles(CounterResultParser.fromJson(ScanMetrics.EQUALITY_DELETE_FILES, json))
+        .positionalDeleteFiles(
+            CounterResultParser.fromJson(ScanMetrics.POSITIONAL_DELETE_FILES, json))
         .build();
   }
 }

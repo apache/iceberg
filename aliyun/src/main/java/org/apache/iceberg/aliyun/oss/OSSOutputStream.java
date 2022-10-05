@@ -67,7 +67,7 @@ public class OSSOutputStream extends PositionOutputStream {
     this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());
     this.stream = newStream(currentStagingFile);
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Unit.COUNT);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
   }
 
   private static File newStagingFile(String ossStagingDirectory) {

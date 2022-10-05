@@ -39,7 +39,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final PartitionSpec spec;
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
-  private final PositionDelete<T> delete;
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
 
@@ -56,7 +55,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
     this.spec = spec;
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
-    this.delete = PositionDelete.create();
     this.referencedDataFiles = CharSequenceSet.empty();
   }
 
@@ -64,29 +62,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   public void write(PositionDelete<T> positionDelete) {
     referencedDataFiles.add(positionDelete.path());
     appender.add(positionDelete);
-  }
-
-  /**
-   * Writes a position delete.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(PositionDelete)}
-   *     instead.
-   */
-  @Deprecated
-  public void delete(CharSequence path, long pos) {
-    delete(path, pos, null);
-  }
-
-  /**
-   * Writes a position delete and persists the deleted row.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(PositionDelete)}
-   *     instead.
-   */
-  @Deprecated
-  public void delete(CharSequence path, long pos, T row) {
-    referencedDataFiles.add(path);
-    appender.add(delete.set(path, pos, row));
   }
 
   @Override

@@ -154,6 +154,7 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .set("spark.sql.caseSensitive", "false")
             .callInit()
             .build()) {
 
@@ -211,6 +212,7 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .set("spark.sql.caseSensitive", "false")
             .callInit()
             .build()) {
 

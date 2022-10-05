@@ -1688,6 +1688,38 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithTableWithNonNullableColumn() {
+    createAndInitTable(
+        "id INT NOT NULL, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT NOT NULL, dep STRING",
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+            + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+            + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED AND t.id = 1 THEN "
+            + "  UPDATE SET * "
+            + "WHEN MATCHED AND t.id = 6 THEN "
+            + "  DELETE "
+            + "WHEN NOT MATCHED AND s.id = 2 THEN "
+            + "  INSERT *",
+        tableName);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "emp-id-1"), // updated
+            row(2, "emp-id-2")); // new
+    assertEquals(
+        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testMergeWithNonExistingColumns() {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");

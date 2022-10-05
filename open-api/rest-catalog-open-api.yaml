@@ -768,6 +768,50 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Send a metrics report to this endpoint to be processed by the backend
+      operationId: reportMetrics
+      requestBody:
+        description: The request containing the metrics report to be sent
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportMetricsRequest'
+        required: true
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -1013,6 +1057,134 @@ components:
               type: array
               items:
                 type: integer
+
+    Expression:
+      oneOf:
+        - $ref: '#/components/schemas/AndOrExpression'
+        - $ref: '#/components/schemas/NotExpression'
+        - $ref: '#/components/schemas/SetExpression'
+        - $ref: '#/components/schemas/LiteralExpression'
+        - $ref: '#/components/schemas/UnaryExpression'
+
+    ExpressionType:
+      type: string
+      example:
+        - "eq"
+        - "and"
+        - "or"
+        - "not"
+        - "in"
+        - "not-in"
+        - "lt"
+        - "lt-eq"
+        - "gt"
+        - "gt-eq"
+        - "not-eq"
+        - "starts-with"
+        - "not-starts-with"
+        - "is-null"
+        - "not-null"
+        - "is-nan"
+        - "not-nan"
+
+    AndOrExpression:
+      type: object
+      required:
+        - type
+        - left
+        - right
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["and", "or"]
+        left:
+          $ref: '#/components/schemas/Expression'
+        right:
+          $ref: '#/components/schemas/Expression'
+
+    NotExpression:
+      type: object
+      required:
+        - type
+        - child
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["not"]
+        child:
+          $ref: '#/components/schemas/Expression'
+
+    UnaryExpression:
+      type: object
+      required:
+        - type
+        - term
+        - value
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["is-null", "not-null", "is-nan", "not-nan"]
+        term:
+          $ref: '#/components/schemas/Term'
+        value:
+          type: object
+
+    LiteralExpression:
+      type: object
+      required:
+        - type
+        - term
+        - value
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+        term:
+          $ref: '#/components/schemas/Term'
+        value:
+          type: object
+
+    SetExpression:
+      type: object
+      required:
+        - type
+        - term
+        - values
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["in", "not-in"]
+        term:
+          $ref: '#/components/schemas/Term'
+        values:
+          type: array
+          items:
+            type: object
+
+    Term:
+      oneOf:
+        - $ref: '#/components/schemas/Reference'
+        - $ref: '#/components/schemas/TransformTerm'
+
+    Reference:
+      type: string
+      example:
+        - "column-name"
+
+    TransformTerm:
+      type: object
+      required:
+        - type
+        - transform
+        - term
+      properties:
+        type:
+          type: string
+          enum: ["transform"]
+        transform:
+          $ref: '#/components/schemas/Transform'
+        term:
+          $ref: '#/components/schemas/Reference'
 
     Transform:
       type: string
@@ -1628,6 +1800,115 @@ components:
         - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
         - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
 
+    CounterResult:
+      type: object
+      required:
+        - unit
+        - value
+      properties:
+        unit:
+          type: string
+        value:
+          type: integer
+          format: int64
+
+    TimerResult:
+      type: object
+      required:
+        - time-unit
+        - count
+        - total-duration
+      properties:
+        time-unit:
+          type: string
+        count:
+          type: integer
+          format: int64
+        total-duration:
+          type: integer
+          format: int64
+
+    MetricResult:
+      anyOf:
+        - $ref: '#/components/schemas/CounterResult'
+        - $ref: '#/components/schemas/TimerResult'
+
+    Metrics:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/MetricResult'
+
+    ReportMetricsRequest:
+      anyOf:
+        - $ref: '#/components/schemas/ScanReport'
+      required:
+        - report-type
+      properties:
+        report-type:
+          type: string
+
+    ScanReport:
+      type: object
+      required:
+        - table-name
+        - snapshot-id
+        - filter
+        - projection
+        - metrics
+      properties:
+        table-name:
+          type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        filter:
+          $ref: '#/components/schemas/Expression'
+        projection:
+          $ref: '#/components/schemas/Schema'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+          example:
+            "metrics": {
+              "total-planning-duration": {
+                "count": 1,
+                "time-unit": "nanoseconds",
+                "total-duration": 2644235116
+              },
+              "result-data-files": {
+                "unit": "count",
+                "value": 1,
+              },
+              "result-delete-files": {
+                "unit": "count",
+                "value": 0,
+              },
+              "total-data-manifests": {
+                "unit": "count",
+                "value": 1,
+              },
+              "total-delete-manifests": {
+                "unit": "count",
+                "value": 0,
+              },
+              "scanned-data-manifests": {
+                "unit": "count",
+                "value": 1,
+              },
+              "skipped-data-manifests": {
+                "unit": "count",
+                "value": 0,
+              },
+              "total-file-size-bytes": {
+                "unit": "bytes",
+                "value": 10,
+              },
+              "total-delete-file-size-bytes": {
+                "unit": "bytes",
+                "value": 0,
+              }
+            }
+
+
   #############################
   # Reusable Response Objects #
   #############################
@@ -1746,7 +2027,7 @@ components:
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
     UnsupportedOperationResponse:
-      description: Not Acceptable / Unsuported Operation. The server does not support this operation.
+      description: Not Acceptable / Unsupported Operation. The server does not support this operation.
       content:
         application/json:
           schema:
