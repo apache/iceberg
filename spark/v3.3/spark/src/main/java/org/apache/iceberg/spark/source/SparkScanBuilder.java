@@ -172,10 +172,15 @@ public class SparkScanBuilder
       return false;
     }
 
-    Map<String, String> map = table.currentSnapshot().summary();
-    if (Integer.parseInt(map.get("total-position-deletes")) > 0
-        || Integer.parseInt(map.get("total-equality-deletes")) > 0) {
-      return false;
+    Snapshot currentSnapshot = table.currentSnapshot();
+    if (currentSnapshot != null) {
+      Map<String, String> map = currentSnapshot.summary();
+      // if there are row-level deletes in current snapshot, the statics
+      // maybe changed, so disable push down aggregate
+      if (Integer.parseInt(map.get("total-position-deletes")) > 0
+          || Integer.parseInt(map.get("total-equality-deletes")) > 0) {
+        return false;
+      }
     }
 
     // If the group by expression is not the same as the partition, the statistics information
