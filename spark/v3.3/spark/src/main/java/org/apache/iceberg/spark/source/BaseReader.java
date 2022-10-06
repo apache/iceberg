@@ -196,11 +196,15 @@ public abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable
   }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
+    // TODO: Add default value map construction and merge it with partition column constant map
+    // Map<Integer, ?> defaultMap= <logic to construct default map from readSchema>
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
       return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
+      // return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant).putAll(defaultMap);
     } else {
       return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
+      // return PartitionUtil.constantsMap(task, BaseReader::convertConstant).putAll(defaultMap);
     }
   }
 
