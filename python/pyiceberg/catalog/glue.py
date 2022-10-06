@@ -138,13 +138,13 @@ class GlueCatalog(Catalog):
         return location
 
     def create_table(
-            self,
-            identifier: Union[str, Identifier],
-            schema: Schema,
-            location: Optional[str] = None,
-            partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-            sort_order: SortOrder = UNSORTED_SORT_ORDER,
-            properties: Properties = EMPTY_DICT,
+        self,
+        identifier: Union[str, Identifier],
+        schema: Schema,
+        location: Optional[str] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create an Iceberg table in Glue catalog
 
@@ -168,8 +168,7 @@ class GlueCatalog(Catalog):
         location = self._resolve_table_location(location, database_name, table_name)
         metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
         metadata = new_table_metadata(
-            location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order,
-            properties=properties
+            location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
         )
         io = load_file_io({**self.properties, **properties}, location=location)
         _write_metadata(metadata, io, metadata_location)
@@ -251,7 +250,6 @@ class GlueCatalog(Catalog):
         raise NotImplementedError("currently unsupported")
 
     def update_namespace_properties(
-            self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None,
-            updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         raise NotImplementedError("currently unsupported")
