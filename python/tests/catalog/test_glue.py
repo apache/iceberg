@@ -38,7 +38,9 @@ def get_random_table_name():
 def test_create_table(table_schema_nested: Schema):
     table_name = get_random_table_name()
     identifier = ("myicebergtest", table_name)
-    table = GlueCatalog("glue").create_table(identifier, table_schema_nested, f"s3://pythongluetest/gluetest.db/{table_name}")
+    table = GlueCatalog("glue").create_table(
+        identifier, table_schema_nested, f"s3://pythongluetest/myicebergtest.db/{table_name}"
+    )
     assert table.identifier == identifier
 
 
@@ -46,7 +48,7 @@ def test_create_table(table_schema_nested: Schema):
 def test_create_table_with_default_location(table_schema_nested: Schema):
     table_name = get_random_table_name()
     identifier = ("myicebergtest", table_name)
-    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest/gluetest.db")
+    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest")
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
 
@@ -55,7 +57,7 @@ def test_create_table_with_default_location(table_schema_nested: Schema):
 def test_create_table_with_invalid_database(table_schema_nested: Schema):
     table_name = get_random_table_name()
     identifier = ("invalid", table_name)
-    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest/gluetest.db")
+    test_catalog = GlueCatalog("glue", warehouse="s3://pythongluetest")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier, table_schema_nested)
 
