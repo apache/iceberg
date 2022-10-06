@@ -892,8 +892,8 @@ class ManifestEvaluator(BoundBooleanExpressionVisitor[bool]):
     partition_fields: list[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, partition_filter: BooleanExpression):
-        self.partition_filter = partition_filter
+    def __init__(self, schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True):
+        self.partition_filter = rewrite_not(partition_filter.bind(schema, case_sensitive))
 
     def eval(self, manifest: ManifestFile) -> bool:
         if partitions := manifest.partitions:

@@ -25,6 +25,7 @@ from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import base
 from pyiceberg.expressions.base import (
     IN_PREDICATE_LIMIT,
+    BoundPredicate,
     ManifestEvaluator,
     _from_byte_buffer,
     rewrite_not,
@@ -1395,6 +1396,15 @@ def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     )
 
 
+def _create_manifest_evaluator(bound_expr: BoundPredicate) -> ManifestEvaluator:
+    """For testing. Creates a bogus evaluator, and then replaces the expression"""
+    evaluator = ManifestEvaluator(
+        Schema(NestedField(1, "id", LongType())), base.EqualTo(term=base.Reference("id"), literal=literal("foo"))
+    )
+    evaluator.partition_filter = bound_expr
+    return evaluator
+
+
 def test_manifest_evaluator_less_than_no_overlap():
     expr = base.BoundLessThan(
         term=base.BoundReference(
@@ -1413,7 +1423,7 @@ def test_manifest_evaluator_less_than_no_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_overlap():
@@ -1434,7 +1444,7 @@ def test_manifest_evaluator_less_than_overlap():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_all_null():
@@ -1451,7 +1461,7 @@ def test_manifest_evaluator_less_than_all_null():
     )
 
     # All null
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_no_match():
@@ -1472,7 +1482,7 @@ def test_manifest_evaluator_less_than_no_match():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_or_equal_no_overlap():
@@ -1493,7 +1503,7 @@ def test_manifest_evaluator_less_than_or_equal_no_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_or_equal_overlap():
@@ -1514,7 +1524,7 @@ def test_manifest_evaluator_less_than_or_equal_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_or_equal_all_null():
@@ -1531,7 +1541,7 @@ def test_manifest_evaluator_less_than_or_equal_all_null():
     )
 
     # All null
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_or_equal_no_match():
@@ -1552,7 +1562,7 @@ def test_manifest_evaluator_less_than_or_equal_no_match():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_equal_no_overlap():
@@ -1573,7 +1583,7 @@ def test_manifest_evaluator_equal_no_overlap():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_equal_overlap():
@@ -1599,7 +1609,7 @@ def test_manifest_evaluator_equal_overlap():
         ],
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_equal_all_null():
@@ -1616,7 +1626,7 @@ def test_manifest_evaluator_equal_all_null():
     )
 
     # All null
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_equal_no_match():
@@ -1637,7 +1647,7 @@ def test_manifest_evaluator_equal_no_match():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_no_overlap():
@@ -1658,7 +1668,7 @@ def test_manifest_evaluator_greater_than_no_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_overlap():
@@ -1679,7 +1689,7 @@ def test_manifest_evaluator_greater_than_overlap():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_all_null():
@@ -1696,7 +1706,7 @@ def test_manifest_evaluator_greater_than_all_null():
     )
 
     # All null
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_no_match():
@@ -1717,7 +1727,7 @@ def test_manifest_evaluator_greater_than_no_match():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_or_equal_no_overlap():
@@ -1738,7 +1748,7 @@ def test_manifest_evaluator_greater_than_or_equal_no_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_or_equal_overlap():
@@ -1759,7 +1769,7 @@ def test_manifest_evaluator_greater_than_or_equal_overlap():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_or_equal_all_null():
@@ -1776,7 +1786,7 @@ def test_manifest_evaluator_greater_than_or_equal_all_null():
     )
 
     # All null
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_or_equal_no_match():
@@ -1797,7 +1807,7 @@ def test_manifest_evaluator_greater_than_or_equal_no_match():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_is_nan():
@@ -1812,7 +1822,7 @@ def test_manifest_evaluator_is_nan():
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_is_nan_inverse():
@@ -1832,7 +1842,7 @@ def test_manifest_evaluator_is_nan_inverse():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_nan():
@@ -1852,7 +1862,7 @@ def test_manifest_evaluator_not_nan():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_nan_inverse():
@@ -1867,7 +1877,7 @@ def test_manifest_evaluator_not_nan_inverse():
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_is_null():
@@ -1887,7 +1897,7 @@ def test_manifest_evaluator_is_null():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_is_null_inverse():
@@ -1902,7 +1912,7 @@ def test_manifest_evaluator_is_null_inverse():
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_null():
@@ -1917,7 +1927,7 @@ def test_manifest_evaluator_not_null():
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_null_nan():
@@ -1932,7 +1942,7 @@ def test_manifest_evaluator_not_null_nan():
         PartitionFieldSummary(contains_null=True, contains_nan=False, lower_bound=None, upper_bound=None)
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_null_inverse():
@@ -1945,7 +1955,7 @@ def test_manifest_evaluator_not_null_inverse():
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_equal_to():
@@ -1959,7 +1969,7 @@ def test_manifest_evaluator_not_equal_to():
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_in():
@@ -1980,7 +1990,7 @@ def test_manifest_evaluator_in():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_in():
@@ -2001,7 +2011,7 @@ def test_manifest_evaluator_not_in():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_in_null():
@@ -2022,7 +2032,7 @@ def test_manifest_evaluator_in_null():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_in_inverse():
@@ -2043,7 +2053,7 @@ def test_manifest_evaluator_in_inverse():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_in_overflow():
@@ -2064,7 +2074,7 @@ def test_manifest_evaluator_in_overflow():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_less_than_lower_bound():
@@ -2085,7 +2095,7 @@ def test_manifest_evaluator_less_than_lower_bound():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_greater_than_upper_bound():
@@ -2106,7 +2116,7 @@ def test_manifest_evaluator_greater_than_upper_bound():
         )
     )
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_true():
@@ -2114,7 +2124,7 @@ def test_manifest_evaluator_true():
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_false():
@@ -2122,7 +2132,7 @@ def test_manifest_evaluator_false():
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not():
@@ -2144,7 +2154,7 @@ def test_manifest_evaluator_not():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
-    assert not ManifestEvaluator(expr).eval(manifest)
+    assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_and():
@@ -2173,7 +2183,7 @@ def test_manifest_evaluator_and():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_or():
@@ -2203,7 +2213,7 @@ def test_manifest_evaluator_or():
         )
     )
 
-    assert ManifestEvaluator(expr).eval(manifest)
+    assert _create_manifest_evaluator(expr).eval(manifest)
 
 
 def test_bound_predicate_invert():
