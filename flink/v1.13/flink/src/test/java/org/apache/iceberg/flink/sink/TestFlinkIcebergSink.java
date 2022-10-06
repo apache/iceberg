@@ -350,7 +350,7 @@ public class TestFlinkIcebergSink {
     AssertHelpers.assertThrows(
         "Should fail with invalid distribution mode.",
         IllegalArgumentException.class,
-        "No enum constant org.apache.iceberg.DistributionMode.UNRECOGNIZED",
+        "Invalid distribution mode: UNRECOGNIZED",
         () -> {
           builder.append();
 

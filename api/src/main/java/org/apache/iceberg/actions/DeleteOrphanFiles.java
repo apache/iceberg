@@ -153,8 +153,12 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
     DELETE;
 
     public static PrefixMismatchMode fromString(String modeAsString) {
-      Preconditions.checkArgument(modeAsString != null, "Mode should not be null");
-      return PrefixMismatchMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
+      Preconditions.checkArgument(modeAsString != null, "Invalid mode: null");
+      try {
+        return PrefixMismatchMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid mode: %s", modeAsString), e);
+      }
     }
   }
 }

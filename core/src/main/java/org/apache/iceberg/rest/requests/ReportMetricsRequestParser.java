@@ -57,11 +57,11 @@ public class ReportMetricsRequestParser {
   }
 
   private static String fromReportType(ReportType reportType) {
-    return reportType.name().replaceAll("_", "-").toLowerCase(Locale.ROOT);
+    return reportType.name().replaceAll("_", "-").toLowerCase(Locale.ENGLISH);
   }
 
   private static ReportType toReportType(String type) {
-    return ReportType.valueOf(type.replaceAll("-", "_").toUpperCase(Locale.ROOT));
+    return ReportType.fromString(type.replaceAll("-", "_"));
   }
 
   public static ReportMetricsRequest fromJson(String json) {

@@ -67,8 +67,7 @@ public class TestReportMetricsRequestParser {
     Assertions.assertThatThrownBy(
             () -> ReportMetricsRequestParser.fromJson("{\"report-type\":\"invalid\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "No enum constant org.apache.iceberg.rest.requests.ReportMetricsRequest.ReportType.INVALID");
+        .hasMessage("Invalid report type: invalid");
 
     Assertions.assertThatThrownBy(
             () ->

@@ -80,7 +80,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"count\":44,\"time-unit\":\"unknown\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant java.util.concurrent.TimeUnit.UNKNOWN");
+        .hasMessage("Invalid time unit: unknown");
   }
 
   @Test
