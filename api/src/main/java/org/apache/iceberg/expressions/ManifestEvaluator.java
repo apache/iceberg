@@ -148,10 +148,6 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (allValuesAreNull(stats.get(pos), ref.type().typeId())) {
-        return ROWS_CANNOT_MATCH;
-      }
-
       return ROWS_MIGHT_MATCH;
     }
 
