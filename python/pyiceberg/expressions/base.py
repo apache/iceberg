@@ -883,13 +883,13 @@ IN_PREDICATE_LIMIT = 200
 
 
 def _all_values_are_null(partition_field: PartitionFieldSummary, field_type: IcebergType) -> bool:
-    # containsNull encodes whether at least one partition value is null,
+    # contains_null encodes whether at least one partition value is null,
     # lowerBound is null if all partition values are null
     all_null = partition_field.contains_null is True and partition_field.lower_bound is None
 
-    if all_null and (field_type is DoubleType or field_type is FloatType):
+    if all_null and type(field_type) in {DoubleType, FloatType}:
         # floating point types may include NaN values, which we check separately.
-        # In case bounds don't include NaN value, containsNaN needs to be checked against.
+        # In case bounds don't include NaN value, contains_nan needs to be checked against.
         return partition_field.contains_nan is False
 
     return all_null

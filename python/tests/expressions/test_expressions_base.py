@@ -27,7 +27,7 @@ from pyiceberg.expressions.base import (
     IN_PREDICATE_LIMIT,
     ManifestEvaluator,
     rewrite_not,
-    visit_bound_predicate,
+    visit_bound_predicate, _from_byte_buffer,
 )
 from pyiceberg.expressions.literals import (
     Literal,
@@ -45,7 +45,7 @@ from pyiceberg.types import (
     LongType,
     NestedField,
     PrimitiveType,
-    StringType,
+    StringType, ListType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -1812,6 +1812,20 @@ def test_manifest_evaluator_is_nan():
 
     assert ManifestEvaluator(expr).eval(manifest)
 
+def test_manifest_evaluator_is_nan_all_null():
+    expr = base.BoundIsNaN(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None)
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
 
 def test_manifest_evaluator_is_nan_inverse():
     expr = base.BoundIsNaN(
@@ -1887,7 +1901,6 @@ def test_manifest_evaluator_is_null():
 
     assert ManifestEvaluator(expr).eval(manifest)
 
-
 def test_manifest_evaluator_is_null_inverse():
     expr = base.BoundNotNull(
         term=base.BoundReference(
@@ -1914,6 +1927,20 @@ def test_manifest_evaluator_not_null():
     )
 
     assert ManifestEvaluator(expr).eval(manifest)
+
+def test_manifest_evaluator_not_null_nan():
+    expr = base.BoundNotNull(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=True, contains_nan=False, lower_bound=None, upper_bound=None)
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_not_null_inverse():
@@ -1948,6 +1975,47 @@ def test_manifest_evaluator_in():
     )
 
     assert ManifestEvaluator(expr).eval(manifest)
+
+def test_manifest_evaluator_not_in():
+    expr = base.BoundNotIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(22)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=False,
+            upper_bound=False,
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_in_null():
+    expr = base.BoundIn(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literals={LongLiteral(i) for i in range(22)},
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=None,
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+
+    assert not ManifestEvaluator(expr).eval(manifest)
 
 
 def test_manifest_evaluator_in_inverse():
@@ -2074,6 +2142,13 @@ def test_bound_literal_predicate_invert():
             ),
             literal=literal("world"),
         )
+
+
+def test_non_primitive_from_byte_buffer():
+    with pytest.raises(ValueError) as exc_info:
+        _ = _from_byte_buffer(ListType(element_id=1, element_type=StringType()), b'\0x00')
+
+    assert str(exc_info.value) == "Expected a PrimitiveType, got: <class 'pyiceberg.types.ListType'>"
 
 
 def test_unbound_predicate_invert():
