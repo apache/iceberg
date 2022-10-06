@@ -34,7 +34,7 @@ _logger = logging.getLogger(__name__)
 
 
 S3_CLIENT = dict()
-BOTO_STS_CLIENT = boto3.client('sts')
+BOTO_STS_CLIENT = None
 CONF = None
 ROLE_ARN = "default"
 AUTOREFRESH_SESSION = None
@@ -71,6 +71,9 @@ def refresh_sts_session_keys():
     params = {"RoleArn": ROLE_ARN,
               "RoleSessionName": "iceberg_python_client_{}".format(int(time.time() * 1000.00))}
 
+    global BOTO_STS_CLIENT
+    if not BOTO_STS_CLIENT:
+        BOTO_STS_CLIENT = boto3.client('sts')
     sts_creds = BOTO_STS_CLIENT.assume_role(**params).get("Credentials")
     credentials = {"access_key": sts_creds.get("AccessKeyId"),
                    "secret_key": sts_creds.get("SecretAccessKey"),
