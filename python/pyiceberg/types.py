@@ -97,6 +97,10 @@ class IcebergType(IcebergBaseModel, Singleton):
     def is_primitive(self) -> bool:
         return isinstance(self, PrimitiveType)
 
+    @property
+    def is_struct(self) -> bool:
+        return isinstance(self, StructType)
+
 
 class PrimitiveType(IcebergType):
     """Base class for all Iceberg Primitive Types"""
