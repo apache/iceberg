@@ -24,6 +24,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestAggregatePushDown extends SparkCatalogTestBase {
@@ -216,6 +217,41 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
       explainContainsPushDownAggregates = true;
     }
     Assert.assertTrue(
+        "min/max/count not pushed down for deleted", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.AGGREGATE_PUSHDOWN_ENABLED, "false");
+    List<Object[]> expected = sql(select, tableName);
+    assertEquals("min/max/count push down", expected, actual);
+  }
+
+  @Ignore
+  public void testAggregratePushDownInDeleteMergeOnRead() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (1, 3333), (2, 4444), (2, 5555), (2, 6666) ",
+        tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.FORMAT_VERSION, "2");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.DELETE_MODE, "merge-on-read");
+    sql("DELETE FROM %s WHERE data = 1111", tableName);
+    String select = "SELECT max(data), min(data), count(data) FROM %s";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString();
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("MAX(data)")
+        && explainString.contains("MIN(data)")
+        && explainString.contains("COUNT(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+    Assert.assertFalse(
         "min/max/count not pushed down for deleted", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);

@@ -20,7 +20,7 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
 
-public class BoundAggregate<T> extends Aggregate<T, BoundTerm<T>> implements Bound<T> {
+public class BoundAggregate<T> extends Aggregate<BoundTerm<T>> implements Bound<T> {
   protected BoundAggregate(Operation op, BoundTerm<T> term) {
     super(op, term);
   }

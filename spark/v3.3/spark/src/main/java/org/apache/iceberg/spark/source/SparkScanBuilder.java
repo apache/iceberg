@@ -20,14 +20,9 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.AGGREGATE_PUSHDOWN_ENABLED;
 import static org.apache.iceberg.TableProperties.AGGREGATE_PUSHDOWN_ENABLED_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_MODE;
-import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.MERGE_MODE;
-import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
@@ -89,7 +84,6 @@ public class SparkScanBuilder
   private List<Expression> filterExpressions = null;
   private List<Expression> aggregateExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
-  private Aggregation pushedAggregations;
   private StructType pushedAggregateSchema;
   private InternalRow[] pushedAggregateRows;
 
@@ -178,15 +172,9 @@ public class SparkScanBuilder
       return false;
     }
 
-    String deleteMode = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
-    String updateMode = table.properties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
-    String mergeMode = table.properties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
-    // the statistics might be changed for merge on read and can't be used to calculate
-    // min/max/count, so disable aggregate push down
-    // Todo: enable aggregate push down if there are not deletes files for merge-on-read
-    if (deleteMode.equals("merge-on-read")
-        || updateMode.equals("merge-on-read")
-        || mergeMode.equals("merge-on-read")) {
+    Map<String, String> map = table.currentSnapshot().summary();
+    if (Integer.parseInt(map.get("total-position-deletes")) > 0
+        || Integer.parseInt(map.get("total-equality-deletes")) > 0) {
       return false;
     }
 
@@ -213,16 +201,22 @@ public class SparkScanBuilder
         } catch (ValidationException e) {
           // binding to the table schema failed, so this expression cannot be pushed down
           // disable aggregate push down
+          LOG.info(
+              "Failed to bind expression to table schema, can't push down aggregate to iceberg",
+              aggregate,
+              e.getMessage());
           return false;
         }
       } else {
         // only push down aggregates iff all of them can be pushed down.
+        LOG.info(
+            "Failed to convert this aggregate function to iceberg Aggregate, can't push down aggregate to iceberg",
+            aggregate);
         return false;
       }
     }
 
     this.aggregateExpressions = expressions;
-    this.pushedAggregations = aggregation;
 
     pushedAggregateSchema =
         SparkPushedDownAggregateUtil.buildSchemaForPushedDownAggregate(
@@ -271,6 +265,20 @@ public class SparkScanBuilder
 
   @Override
   public Scan build() {
+    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file
+    // read tasks and sending over the tasks to Spark executors, a SparkLocalScan will be created
+    // and the scan is done locally on the Spark driver instead of the executors. The statistics
+    // info will be retrieved from manifest file and used to build a Spark internal row, which
+    // contains the pushed down aggregate values.
+    if (pushedAggregateRows != null) {
+      return new SparkLocalScan(
+          table, aggregateExpressions, pushedAggregateSchema, pushedAggregateRows);
+    } else {
+      return buildBatchScan();
+    }
+  }
+
+  private Scan buildBatchScan() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
 
@@ -322,16 +330,6 @@ public class SparkScanBuilder
       } else {
         scan = scan.appendsAfter(startSnapshotId);
       }
-    }
-
-    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file
-    // read tasks and sending over the tasks to Spark executors, a SparkLocalScan will be created
-    // and the scan is done locally on the Spark driver instead of the executors. The statistics
-    // info will be retrieved from manifest file and used to build a Spark internal row, which
-    // contains the pushed down aggregate values.
-    if (pushedAggregateRows != null) {
-      return new SparkLocalScan(
-          table, aggregateExpressions, pushedAggregateSchema, pushedAggregateRows);
     }
 
     scan = configureSplitPlanning(scan);

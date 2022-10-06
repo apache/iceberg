@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.expressions;
 
-public abstract class Aggregate<T, C extends Term> implements Expression {
+/**
+ * The aggregate functions that can be pushed and evaluated in Iceberg. Currently only three
+ * aggregate functions Max, Min and Count are supported.
+ */
+public abstract class Aggregate<C extends Term> implements Expression {
   private final Operation op;
   private final C term;
 

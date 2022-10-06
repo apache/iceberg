@@ -105,6 +105,11 @@ public class SparkPushedDownAggregateUtil {
     return SparkSchemaUtil.convert(type);
   }
 
+  /**
+   * get "lower_bounds", "upper_bounds", "record_count", "null_value_counts" from metadata table and
+   * use these to calculate Max/Min/Count, and then use the values of Max/Min/Count to construct an
+   * InternalRow to return to Spark.
+   */
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static InternalRow[] constructInternalRowForPushedDownAggregate(
       SparkSession spark, Table table, StructType pushedAggregateSchema, boolean caseSensitive) {
@@ -116,7 +121,7 @@ public class SparkPushedDownAggregateUtil {
     Dataset dataset =
         metadataRows.selectExpr(
             "lower_bounds", "upper_bounds", "record_count", "null_value_counts");
-    Row[] staticticRows = (Row[]) dataset.collect();
+    Row[] statisticRows = (Row[]) dataset.collect();
 
     StructField[] fields = pushedAggregateSchema.fields();
     List<Object> valuesInSparkInternalRow = Lists.newArrayList();
@@ -124,31 +129,31 @@ public class SparkPushedDownAggregateUtil {
     for (int i = 0; i < fields.length; i++) {
       if (fields[i].name().contains("MIN")) {
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        Object min = getMinOrMax(staticticRows, index + 1, fields[i], true);
+        Object min = getMinOrMax(statisticRows, index + 1, fields[i], true);
         if (min == null) {
           return null; // if min is not available, don't push down aggregate
         }
         valuesInSparkInternalRow.add(min);
       } else if (fields[i].name().contains("MAX")) {
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        Object max = getMinOrMax(staticticRows, index + 1, fields[i], false);
+        Object max = getMinOrMax(statisticRows, index + 1, fields[i], false);
         if (max == null) {
           return null; // if max is not available, don't push down aggregate
         }
         valuesInSparkInternalRow.add(max);
       } else if (fields[i].name().contains("COUNT(*)")) {
         long count = 0;
-        for (int j = 0; j < staticticRows.length; j++) {
-          count += staticticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
+        for (int j = 0; j < statisticRows.length; j++) {
+          count += statisticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
         }
         valuesInSparkInternalRow.add(count);
       } else if (fields[i].name().contains("COUNT")) {
         long count = 0;
-        for (int j = 0; j < staticticRows.length; j++) {
-          count += staticticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
+        for (int j = 0; j < statisticRows.length; j++) {
+          count += statisticRows[j].getLong(2); // record_count is the 3rd column in staticticRows
         }
         int index = indexInTableSchema(fields[i], table, caseSensitive);
-        long numOfNulls = getNullValueCount(staticticRows, index + 1);
+        long numOfNulls = getNullValueCount(statisticRows, index + 1);
         valuesInSparkInternalRow.add(count - numOfNulls);
       }
     }
@@ -187,6 +192,7 @@ public class SparkPushedDownAggregateUtil {
     return numOfNlls;
   }
 
+  /** loop through "lower_bounds" or "upper_bounds" to get min or max */
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   private static Object getMinOrMax(Row[] rows, int index, StructField field, boolean isMin) {
     Object result = null;

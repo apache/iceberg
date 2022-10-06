@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 
-public class UnboundAggregate<T> extends Aggregate<T, UnboundTerm<T>>
+public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
     implements Unbound<T, Expression> {
 
   UnboundAggregate(Operation op, UnboundTerm<T> term) {
