@@ -291,7 +291,9 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeNumber(Number value, String type) {
-    int numDigits = (int) Math.log10(value.doubleValue()) + 1;
+    // log10 of zero isn't defined and will result in negative infinity
+    int numDigits =
+        0.0d == value.doubleValue() ? 1 : (int) Math.log10(Math.abs(value.doubleValue())) + 1;
     return "(" + numDigits + "-digit-" + type + ")";
   }
 
