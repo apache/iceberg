@@ -673,6 +673,15 @@ project(':iceberg-dell') {
   }
 }
 
+project(':iceberg-snowflake') {
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    runtimeOnly "net.snowflake:snowflake-jdbc"
+  }
+}
+
 @Memoized
 boolean versionFileExists() {
   return file('version.txt').exists()
