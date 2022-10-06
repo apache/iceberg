@@ -27,6 +27,7 @@ from pydantic import Field
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
+from pyiceberg.types import NestedField, StructType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 INITIAL_PARTITION_SPEC_ID = 0
@@ -77,9 +78,8 @@ class PartitionSpec(IcebergBaseModel):
     PartitionSpec captures the transformation from table data to partition values
 
     Attributes:
-        schema(Schema): the schema of data table
         spec_id(int): any change to PartitionSpec will produce a new specId
-        fields(List[PartitionField): list of partition fields to produce partition values
+        fields(Tuple[PartitionField): list of partition fields to produce partition values
     """
 
     spec_id: int = Field(alias="spec-id", default=INITIAL_PARTITION_SPEC_ID)
@@ -157,6 +157,29 @@ class PartitionSpec(IcebergBaseModel):
             and this_field.name == that_field.name
             for this_field, that_field in zip(self.fields, other.fields)
         )
+
+    def partition_type(self, schema: Schema) -> StructType:
+        """Produces a struct of the PartitionSpec
+
+        The partition fields should be optional:
+
+        - All partition transforms are required to produce null if the input value is null, so it can
+          happen when the source column is optional
+        - Partition fields may be added later, in which case not all files would have the result field,
+          and it may be null.
+
+        There is a case where we can guarantee that a partition field in the first and only partition spec
+        that uses a required source column will never be null, but it doesn't seem worth tracking this case.
+
+        :param schema: The schema to bind to
+        :return: A StructType that represents the PartitionSpec, with a NestedField for each PartitionField
+        """
+        nested_fields = []
+        for field in self.fields:
+            source_type = schema.find_type(field.source_id)
+            result_type = field.transform.result_type(source_type)
+            nested_fields.append(NestedField(field.field_id, field.name, result_type, required=False))
+        return StructType(*nested_fields)
 
 
 UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)
