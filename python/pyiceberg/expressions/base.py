@@ -882,19 +882,6 @@ ROWS_CANNOT_MATCH = False
 IN_PREDICATE_LIMIT = 200
 
 
-def _all_values_are_null(partition_field: PartitionFieldSummary, field_type: IcebergType) -> bool:
-    # contains_null encodes whether at least one partition value is null,
-    # lowerBound is null if all partition values are null
-    all_null = partition_field.contains_null is True and partition_field.lower_bound is None
-
-    if all_null and type(field_type) in {DoubleType, FloatType}:
-        # floating point types may include NaN values, which we check separately.
-        # In case bounds don't include NaN value, contains_nan needs to be checked against.
-        return partition_field.contains_nan is False
-
-    return all_null
-
-
 def _from_byte_buffer(field_type: IcebergType, val: bytes):
     if not isinstance(field_type, PrimitiveType):
         raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
@@ -950,9 +937,6 @@ class ManifestEvaluator(BoundBooleanExpressionVisitor[bool]):
         if field.contains_nan is False:
             return ROWS_CANNOT_MATCH
 
-        if _all_values_are_null(field, term.ref().field.field_type):
-            return ROWS_CANNOT_MATCH
-
         return ROWS_MIGHT_MATCH
 
     def visit_not_nan(self, term: BoundTerm) -> bool:
@@ -975,7 +959,16 @@ class ManifestEvaluator(BoundBooleanExpressionVisitor[bool]):
     def visit_not_null(self, term: BoundTerm) -> bool:
         pos = term.ref().accessor.position
 
-        if _all_values_are_null(self.partition_fields[pos], term.ref().field.field_type):
+        # contains_null encodes whether at least one partition value is null,
+        # lowerBound is null if all partition values are null
+        all_null = self.partition_fields[pos].contains_null is True and self.partition_fields[pos].lower_bound is None
+
+        if all_null and type(term.ref().field.field_type) in {DoubleType, FloatType}:
+            # floating point types may include NaN values, which we check separately.
+            # In case bounds don't include NaN value, contains_nan needs to be checked against.
+            all_null = self.partition_fields[pos].contains_nan is False
+
+        if all_null:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH

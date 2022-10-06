@@ -26,8 +26,9 @@ from pyiceberg.expressions import base
 from pyiceberg.expressions.base import (
     IN_PREDICATE_LIMIT,
     ManifestEvaluator,
+    _from_byte_buffer,
     rewrite_not,
-    visit_bound_predicate, _from_byte_buffer,
+    visit_bound_predicate,
 )
 from pyiceberg.expressions.literals import (
     Literal,
@@ -42,10 +43,11 @@ from pyiceberg.types import (
     FloatType,
     IcebergType,
     IntegerType,
+    ListType,
     LongType,
     NestedField,
     PrimitiveType,
-    StringType, ListType,
+    StringType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -1812,20 +1814,6 @@ def test_manifest_evaluator_is_nan():
 
     assert ManifestEvaluator(expr).eval(manifest)
 
-def test_manifest_evaluator_is_nan_all_null():
-    expr = base.BoundIsNaN(
-        term=base.BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None)
-    )
-
-    assert ManifestEvaluator(expr).eval(manifest)
-
 
 def test_manifest_evaluator_is_nan_inverse():
     expr = base.BoundIsNaN(
@@ -1901,15 +1889,18 @@ def test_manifest_evaluator_is_null():
 
     assert ManifestEvaluator(expr).eval(manifest)
 
+
 def test_manifest_evaluator_is_null_inverse():
-    expr = base.BoundNotNull(
+    expr = base.BoundIsNull(
         term=base.BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
     )
 
-    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
+    )
 
     assert not ManifestEvaluator(expr).eval(manifest)
 
@@ -1927,6 +1918,7 @@ def test_manifest_evaluator_not_null():
     )
 
     assert ManifestEvaluator(expr).eval(manifest)
+
 
 def test_manifest_evaluator_not_null_nan():
     expr = base.BoundNotNull(
@@ -1956,6 +1948,20 @@ def test_manifest_evaluator_not_null_inverse():
     assert not ManifestEvaluator(expr).eval(manifest)
 
 
+def test_manifest_evaluator_not_equal_to():
+    expr = base.BoundNotEqualTo(
+        term=base.BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("this"),
+    )
+
+    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
 def test_manifest_evaluator_in():
     expr = base.BoundIn(
         term=base.BoundReference(
@@ -1975,6 +1981,7 @@ def test_manifest_evaluator_in():
     )
 
     assert ManifestEvaluator(expr).eval(manifest)
+
 
 def test_manifest_evaluator_not_in():
     expr = base.BoundNotIn(
@@ -2102,6 +2109,103 @@ def test_manifest_evaluator_greater_than_upper_bound():
     assert not ManifestEvaluator(expr).eval(manifest)
 
 
+def test_manifest_evaluator_true():
+    expr = base.AlwaysTrue()
+
+    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_false():
+    expr = base.AlwaysFalse()
+
+    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_not():
+    expr = base.Not(
+        base.BoundIn(
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals={LongLiteral(i) for i in range(22)},
+        )
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+    assert not ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_and():
+    expr = base.And(
+        base.BoundIn(
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals={LongLiteral(i) for i in range(22)},
+        ),
+        base.BoundIn(
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals={LongLiteral(i) for i in range(22)},
+        ),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_or():
+    expr = base.Or(
+        base.BoundIn(
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals={LongLiteral(i) for i in range(22)},
+        ),
+        base.BoundIn(
+            term=base.BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literals={LongLiteral(i) for i in range(22)},
+        ),
+    )
+
+    manifest = _to_manifest_file(
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=_to_byte_buffer(LongType(), 5),
+            upper_bound=_to_byte_buffer(LongType(), 10),
+        )
+    )
+
+    assert ManifestEvaluator(expr).eval(manifest)
+
+
 def test_bound_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~base.BoundPredicate(
@@ -2146,7 +2250,7 @@ def test_bound_literal_predicate_invert():
 
 def test_non_primitive_from_byte_buffer():
     with pytest.raises(ValueError) as exc_info:
-        _ = _from_byte_buffer(ListType(element_id=1, element_type=StringType()), b'\0x00')
+        _ = _from_byte_buffer(ListType(element_id=1, element_type=StringType()), b"\0x00")
 
     assert str(exc_info.value) == "Expected a PrimitiveType, got: <class 'pyiceberg.types.ListType'>"
 
