@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -29,9 +27,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -128,14 +127,14 @@ public class ParquetSchemaUtil {
 
   public static MessageType addFallbackIds(MessageType fileSchema) {
     MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
-    Queue<Pair<Type, List<String>>> queue = new LinkedList<>();
+    Queue<Pair<Type, List<String>>> queue = new ArrayDeque<>();
     enqueueFields(fileSchema.getFields(), queue, Collections.emptyList());
     // generate a map of field path to the desired ID, IDs are computed in BFS order
-    Map<List<String>, Integer> pathToId = new HashMap<>();
+    Map<List<String>, Integer> pathToId = Maps.newHashMap();
     int ordinal = 1; // ids are assigned starting at 1
     while (!queue.isEmpty()) {
       Pair<Type, List<String>> current = queue.remove();
-      List<String> currentPath = new ArrayList<>(current.second());
+      List<String> currentPath = Lists.newArrayList(current.second());
       currentPath.add(current.first().getName());
       if (!current.first().isPrimitive()) {
         enqueueFields(current.first().asGroupType().getFields(), queue, currentPath);
@@ -143,39 +142,47 @@ public class ParquetSchemaUtil {
       pathToId.put(currentPath, ordinal);
       ordinal += 1;
     }
-    applyFieldIds(fileSchema.getFields(), pathToId, new ArrayList<>()).forEach(builder::addField);
+    applyFieldIds(fileSchema.getFields(), pathToId, Lists.newArrayList())
+        .forEach(builder::addField);
     return builder.named(fileSchema.getName());
   }
 
-  private static void enqueueFields(List<Type> fields, Queue<Pair<Type, List<String>>> queue, List<String> currentPath) {
-    fields.forEach(field -> {
-      if (field.getName().equals("list") || field.getName().equals("key_value")) {
-        // skip to the list element or map key_value field
-        List<String> path = new ArrayList<>(currentPath);
-        path.add(field.getName());
-        enqueueFields(field.asGroupType().getFields(), queue, path);
-      } else {
-        queue.add(Pair.of(field, currentPath));
-      }
-    });
+  private static void enqueueFields(
+      List<Type> fields, Queue<Pair<Type, List<String>>> queue, List<String> currentPath) {
+    fields.forEach(
+        field -> {
+          if (field.getName().equals("list") || field.getName().equals("key_value")) {
+            // skip to the list element or map key_value field
+            List<String> path = Lists.newArrayList(currentPath);
+            path.add(field.getName());
+            enqueueFields(field.asGroupType().getFields(), queue, path);
+          } else {
+            queue.add(Pair.of(field, currentPath));
+          }
+        });
   }
 
-  private static List<Type> applyFieldIds(List<Type> input, Map<List<String>, Integer> pathToId, List<String> parentPath) {
-    return input.stream().map(type -> {
-      List<String> currentPath = new ArrayList<>(parentPath);
-      currentPath.add(type.getName());
-      Type returnType = type;
-      if (type instanceof GroupType) {
-        GroupType groupType = (GroupType) type;
-        List<Type> childTypesWithIds = applyFieldIds(groupType.getFields(), pathToId, currentPath);
-        returnType = groupType.withNewFields(childTypesWithIds);
-      }
-      if (pathToId.containsKey(currentPath)) {
-        return returnType.withId(pathToId.get(currentPath));
-      } else {
-        return returnType;
-      }
-    }).collect(Collectors.toList());
+  private static List<Type> applyFieldIds(
+      List<Type> input, Map<List<String>, Integer> pathToId, List<String> parentPath) {
+    return input.stream()
+        .map(
+            type -> {
+              List<String> currentPath = Lists.newArrayList(parentPath);
+              currentPath.add(type.getName());
+              Type returnType = type;
+              if (type instanceof GroupType) {
+                GroupType groupType = (GroupType) type;
+                List<Type> childTypesWithIds =
+                    applyFieldIds(groupType.getFields(), pathToId, currentPath);
+                returnType = groupType.withNewFields(childTypesWithIds);
+              }
+              if (pathToId.containsKey(currentPath)) {
+                return returnType.withId(pathToId.get(currentPath));
+              } else {
+                return returnType;
+              }
+            })
+        .collect(Collectors.toList());
   }
 
   public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {

@@ -21,8 +21,6 @@ package org.apache.iceberg.parquet;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -393,25 +391,26 @@ public class TestParquetSchemaUtil {
 
   @Test
   public void testAddFallbackIds() {
-    String messageType = "message schema_without_ids {"
-        + "  required double top_level_field;"
-        + "  required group map_field (MAP) {"
-        + "    repeated group key_value (MAP_KEY_VALUE) {"
-        + "      required binary key (STRING);"
-        + "      required binary value (STRING);"
-        + "    }"
-        + "  }"
-        + "  required group nested_parent {"
-        + "    required double nested_child;"
-        + "  }"
-        + "  required group list_field (LIST) {"
-        + "    repeated group list {"
-        + "      required group element {"
-        + "        required double amount;"
-        + "      }"
-        + "    }"
-        + "  }"
-        + "}";
+    String messageType =
+        "message schema_without_ids {"
+            + "  required double top_level_field;"
+            + "  required group map_field (MAP) {"
+            + "    repeated group key_value (MAP_KEY_VALUE) {"
+            + "      required binary key (STRING);"
+            + "      required binary value (STRING);"
+            + "    }"
+            + "  }"
+            + "  required group nested_parent {"
+            + "    required double nested_child;"
+            + "  }"
+            + "  required group list_field (LIST) {"
+            + "    repeated group list {"
+            + "      required group element {"
+            + "        required double amount;"
+            + "      }"
+            + "    }"
+            + "  }"
+            + "}";
     MessageType schemaWithoutIds = MessageTypeParser.parseMessageType(messageType);
     MessageType schemaWithIds = ParquetSchemaUtil.addFallbackIds(schemaWithoutIds);
 
@@ -419,11 +418,16 @@ public class TestParquetSchemaUtil {
     Assert.assertEquals(new Type.ID(2), schemaWithIds.getType("map_field").getId());
     Assert.assertEquals(new Type.ID(3), schemaWithIds.getType("nested_parent").getId());
     Assert.assertEquals(new Type.ID(4), schemaWithIds.getType("list_field").getId());
-    Assert.assertEquals(new Type.ID(5), schemaWithIds.getType("map_field", "key_value", "key").getId());
-    Assert.assertEquals(new Type.ID(6), schemaWithIds.getType("map_field", "key_value", "value").getId());
-    Assert.assertEquals(new Type.ID(7), schemaWithIds.getType("nested_parent", "nested_child").getId());
-    Assert.assertEquals(new Type.ID(8), schemaWithIds.getType("list_field", "list", "element").getId());
-    Assert.assertEquals(new Type.ID(9), schemaWithIds.getType("list_field", "list", "element", "amount").getId());
+    Assert.assertEquals(
+        new Type.ID(5), schemaWithIds.getType("map_field", "key_value", "key").getId());
+    Assert.assertEquals(
+        new Type.ID(6), schemaWithIds.getType("map_field", "key_value", "value").getId());
+    Assert.assertEquals(
+        new Type.ID(7), schemaWithIds.getType("nested_parent", "nested_child").getId());
+    Assert.assertEquals(
+        new Type.ID(8), schemaWithIds.getType("list_field", "list", "element").getId());
+    Assert.assertEquals(
+        new Type.ID(9), schemaWithIds.getType("list_field", "list", "element", "amount").getId());
   }
 
   @Test
