@@ -28,8 +28,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -120,6 +123,31 @@ public class TestSpark3Util extends SparkTestBase {
     Catalog catalog = Spark3Util.loadIcebergCatalog(spark, "test_cat");
     Assert.assertTrue(
         "Should retrieve underlying catalog class", catalog instanceof CachingCatalog);
+  }
+
+  // Bug 5935
+  @Test
+  public void testCurrentSessionSetAsActive() throws Exception {
+    stopMetastoreAndSpark();
+    startMetastoreAndSpark();
+    Assert.assertFalse(spark.conf().contains(SQLConf.V2_SESSION_CATALOG_IMPLEMENTATION().key()));
+    String testTableName = "default.testtable";
+    SparkSession hiveSupportSession = spark.newSession();
+    try {
+      hiveSupportSession.conf().set(SQLConf.V2_SESSION_CATALOG_IMPLEMENTATION().key(),
+        SparkSessionCatalog.class.getName());
+      hiveSupportSession.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
+
+      // create an iceberg table
+      String tableString = String.format("CREATE TABLE %s (id bigint, data string)" +
+          " USING iceberg PARTITIONED BY (data) TBLPROPERTIES('%s'='%s')", testTableName,
+        TableProperties.FORMAT_VERSION, "2");
+      hiveSupportSession.sql(tableString);
+      // Now load the created iceberg table
+      Spark3Util.loadIcebergTable(hiveSupportSession, testTableName);
+    } finally {
+      hiveSupportSession.sql(String.format("drop table if exists %s", testTableName));
+    }
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {
