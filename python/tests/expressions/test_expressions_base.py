@@ -26,8 +26,8 @@ from pyiceberg.expressions import base
 from pyiceberg.expressions.base import (
     IN_PREDICATE_LIMIT,
     BoundPredicate,
-    ManifestEvaluator,
     _from_byte_buffer,
+    _ManifestEvalVisitor,
     rewrite_not,
     visit_bound_predicate,
 )
@@ -1396,9 +1396,9 @@ def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     )
 
 
-def _create_manifest_evaluator(bound_expr: BoundPredicate) -> ManifestEvaluator:
+def _create_manifest_evaluator(bound_expr: BoundPredicate) -> _ManifestEvalVisitor:
     """For testing. Creates a bogus evaluator, and then replaces the expression"""
-    evaluator = ManifestEvaluator(
+    evaluator = _ManifestEvalVisitor(
         Schema(NestedField(1, "id", LongType())), base.EqualTo(term=base.Reference("id"), literal=literal("foo"))
     )
     evaluator.partition_filter = bound_expr

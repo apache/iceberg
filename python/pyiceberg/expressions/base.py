@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from functools import reduce, singledispatch
 from typing import (
     Any,
+    Callable,
     ClassVar,
     Generic,
     TypeVar,
@@ -888,7 +889,7 @@ def _from_byte_buffer(field_type: IcebergType, val: bytes):
     return from_bytes(field_type, val)
 
 
-class ManifestEvaluator(BoundBooleanExpressionVisitor[bool]):
+class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: list[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
@@ -1068,3 +1069,10 @@ class ManifestEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_or(self, left_result: bool, right_result: bool) -> bool:
         return left_result or right_result
+
+
+def manifest_evaluator(
+    schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True
+) -> Callable[[ManifestFile], bool]:
+    evaluator = _ManifestEvalVisitor(schema, partition_filter, case_sensitive)
+    return evaluator.eval
