@@ -18,15 +18,15 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.junit.Assert.assertEquals;
+
 import java.util.Collections;
 import java.util.function.Supplier;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Test;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.Assert.assertEquals;
 
 public class TestBuildAvroProjection {
 
@@ -415,16 +415,16 @@ public class TestBuildAvroProjection {
   public void projectUnionWithBranchSchemaUnchanged() {
 
     final Type icebergType =
-            Types.StructType.of(
-                    Types.NestedField.required(0, "tag", Types.IntegerType.get()),
-                    Types.NestedField.optional(1, "field0", Types.IntegerType.get()),
-                    Types.NestedField.optional(2, "field1", Types.StringType.get()));
+        Types.StructType.of(
+            Types.NestedField.required(0, "tag", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "field0", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "field1", Types.StringType.get()));
 
     final org.apache.avro.Schema expected =
-            SchemaBuilder.unionOf().intType().and().stringType().endUnion();
+        SchemaBuilder.unionOf().intType().and().stringType().endUnion();
 
     final BuildAvroProjection testSubject =
-            new BuildAvroProjection(icebergType, Collections.emptyMap());
+        new BuildAvroProjection(icebergType, Collections.emptyMap());
 
     final Iterable<org.apache.avro.Schema> branches = expected.getTypes();
 

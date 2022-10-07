@@ -309,7 +309,7 @@ public class SparkValueReaders {
       int index = decoder.readIndex();
       if (index != super.getNullTypeIndex()) {
         int fieldIndex =
-                (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
+            (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
         if (super.isTagFieldProjected()) {
           row.setInt(0, fieldIndex);
         }
@@ -326,16 +326,16 @@ public class SparkValueReaders {
     }
 
     private InternalRow reuseOrCreate(Object reuse) {
-      if (reuse == null || !(reuse instanceof InternalRow)) {
-        reuse = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
+      InternalRow row;
+      if (reuse instanceof InternalRow) {
+        row = (InternalRow) reuse;
+      } else {
+        row = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
       }
-
-      InternalRow row = (InternalRow) reuse;
-      for (int i = 0; i < row.numFields(); i += 1) {
+      for (int i = 0; i < row.numFields(); ++i) {
         row.setNullAt(i);
       }
       return row;
     }
-
   }
 }
