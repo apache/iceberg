@@ -84,8 +84,8 @@ interface ManifestEntry<F extends ContentFile<F>> {
    * older sequence numbers (e.g. compaction). The data sequence number also does not change when
    * the file is marked as deleted.
    *
-   * <p>This method can return null if the data sequence number is not known. This may happen while
-   * reading a V2 manifest that did not persist the data sequence number for manifest entries with
+   * <p>This method can return null if the data sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the data sequence number for manifest entries with
    * status DELETED (older Iceberg versions).
    */
   Long dataSequenceNumber();

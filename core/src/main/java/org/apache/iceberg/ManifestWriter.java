@@ -133,9 +133,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an existing entry for a file.
    *
+   * <p>The original data sequence number and snapshot ID, which were assigned at commit, must be
+   * preserved when adding an existing entry.
+   *
    * @param existingFile a file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
-   * @param dataSequenceNumber a data sequence number for the file
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
    */
   public void existing(F existingFile, long fileSnapshotId, long dataSequenceNumber) {
     addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, existingFile));
@@ -148,10 +151,26 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add a delete entry for a file.
    *
-   * <p>The entry's snapshot ID will be this manifest's snapshot ID.
+   * <p>This method must not be used as the original data sequence number of the file must be
+   * preserved when the file is marked as deleted.
    *
    * @param deletedFile a file
-   * @param dataSequenceNumber a data sequence number for the file
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #delete(ContentFile, long)}.
+   */
+  @Deprecated
+  public void delete(F deletedFile) {
+    throw new UnsupportedOperationException(
+        "Can't add a delete entry without a data sequence number");
+  }
+
+  /**
+   * Add a delete entry for a file.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. However, the original data
+   * sequence number of the file must be preserved when the file is marked as deleted.
+   *
+   * @param deletedFile a file
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
    */
   public void delete(F deletedFile, long dataSequenceNumber) {
     addEntry(reused.wrapDelete(snapshotId, dataSequenceNumber, deletedFile));
