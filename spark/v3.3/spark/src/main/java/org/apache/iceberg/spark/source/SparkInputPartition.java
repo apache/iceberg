@@ -78,6 +78,7 @@ class SparkInputPartition implements InputPartition, Serializable {
     if (expectedSchema == null) {
       this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
     }
+
     return expectedSchema;
   }
 }

@@ -38,7 +38,7 @@ import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 
-public class SparkChangelogBatch implements Batch {
+class SparkChangelogBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -46,7 +46,7 @@ public class SparkChangelogBatch implements Batch {
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
-  private final int semanticBatchId;
+  private final int scanHashCode;
 
   SparkChangelogBatch(
       SparkSession spark,
@@ -54,14 +54,14 @@ public class SparkChangelogBatch implements Batch {
       SparkReadConf readConf,
       List<ScanTaskGroup<ChangelogScanTask>> taskGroups,
       Schema expectedSchema,
-      int semanticBatchId) {
+      int scanHashCode) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.taskGroups = taskGroups;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
-    this.semanticBatchId = semanticBatchId;
+    this.scanHashCode = scanHashCode;
   }
 
   @Override
@@ -104,12 +104,12 @@ public class SparkChangelogBatch implements Batch {
     }
 
     SparkChangelogBatch that = (SparkChangelogBatch) o;
-    return table.name().equals(that.table.name()) && semanticBatchId == that.semanticBatchId;
+    return table.name().equals(that.table.name()) && scanHashCode == that.scanHashCode;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(table.name(), semanticBatchId);
+    return Objects.hash(table.name(), scanHashCode);
   }
 
   private static class ReaderFactory implements PartitionReaderFactory {
