@@ -304,30 +304,38 @@ public class SparkValueReaders {
 
     @Override
     public InternalRow read(Decoder decoder, Object reuse) throws IOException {
+      InternalRow row = reuseOrCreate(reuse);
+
       int index = decoder.readIndex();
-      if (index == super.getNullTypeIndex()) {
-        // if it is a null data, directly return null as the whole union result
-        // we know for sure it is a null so the casting will always work.
-        return (InternalRow) super.getReaders()[index].read(decoder, reuse);
+      if (index != super.getNullTypeIndex()) {
+        int fieldIndex =
+                (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
+        if (super.isTagFieldProjected()) {
+          row.setInt(0, fieldIndex);
+        }
+
+        Object value = super.getReaders()[index].read(decoder, reuse);
+        if (super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex] != -1) {
+          row.update(super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex], value);
+        }
+      } else {
+        super.getReaders()[index].read(decoder, reuse);
       }
 
-      // otherwise, we need to return an InternalRow as a struct data
-      InternalRow struct = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
-      for (int i = 0; i < struct.numFields(); i += 1) {
-        struct.setNullAt(i);
-      }
-      int fieldIndex =
-          (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
-      if (super.isTagFieldProjected()) {
-        struct.setInt(0, fieldIndex);
-      }
-
-      Object value = super.getReaders()[index].read(decoder, reuse);
-      if (super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex] != -1) {
-        struct.update(super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex], value);
-      }
-
-      return struct;
+      return row;
     }
+
+    private InternalRow reuseOrCreate(Object reuse) {
+      if (reuse == null || !(reuse instanceof InternalRow)) {
+        reuse = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
+      }
+
+      InternalRow row = (InternalRow) reuse;
+      for (int i = 0; i < row.numFields(); i += 1) {
+        row.setNullAt(i);
+      }
+      return row;
+    }
+
   }
 }

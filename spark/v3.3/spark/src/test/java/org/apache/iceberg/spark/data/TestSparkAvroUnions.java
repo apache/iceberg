@@ -136,7 +136,9 @@ public class TestSparkAvroUnions {
 
       Assert.assertEquals("foo", rows.get(0).getStruct(0, 3).getString(2));
       Assert.assertEquals(1, rows.get(1).getStruct(0, 3).getInt(1));
-      Assert.assertTrue(rows.get(2).isNullAt(0));
+      Assert.assertTrue(rows.get(2).getStruct(0, 3).isNullAt(0));
+      Assert.assertTrue(rows.get(2).getStruct(0, 3).isNullAt(1));
+      Assert.assertTrue(rows.get(2).getStruct(0, 3).isNullAt(2));
     }
   }
 
