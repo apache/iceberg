@@ -597,14 +597,9 @@ URL Connection HTTP Client has the following configurable properties:
 | http-client.urlconnection.socket-timeout-ms     | null    | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds         |
 | http-client.urlconnection.connection-timeout-ms | null    | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
 
-Here is an example to start Spark shell with URL Connection HTTP client and some optional settings:
+Users can use catalog properties to override the defaults. For example, to configure the socket timeout for URL Connection HTTP Client when starting a spark shell, one can add:
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
-    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
-    --conf spark.sql.catalog.my_catalog.http-client.urlconnection.socket-timeout-ms=80 \
-    --conf spark.sql.catalog.my_catalog.http-client.urlconnection.connection-timeout-ms=90
+--conf spark.sql.catalog.my_catalog.http-client.urlconnection.socket-timeout-ms=80
 ```
 
 #### Apache HTTP Client Configurations
@@ -623,16 +618,9 @@ Apache HTTP Client has the following configurable properties:
 | http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that decide whether to enable [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean))                 |
 | http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that decide whether to [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) |
 
-Here is an example to start Spark shell with Apache HTTP Client and some optional settings:
+Users can use catalog properties to override the defaults. For example, to configure the max connections for Apache HTTP Client when starting a spark shell, one can add:
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
-    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
-    --conf spark.sql.catalog.my_catalog.http-client.type=apache \
-    --conf spark.sql.catalog.my_catalog.http-client.apache.connection-acquisition-timeout-ms=81 \
-    --conf spark.sql.catalog.my_catalog.http-client.apache.expect-continue-enabled=true \
-    --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
+--conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
 
 ## Run Iceberg on AWS
