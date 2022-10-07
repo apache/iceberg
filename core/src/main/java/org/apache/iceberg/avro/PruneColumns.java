@@ -137,7 +137,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       return null;
     } else {
       // Complex union case
-      return copyUnion(union, options);
+      return pruneComplexUnion(union, options);
     }
   }
 
@@ -346,26 +346,29 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         && schema.getTypes().get(0).getType() != Schema.Type.NULL;
   }
 
-  // for primitive types, the visitResult will be null, we want to reuse the primitive types from
-  // the original
-  // schema, while for nested types, we want to use the visitResult because they have content from
-  // the previous
-  // recursive calls.
-  private static Schema copyUnion(Schema record, List<Schema> visitResults) {
+  /**
+   * For primitive types, the visitResult will be null, we want to reuse the primitive types from
+   * the original schema, while for nested types, we want to use the visitResult because they have
+   * content from the previous recursive calls. Also the id of the field in the Iceberg schema
+   * corresponding to each branch schema of the union is assigned as the property named "branch-id"
+   * of the branch schema.
+   */
+  private Schema pruneComplexUnion(Schema union, List<Schema> visitResults) {
     List<Schema> branches = Lists.newArrayListWithExpectedSize(visitResults.size());
-    for (int i = 0; i < visitResults.size(); i++) {
-      if (visitResults.get(i) == null) {
-        branches.add(record.getTypes().get(i));
-      } else {
-        branches.add(visitResults.get(i));
+
+    List<Schema> unionTypes = union.getTypes();
+    for (int i = 0; i < visitResults.size(); ++i) {
+      Schema branchSchema = visitResults.get(i);
+      if (branchSchema == null) {
+        branchSchema = unionTypes.get(i);
       }
+      Integer branchId = AvroSchemaUtil.getBranchId(branchSchema, nameMapping, fieldNames());
+      if (branchId != null) {
+        branchSchema.addProp(AvroSchemaUtil.BRANCH_ID_PROP, String.valueOf(branchId));
+      }
+
+      branches.add(branchSchema);
     }
-    Schema schema = Schema.createUnion(branches);
-    if (record.getObjectProp(SchemaToType.AVRO_FIELD_NAME_TO_ICEBERG_ID) != null) {
-      schema.addProp(
-          SchemaToType.AVRO_FIELD_NAME_TO_ICEBERG_ID,
-          record.getObjectProp(SchemaToType.AVRO_FIELD_NAME_TO_ICEBERG_ID));
-    }
-    return schema;
+    return Schema.createUnion(branches);
   }
 }

@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
@@ -43,6 +44,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -750,6 +752,77 @@ public class ValueReaders {
     public Long read(Decoder ignored, Object reuse) throws IOException {
       currentPosition += 1;
       return currentPosition;
+    }
+  }
+
+  public static class ComplexUnionReader<T> implements ValueReader<T> {
+    private static final String UNION_TAG_FIELD_NAME = "tag";
+    private final ValueReader[] readers;
+    private final int[] projectedFieldIdsToIdxInReturnedRow;
+    private boolean isTagFieldProjected;
+    private int numOfFieldsInReturnedRow;
+    private int nullTypeIndex;
+
+    public ValueReader[] getReaders() {
+      return readers;
+    }
+
+    public int[] getProjectedFieldIdsToIdxInReturnedRow() {
+      return projectedFieldIdsToIdxInReturnedRow;
+    }
+
+    public boolean isTagFieldProjected() {
+      return isTagFieldProjected;
+    }
+
+    public int getNumOfFieldsInReturnedRow() {
+      return numOfFieldsInReturnedRow;
+    }
+
+    public int getNullTypeIndex() {
+      return nullTypeIndex;
+    }
+
+    public ComplexUnionReader(List<ValueReader<?>> readers, Type expected) {
+      this.readers = new ValueReader[readers.size()];
+      for (int i = 0; i < this.readers.length; i += 1) {
+        this.readers[i] = readers.get(i);
+      }
+
+      // checking if NULL type exists in Avro union schema
+      this.nullTypeIndex = -1;
+      for (int i = 0; i < this.readers.length; i++) {
+        if (this.readers[i] instanceof ValueReaders.NullReader) {
+          this.nullTypeIndex = i;
+          break;
+        }
+      }
+
+      // Creating an integer array to track the mapping between the index of fields to be projected
+      // and the index of the value for the field stored in the returned row,
+      // if the value for a field equals to -1, it means the value of this field should not be
+      // stored in the returned row
+      int numberOfTypes = this.nullTypeIndex == -1 ? this.readers.length : this.readers.length - 1;
+      this.projectedFieldIdsToIdxInReturnedRow = new int[numberOfTypes];
+      Arrays.fill(this.projectedFieldIdsToIdxInReturnedRow, -1);
+      this.numOfFieldsInReturnedRow = 0;
+      this.isTagFieldProjected = false;
+      for (Types.NestedField expectedStructField : expected.asStructType().fields()) {
+        String fieldName = expectedStructField.name();
+        if (fieldName.equals(UNION_TAG_FIELD_NAME)) {
+          this.isTagFieldProjected = true;
+          this.numOfFieldsInReturnedRow++;
+        } else {
+          int projectedFieldIndex = Integer.valueOf(fieldName.substring(5));
+          this.projectedFieldIdsToIdxInReturnedRow[projectedFieldIndex] =
+              this.numOfFieldsInReturnedRow++;
+        }
+      }
+    }
+
+    @Override
+    public T read(Decoder decoder, Object reuse) throws IOException {
+      throw new UnsupportedOperationException();
     }
   }
 }

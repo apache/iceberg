@@ -24,11 +24,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
@@ -89,9 +86,8 @@ public class SparkValueReaders {
    * read from the file successfully. Therefore, table schema needs to be passed to
    * ComplexUnionReader to help it only return the data of the projected type in the union.
    */
-  static ValueReader<InternalRow> complexUnion(
-      Schema schema, List<ValueReader<?>> readers, Type expected) {
-    return new ComplexUnionReader(schema, readers, expected);
+  static ValueReader<InternalRow> complexUnion(List<ValueReader<?>> readers, Type expected) {
+    return new ComplexUnionReader(readers, expected);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -301,83 +297,34 @@ public class SparkValueReaders {
     }
   }
 
-  private static class ComplexUnionReader implements ValueReader<InternalRow> {
-    private static final String UNION_TAG_FIELD_NAME = "tag";
-    private final Schema schema;
-    private final List<Schema> branches;
-    private final ValueReader[] readers;
-    private int nullIndex;
-    private final int[] projectedFieldIdsToIdxInReturnedRow;
-    private boolean isTagFieldProjected;
-    private int numOfFieldsInReturnedRow;
-    private int nullTypeIndex;
-
-    private ComplexUnionReader(Schema schema, List<ValueReader<?>> readers, Type expected) {
-      this.schema = schema;
-      this.branches = schema.getTypes();
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-
-      // checking if NULL type exists in Avro union schema
-      this.nullTypeIndex = -1;
-      for (int i = 0; i < this.schema.getTypes().size(); i++) {
-        Schema alt = this.schema.getTypes().get(i);
-        if (Objects.equals(alt.getType(), Schema.Type.NULL)) {
-          this.nullTypeIndex = i;
-          break;
-        }
-      }
-
-      // Creating an integer array to track the mapping between the index of fields to be projected
-      // and the index of the value for the field stored in the returned row,
-      // if the value for a field equals to -1, it means the value of this field should not be
-      // stored
-      // in the returned row
-      int numberOfTypes =
-          this.nullTypeIndex == -1
-              ? this.schema.getTypes().size()
-              : this.schema.getTypes().size() - 1;
-      this.projectedFieldIdsToIdxInReturnedRow = new int[numberOfTypes];
-      Arrays.fill(this.projectedFieldIdsToIdxInReturnedRow, -1);
-      this.numOfFieldsInReturnedRow = 0;
-      this.isTagFieldProjected = false;
-      for (Types.NestedField expectedStructField : expected.asStructType().fields()) {
-        String fieldName = expectedStructField.name();
-        if (fieldName.equals(UNION_TAG_FIELD_NAME)) {
-          this.isTagFieldProjected = true;
-          this.numOfFieldsInReturnedRow++;
-          continue;
-        }
-        int projectedFieldIndex = Integer.valueOf(fieldName.substring(5));
-        this.projectedFieldIdsToIdxInReturnedRow[projectedFieldIndex] =
-            this.numOfFieldsInReturnedRow++;
-      }
+  static class ComplexUnionReader extends ValueReaders.ComplexUnionReader<InternalRow> {
+    protected ComplexUnionReader(List<ValueReader<?>> readers, Type expected) {
+      super(readers, expected);
     }
 
     @Override
     public InternalRow read(Decoder decoder, Object reuse) throws IOException {
       int index = decoder.readIndex();
-      if (index == nullTypeIndex) {
+      if (index == super.getNullTypeIndex()) {
         // if it is a null data, directly return null as the whole union result
         // we know for sure it is a null so the casting will always work.
-        return (InternalRow) readers[nullTypeIndex].read(decoder, reuse);
+        return (InternalRow) super.getReaders()[index].read(decoder, reuse);
       }
 
       // otherwise, we need to return an InternalRow as a struct data
-      InternalRow struct = new GenericInternalRow(numOfFieldsInReturnedRow);
+      InternalRow struct = new GenericInternalRow(super.getNumOfFieldsInReturnedRow());
       for (int i = 0; i < struct.numFields(); i += 1) {
         struct.setNullAt(i);
       }
-      int fieldIndex = (nullTypeIndex < 0 || index < nullTypeIndex) ? index : index - 1;
-      if (isTagFieldProjected) {
+      int fieldIndex =
+          (super.getNullTypeIndex() < 0 || index < super.getNullTypeIndex()) ? index : index - 1;
+      if (super.isTagFieldProjected()) {
         struct.setInt(0, fieldIndex);
       }
 
-      Object value = readers[index].read(decoder, reuse);
-      if (projectedFieldIdsToIdxInReturnedRow[fieldIndex] != -1) {
-        struct.update(projectedFieldIdsToIdxInReturnedRow[fieldIndex], value);
+      Object value = super.getReaders()[index].read(decoder, reuse);
+      if (super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex] != -1) {
+        struct.update(super.getProjectedFieldIdsToIdxInReturnedRow()[fieldIndex], value);
       }
 
       return struct;

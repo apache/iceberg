@@ -47,6 +47,8 @@ public class AvroSchemaUtil {
   public static final String ELEMENT_ID_PROP = "element-id";
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
 
+  public static final String BRANCH_ID_PROP = "branch-id";
+
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
   private static final Schema.Type MAP = Schema.Type.MAP;
   private static final Schema.Type ARRAY = Schema.Type.ARRAY;
@@ -76,10 +78,6 @@ public class AvroSchemaUtil {
 
   public static Type convert(Schema schema) {
     return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
-  }
-
-  public static Type convertToDeriveNameMapping(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema, true));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {
@@ -513,5 +511,27 @@ public class AvroSchemaUtil {
       return "_" + character;
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
+  }
+
+  public static Integer getBranchId(
+      Schema branch, NameMapping mapping, Iterable<String> parentFieldNames) {
+    Object id = branch.getObjectProp(BRANCH_ID_PROP);
+    if (id != null) {
+      return toInt(id);
+    } else if (mapping != null) {
+      MappedField mappedField = findInNameMapping(mapping, parentFieldNames, branch.getName());
+      if (mappedField != null) {
+        return mappedField.id();
+      }
+    }
+
+    return null;
+  }
+
+  private static MappedField findInNameMapping(
+      NameMapping mapping, Iterable<String> parentFieldNames, String fieldName) {
+    List<String> names = Lists.newArrayList(parentFieldNames);
+    names.add(fieldName);
+    return mapping.find(names);
   }
 }

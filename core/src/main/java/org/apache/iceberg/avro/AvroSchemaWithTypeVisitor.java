@@ -20,7 +20,6 @@ package org.apache.iceberg.avro;
 
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -99,27 +98,20 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
           "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s",
           type,
           union);
-      Map<String, Integer> fieldNameToId =
-          (Map) union.getObjectProp(SchemaToType.AVRO_FIELD_NAME_TO_ICEBERG_ID);
       for (Schema branch : types) {
         if (branch.getType() == Schema.Type.NULL) {
           options.add(visit((Type) null, branch, visitor));
         } else {
-          String name =
-              branch.getType().equals(Schema.Type.RECORD)
-                  ? branch.getName()
-                  : branch.getType().getName();
-          if (fieldNameToId.containsKey(name)) {
-            int fieldId = fieldNameToId.get(name);
-            Types.NestedField branchType = type.asStructType().field(fieldId);
-            if (branchType != null) {
-              options.add(visit(branchType.type(), branch, visitor));
-            } else {
-              Type pseudoBranchType = AvroSchemaUtil.convert(branch);
-              options.add(visit(pseudoBranchType, branch, visitor));
-            }
+          Types.NestedField expectedSchemaField = null;
+          String branchId = branch.getProp(AvroSchemaUtil.BRANCH_ID_PROP);
+          if (branchId != null) {
+            expectedSchemaField = type.asStructType().field(Integer.parseInt(branchId));
+          }
+          if (expectedSchemaField != null) {
+            options.add(visit(expectedSchemaField.type(), branch, visitor));
           } else {
-            options.add(visit((Type) null, branch, visitor));
+            Type pseudoExpectedSchemaField = AvroSchemaUtil.convert(branch);
+            options.add(visit(pseudoExpectedSchemaField, branch, visitor));
           }
         }
       }

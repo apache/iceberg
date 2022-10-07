@@ -92,7 +92,7 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
       if (AvroSchemaUtil.isOptionSchema(union)) {
         return ValueReaders.union(options);
       } else {
-        return SparkValueReaders.complexUnion(union, options, expected);
+        return SparkValueReaders.complexUnion(options, expected);
       }
     }
 
