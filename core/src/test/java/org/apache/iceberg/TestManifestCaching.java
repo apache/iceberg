@@ -184,15 +184,17 @@ public class TestManifestCaching {
     // Insert the last FileIO and trigger GC + cleanup.
     FileIO lastIO = cacheEnabledHadoopFileIO();
     ContentCache lastCache = contentCache(manifestCache, lastIO);
-    GcFinalization.awaitFullGc();
-    manifestCache.cleanUp();
+    GcFinalization.awaitDone(
+        () -> {
+          manifestCache.cleanUp();
+          return manifestCache.estimatedSize() == 2;
+        });
 
     // Verify that manifestCache evicts all FileIO except the firstIO and lastIO.
     ContentCache cache1 = contentCache(manifestCache, firstIO);
     ContentCache cacheN = contentCache(manifestCache, lastIO);
     Assert.assertSame(firstCache, cache1);
     Assert.assertSame(lastCache, cacheN);
-    Assert.assertEquals(2, manifestCache.estimatedSize());
     Assert.assertEquals(maxIO, manifestCache.stats().loadCount());
     Assert.assertEquals(maxIO - 2, manifestCache.stats().evictionCount());
   }
