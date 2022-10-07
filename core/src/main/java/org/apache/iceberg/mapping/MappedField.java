@@ -28,37 +28,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 public class MappedField implements Serializable {
 
   public static MappedField of(Integer id, String name) {
-    return new MappedField(id, ImmutableSet.of(name), null, null);
+    return new MappedField(id, ImmutableSet.of(name), null);
   }
 
   public static MappedField of(Integer id, Iterable<String> names) {
-    return new MappedField(id, names, null, null);
+    return new MappedField(id, names, null);
   }
 
   public static MappedField of(Integer id, String name, MappedFields nestedMapping) {
-    return new MappedField(id, ImmutableSet.of(name), nestedMapping, null);
+    return new MappedField(id, ImmutableSet.of(name), nestedMapping);
   }
 
   public static MappedField of(Integer id, Iterable<String> names, MappedFields nestedMapping) {
-    return new MappedField(id, names, nestedMapping, null);
-  }
-
-  public static MappedField of(
-      Integer id, Iterable<String> names, MappedFields nestedMapping, String type) {
-    return new MappedField(id, names, nestedMapping, type);
+    return new MappedField(id, names, nestedMapping);
   }
 
   private final Set<String> names;
   private Integer id;
   private MappedFields nestedMapping;
 
-  private String type;
-
-  private MappedField(Integer id, Iterable<String> names, MappedFields nested, String type) {
+  private MappedField(Integer id, Iterable<String> names, MappedFields nested) {
     this.id = id;
     this.names = ImmutableSet.copyOf(names);
     this.nestedMapping = nested;
-    this.type = type;
   }
 
   public Integer id() {
