@@ -576,7 +576,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersio
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
-In default, AWS clients use URL Connection HTTP Client to communicate with the service. 
+By default, AWS clients use **URL Connection** HTTP Client to communicate with the service. 
 This HTTP client optimizes for minimum dependencies and startup latency but support less functionality than other implementations. 
 In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at cost of extra dependency and additional startup latency. 
 
