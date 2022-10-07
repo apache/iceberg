@@ -143,24 +143,7 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
-    return write(spec, outputFile, /* compressionCodec */ null, /* compressionLevel */ null);
-  }
-
-  /**
-   * Create a new {@link ManifestWriter}.
-   *
-   * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will
-   * inherit the snapshot ID that will be assigned to the manifest on commit.
-   *
-   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
-   * @param outputFile the destination file location
-   * @param compressionCodec compression codec for the manifest file
-   * @param compressionLevel compression level of the compressionCodec
-   * @return a manifest writer
-   */
-  public static ManifestWriter<DataFile> write(
-      PartitionSpec spec, OutputFile outputFile, String compressionCodec, String compressionLevel) {
-    return write(1, spec, outputFile, null, compressionCodec, compressionLevel);
+    return write(1, spec, outputFile, null);
   }
 
   /**
@@ -200,7 +183,7 @@ public class ManifestFiles {
       OutputFile outputFile,
       Long snapshotId,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(
@@ -270,7 +253,7 @@ public class ManifestFiles {
       OutputFile outputFile,
       Long snapshotId,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
@@ -332,7 +315,7 @@ public class ManifestFiles {
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
@@ -360,7 +343,7 @@ public class ManifestFiles {
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
@@ -389,7 +372,7 @@ public class ManifestFiles {
       SnapshotSummary.Builder summaryBuilder,
       ManifestEntry.Status allowedEntryStatus,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     ManifestWriter<DataFile> writer =
         write(
             formatVersion,

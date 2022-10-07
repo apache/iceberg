@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -294,7 +295,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         snapshotId(),
         appendedManifestsSummary,
         current.properties().get(TableProperties.AVRO_COMPRESSION),
-        current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        NumberUtil.createInteger(current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
   }
 
   /**
