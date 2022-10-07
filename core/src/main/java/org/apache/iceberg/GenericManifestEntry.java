@@ -93,7 +93,6 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return snapshotId;
   }
 
-  /** @return the data sequence number of the file */
   @Override
   public Long dataSequenceNumber() {
     return dataSequenceNumber;
