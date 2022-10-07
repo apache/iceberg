@@ -59,9 +59,25 @@ class ManifestLists {
       OutputFile manifestListFile,
       long snapshotId,
       Long parentSnapshotId,
+      long sequenceNumber) {
+    return write(
+        formatVersion,
+        manifestListFile,
+        snapshotId,
+        parentSnapshotId,
+        sequenceNumber,
+        /* compressionCodec */ null,
+        /* compressionLevel */ null);
+  }
+
+  static ManifestListWriter write(
+      int formatVersion,
+      OutputFile manifestListFile,
+      long snapshotId,
+      Long parentSnapshotId,
       long sequenceNumber,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(

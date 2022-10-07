@@ -22,8 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -43,7 +41,6 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestManifestWriterVersions {
   private static final FileIO FILE_IO = new TestTables.LocalFileIO();
-  private static final String AVRO_CODEC_KEY = "avro.codec";
 
   private static final Schema SCHEMA =
       new Schema(
@@ -100,13 +97,6 @@ public class TestManifestWriterVersions {
           null,
           null);
 
-  private static final Map<String, String> CODEC_METADATA_MAPPING =
-      ImmutableMap.<String, String>builder()
-          .put("uncompressed", "null")
-          .put("zstd", "zstandard")
-          .put("gzip", "deflate")
-          .build();
-
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
@@ -118,22 +108,6 @@ public class TestManifestWriterVersions {
         ManifestWriter.UNASSIGNED_SEQ,
         ManifestWriter.UNASSIGNED_SEQ,
         FileContent.DATA);
-  }
-
-  @Test
-  public void testV1ManifestFileWriteWithCompression() throws IOException {
-    checkManifestMetadata(
-        compressionCodec -> writeManifest(DATA_FILE, 1, compressionCodec),
-        manifest -> ManifestFiles.read(manifest, FILE_IO));
-  }
-
-  @Test
-  public void testV1ManifestListWriteWithCompression() throws IOException {
-    checkManifestListMetadata(
-        compressionCodec -> {
-          ManifestFile manifest = writeManifest(DATA_FILE, 1, compressionCodec);
-          return writeManifestList(manifest, 1, compressionCodec);
-        });
   }
 
   @Test
@@ -165,22 +139,6 @@ public class TestManifestWriterVersions {
   }
 
   @Test
-  public void testV2ManifestFileWriteWithCompression() throws IOException {
-    checkManifestMetadata(
-        compressionCodec -> writeManifest(DATA_FILE, 2, compressionCodec),
-        manifest -> ManifestFiles.read(manifest, FILE_IO));
-  }
-
-  @Test
-  public void testV2ManifestListWriteWithCompression() throws IOException {
-    checkManifestListMetadata(
-        compressionCodec -> {
-          ManifestFile manifest = writeManifest(DATA_FILE, 2, compressionCodec);
-          return writeManifestList(manifest, 2, compressionCodec);
-        });
-  }
-
-  @Test
   public void testV2WriteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(2), 2);
     checkManifest(manifest, SEQUENCE_NUMBER);
@@ -200,22 +158,6 @@ public class TestManifestWriterVersions {
         ManifestWriter.UNASSIGNED_SEQ,
         ManifestWriter.UNASSIGNED_SEQ,
         FileContent.EQUALITY_DELETES);
-  }
-
-  @Test
-  public void testV2DeleteManifestFileWriteWithCompression() throws IOException {
-    checkManifestMetadata(
-        compressionCodec -> writeDeleteManifest(2, compressionCodec),
-        manifest -> ManifestFiles.readDeleteManifest(manifest, FILE_IO, null));
-  }
-
-  @Test
-  public void testV2DeleteManifestListWriteWithCompression() throws IOException {
-    checkManifestListMetadata(
-        compressionCodec -> {
-          ManifestFile manifest = writeDeleteManifest(2, compressionCodec);
-          return writeManifestList(manifest, 2, compressionCodec);
-        });
   }
 
   @Test
@@ -337,45 +279,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Deleted rows count", (Long) 0L, manifest.deletedRowsCount());
   }
 
-  <F extends ContentFile<F>> void checkManifestMetadata(
-      CheckedFunction<String, ManifestFile> createManifestFunc,
-      CheckedFunction<ManifestFile, ManifestReader<F>> manifestReaderFunc)
-      throws IOException {
-    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
-      String codec = entry.getKey();
-      String expectedCodecValue = entry.getValue();
-
-      ManifestFile manifest = createManifestFunc.apply(codec);
-
-      try (ManifestReader<F> reader = manifestReaderFunc.apply(manifest)) {
-        Map<String, String> metadata = reader.metadata();
-        Assert.assertEquals(
-            "Manifest file codec value must match",
-            expectedCodecValue,
-            metadata.get(AVRO_CODEC_KEY));
-      }
-    }
-  }
-
-  void checkManifestListMetadata(CheckedFunction<String, InputFile> createManifestListFunc)
-      throws IOException {
-    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
-      String codec = entry.getKey();
-      String expectedCodecValue = entry.getValue();
-
-      InputFile manifestList = createManifestListFunc.apply(codec);
-      try (AvroIterable<ManifestFile> reader = ManifestLists.manifestFileIterable(manifestList)) {
-        Map<String, String> metadata = reader.getMetadata();
-        Assert.assertEquals(
-            "Manifest list codec value must match",
-            expectedCodecValue,
-            metadata.get(AVRO_CODEC_KEY));
-      }
-    }
-  }
-
-  private InputFile writeManifestList(
-      ManifestFile manifest, int formatVersion, String compressionCodec) throws IOException {
+  private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestList = new InMemoryOutputFile();
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
@@ -383,9 +287,7 @@ public class TestManifestWriterVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQUENCE_NUMBER : 0,
-            compressionCodec,
-            /* compressionLevel */ null)) {
+            formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
@@ -393,8 +295,7 @@ public class TestManifestWriterVersions {
 
   private ManifestFile writeAndReadManifestList(ManifestFile manifest, int formatVersion)
       throws IOException {
-    List<ManifestFile> manifests =
-        ManifestLists.read(writeManifestList(manifest, formatVersion, /* compressionCodec */ null));
+    List<ManifestFile> manifests = ManifestLists.read(writeManifestList(manifest, formatVersion));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
   }
@@ -404,13 +305,7 @@ public class TestManifestWriterVersions {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(
-            formatVersion,
-            SPEC,
-            manifestFile,
-            SNAPSHOT_ID,
-            /* compressionCodec */ null,
-            /* compressionLevel */ null);
+        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.existing(readManifest(manifest));
     } finally {
@@ -420,21 +315,14 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeManifest(int formatVersion) throws IOException {
-    return writeManifest(DATA_FILE, formatVersion, /* compressionCodec */ null);
+    return writeManifest(DATA_FILE, formatVersion);
   }
 
-  private ManifestFile writeManifest(DataFile file, int formatVersion, String compressionCodec)
-      throws IOException {
+  private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(
-            formatVersion,
-            SPEC,
-            manifestFile,
-            SNAPSHOT_ID,
-            compressionCodec,
-            /* compressionLevel */ null);
+        ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.add(file);
     } finally {
@@ -453,21 +341,10 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
-    return writeDeleteManifest(formatVersion, /* compressionCodec */ null);
-  }
-
-  private ManifestFile writeDeleteManifest(int formatVersion, String compressionCodec)
-      throws IOException {
     OutputFile manifestFile =
         Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(
-            formatVersion,
-            SPEC,
-            manifestFile,
-            SNAPSHOT_ID,
-            compressionCodec,
-            /* compressionLevel */ null);
+        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.add(DELETE_FILE);
     } finally {
@@ -483,9 +360,5 @@ public class TestManifestWriterVersions {
       Assert.assertEquals("Should contain only one data file", 1, entries.size());
       return entries.get(0);
     }
-  }
-
-  interface CheckedFunction<T, R> {
-    R apply(T args) throws IOException;
   }
 }

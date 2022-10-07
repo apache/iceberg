@@ -62,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -243,7 +244,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             parentSnapshotId,
             sequenceNumber,
             ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
-            ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL))) {
+            NumberUtil.createInteger(
+                ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)))) {
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -515,7 +517,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         newManifestOutput(),
         snapshotId(),
         ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
-        ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        NumberUtil.createInteger(
+            ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
@@ -525,7 +528,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         newManifestOutput(),
         snapshotId(),
         ops.current().properties().get(TableProperties.AVRO_COMPRESSION),
-        ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        NumberUtil.createInteger(
+            ops.current().properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {

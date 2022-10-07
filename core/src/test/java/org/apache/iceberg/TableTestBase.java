@@ -28,10 +28,13 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -165,6 +168,19 @@ public class TableTestBase {
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
+  static final Map<String, String> CODEC_METADATA_MAPPING =
+      ImmutableMap.<String, String>builder()
+          .put("uncompressed", "null")
+          .put("zstd", "zstandard")
+          .put("gzip", "deflate")
+          .build();
+
+  static final String AVRO_CODEC_KEY = "avro.codec";
+
+  static final long SNAPSHOT_ID = 987134631982734L;
+
+  private static final long SEQUENCE_NUMBER = 34L;
+
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   protected File tableDir = null;
@@ -239,7 +255,12 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.newFile("input.m0.avro");
+    return writeManifest(snapshotId, /* compressionCodec */ null, files);
+  }
+
+  ManifestFile writeManifest(Long snapshotId, String compressionCodec, DataFile... files)
+      throws IOException {
+    File manifestFile = temp.newFile();
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -249,8 +270,8 @@ public class TableTestBase {
             table.spec(),
             outputFile,
             snapshotId,
-            table.properties().get(TableProperties.AVRO_COMPRESSION),
-            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+            compressionCodec,
+            /* compressionLevel */ null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -281,23 +302,12 @@ public class TableTestBase {
     if (entries[0].file() instanceof DataFile) {
       writer =
           (ManifestWriter<F>)
-              ManifestFiles.write(
-                  formatVersion,
-                  table.spec(),
-                  outputFile,
-                  snapshotId,
-                  table.properties().get(TableProperties.AVRO_COMPRESSION),
-                  table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+              ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     } else {
       writer =
           (ManifestWriter<F>)
               ManifestFiles.writeDeleteManifest(
-                  formatVersion,
-                  table.spec(),
-                  outputFile,
-                  snapshotId,
-                  table.properties().get(TableProperties.AVRO_COMPRESSION),
-                  table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+                  formatVersion, table.spec(), outputFile, snapshotId);
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -312,6 +322,13 @@ public class TableTestBase {
 
   ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
+    return writeDeleteManifest(
+        newFormatVersion, snapshotId, /* compressionCodec */ null, deleteFiles);
+  }
+
+  ManifestFile writeDeleteManifest(
+      int newFormatVersion, Long snapshotId, String compressionCodec, DeleteFile... deleteFiles)
+      throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
@@ -321,8 +338,8 @@ public class TableTestBase {
             SPEC,
             manifestFile,
             snapshotId,
-            table.properties().get(TableProperties.AVRO_COMPRESSION),
-            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+            compressionCodec,
+            /* compressionLevel */ null);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -333,19 +350,37 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
+  InputFile writeManifestList(String compressionCodec, ManifestFile... manifestFiles)
+      throws IOException {
+    File manifestListFile = temp.newFile();
+    Assert.assertTrue(manifestListFile.delete());
+    OutputFile outputFile =
+        org.apache.iceberg.Files.localOutput(
+            FileFormat.AVRO.addExtension(manifestListFile.toString()));
+
+    try (FileAppender<ManifestFile> writer =
+        ManifestLists.write(
+            formatVersion,
+            outputFile,
+            SNAPSHOT_ID,
+            SNAPSHOT_ID - 1,
+            formatVersion > 1 ? SEQUENCE_NUMBER : 0,
+            compressionCodec,
+            /* compressionLevel */ null)) {
+      for (ManifestFile manifestFile : manifestFiles) {
+        writer.add(manifestFile);
+      }
+    }
+    return outputFile.toInputFile();
+  }
+
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
     File manifestFile = temp.newFile(name + ".avro");
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(
-            formatVersion,
-            table.spec(),
-            outputFile,
-            null,
-            table.properties().get(TableProperties.AVRO_COMPRESSION),
-            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -769,5 +804,10 @@ public class TableTestBase {
   @FunctionalInterface
   protected interface Action {
     void invoke();
+  }
+
+  @FunctionalInterface
+  interface CheckedFunction<T, R> {
+    R apply(T args) throws IOException;
   }
 }

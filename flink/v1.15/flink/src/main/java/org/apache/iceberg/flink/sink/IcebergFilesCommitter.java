@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -457,7 +458,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             () -> manifestOutputFileFactory.create(checkpointId),
             table.spec(),
             table.properties().get(TableProperties.AVRO_COMPRESSION),
-            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+            NumberUtil.createInteger(
+                table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

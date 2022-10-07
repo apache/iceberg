@@ -338,9 +338,7 @@ public class TestManifestListVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQ_NUM : 0,
-            /* compressionCodec */ null,
-            /* compressionLevel */ null)) {
+            formatVersion > 1 ? SEQ_NUM : 0)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();

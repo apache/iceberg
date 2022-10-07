@@ -33,6 +33,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.NumberUtil;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
@@ -140,7 +141,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         snapshotId(),
         summaryBuilder,
         current.properties().get(TableProperties.AVRO_COMPRESSION),
-        current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        NumberUtil.createInteger(current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
   }
 
   @Override
