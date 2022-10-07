@@ -21,11 +21,13 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -104,13 +106,7 @@ public class TestManifestWriter extends TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(
-            formatVersion,
-            table.spec(),
-            outputFile,
-            1L,
-            table.properties().get(TableProperties.AVRO_COMPRESSION),
-            table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL));
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
     writer.add(newFile(10, TestHelpers.Row.of(1)), 1000L);
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
@@ -122,6 +118,22 @@ public class TestManifestWriter extends TableTestBase {
           1000L,
           (long) entry.sequenceNumber());
     }
+  }
+
+  @Test
+  public void testWriteManifestWithCompression() throws IOException {
+    validateManifestCompressionCodec(
+        compressionCodec -> writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A),
+        manifest -> ManifestFiles.read(manifest, FILE_IO));
+  }
+
+  @Test
+  public void testWriteDeleteManifestWithCompression() throws IOException {
+    Assume.assumeThat(formatVersion, Matchers.is(2));
+    validateManifestCompressionCodec(
+        compressionCodec ->
+            writeDeleteManifest(formatVersion, SNAPSHOT_ID, compressionCodec, FILE_A_DELETES),
+        manifest -> ManifestFiles.readDeleteManifest(manifest, FILE_IO, null));
   }
 
   private DataFile newFile(long recordCount) {
@@ -139,5 +151,25 @@ public class TestManifestWriter extends TableTestBase {
       builder.withPartition(partition);
     }
     return builder.build();
+  }
+
+  <F extends ContentFile<F>> void validateManifestCompressionCodec(
+      CheckedFunction<String, ManifestFile> createManifestFunc,
+      CheckedFunction<ManifestFile, ManifestReader<F>> manifestReaderFunc)
+      throws IOException {
+    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
+      String codec = entry.getKey();
+      String expectedCodecValue = entry.getValue();
+
+      ManifestFile manifest = createManifestFunc.apply(codec);
+
+      try (ManifestReader<F> reader = manifestReaderFunc.apply(manifest)) {
+        Map<String, String> metadata = reader.metadata();
+        Assert.assertEquals(
+            "Manifest file codec value must match",
+            expectedCodecValue,
+            metadata.get(AVRO_CODEC_KEY));
+      }
+    }
   }
 }

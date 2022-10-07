@@ -43,11 +43,17 @@ class FlinkManifestUtil {
   private FlinkManifestUtil() {}
 
   static ManifestFile writeDataFiles(
+      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles) throws IOException {
+    return writeDataFiles(
+        outputFile, spec, dataFiles, /* compressionCodec */ null, /* compressionLevel */ null);
+  }
+
+  static ManifestFile writeDataFiles(
       OutputFile outputFile,
       PartitionSpec spec,
       List<DataFile> dataFiles,
       String compressionCodec,
-      String compressionLevel)
+      Integer compressionLevel)
       throws IOException {
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
@@ -80,11 +86,18 @@ class FlinkManifestUtil {
   }
 
   static DeltaManifests writeCompletedFiles(
+      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      throws IOException {
+    return writeCompletedFiles(
+        result, outputFileSupplier, spec, /* compressionCodec */ null, /* compressionLevel */ null);
+  }
+
+  static DeltaManifests writeCompletedFiles(
       WriteResult result,
       Supplier<OutputFile> outputFileSupplier,
       PartitionSpec spec,
       String compressionCodec,
-      String compressionLevel)
+      Integer compressionLevel)
       throws IOException {
 
     ManifestFile dataManifest = null;

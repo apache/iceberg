@@ -32,14 +32,17 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
 
   private ManifestListWriter(
-      OutputFile file, Map<String, String> meta, String compressionCodec, String compressionLevel) {
+      OutputFile file,
+      Map<String, String> meta,
+      String compressionCodec,
+      Integer compressionLevel) {
     this.writer = newAppender(file, meta, compressionCodec, compressionLevel);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta, String compressionCodec, String compressionLevel);
+      OutputFile file, Map<String, String> meta, String compressionCodec, Integer compressionLevel);
 
   @Override
   public void add(ManifestFile manifest) {
@@ -80,7 +83,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         Long parentSnapshotId,
         long sequenceNumber,
         String compressionCodec,
-        String compressionLevel) {
+        Integer compressionLevel) {
       super(
           snapshotFile,
           ImmutableMap.of(
@@ -103,7 +106,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         OutputFile file,
         Map<String, String> meta,
         String compressionCodec,
-        String compressionLevel) {
+        Integer compressionLevel) {
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)
@@ -115,7 +118,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
         if (compressionLevel != null) {
-          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
         return builder.build();
       } catch (IOException e) {
@@ -132,7 +135,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         long snapshotId,
         Long parentSnapshotId,
         String compressionCodec,
-        String compressionLevel) {
+        Integer compressionLevel) {
       super(
           snapshotFile,
           ImmutableMap.of(
@@ -156,7 +159,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         OutputFile file,
         Map<String, String> meta,
         String compressionCodec,
-        String compressionLevel) {
+        Integer compressionLevel) {
       try {
         Avro.WriteBuilder builder =
             Avro.write(file)
@@ -168,7 +171,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
         if (compressionLevel != null) {
-          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel);
+          builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
         return builder.build();
       } catch (IOException e) {

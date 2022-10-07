@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -228,7 +229,8 @@ public class RewriteManifestsSparkAction
                 spec,
                 sparkType,
                 table.properties().get(TableProperties.AVRO_COMPRESSION),
-                table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)),
+                NumberUtil.createInteger(
+                    table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL))),
             manifestEncoder)
         .collectAsList();
   }
@@ -260,7 +262,8 @@ public class RewriteManifestsSparkAction
                       spec,
                       sparkType,
                       table.properties().get(TableProperties.AVRO_COMPRESSION),
-                      table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)),
+                      NumberUtil.createInteger(
+                          table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL))),
                   manifestEncoder)
               .collectAsList();
         });
@@ -361,7 +364,7 @@ public class RewriteManifestsSparkAction
       PartitionSpec spec,
       StructType sparkType,
       String compressionCodec,
-      String compressionLevel)
+      Integer compressionLevel)
       throws IOException {
 
     String manifestName = "optimized-m-" + UUID.randomUUID();
@@ -400,7 +403,7 @@ public class RewriteManifestsSparkAction
       PartitionSpec spec,
       StructType sparkType,
       String compressionCodec,
-      String compressionLevel) {
+      Integer compressionLevel) {
 
     return rows -> {
       List<Row> rowsAsList = Lists.newArrayList(rows);
