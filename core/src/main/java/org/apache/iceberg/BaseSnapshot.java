@@ -76,26 +76,6 @@ class BaseSnapshot implements Snapshot {
   }
 
   BaseSnapshot(
-      long snapshotId,
-      Long parentId,
-      long timestampMillis,
-      String operation,
-      Map<String, String> summary,
-      Integer schemaId,
-      List<ManifestFile> dataManifests) {
-    this(
-        INITIAL_SEQUENCE_NUMBER,
-        snapshotId,
-        parentId,
-        timestampMillis,
-        operation,
-        summary,
-        schemaId,
-        dataManifests.stream().map(ManifestFile::path).toArray(String[]::new));
-    this.allManifests = dataManifests;
-  }
-
-  BaseSnapshot(
       long sequenceNumber,
       long snapshotId,
       Long parentId,
