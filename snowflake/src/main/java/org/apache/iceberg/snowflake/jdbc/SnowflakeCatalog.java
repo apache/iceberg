@@ -22,51 +22,34 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
 import java.sql.Statement;
-import java.util.AbstractMap;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
-        implements Closeable, SupportsNamespaces, Configurable<Object> {
+    implements Closeable, SupportsNamespaces, Configurable<Object> {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -84,26 +67,25 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public List<TableIdentifier> listTables(Namespace namespace) {
 
     List<TableIdentifier> tableList = Lists.newArrayList();
-    try
-    {
+    try {
       Statement st = connection.createStatement();
       ResultSet results = st.executeQuery("show iceberg tables");
       while (results.next()) {
-        tableList.add(TableIdentifier.of(results.getString("database_name"),
+        tableList.add(
+            TableIdentifier.of(
+                results.getString("database_name"),
                 results.getString("schema_name"),
                 results.getString("name")));
-        System.out.println(
-            results.getString("database_name")
-                + " | "
-                + results.getString("schema_name")
-                + " | "
-                + results.getString("name"));
-        }
+        LOG.debug(
+            "{} | {} | {}",
+            results.getString("database_name"),
+            results.getString("schema_name"),
+            results.getString("name"));
+      }
       results.close();
       st.close();
-    }
-    catch(SQLException ex)
-    {
+    } catch (SQLException ex) {
+      LOG.error("{}", ex.toString(), ex);
     }
     return tableList;
   }
@@ -114,9 +96,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-
-  }
+  public void renameTable(TableIdentifier from, TableIdentifier to) {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
@@ -144,14 +124,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void close() throws IOException {
-
-  }
+  public void close() throws IOException {}
 
   @Override
-  public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-
-  }
+  public void createNamespace(Namespace namespace, Map<String, String> metadata) {}
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
@@ -159,7 +135,8 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace)
+      throws NoSuchNamespaceException {
     return null;
   }
 
@@ -169,12 +146,14 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties)
+      throws NoSuchNamespaceException {
     return false;
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+  public boolean removeProperties(Namespace namespace, Set<String> properties)
+      throws NoSuchNamespaceException {
     return false;
   }
 
@@ -189,7 +168,5 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Object conf) {
-
-  }
+  public void setConf(Object conf) {}
 }

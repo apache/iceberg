@@ -678,7 +678,8 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    runtimeOnly "net.snowflake:snowflake-jdbc"
+
+    runtimeOnly("net.snowflake:snowflake-jdbc:3.13.22")
   }
 }
 
