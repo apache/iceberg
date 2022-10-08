@@ -17,15 +17,23 @@
 import getpass as gt
 import random
 import string
+
 import pytest
+from moto import mock_glue, mock_s3
 
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import NoSuchNamespaceError
 from pyiceberg.schema import Schema
-from .test_glue_helper import fixture_s3, fixture_glue, patch_aiobotocore, fixture_aws_credentials
+
+from .test_glue_helper import (  # pylint: disable=unused-import
+    fixture_aws_credentials,
+    fixture_glue,
+    fixture_s3,
+    patch_aiobotocore,
+)
 
 # early develop stage only, change this to a user with aws cli configured locally
-MY_USERNAME = "jonasjiang"
+MY_USERNAME = "jonasjiang1"
 
 
 def get_random_table_name():
@@ -83,38 +91,35 @@ def test_list_namespaces():
 
 
 # prototype of unit test
-def test_unit_create_table(s3, glue, patch_aiobotocore, table_schema_nested):
+@mock_s3
+@mock_glue
+def test_unit_create_table(_s3, _glue, _patch_aiobotocore, table_schema_nested):
     bucket_name = "testBucket"
     database_name = "testDatabase"
     table_name = get_random_table_name()
     directory_name = f"{database_name}.db"
     identifier = (database_name, table_name)
 
-    s3.create_bucket(Bucket=bucket_name)
-    s3.put_object(Bucket=bucket_name, Key=(directory_name + '/'))
-    glue.create_database(DatabaseInput={
-        "Name": database_name,
-        "LocationUri": f"s3://{bucket_name}/{directory_name}"
-    })
+    _s3.create_bucket(Bucket=bucket_name)
+    _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
 
     test_catalog = GlueCatalog("glue")
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
 
 
-def test_unit_list_namespaces(s3, glue, patch_aiobotocore):
+@mock_s3
+@mock_glue
+def test_unit_list_namespaces(_s3, _glue, _patch_aiobotocore):
     bucket_name = "testBucket"
     database_name = "testDatabase"
     directory_name = f"{database_name}.db"
 
-    s3.create_bucket(Bucket=bucket_name)
-    s3.put_object(Bucket=bucket_name, Key=(directory_name + '/'))
-    glue.create_database(DatabaseInput={
-        "Name": database_name,
-        "LocationUri": f"s3://{bucket_name}/{directory_name}"
-    })
+    _s3.create_bucket(Bucket=bucket_name)
+    _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
     test_catalog = GlueCatalog("glue")
     identifiers = test_catalog.list_namespaces()
     assert len(identifiers) == 1
     assert identifiers[0] == (database_name,)
-
