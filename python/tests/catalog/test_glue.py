@@ -25,15 +25,8 @@ from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import NoSuchNamespaceError
 from pyiceberg.schema import Schema
 
-from .test_glue_helper import (  # pylint: disable=unused-import
-    fixture_aws_credentials,
-    fixture_glue,
-    fixture_s3,
-    patch_aiobotocore,
-)
-
 # early develop stage only, change this to a user with aws cli configured locally
-MY_USERNAME = "jonasjiang1"
+MY_USERNAME = "jonasjiang"
 
 
 def get_random_table_name():
@@ -102,6 +95,7 @@ def test_unit_create_table(_s3, _glue, _patch_aiobotocore, table_schema_nested):
 
     _s3.create_bucket(Bucket=bucket_name)
     _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    # will be replaced by catalog create_namespace in the future
     _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
 
     test_catalog = GlueCatalog("glue")
@@ -118,6 +112,7 @@ def test_unit_list_namespaces(_s3, _glue, _patch_aiobotocore):
 
     _s3.create_bucket(Bucket=bucket_name)
     _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    # will be replaced by catalog create_namespace in the future
     _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
     test_catalog = GlueCatalog("glue")
     identifiers = test_catalog.list_namespaces()

@@ -44,10 +44,6 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
         return {k.encode("utf-8"): str(v).encode("utf-8") for k, v in self.response.headers.items()}.items()
 
 
-test_scope = "function"
-
-
-@pytest.fixture(name="_patch_aiobotocore", scope=test_scope)
 def patch_aiobotocore():
     """
     Patch aiobotocore to work with moto
@@ -65,7 +61,22 @@ def patch_aiobotocore():
     aiobotocore.endpoint.convert_to_response_dict = factory(aiobotocore.endpoint.convert_to_response_dict)
 
 
-@pytest.fixture(name="_aws_credentials", scope=test_scope)
+@pytest.fixture(name="_patch_aiobotocore")
+def fixture_aiobotocore():
+    """
+    Patch aiobotocore to work with moto
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+    stored_method = aiobotocore.endpoint.convert_to_response_dict
+
+    try:
+        yield patch_aiobotocore()
+    finally:
+        # restore the changed method after the fixture is destroyed
+        aiobotocore.endpoint.convert_to_response_dict = stored_method
+
+
+@pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials():
     """Mocked AWS Credentials for moto."""
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
@@ -75,13 +86,13 @@ def fixture_aws_credentials():
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 
-@pytest.fixture(name="_s3", scope=test_scope)
+@pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials):
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
-@pytest.fixture(name="_glue", scope=test_scope)
+@pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials):
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
