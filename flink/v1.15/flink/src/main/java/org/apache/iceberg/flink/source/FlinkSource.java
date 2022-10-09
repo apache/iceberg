@@ -29,6 +29,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -75,7 +76,7 @@ public class FlinkSource {
     private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
-    private TableSchema projectedSchema;
+    private ResolvedSchema projectedSchema;
     private ReadableConfig readableConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private Boolean exposeLocality;
@@ -100,7 +101,7 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder project(TableSchema schema) {
+    public Builder project(ResolvedSchema schema) {
       this.projectedSchema = schema;
       return this;
     }

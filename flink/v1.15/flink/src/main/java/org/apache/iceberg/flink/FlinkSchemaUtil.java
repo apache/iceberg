@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -56,8 +59,8 @@ public class FlinkSchemaUtil {
   private FlinkSchemaUtil() {}
 
   /** Convert the flink table schema to apache iceberg schema. */
-  public static Schema convert(TableSchema schema) {
-    LogicalType schemaType = schema.toRowDataType().getLogicalType();
+  public static Schema convert(ResolvedSchema schema) {
+    LogicalType schemaType = schema.toSourceRowDataType().getLogicalType();
     Preconditions.checkArgument(
         schemaType instanceof RowType, "Schema logical type should be RowType.");
 
@@ -68,7 +71,7 @@ public class FlinkSchemaUtil {
     return freshIdentifierFieldIds(iSchema, schema);
   }
 
-  private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
     if (schema.getPrimaryKey().isPresent()) {
@@ -87,7 +90,7 @@ public class FlinkSchemaUtil {
   }
 
   /**
-   * Convert a Flink {@link TableSchema} to a {@link Schema} based on the given schema.
+   * Convert a Flink {@link ResolvedSchema} to a {@link Schema} based on the given schema.
    *
    * <p>This conversion does not assign new ids; it uses ids from the base schema.
    *
@@ -95,11 +98,11 @@ public class FlinkSchemaUtil {
    * return a schema that is not compatible with base schema.
    *
    * @param baseSchema a Schema on which conversion is based
-   * @param flinkSchema a Flink TableSchema
+   * @param flinkSchema a Flink ResolvedSchema
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
-  public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
     // convert to a type with fresh ids
     Types.StructType struct = convert(flinkSchema).asStruct();
     // reassign ids to match the base schema
@@ -137,12 +140,12 @@ public class FlinkSchemaUtil {
    * @param rowType a RowType
    * @return Flink TableSchema
    */
-  public static TableSchema toSchema(RowType rowType) {
-    TableSchema.Builder builder = TableSchema.builder();
-    for (RowType.RowField field : rowType.getFields()) {
-      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+  public static ResolvedSchema toSchema(RowType rowType) {
+      List<Column> columns = new ArrayList<>();
+      for (RowType.RowField field : rowType.getFields()) {
+      columns.add(Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType())));
     }
-    return builder.build();
+    return ResolvedSchema.of(columns);
   }
 
   /**
