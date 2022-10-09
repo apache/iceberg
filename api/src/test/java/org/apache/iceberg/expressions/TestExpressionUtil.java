@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -83,7 +86,7 @@ public class TestExpressionUtil {
 
     Assert.assertEquals(
         "Sanitized string should be abbreviated",
-        "test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total) ...)",
+        "test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))",
         ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongRange)));
 
     // The sanitization resulting in an expression tree does not abbreviate
@@ -140,7 +143,7 @@ public class TestExpressionUtil {
 
     Assert.assertEquals(
         "Sanitized string should be abbreviated",
-        "test NOT IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total) ...)",
+        "test NOT IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))",
         ExpressionUtil.toSanitizedString(Expressions.notIn("test", tooLongRange)));
 
     // The sanitization resulting in an expression tree does not abbreviate
@@ -337,6 +340,269 @@ public class TestExpressionUtil {
           "test = (timestamp)",
           ExpressionUtil.toSanitizedString(Expressions.equal("test", timestamp)));
     }
+  }
+
+  @Test
+  public void testSanitizeTimestampAboutNow() {
+    // this string is the current UTC time, without a zone offset
+    String nowLocal =
+        OffsetDateTime.now().atZoneSameInstant(ZoneOffset.UTC).toLocalDateTime().toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nowLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-about-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nowLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampPast() {
+    String ninetyMinutesAgoLocal =
+        OffsetDateTime.now()
+            .minusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesAgoLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampLastWeek() {
+    String lastWeekLocal =
+        OffsetDateTime.now()
+            .minusWeeks(1)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeekLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampFuture() {
+    String ninetyMinutesFromNowLocal =
+        OffsetDateTime.now()
+            .plusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesFromNowLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzAboutNow() {
+    // this string is the current time with the local zone offset
+    String nowUtc = OffsetDateTime.now().toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nowUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-about-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nowUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzPast() {
+    String ninetyMinutesAgoUtc =
+        OffsetDateTime.now()
+            .minusMinutes(90)
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesAgoUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzLastWeek() {
+    String lastWeekUtc =
+        OffsetDateTime.now()
+            .minusWeeks(1)
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeekUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzFuture() {
+    String ninetyMinutesFromNowUtc =
+        OffsetDateTime.now()
+            .plusMinutes(90)
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesFromNowUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowUtc)));
+  }
+
+  @Test
+  public void testSanitizeDateToday() {
+    String today = LocalDate.now().toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-today)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", today)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-today)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(today).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-today)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", today)));
+  }
+
+  @Test
+  public void testSanitizeDateLastWeek() {
+    String lastWeek = LocalDate.now().minusWeeks(1).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeek)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(lastWeek).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeek)));
+  }
+
+  @Test
+  public void testSanitizeDateNextWeek() {
+    String nextWeek = LocalDate.now().plusWeeks(1).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nextWeek)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(nextWeek).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-7-days-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nextWeek)));
   }
 
   @Test
