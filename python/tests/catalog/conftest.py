@@ -65,7 +65,7 @@ def patch_aiobotocore():
 def fixture_aiobotocore():
     """
     Patch aiobotocore to work with moto
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
     """
     stored_method = aiobotocore.endpoint.convert_to_response_dict
 
