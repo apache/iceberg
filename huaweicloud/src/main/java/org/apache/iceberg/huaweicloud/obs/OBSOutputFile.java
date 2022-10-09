@@ -29,7 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class OBSOutputFile extends BaseOBSFile implements OutputFile {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseOBSFile.class);
+  private static final Logger LOG = LoggerFactory.getLogger(OBSOutputFile.class);
 
   OBSOutputFile(
       IObsClient client,
