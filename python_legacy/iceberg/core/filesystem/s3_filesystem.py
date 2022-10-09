@@ -40,7 +40,7 @@ ROLE_ARN = "default"
 AUTOREFRESH_SESSION = None
 
 
-@lru_cache
+@lru_cache()
 def get_sts_client():
     return boto3.client('sts')
 
