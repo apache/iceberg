@@ -50,7 +50,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
-  private Long minSequenceNumber = null;
+  private Long minDataSequenceNumber = null;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
@@ -85,11 +85,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedRows += entry.file().recordCount();
         break;
     }
+
     stats.update(entry.file().partition());
-    if (entry.sequenceNumber() != null
-        && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
-      this.minSequenceNumber = entry.sequenceNumber();
+
+    if (entry.isLive()
+        && entry.dataSequenceNumber() != null
+        && (minDataSequenceNumber == null || entry.dataSequenceNumber() < minDataSequenceNumber)) {
+      this.minDataSequenceNumber = entry.dataSequenceNumber();
     }
+
     writer.add(prepare(entry));
   }
 
@@ -112,15 +116,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * will be the provided sequence number.
    *
    * @param addedFile a data file
-   * @param sequenceNumber sequence number for the data file
+   * @param dataSequenceNumber a data sequence number for the file
    */
-  public void add(F addedFile, long sequenceNumber) {
-    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, addedFile));
+  public void add(F addedFile, long dataSequenceNumber) {
+    addEntry(reused.wrapAppend(snapshotId, dataSequenceNumber, addedFile));
   }
 
   void add(ManifestEntry<F> entry) {
-    if (entry.sequenceNumber() != null && entry.sequenceNumber() >= 0) {
-      addEntry(reused.wrapAppend(snapshotId, entry.sequenceNumber(), entry.file()));
+    if (entry.dataSequenceNumber() != null && entry.dataSequenceNumber() >= 0) {
+      addEntry(reused.wrapAppend(snapshotId, entry.dataSequenceNumber(), entry.file()));
     } else {
       addEntry(reused.wrapAppend(snapshotId, entry.file()));
     }
@@ -129,33 +133,53 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an existing entry for a file.
    *
+   * <p>The original data sequence number and snapshot ID, which were assigned at commit, must be
+   * preserved when adding an existing entry.
+   *
    * @param existingFile a file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
-   * @param sequenceNumber sequence number for the data file
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
    */
-  public void existing(F existingFile, long fileSnapshotId, long sequenceNumber) {
-    addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
+  public void existing(F existingFile, long fileSnapshotId, long dataSequenceNumber) {
+    addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, existingFile));
   }
 
   void existing(ManifestEntry<F> entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
+    addEntry(reused.wrapExisting(entry.snapshotId(), entry.dataSequenceNumber(), entry.file()));
   }
 
   /**
    * Add a delete entry for a file.
    *
-   * <p>The entry's snapshot ID will be this manifest's snapshot ID.
+   * <p>This method must not be used as the original data sequence number of the file must be
+   * preserved when the file is marked as deleted.
    *
    * @param deletedFile a file
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #delete(ContentFile, long)}.
    */
+  @Deprecated
   public void delete(F deletedFile) {
-    addEntry(reused.wrapDelete(snapshotId, deletedFile));
+    throw new UnsupportedOperationException(
+        "Can't add a delete entry without a data sequence number");
+  }
+
+  /**
+   * Add a delete entry for a file.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. However, the original data
+   * sequence number of the file must be preserved when the file is marked as deleted.
+   *
+   * @param deletedFile a file
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
+   */
+  public void delete(F deletedFile, long dataSequenceNumber) {
+    addEntry(reused.wrapDelete(snapshotId, dataSequenceNumber, deletedFile));
   }
 
   void delete(ManifestEntry<F> entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.file()));
+    addEntry(reused.wrapDelete(snapshotId, entry.dataSequenceNumber(), entry.file()));
   }
 
   @Override
@@ -171,10 +195,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written,
-    // so the min
-    // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ
-    // to inherit it.
-    long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
+    // so the min data sequence number is the one that will be assigned when this is committed.
+    // pass UNASSIGNED_SEQ to inherit it.
+    long minSeqNumber = minDataSequenceNumber != null ? minDataSequenceNumber : UNASSIGNED_SEQ;
     return new GenericManifestFile(
         file.location(),
         writer.length(),

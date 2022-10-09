@@ -112,6 +112,10 @@ public class TestManifestWriter extends TableTestBase {
     ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
     for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
       Assert.assertEquals(
+          "Custom data sequence number should be used for all manifest entries",
+          1000L,
+          (long) entry.dataSequenceNumber());
+      Assert.assertEquals(
           "Custom sequence number should be used for all manifest entries",
           1000L,
           (long) entry.sequenceNumber());

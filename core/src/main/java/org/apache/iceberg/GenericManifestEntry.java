@@ -29,6 +29,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
   private final org.apache.avro.Schema schema;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
+  private Long dataSequenceNumber = null;
   private Long sequenceNumber = null;
   private F file = null;
 
@@ -44,14 +45,16 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.schema = toCopy.schema;
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
+    this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.sequenceNumber = toCopy.sequenceNumber;
     this.file = toCopy.file().copy(fullCopy);
   }
 
-  ManifestEntry<F> wrapExisting(Long newSnapshotId, Long newSequenceNumber, F newFile) {
+  ManifestEntry<F> wrapExisting(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
-    this.sequenceNumber = newSequenceNumber;
+    this.dataSequenceNumber = newDataSequenceNumber;
+    this.sequenceNumber = newDataSequenceNumber;
     this.file = newFile;
     return this;
   }
@@ -60,17 +63,19 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return wrapAppend(newSnapshotId, null, newFile);
   }
 
-  ManifestEntry<F> wrapAppend(Long newSnapshotId, Long newSequenceNumber, F newFile) {
+  ManifestEntry<F> wrapAppend(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
-    this.sequenceNumber = newSequenceNumber;
+    this.dataSequenceNumber = newDataSequenceNumber;
+    this.sequenceNumber = newDataSequenceNumber;
     this.file = newFile;
     return this;
   }
 
-  ManifestEntry<F> wrapDelete(Long newSnapshotId, F newFile) {
+  ManifestEntry<F> wrapDelete(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
+    this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = null;
     this.file = newFile;
     return this;
@@ -89,8 +94,17 @@ class GenericManifestEntry<F extends ContentFile<F>>
   }
 
   @Override
+  public Long dataSequenceNumber() {
+    return dataSequenceNumber;
+  }
+
+  @Override
   public Long sequenceNumber() {
-    return sequenceNumber;
+    if (sequenceNumber != null) {
+      return sequenceNumber;
+    } else {
+      return isLive() ? dataSequenceNumber : null;
+    }
   }
 
   /** @return a file */
@@ -115,6 +129,13 @@ class GenericManifestEntry<F extends ContentFile<F>>
   }
 
   @Override
+  public void setDataSequenceNumber(long newDataSequenceNumber) {
+    // always reset sequenceNumber whenever dataSequenceNumber is changed
+    this.dataSequenceNumber = newDataSequenceNumber;
+    this.sequenceNumber = null;
+  }
+
+  @Override
   public void setSequenceNumber(long newSequenceNumber) {
     this.sequenceNumber = newSequenceNumber;
   }
@@ -130,7 +151,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
         this.snapshotId = (Long) v;
         return;
       case 2:
-        this.sequenceNumber = (Long) v;
+        // always reset sequenceNumber whenever dataSequenceNumber is changed
+        this.dataSequenceNumber = (Long) v;
+        this.sequenceNumber = null;
         return;
       case 3:
         this.file = (F) v;
@@ -153,7 +176,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
       case 1:
         return snapshotId;
       case 2:
-        return sequenceNumber;
+        return dataSequenceNumber;
       case 3:
         return file;
       default:
@@ -181,7 +204,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return MoreObjects.toStringHelper(this)
         .add("status", status)
         .add("snapshot_id", snapshotId)
-        .add("sequence_number", sequenceNumber)
+        .add("data_sequence_number", dataSequenceNumber)
         .add("file", file)
         .toString();
   }

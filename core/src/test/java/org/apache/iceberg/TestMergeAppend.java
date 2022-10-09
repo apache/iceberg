@@ -580,7 +580,7 @@ public class TestMergeAppend extends TableTestBase {
 
     validateManifest(
         deleteManifest,
-        seqs(2, 1),
+        seqs(1, 1),
         ids(deleteId, baseId),
         files(FILE_A, FILE_B),
         statuses(Status.DELETED, Status.EXISTING));

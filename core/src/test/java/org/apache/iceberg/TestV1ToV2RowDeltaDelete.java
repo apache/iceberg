@@ -225,4 +225,63 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
         Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
   }
+
+  @Test
+  public void testSequenceNumbersInUpgradedTables() {
+    // add initial data
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+
+    validateManifest(
+        appendSnapshot.dataManifests(table.io()).get(0),
+        seqs(0, 0),
+        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+
+    // upgrade the table to v2
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    V1Assert.disable();
+    V2Assert.enable();
+
+    // add a row delta with delete files
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+
+    Snapshot deltaSnapshot = table.currentSnapshot();
+
+    validateManifest(
+        deltaSnapshot.dataManifests(table.io()).get(0),
+        seqs(0, 0),
+        ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+
+    validateDeleteManifest(
+        deltaSnapshot.deleteManifests(table.io()).get(0),
+        seqs(1),
+        ids(deltaSnapshot.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.ADDED));
+
+    // delete one of the initial data files to rewrite the v1 data manifest
+    table.newDelete().deleteFile(FILE_B).commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+
+    validateManifest(
+        deleteSnapshot.dataManifests(table.io()).get(0),
+        seqs(0, 0),
+        ids(appendSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.DELETED));
+
+    validateDeleteManifest(
+        deleteSnapshot.deleteManifests(table.io()).get(0),
+        seqs(1),
+        ids(deltaSnapshot.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(ManifestEntry.Status.ADDED));
+  }
 }
