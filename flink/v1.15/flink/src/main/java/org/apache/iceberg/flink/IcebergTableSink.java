@@ -21,13 +21,17 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
+import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.sink.DataStreamSinkProvider;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.sink.abilities.SupportsOverwrite;
 import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
@@ -63,6 +67,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
+
     Preconditions.checkState(
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
@@ -71,9 +76,14 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
 
     if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP143_SINK)) {
-      return (DataStreamSinkProvider)
-          (providerContext, dataStream) ->
-              IcebergSink.forRowData(dataStream)
+      DataStreamSinkProvider dataStreamSinkProvider =
+          new DataStreamSinkProvider() {
+
+            @Override
+            public DataStreamSink<?> consumeDataStream(
+                ProviderContext providerContext, DataStream<RowData> dataStream) {
+
+              return IcebergSink.forRowData(dataStream)
                   .tableLoader(tableLoader)
                   .tableSchema(tableSchema)
                   .equalityFieldColumns(equalityColumns)
@@ -81,6 +91,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
                   .setAll(writeProps)
                   .flinkConf(readableConfig)
                   .append();
+            }
+          };
+      return dataStreamSinkProvider;
     } else {
       return (DataStreamSinkProvider)
           (providerContext, dataStream) ->

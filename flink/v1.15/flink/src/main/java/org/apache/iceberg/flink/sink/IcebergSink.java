@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.io.IOException;
@@ -122,6 +128,7 @@ public class IcebergSink
   private final Map<String, String> snapshotProperties;
   private final RowType flinkRowType;
   private Committer<FilesCommittable> committer;
+  private Map<String, String> writeProperties;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -136,7 +143,8 @@ public class IcebergSink
       DistributionMode distributionMode,
       int workerPoolSize,
       long targetDataFileSize,
-      FileFormat dataFileFormat) {
+      FileFormat dataFileFormat,
+      Map<String, String> writeProperties) {
     Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
     Preconditions.checkNotNull(table, "Table shouldn't be null");
 
@@ -153,6 +161,7 @@ public class IcebergSink
     this.workerPoolSize = workerPoolSize;
     this.targetDataFileSize = targetDataFileSize;
     this.dataFileFormat = dataFileFormat;
+    this.writeProperties = writeProperties;
   }
 
   @Override
@@ -181,11 +190,12 @@ public class IcebergSink
             flinkRowType,
             targetDataFileSize,
             dataFileFormat,
+            writeProperties,
             equalityFieldIds,
             upsertMode);
     StreamWriter streamWriter =
         new StreamWriter(
-            table.name(),
+            tableLoader,
             taskWriterFactory,
             context.getSubtaskId(),
             context.getNumberOfParallelSubtasks());
@@ -531,7 +541,8 @@ public class IcebergSink
           flinkWriteConf.distributionMode(),
           flinkWriteConf.workerPoolSize(),
           flinkWriteConf.targetDataFileSize(),
-          flinkWriteConf.dataFileFormat());
+          flinkWriteConf.dataFileFormat(),
+          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf));
     }
 
     private String operatorName(String suffix) {
@@ -690,5 +701,46 @@ public class IcebergSink
         }
       }
     }
+  }
+
+  /**
+   * Based on the {@link FileFormat} overwrites the table level compression properties for the table
+   * write.
+   *
+   * @param table The table to get the table level settings
+   * @param format The FileFormat to use
+   * @param conf The write configuration
+   * @return The properties to use for writing
+   */
+  private static Map<String, String> writeProperties(
+      Table table, FileFormat format, FlinkWriteConf conf) {
+    Map<String, String> writeProperties = Maps.newHashMap(table.properties());
+
+    switch (format) {
+      case PARQUET:
+        writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
+        String parquetCompressionLevel = conf.parquetCompressionLevel();
+        if (parquetCompressionLevel != null) {
+          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
+        }
+
+        break;
+      case AVRO:
+        writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
+        String avroCompressionLevel = conf.avroCompressionLevel();
+        if (avroCompressionLevel != null) {
+          writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
+        }
+
+        break;
+      case ORC:
+        writeProperties.put(ORC_COMPRESSION, conf.orcCompressionCodec());
+        writeProperties.put(ORC_COMPRESSION_STRATEGY, conf.orcCompressionStrategy());
+        break;
+      default:
+        throw new IllegalArgumentException(String.format("Unknown file format %s", format));
+    }
+
+    return writeProperties;
   }
 }

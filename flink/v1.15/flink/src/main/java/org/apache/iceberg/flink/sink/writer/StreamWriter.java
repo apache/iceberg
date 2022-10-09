@@ -24,6 +24,10 @@ import java.util.List;
 import org.apache.flink.api.connector.sink2.StatefulSink.StatefulSinkWriter;
 import org.apache.flink.api.connector.sink2.TwoPhaseCommittingSink;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.FlinkManifestUtil;
+import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.flink.sink.committer.FilesCommittable;
 import org.apache.iceberg.io.TaskWriter;
@@ -35,25 +39,34 @@ public class StreamWriter
         TwoPhaseCommittingSink.PrecommittingSinkWriter<RowData, FilesCommittable> {
   private static final long serialVersionUID = 1L;
 
+  private final Table table;
+
   private final String fullTableName;
   private final TaskWriterFactory<RowData> taskWriterFactory;
   private transient TaskWriter<RowData> writer;
   private transient int subTaskId;
   private final List<FilesCommittable> writeResultsState = Lists.newArrayList();
+  private transient ManifestOutputFileFactory manifestOutputFileFactory;
 
   public StreamWriter(
-      String fullTableName,
+      TableLoader tableLoader,
       TaskWriterFactory<RowData> taskWriterFactory,
       int subTaskId,
       int numberOfParallelSubtasks) {
-    this.fullTableName = fullTableName;
     this.subTaskId = subTaskId;
 
     this.taskWriterFactory = taskWriterFactory;
     // Initialize the task writer factory.
-    taskWriterFactory.initialize(numberOfParallelSubtasks, subTaskId);
+    taskWriterFactory.initialize(subTaskId, numberOfParallelSubtasks);
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
+
+    tableLoader.open();
+    this.table = tableLoader.loadTable();
+    this.fullTableName = table.name();
+
+    this.manifestOutputFileFactory =
+        FlinkManifestUtil.createOutputFileFactory(table, subTaskId, numberOfParallelSubtasks);
   }
 
   @Override
@@ -61,6 +74,7 @@ public class StreamWriter
     writer.write(element);
   }
 
+  /** Use prepareCommit() to handle this situation, so no action is taken here. */
   @Override
   public void flush(boolean endOfInput) throws IOException {}
 
@@ -82,7 +96,10 @@ public class StreamWriter
 
   @Override
   public Collection<FilesCommittable> prepareCommit() throws IOException {
-    writeResultsState.add(new FilesCommittable(writer.complete()));
+    byte[] bytes =
+        FilesCommittable.writeToManifest(
+            writer.complete(), manifestOutputFileFactory, table.spec());
+    writeResultsState.add(new FilesCommittable(bytes));
     this.writer = taskWriterFactory.create();
     return writeResultsState;
   }

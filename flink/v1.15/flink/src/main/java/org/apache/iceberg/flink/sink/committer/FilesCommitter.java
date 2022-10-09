@@ -91,7 +91,10 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
     long maxCommittableCheckpointId = INITIAL_CHECKPOINT_ID;
 
     for (CommitRequest<FilesCommittable> commitRequest : commitRequests) {
-      WriteResult committable = commitRequest.getCommittable().committable();
+      WriteResult writeResult =
+          FilesCommittable.readFromManifest(commitRequest.getCommittable(), table.io());
+
+      commitRequest.getCommittable().writeResult(writeResult);
       Long committableCheckpointId = commitRequest.getCommittable().checkpointId();
       jobId = commitRequest.getCommittable().jobID();
       if (committableCheckpointId
@@ -100,14 +103,14 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
         // committableCheckpointId > maxCommittableCheckpointId or the job id has never written data
         // to the table.
         store.add(commitRequest);
-        dataFilesNum = dataFilesNum + committable.dataFiles().length;
-        deleteFilesNum = deleteFilesNum + committable.deleteFiles().length;
+        dataFilesNum = dataFilesNum + writeResult.dataFiles().length;
+        deleteFilesNum = deleteFilesNum + writeResult.deleteFiles().length;
         maxCommittableCheckpointId = committableCheckpointId;
       } else if (committableCheckpointId > getMaxCommittedCheckpointId(table, jobId)) {
         // committable is restored from the previous job that committed data to the table.
         commitResult(
-            committable.dataFiles().length,
-            committable.deleteFiles().length,
+            writeResult.dataFiles().length,
+            writeResult.deleteFiles().length,
             Lists.newArrayList(commitRequest));
         maxCommittedCheckpointIdForJob.put(jobId, committableCheckpointId);
       } else {
@@ -137,7 +140,8 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
   }
 
   private void commitResult(
-      int dataFilesNum, int deleteFilesNum, List<CommitRequest<FilesCommittable>> commitRequests) {
+      int dataFilesNum, int deleteFilesNum, List<CommitRequest<FilesCommittable>> commitRequests)
+      throws IOException {
     int totalFiles = dataFilesNum + deleteFilesNum;
 
     if (totalFiles != 0) {
@@ -150,7 +154,8 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
   }
 
   private void replacePartitions(
-      List<CommitRequest<FilesCommittable>> writeResults, int dataFilesNum, int deleteFilesNum) {
+      List<CommitRequest<FilesCommittable>> commitRequests, int dataFilesNum, int deleteFilesNum)
+      throws IOException {
     // Partition overwrite does not support delete files.
     Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
 
@@ -159,8 +164,9 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
 
     String flinkJobId = null;
     long checkpointId = -1;
-    for (CommitRequest<FilesCommittable> commitRequest : writeResults) {
-      WriteResult result = commitRequest.getCommittable().committable();
+    for (CommitRequest<FilesCommittable> commitRequest : commitRequests) {
+      WriteResult result = commitRequest.getCommittable().writeResult();
+
       Preconditions.checkState(
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
       flinkJobId = commitRequest.getCommittable().jobID();
@@ -169,7 +175,7 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
     }
 
     commitOperation(
-        writeResults,
+        commitRequests,
         dynamicOverwrite,
         dataFilesNum,
         0,
@@ -179,14 +185,15 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
   }
 
   private void commitDeltaTxn(
-      List<CommitRequest<FilesCommittable>> commitRequests, int dataFilesNum, int deleteFilesNum) {
+      List<CommitRequest<FilesCommittable>> commitRequests, int dataFilesNum, int deleteFilesNum)
+      throws IOException {
     if (deleteFilesNum == 0) {
       // To be compatible with iceberg format V1.
       AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
       String flinkJobId = null;
       long checkpointId = -1;
       for (CommitRequest<FilesCommittable> commitRequest : commitRequests) {
-        WriteResult result = commitRequest.getCommittable().committable();
+        WriteResult result = commitRequest.getCommittable().writeResult();
         Preconditions.checkState(
             result.referencedDataFiles().length == 0, "Should have no referenced data files.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
@@ -203,7 +210,7 @@ public class FilesCommitter implements Committer<FilesCommittable>, Serializable
         // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
         // to data files from txn1. Committing the merged one will lead to the incorrect delete
         // semantic.
-        WriteResult result = commitRequest.getCommittable().committable();
+        WriteResult result = commitRequest.getCommittable().writeResult();
 
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may

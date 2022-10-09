@@ -23,8 +23,6 @@ import java.io.IOException;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
-import org.apache.flink.util.InstantiationUtil;
-import org.apache.iceberg.io.WriteResult;
 
 public class FilesCommittableSerializer implements SimpleVersionedSerializer<FilesCommittable> {
   private static final int VERSION_1 = 1;
@@ -38,12 +36,12 @@ public class FilesCommittableSerializer implements SimpleVersionedSerializer<Fil
   public byte[] serialize(FilesCommittable committable) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
-    byte[] serialize = writeResultSerializer.serialize(committable.committable());
+
     view.writeUTF(committable.jobID());
     view.writeLong(committable.checkpointId());
     view.writeInt(committable.subtaskId());
-    view.writeInt(serialize.length);
-    view.write(serialize);
+    view.writeInt(committable.manifest().length);
+    view.write(committable.manifest());
     return out.toByteArray();
   }
 
@@ -58,34 +56,9 @@ public class FilesCommittableSerializer implements SimpleVersionedSerializer<Fil
         int len = view.readInt();
         byte[] buf = new byte[len];
         view.read(buf);
-        WriteResult writeResult =
-            writeResultSerializer.deserialize(writeResultSerializer.getVersion(), buf);
-        return new FilesCommittable(writeResult, jobID, checkpointId, subtaskId);
+        return new FilesCommittable(buf, jobID, checkpointId, subtaskId);
       default:
         throw new IOException("Unrecognized version or corrupt state: " + version);
     }
   }
-
-  private final SimpleVersionedSerializer<WriteResult> writeResultSerializer =
-      new SimpleVersionedSerializer<WriteResult>() {
-        @Override
-        public int getVersion() {
-          return VERSION_1;
-        }
-
-        @Override
-        public byte[] serialize(WriteResult writeResult) throws IOException {
-          return InstantiationUtil.serializeObject(writeResult);
-        }
-
-        @Override
-        public WriteResult deserialize(int version, byte[] serialized) throws IOException {
-          try {
-            return InstantiationUtil.deserializeObject(
-                serialized, WriteResult.class.getClassLoader());
-          } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Failed to deserialize the WriteResult.", e);
-          }
-        }
-      };
 }

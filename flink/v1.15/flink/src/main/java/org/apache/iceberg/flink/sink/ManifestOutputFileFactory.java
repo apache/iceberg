@@ -26,7 +26,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-class ManifestOutputFileFactory {
+public class ManifestOutputFileFactory {
   // Users could define their own flink manifests directory by setting this value in table
   // properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
@@ -69,7 +69,11 @@ class ManifestOutputFileFactory {
             fileCount.incrementAndGet()));
   }
 
-  OutputFile create(long checkpointId) {
+  public OutputFile create() {
+    return create(0);
+  }
+
+  public OutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
 
     String newManifestFullPath;

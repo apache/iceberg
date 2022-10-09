@@ -92,6 +92,8 @@ public class TestFilesCommitterOperator extends TableTestBase {
 
   private final long dataFIleRowCount = 5L;
 
+  private ManifestOutputFileFactory manifestOutputFileFactory;
+
   private final DataFile dataFileTest1 =
       DataFiles.builder(PartitionSpec.unpartitioned())
           .withPath("/path/to/data-1.parquet")
@@ -152,6 +154,9 @@ public class TestFilesCommitterOperator extends TableTestBase {
             TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     table = SimpleDataUtil.createTable(tablePath, props, false);
     tableLoader = TableLoader.fromHadoopTable(tablePath);
+
+    manifestOutputFileFactory =
+        FlinkManifestUtil.createOutputFileFactory(table, "flink_job", "0", 0, 0);
   }
 
   public TestFilesCommitterOperator(
@@ -176,7 +181,11 @@ public class TestFilesCommitterOperator extends TableTestBase {
                     (TwoPhaseCommittingSink<RowData, FilesCommittable>) sink, false, true));
     testHarness.open();
 
-    FilesCommittable commit = new FilesCommittable(WriteResult.builder().build());
+    WriteResult writeResult = WriteResult.builder().build();
+
+    FilesCommittable commit =
+        new FilesCommittable(
+            FilesCommittable.writeToManifest(writeResult, manifestOutputFileFactory, table.spec()));
     final CommittableSummary<FilesCommittable> committableSummary =
         new CommittableSummary<>(1, 1, 1L, 1, 1, 0);
     testHarness.processElement(new StreamRecord<>(committableSummary));
@@ -589,7 +598,14 @@ public class TestFilesCommitterOperator extends TableTestBase {
       OneInputStreamOperatorTestHarness testHarness,
       int subTaskId)
       throws Exception {
-    FilesCommittable commit = new FilesCommittable(withRecord, jobId, checkpointId, subTaskId);
+
+    FilesCommittable commit =
+        new FilesCommittable(
+            FilesCommittable.writeToManifest(withRecord, manifestOutputFileFactory, table.spec()),
+            jobId,
+            checkpointId,
+            subTaskId);
+
     final CommittableSummary<FilesCommittable> committableSummary =
         new CommittableSummary<>(subTaskId, 1, checkpointId, 1, 1, 0);
     testHarness.processElement(new StreamRecord<>(committableSummary));

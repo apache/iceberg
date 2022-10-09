@@ -46,6 +46,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.committer.FilesCommittable;
 import org.apache.iceberg.flink.sink.writer.StreamWriter;
 import org.apache.iceberg.flink.sink.writer.StreamWriterState;
@@ -126,7 +127,7 @@ public class TestStreamWriter {
 
     WriteResult result = null;
     for (FilesCommittable filesCommittable : filesCommittables) {
-      result = filesCommittable.committable();
+      result = FilesCommittable.readFromManifest(filesCommittable, table.io());
     }
 
     long expectedDataFiles = partitioned ? 2 : 1;
@@ -141,7 +142,7 @@ public class TestStreamWriter {
 
     filesCommittables = streamWriter.prepareCommit();
     for (FilesCommittable filesCommittable : filesCommittables) {
-      result = filesCommittable.committable();
+      result = FilesCommittable.readFromManifest(filesCommittable, table.io());
     }
 
     expectedDataFiles = partitioned ? 2 : 1;
@@ -206,7 +207,10 @@ public class TestStreamWriter {
         streamWriter.write(row, new ContextImpl());
       }
       Collection<FilesCommittable> filesCommittables = streamWriter.prepareCommit();
-      WriteResult result = filesCommittables.stream().findFirst().get().committable();
+      WriteResult result =
+          FilesCommittable.readFromManifest(
+              filesCommittables.stream().findFirst().get(), table.io());
+
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(8, result.dataFiles().length);
 
@@ -276,7 +280,7 @@ public class TestStreamWriter {
 
     WriteResult result = null;
     for (FilesCommittable filesCommittable : filesCommittables) {
-      result = filesCommittable.committable();
+      result = FilesCommittable.readFromManifest(filesCommittable, table.io());
     }
 
     Assert.assertEquals(0, result.deleteFiles().length);
@@ -341,9 +345,11 @@ public class TestStreamWriter {
             newFlinkRowType,
             flinkWriteConf.targetDataFileSize(),
             flinkWriteConf.dataFileFormat(),
+            table.properties(),
             newEqualityFieldIds,
             flinkWriteConf.upsertMode());
 
-    return new StreamWriter(newTable.name(), taskWriterFactory, 1, 1);
+    return new StreamWriter(
+        TableLoader.fromHadoopTable(newTable.location()), taskWriterFactory, 1, 1);
   }
 }

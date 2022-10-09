@@ -18,29 +18,46 @@
  */
 package org.apache.iceberg.flink.sink.committer;
 
+import java.io.IOException;
 import java.io.Serializable;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.flink.sink.DeltaManifests;
+import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
+import org.apache.iceberg.flink.sink.FlinkManifestUtil;
+import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class FilesCommittable implements Serializable {
-  private final WriteResult committable;
+  private final byte[] manifest;
+  private WriteResult writeResult;
   private String jobId = "";
   private long checkpointId;
   private int subtaskId;
 
-  public FilesCommittable(WriteResult committable) {
-    this.committable = committable;
+  public FilesCommittable(byte[] manifest) {
+    this.manifest = manifest;
   }
 
-  public FilesCommittable(WriteResult committable, String jobId, long checkpointId, int subtaskId) {
-    this.committable = committable;
+  public FilesCommittable(byte[] manifest, String jobId, long checkpointId, int subtaskId) {
+    this.manifest = manifest;
     this.jobId = jobId;
     this.checkpointId = checkpointId;
     this.subtaskId = subtaskId;
   }
 
-  public WriteResult committable() {
-    return committable;
+  public void writeResult(WriteResult newWriteResult) {
+    this.writeResult = newWriteResult;
+  }
+
+  public WriteResult writeResult() {
+    return writeResult;
+  }
+
+  public byte[] manifest() {
+    return manifest;
   }
 
   public Long checkpointId() {
@@ -67,10 +84,41 @@ public class FilesCommittable implements Serializable {
     return subtaskId;
   }
 
+  /**
+   * Regenerate the WriteResult from the DeltaManifests file, which uses IO to get the real file
+   * information from the storage system.
+   */
+  public static WriteResult readFromManifest(FilesCommittable committable, FileIO io)
+      throws IOException {
+    byte[] manifestBytes = committable.manifest();
+
+    DeltaManifests deltaManifests =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, manifestBytes);
+
+    return FlinkManifestUtil.readCompletedFiles(deltaManifests, io);
+  }
+
+  /**
+   * Write all the complete data files to a newly created manifest file and return the manifest's
+   * avro serialized bytes.
+   */
+  public static byte[] writeToManifest(
+      WriteResult writeResult,
+      ManifestOutputFileFactory manifestOutputFileFactory,
+      PartitionSpec spec)
+      throws IOException {
+
+    DeltaManifests deltaManifests =
+        FlinkManifestUtil.writeCompletedFiles(writeResult, manifestOutputFileFactory::create, spec);
+
+    return SimpleVersionedSerialization.writeVersionAndSerialize(
+        DeltaManifestsSerializer.INSTANCE, deltaManifests);
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("committable", committable)
         .add("jobID", jobId)
         .add("checkpointId", checkpointId)
         .add("subtaskId", subtaskId)

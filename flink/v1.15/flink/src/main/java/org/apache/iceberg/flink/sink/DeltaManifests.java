@@ -23,7 +23,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class DeltaManifests {
+public class DeltaManifests {
 
   private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
 
