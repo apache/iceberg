@@ -34,7 +34,6 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
-  private AssumeRoleRequest assumeRoleRequest;
 
   @Override
   public S3Client s3() {
@@ -80,8 +79,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleRegion(),
         "Cannot initialize AssumeRoleClientConfigFactory with null region");
+  }
 
-    this.assumeRoleRequest =
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
+      T clientBuilder) {
+    AssumeRoleRequest assumeRoleRequest =
         AssumeRoleRequest.builder()
             .roleArn(awsProperties.clientAssumeRoleArn())
             .roleSessionName(genSessionName())
@@ -89,10 +91,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
             .externalId(awsProperties.clientAssumeRoleExternalId())
             .tags(awsProperties.stsClientAssumeRoleTags())
             .build();
-  }
-
-  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
-      T clientBuilder) {
     clientBuilder
         .credentialsProvider(
             StsAssumeRoleCredentialsProvider.builder()
