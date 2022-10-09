@@ -34,6 +34,7 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
+  private String roleSessionName;
 
   @Override
   public S3Client s3() {
@@ -73,6 +74,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
+    this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),
         "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
@@ -86,7 +88,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     AssumeRoleRequest assumeRoleRequest =
         AssumeRoleRequest.builder()
             .roleArn(awsProperties.clientAssumeRoleArn())
-            .roleSessionName(genSessionName())
+            .roleSessionName(roleSessionName)
             .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
             .externalId(awsProperties.clientAssumeRoleExternalId())
             .tags(awsProperties.stsClientAssumeRoleTags())
