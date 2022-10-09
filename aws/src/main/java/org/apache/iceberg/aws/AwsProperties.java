@@ -408,6 +408,88 @@ public class AwsProperties implements Serializable {
       "http-client.apache.socket-timeout-ms";
 
   /**
+   * Used to configure the connection acquisition timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
+      "http-client.apache.connection-acquisition-timeout-ms";
+
+  /**
+   * Used to configure the connection max idle time in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
+      "http-client.apache.connection-max-idle-time-ms";
+
+  /**
+   * Used to configure the connection time to live in milliseconds for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
+      "http-client.apache.connection-time-to-live-ms";
+
+  /**
+   * Used to configure whether to enable the expect continue setting for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>In default, this is disabled.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
+      "http-client.apache.expect-continue-enabled";
+
+  /**
+   * Used to configure the max connections number for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
+      "http-client.apache.max-connections";
+
+  /**
+   * Used to configure whether to enable the tcp keep alive setting for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}.
+   *
+   * <p>In default, this is disabled.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED =
+      "http-client.apache.tcp-keep-alive-enabled";
+
+  /**
+   * Used to configure whether to use idle connection reaper for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
+   * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}.
+   *
+   * <p>In default, this is enabled.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
+      "http-client.apache.use-idle-connection-reaper-enabled";
+  /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
    * <p>For more details, see
@@ -541,8 +623,15 @@ public class AwsProperties implements Serializable {
   private String httpClientType;
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
+  private Long httpClientApacheConnectionAcquisitionTimeoutMs;
+  private Long httpClientApacheConnectionMaxIdleTimeMs;
+  private Long httpClientApacheConnectionTimeToLiveMs;
   private Long httpClientApacheConnectionTimeoutMs;
+  private Boolean httpClientApacheExpectContinueEnabled;
+  private Integer httpClientApacheMaxConnections;
   private Long httpClientApacheSocketTimeoutMs;
+  private Boolean httpClientApacheTcpKeepAliveEnabled;
+  private Boolean httpClientApacheUseIdleConnectionReaperEnabled;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -591,8 +680,15 @@ public class AwsProperties implements Serializable {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientUrlConnectionConnectionTimeoutMs = null;
     this.httpClientUrlConnectionSocketTimeoutMs = null;
+    this.httpClientApacheConnectionAcquisitionTimeoutMs = null;
+    this.httpClientApacheConnectionMaxIdleTimeMs = null;
+    this.httpClientApacheConnectionTimeToLiveMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
+    this.httpClientApacheExpectContinueEnabled = null;
+    this.httpClientApacheMaxConnections = null;
     this.httpClientApacheSocketTimeoutMs = null;
+    this.httpClientApacheTcpKeepAliveEnabled = null;
+    this.httpClientApacheUseIdleConnectionReaperEnabled = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -609,7 +705,6 @@ public class AwsProperties implements Serializable {
     this.s3SessionToken = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
-
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
     this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
@@ -637,7 +732,6 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
-
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
@@ -652,12 +746,31 @@ public class AwsProperties implements Serializable {
     this.httpClientUrlConnectionSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
+    this.httpClientApacheConnectionAcquisitionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
+    this.httpClientApacheConnectionMaxIdleTimeMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
+    this.httpClientApacheConnectionTimeToLiveMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
+    this.httpClientApacheExpectContinueEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
+    this.httpClientApacheMaxConnections =
+        PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
     this.httpClientApacheSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
+    this.httpClientApacheTcpKeepAliveEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
+    this.httpClientApacheUseIdleConnectionReaperEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
-
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
         PropertyUtil.propertyAsInt(
@@ -693,7 +806,6 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
-
     this.s3FileIoMultipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties,
@@ -711,7 +823,6 @@ public class AwsProperties implements Serializable {
     this.s3DualStackEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_DUALSTACK_ENABLED, S3_DUALSTACK_ENABLED_DEFAULT);
-
     try {
       this.s3FileIoMultiPartSize =
           PropertyUtil.propertyAsInt(
@@ -721,34 +832,27 @@ public class AwsProperties implements Serializable {
           "Input malformed or exceeded maximum multipart upload size 5GB: %s"
               + properties.get(S3FILEIO_MULTIPART_SIZE));
     }
-
     this.s3FileIoMultipartThresholdFactor =
         PropertyUtil.propertyAsDouble(
             properties,
             S3FILEIO_MULTIPART_THRESHOLD_FACTOR,
             S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
-
     Preconditions.checkArgument(
         s3FileIoMultipartThresholdFactor >= 1.0, "Multipart threshold factor must be >= to 1.0");
-
     Preconditions.checkArgument(
         s3FileIoMultiPartSize >= S3FILEIO_MULTIPART_SIZE_MIN,
         "Minimum multipart upload object size must be larger than 5 MB.");
-
     this.s3fileIoStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, S3FILEIO_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
-
     String aclType = properties.get(S3FILEIO_ACL);
     this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
     Preconditions.checkArgument(
         s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
         "Cannot support S3 CannedACL " + aclType);
-
     this.isS3ChecksumEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, S3_CHECKSUM_ENABLED, S3_CHECKSUM_ENABLED_DEFAULT);
-
     this.s3FileIoDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, S3FILEIO_DELETE_BATCH_SIZE, S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
@@ -756,7 +860,6 @@ public class AwsProperties implements Serializable {
         s3FileIoDeleteBatchSize > 0 && s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
         String.format(
             "Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
-
     this.s3WriteTags = toS3Tags(properties, S3_WRITE_TAGS_PREFIX);
     this.s3WriteTableTagEnabled =
         PropertyUtil.propertyAsBoolean(
@@ -779,7 +882,6 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
-
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
@@ -1144,8 +1246,38 @@ public class AwsProperties implements Serializable {
     if (httpClientApacheConnectionTimeoutMs != null) {
       builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
     }
+
     if (httpClientApacheSocketTimeoutMs != null) {
       builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
+    }
+
+    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
+      builder.connectionAcquisitionTimeout(
+          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
+    }
+
+    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
+      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
+    }
+
+    if (httpClientApacheConnectionTimeToLiveMs != null) {
+      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
+    }
+
+    if (httpClientApacheExpectContinueEnabled != null) {
+      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
+    }
+
+    if (httpClientApacheMaxConnections != null) {
+      builder.maxConnections(httpClientApacheMaxConnections);
+    }
+
+    if (httpClientApacheTcpKeepAliveEnabled != null) {
+      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
+    }
+
+    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
+      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
     }
   }
 }

@@ -440,4 +440,142 @@ public class TestAwsProperties {
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .socketTimeout(socketTimeoutCaptor.capture());
   }
+
+  @Test
+  public void testApacheConnectionAcquisitionTimeoutConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS, "101");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionAcquisitionTimeoutCaptor =
+        ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionAcquisitionTimeout(connectionAcquisitionTimeoutCaptor.capture());
+
+    Duration capturedConnectionAcquisitionTimeout = connectionAcquisitionTimeoutCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection acquisition timeout should be 101 ms",
+        101,
+        capturedConnectionAcquisitionTimeout.toMillis());
+  }
+
+  @Test
+  public void testApacheConnectionMaxIdleTimeConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS, "102");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionMaxIdleTimeCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionMaxIdleTime(connectionMaxIdleTimeCaptor.capture());
+
+    Duration capturedConnectionMaxIdleTime = connectionMaxIdleTimeCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection max idle time should be 102 ms",
+        102,
+        capturedConnectionMaxIdleTime.toMillis());
+  }
+
+  @Test
+  public void testApacheConnectionTimeToLiveConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS, "103");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Duration> connectionTimeToLiveCaptor = ArgumentCaptor.forClass(Duration.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .connectionTimeToLive(connectionTimeToLiveCaptor.capture());
+
+    Duration capturedConnectionTimeToLive = connectionTimeToLiveCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured connection time to live should be 103 ms",
+        103,
+        capturedConnectionTimeToLive.toMillis());
+  }
+
+  @Test
+  public void testApacheExpectContinueEnabledConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED, "true");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> expectContinueEnabledCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .expectContinueEnabled(expectContinueEnabledCaptor.capture());
+
+    Boolean capturedExpectContinueEnabled = expectContinueEnabledCaptor.getValue();
+
+    Assert.assertTrue(
+        "The configured expect continue enabled should be true", capturedExpectContinueEnabled);
+  }
+
+  @Test
+  public void testApacheMaxConnectionsConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS, "104");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Integer> maxConnectionsCaptor = ArgumentCaptor.forClass(Integer.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).maxConnections(maxConnectionsCaptor.capture());
+
+    Integer capturedMaxConnections = maxConnectionsCaptor.getValue();
+
+    Assert.assertEquals(
+        "The configured max connections should be 104", 104, capturedMaxConnections.intValue());
+  }
+
+  @Test
+  public void testApacheTcpKeepAliveConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> tcpKeepAliveCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder).tcpKeepAlive(tcpKeepAliveCaptor.capture());
+
+    Boolean capturedTcpKeepAlive = tcpKeepAliveCaptor.getValue();
+
+    Assert.assertTrue("The configured tcp keep live enabled should be true", capturedTcpKeepAlive);
+  }
+
+  @Test
+  public void testApacheUseIdleConnectionReaperConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    ArgumentCaptor<Boolean> useIdleConnectionReaperCaptor = ArgumentCaptor.forClass(Boolean.class);
+
+    awsProperties.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .useIdleConnectionReaper(useIdleConnectionReaperCaptor.capture());
+
+    Boolean capturedUseIdleConnectionReaper = useIdleConnectionReaperCaptor.getValue();
+
+    Assert.assertFalse(
+        "The configured use idle connection reaper enabled should be false",
+        capturedUseIdleConnectionReaper);
+  }
 }
