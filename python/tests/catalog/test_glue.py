@@ -19,6 +19,7 @@ import random
 import string
 
 import pytest
+from moto import mock_glue, mock_s3
 
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import NoSuchNamespaceError
@@ -81,3 +82,40 @@ def test_load_table():
 def test_list_namespaces():
     db_list = GlueCatalog("glue").list_namespaces()
     assert db_list == [("listdatabasetest",), ("myicebergtest",)]
+
+
+# prototype of unit test
+@mock_s3
+@mock_glue
+def test_unit_create_table(_s3, _glue, _patch_aiobotocore, table_schema_nested):
+    bucket_name = "testBucket"
+    database_name = "testDatabase"
+    table_name = get_random_table_name()
+    directory_name = f"{database_name}.db"
+    identifier = (database_name, table_name)
+
+    _s3.create_bucket(Bucket=bucket_name)
+    _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    # will be replaced by catalog create_namespace in the future
+    _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
+
+    test_catalog = GlueCatalog("glue")
+    table = test_catalog.create_table(identifier, table_schema_nested)
+    assert table.identifier == identifier
+
+
+@mock_s3
+@mock_glue
+def test_unit_list_namespaces(_s3, _glue, _patch_aiobotocore):
+    bucket_name = "testBucket"
+    database_name = "testDatabase"
+    directory_name = f"{database_name}.db"
+
+    _s3.create_bucket(Bucket=bucket_name)
+    _s3.put_object(Bucket=bucket_name, Key=(directory_name + "/"))
+    # will be replaced by catalog create_namespace in the future
+    _glue.create_database(DatabaseInput={"Name": database_name, "LocationUri": f"s3://{bucket_name}/{directory_name}"})
+    test_catalog = GlueCatalog("glue")
+    identifiers = test_catalog.list_namespaces()
+    assert len(identifiers) == 1
+    assert identifiers[0] == (database_name,)

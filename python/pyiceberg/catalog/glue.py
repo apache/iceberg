@@ -147,7 +147,6 @@ class GlueCatalog(Catalog):
         properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create an Iceberg table in Glue catalog
-
         Args:
             identifier: Table identifier.
             schema: Table's schema.
@@ -155,10 +154,8 @@ class GlueCatalog(Catalog):
             partition_spec: PartitionSpec for the table.
             sort_order: SortOrder for the table.
             properties: Table properties that can be a string based dictionary.
-
         Returns:
             Table: the created table instance
-
         Raises:
             AlreadyExistsError: If a table with the name already exists
             ValueError: If the identifier is invalid
@@ -191,16 +188,12 @@ class GlueCatalog(Catalog):
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
-
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
         Note: This method doesn't scan data stored in the table.
-
         Args:
             identifier: Table identifier.
-
         Returns:
             Table: the table instance with its metadata
-
         Raises:
             NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
         """
@@ -233,7 +226,6 @@ class GlueCatalog(Catalog):
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
-
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
