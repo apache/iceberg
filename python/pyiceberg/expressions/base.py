@@ -32,6 +32,7 @@ from pyiceberg.expressions.literals import Literal
 from pyiceberg.files import StructProtocol
 from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
+from pyiceberg.table import PartitionSpec
 from pyiceberg.types import (
     DoubleType,
     FloatType,
@@ -893,8 +894,9 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: list[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True):
-        self.partition_filter = rewrite_not(partition_filter.bind(schema, case_sensitive))
+    def __init__(self, partition_struct_schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True):
+        bound_partition_filter = partition_filter.bind(partition_struct_schema, case_sensitive)
+        self.partition_filter = rewrite_not(bound_partition_filter)
 
     def eval(self, manifest: ManifestFile) -> bool:
         if partitions := manifest.partitions:
@@ -1072,7 +1074,8 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
 
 def manifest_evaluator(
-    schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True
+    partition_spec: PartitionSpec, schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True
 ) -> Callable[[ManifestFile], bool]:
-    evaluator = _ManifestEvalVisitor(schema, partition_filter, case_sensitive)
+    partition_schema = Schema(*partition_spec.partition_type(schema))
+    evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
     return evaluator.eval
