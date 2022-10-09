@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
@@ -34,6 +38,8 @@ public class ExpressionUtil {
   private static final Pattern TIMESTAMP =
       Pattern.compile(
           "\\d\\d\\d\\d-\\d\\d-\\d\\dT\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?([-+]\\d\\d:\\d\\d)?");
+  static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
+  private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
   private ExpressionUtil() {}
 
@@ -238,14 +244,20 @@ public class ExpressionUtil {
         case IN:
           return term
               + " IN "
-              + pred.literals().stream()
-                  .map(ExpressionUtil::sanitize)
+              + abbreviateValues(
+                      pred.literals().stream()
+                          .map(ExpressionUtil::sanitize)
+                          .collect(Collectors.toList()))
+                  .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
-              + pred.literals().stream()
-                  .map(ExpressionUtil::sanitize)
+              + abbreviateValues(
+                      pred.literals().stream()
+                          .map(ExpressionUtil::sanitize)
+                          .collect(Collectors.toList()))
+                  .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + sanitize(pred.literal());
@@ -256,6 +268,23 @@ public class ExpressionUtil {
               "Cannot sanitize unsupported predicate type: " + pred.op());
       }
     }
+  }
+
+  private static <T> List<String> abbreviateValues(List<String> sanitizedValues) {
+    if (sanitizedValues.size() >= LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD) {
+      Set<String> distinctValues = ImmutableSet.copyOf(sanitizedValues);
+      if (distinctValues.size()
+          <= sanitizedValues.size() - LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN) {
+        List<String> abbreviatedList = Lists.newArrayListWithCapacity(distinctValues.size() + 1);
+        abbreviatedList.addAll(distinctValues);
+        abbreviatedList.add(
+            String.format(
+                "... (%d values hidden, %d in total) ...",
+                sanitizedValues.size() - distinctValues.size(), sanitizedValues.size()));
+        return abbreviatedList;
+      }
+    }
+    return sanitizedValues;
   }
 
   private static String sanitize(Literal<?> literal) {
@@ -291,7 +320,9 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeNumber(Number value, String type) {
-    int numDigits = (int) Math.log10(value.doubleValue()) + 1;
+    // log10 of zero isn't defined and will result in negative infinity
+    int numDigits =
+        0.0d == value.doubleValue() ? 1 : (int) Math.log10(Math.abs(value.doubleValue())) + 1;
     return "(" + numDigits + "-digit-" + type + ")";
   }
 

@@ -71,8 +71,9 @@ public class TestPathIdentifier extends SparkTestBase {
   @Test
   public void testPathIdentifier() throws TableAlreadyExistsException, NoSuchTableException {
     SparkTable table =
-        sparkCatalog.createTable(
-            identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
+        (SparkTable)
+            sparkCatalog.createTable(
+                identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
 
     Assert.assertEquals(table.table().location(), tableLocation.getAbsolutePath());
     Assertions.assertThat(table.table()).isInstanceOf(BaseTable.class);

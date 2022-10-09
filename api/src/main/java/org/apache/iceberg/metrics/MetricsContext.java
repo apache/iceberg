@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Generalized interface for creating telemetry related instances for tracking operations.
@@ -45,7 +46,12 @@ public interface MetricsContext extends Serializable {
     }
 
     public static Unit fromDisplayName(String displayName) {
-      return Unit.valueOf(displayName.toUpperCase(Locale.ROOT));
+      Preconditions.checkArgument(null != displayName, "Invalid unit: null");
+      try {
+        return Unit.valueOf(displayName.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid unit: %s", displayName), e);
+      }
     }
   }
 

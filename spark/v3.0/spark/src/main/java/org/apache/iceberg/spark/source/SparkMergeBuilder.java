@@ -25,7 +25,6 @@ import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
 
-import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
@@ -70,7 +69,7 @@ class SparkMergeBuilder implements MergeBuilder {
     } else {
       throw new IllegalArgumentException("Unsupported operation: " + operation);
     }
-    return IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
+    return IsolationLevel.fromName(isolationLevelAsString);
   }
 
   @Override

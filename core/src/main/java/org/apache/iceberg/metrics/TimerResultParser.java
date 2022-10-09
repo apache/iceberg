@@ -53,7 +53,7 @@ class TimerResultParser {
 
     gen.writeStartObject();
     gen.writeNumberField(COUNT, timer.count());
-    gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ROOT));
+    gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ENGLISH));
     gen.writeNumberField(TOTAL_DURATION, fromDuration(timer.totalDuration(), timer.timeUnit()));
     gen.writeEndObject();
   }
@@ -67,7 +67,7 @@ class TimerResultParser {
     Preconditions.checkArgument(json.isObject(), "Cannot parse timer from non-object: %s", json);
 
     long count = JsonUtil.getLong(COUNT, json);
-    TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, json).toUpperCase(Locale.ROOT));
+    TimeUnit unit = toTimeUnit(JsonUtil.getString(TIME_UNIT, json));
     long duration = JsonUtil.getLong(TOTAL_DURATION, json);
     return TimerResult.of(unit, toDuration(duration, unit), count);
   }
@@ -96,7 +96,7 @@ class TimerResultParser {
         timer.has(TOTAL_DURATION), MISSING_FIELD_ERROR_MSG, timerName, TOTAL_DURATION);
 
     long count = JsonUtil.getLong(COUNT, timer);
-    TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, timer).toUpperCase(Locale.ROOT));
+    TimeUnit unit = toTimeUnit(JsonUtil.getString(TIME_UNIT, timer));
     long duration = JsonUtil.getLong(TOTAL_DURATION, timer);
     return TimerResult.of(unit, toDuration(duration, unit), count);
   }
@@ -109,6 +109,14 @@ class TimerResultParser {
   @VisibleForTesting
   static Duration toDuration(long val, TimeUnit unit) {
     return Duration.of(val, toChronoUnit(unit));
+  }
+
+  private static TimeUnit toTimeUnit(String timeUnit) {
+    try {
+      return TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(String.format("Invalid time unit: %s", timeUnit), e);
+    }
   }
 
   private static ChronoUnit toChronoUnit(TimeUnit unit) {

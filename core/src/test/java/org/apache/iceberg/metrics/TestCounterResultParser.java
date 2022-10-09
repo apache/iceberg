@@ -60,7 +60,7 @@ public class TestCounterResultParser {
     Assertions.assertThatThrownBy(
             () -> CounterResultParser.fromJson("{\"unit\":\"unknown\",\"value\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.metrics.MetricsContext.Unit.UNKNOWN");
+        .hasMessage("Invalid unit: unknown");
   }
 
   @Test

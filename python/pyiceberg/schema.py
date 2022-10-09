@@ -27,6 +27,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -795,3 +796,142 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
     def primitive(self, primitive: PrimitiveType) -> PrimitiveType:
         return primitive
+
+
+def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
+    result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
+    return Schema(*(result or StructType()).fields, schema_id=schema.schema_id, identifier_field_ids=schema.identifier_field_ids)
+
+
+class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
+    selected: Set[int]
+    select_full_types: bool
+
+    def __init__(self, selected: Set[int], select_full_types: bool):
+        self.selected = selected
+        self.select_full_types = select_full_types
+
+    def schema(self, schema: Schema, struct_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        return struct_result
+
+    def struct(self, struct: StructType, field_results: List[Optional[IcebergType]]) -> Optional[IcebergType]:
+        fields = struct.fields
+        selected_fields = []
+        same_type = True
+
+        for idx, projected_type in enumerate(field_results):
+            field = fields[idx]
+            if field.field_type == projected_type:
+                selected_fields.append(field)
+            elif projected_type is not None:
+                same_type = False
+                # Type has changed, create a new field with the projected type
+                selected_fields.append(
+                    NestedField(
+                        field_id=field.field_id,
+                        name=field.name,
+                        field_type=projected_type,
+                        doc=field.doc,
+                        required=field.required,
+                    )
+                )
+
+        if selected_fields:
+            if len(selected_fields) == len(fields) and same_type is True:
+                # Nothing has changed, and we can return the original struct
+                return struct
+            else:
+                return StructType(*selected_fields)
+        return None
+
+    def field(self, field: NestedField, field_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        if field.field_id in self.selected:
+            if self.select_full_types:
+                return field.field_type
+            elif field.field_type.is_struct:
+                return self._project_selected_struct(field_result)
+            else:
+                if not field.field_type.is_primitive:
+                    raise ValueError(
+                        f"Cannot explicitly project List or Map types, {field.field_id}:{field.name} of type {field.field_type} was selected"
+                    )
+                # Selected non-struct field
+                return field.field_type
+        elif field_result is not None:
+            # This field wasn't selected but a subfield was so include that
+            return field_result
+        else:
+            return None
+
+    def list(self, list_type: ListType, element_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        if list_type.element_id in self.selected:
+            if self.select_full_types:
+                return list_type
+            elif list_type.element_type and list_type.element_type.is_struct:
+                projected_struct = self._project_selected_struct(element_result)
+                return self._project_list(list_type, projected_struct)
+            else:
+                if not list_type.element_type.is_primitive:
+                    raise ValueError(
+                        f"Cannot explicitly project List or Map types, {list_type.element_id} of type {list_type.element_type} was selected"
+                    )
+                return list_type
+        elif element_result is not None:
+            return self._project_list(list_type, element_result)
+        else:
+            return None
+
+    def map(
+        self, map_type: MapType, key_result: Optional[IcebergType], value_result: Optional[IcebergType]
+    ) -> Optional[IcebergType]:
+        if map_type.value_id in self.selected:
+            if self.select_full_types:
+                return map_type
+            elif map_type.value_type and map_type.value_type.is_struct:
+                projected_struct = self._project_selected_struct(value_result)
+                return self._project_map(map_type, projected_struct)
+            if not map_type.value_type.is_primitive:
+                raise ValueError(
+                    f"Cannot explicitly project List or Map types, Map value {map_type.value_id} of type {map_type.value_type} was selected"
+                )
+            return map_type
+        elif value_result is not None:
+            return self._project_map(map_type, value_result)
+        elif map_type.key_id in self.selected:
+            return map_type
+        return None
+
+    def primitive(self, primitive: PrimitiveType) -> Optional[IcebergType]:
+        return None
+
+    @staticmethod
+    def _project_selected_struct(projected_field: Optional[IcebergType]) -> StructType:
+        if projected_field and not isinstance(projected_field, StructType):
+            raise ValueError("Expected a struct")
+
+        if projected_field is None:
+            return StructType()
+        else:
+            return projected_field
+
+    @staticmethod
+    def _project_list(list_type: ListType, element_result: IcebergType):
+        if list_type.element_type == element_result:
+            return list_type
+        else:
+            return ListType(
+                element_id=list_type.element_id, element_type=element_result, element_required=list_type.element_required
+            )
+
+    @staticmethod
+    def _project_map(map_type: MapType, value_result: IcebergType):
+        if map_type.value_type == value_result:
+            return map_type
+        else:
+            return MapType(
+                key_id=map_type.key_id,
+                value_id=map_type.value_id,
+                key_type=map_type.key_type,
+                value_type=value_result,
+                value_required=map_type.value_required,
+            )

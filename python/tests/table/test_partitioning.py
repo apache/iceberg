@@ -14,8 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.transforms import BucketTransform, TruncateTransform
+from pyiceberg.types import (
+    IntegerType,
+    NestedField,
+    StringType,
+    StructType,
+)
 
 
 def test_partition_field_init():
@@ -101,4 +108,17 @@ def test_deserialize_partition_spec():
             PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=19), name="str_truncate"),
             PartitionField(source_id=2, field_id=1001, transform=BucketTransform(num_buckets=25), name="int_bucket"),
         ),
+    )
+
+
+def test_partition_type(table_schema_simple: Schema) -> None:
+    spec = PartitionSpec(
+        PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=19), name="str_truncate"),
+        PartitionField(source_id=2, field_id=1001, transform=BucketTransform(num_buckets=25), name="int_bucket"),
+        spec_id=3,
+    )
+
+    assert spec.partition_type(table_schema_simple) == StructType(
+        NestedField(field_id=1000, name="str_truncate", field_type=StringType(), required=False),
+        NestedField(field_id=1001, name="int_bucket", field_type=IntegerType(), required=False),
     )
