@@ -335,7 +335,7 @@ public class TableTestBase {
       case EXISTING:
         return entry.wrapExisting(snapshotId, 0L, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, file);
+        return entry.wrapDelete(snapshotId, 0L, file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }
@@ -374,9 +374,23 @@ public class TableTestBase {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
         V2Assert.assertEquals(
-            "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
+            "Data sequence number should match expected",
+            sequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              snap.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
@@ -445,9 +459,26 @@ public class TableTestBase {
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
+        Long expectedSequenceNumber = seqs.next();
         V2Assert.assertEquals(
-            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+            "Data sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              expectedSequenceNumber,
+              entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              manifest.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -472,9 +503,26 @@ public class TableTestBase {
       DeleteFile expected = expectedFiles.next();
       if (seqs != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
+        Long expectedSequenceNumber = seqs.next();
         V2Assert.assertEquals(
-            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+            "Data sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              expectedSequenceNumber,
+              entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              manifest.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -590,10 +638,18 @@ public class TableTestBase {
 
   /** Used for assertions that only apply if the table version is v2. */
   protected static class Assertions {
-    private final boolean enabled;
+    private boolean enabled;
 
     private Assertions(int validForVersion, int formatVersion) {
       this.enabled = validForVersion == formatVersion;
+    }
+
+    void disable() {
+      this.enabled = false;
+    }
+
+    void enable() {
+      this.enabled = true;
     }
 
     void assertEquals(String context, int expected, int actual) {
