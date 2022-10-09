@@ -560,7 +560,7 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testUseIdleConnectionReaperConfiguration() {
+  public void testApacheUseIdleConnectionReaperConfiguration() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
     AwsProperties awsProperties = new AwsProperties(properties);
