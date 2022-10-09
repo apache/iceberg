@@ -365,6 +365,28 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
+   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
+   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS =
+      "http-client.urlconnection.connection-timeout-ms";
+
+  /**
+   * Used to configure the socket timeout in milliseconds for {@link
+   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
+   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   */
+  public static final String HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS =
+      "http-client.urlconnection.socket-timeout-ms";
+
+  /**
+   * Used to configure the connection timeout in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
    * #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_APACHE}
    *
@@ -517,6 +539,8 @@ public class AwsProperties implements Serializable {
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String httpClientType;
+  private Long httpClientUrlConnectionConnectionTimeoutMs;
+  private Long httpClientUrlConnectionSocketTimeoutMs;
   private Long httpClientApacheConnectionTimeoutMs;
   private Long httpClientApacheSocketTimeoutMs;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -565,6 +589,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
+    this.httpClientUrlConnectionConnectionTimeoutMs = null;
+    this.httpClientUrlConnectionSocketTimeoutMs = null;
     this.httpClientApacheConnectionTimeoutMs = null;
     this.httpClientApacheSocketTimeoutMs = null;
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -620,6 +646,12 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
+    this.httpClientUrlConnectionConnectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
+    this.httpClientUrlConnectionSocketTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(
+            properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
     this.httpClientApacheConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
     this.httpClientApacheSocketTimeoutMs =
@@ -1000,7 +1032,9 @@ public class AwsProperties implements Serializable {
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(UrlConnectionHttpClient.builder());
+        builder.httpClientBuilder(
+            UrlConnectionHttpClient.builder()
+                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         builder.httpClientBuilder(
@@ -1090,6 +1124,18 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  @VisibleForTesting
+  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
+      T builder) {
+    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
+      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
+    }
+
+    if (httpClientUrlConnectionSocketTimeoutMs != null) {
+      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
     }
   }
 
