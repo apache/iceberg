@@ -405,6 +405,9 @@ public class Spark3Util {
         case "months":
           builder.month(colName);
           break;
+        case "weeks":
+          builder.week(colName);
+          break;
         case "date":
         case "days":
           builder.day(colName);

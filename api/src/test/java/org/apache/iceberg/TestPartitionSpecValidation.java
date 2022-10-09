@@ -47,6 +47,11 @@ public class TestPartitionSpecValidation {
         "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").month("ts").build());
     AssertHelpers.assertThrows(
+            "Should not allow year(ts) and week(ts)",
+            IllegalArgumentException.class,
+            "Cannot add redundant partition",
+            () -> PartitionSpec.builderFor(SCHEMA).year("ts").week("ts").build());
+    AssertHelpers.assertThrows(
         "Should not allow year(ts) and day(ts)",
         IllegalArgumentException.class,
         "Cannot add redundant partition",
@@ -62,6 +67,11 @@ public class TestPartitionSpecValidation {
         IllegalArgumentException.class,
         "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").month("ts").build());
+    AssertHelpers.assertThrows(
+            "Should not allow month(ts) and week(ts)",
+            IllegalArgumentException.class,
+            "Cannot add redundant partition",
+            () -> PartitionSpec.builderFor(SCHEMA).month("ts").week("ts").build());
     AssertHelpers.assertThrows(
         "Should not allow month(ts) and day(ts)",
         IllegalArgumentException.class,
@@ -104,6 +114,11 @@ public class TestPartitionSpecValidation {
         "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build());
     AssertHelpers.assertThrows(
+            "Should not allow year(d) and month(d)",
+            IllegalArgumentException.class,
+            "Cannot add redundant partition",
+            () -> PartitionSpec.builderFor(SCHEMA).year("d").week("d").build());
+    AssertHelpers.assertThrows(
         "Should not allow year(d) and day(d)",
         IllegalArgumentException.class,
         "Cannot add redundant partition",
@@ -114,6 +129,11 @@ public class TestPartitionSpecValidation {
         IllegalArgumentException.class,
         "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build());
+    AssertHelpers.assertThrows(
+            "Should not allow month(d) and week(d)",
+            IllegalArgumentException.class,
+            "Cannot add redundant partition",
+            () -> PartitionSpec.builderFor(SCHEMA).month("d").week("d").build());
     AssertHelpers.assertThrows(
         "Should not allow month(d) and day(d)",
         IllegalArgumentException.class,

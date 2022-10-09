@@ -89,6 +89,21 @@ class SerializationProxies {
     }
   }
 
+  static class WeeksTransformProxy implements Serializable {
+    private static final WeeksTransformProxy INSTANCE = new WeeksTransformProxy();
+
+    static WeeksTransformProxy get() {
+      return INSTANCE;
+    }
+
+    /** Constructor for Java serialization. */
+    WeeksTransformProxy() {}
+
+    Object readResolve() throws ObjectStreamException {
+      return Weeks.get();
+    }
+  }
+
   static class DaysTransformProxy implements Serializable {
     private static final DaysTransformProxy INSTANCE = new DaysTransformProxy();
 

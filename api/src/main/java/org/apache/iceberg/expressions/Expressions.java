@@ -88,6 +88,11 @@ public class Expressions {
   }
 
   @SuppressWarnings("unchecked")
+  public static <T> UnboundTerm<T> week(String name) {
+    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.week());
+  }
+
+  @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> day(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.day());
   }

@@ -31,6 +31,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.month;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.expressions.Expressions.week;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -281,22 +282,26 @@ public class TestProjection {
             optional(2, "timestamp2", Types.TimestampType.withoutZone()),
             optional(3, "timestamp3", Types.TimestampType.withoutZone()),
             optional(4, "timestamp4", Types.TimestampType.withoutZone()),
-            optional(5, "date1", Types.DateType.get()),
-            optional(6, "date2", Types.DateType.get()),
-            optional(7, "date3", Types.DateType.get()),
-            optional(8, "long", Types.LongType.get()),
-            optional(9, "string", Types.StringType.get()));
+            optional(5, "timestamp5", Types.TimestampType.withoutZone()),
+            optional(6, "date1", Types.DateType.get()),
+            optional(7, "date2", Types.DateType.get()),
+            optional(8, "date3", Types.DateType.get()),
+            optional(9, "date4", Types.DateType.get()),
+            optional(10, "long", Types.LongType.get()),
+            optional(11, "string", Types.StringType.get()));
 
     final PartitionSpec partitionSpec =
         PartitionSpec.builderFor(schema)
             .withSpecId(0)
             .hour("timestamp1")
             .day("timestamp2")
-            .month("timestamp3")
-            .year("timestamp4")
+            .week("timestamp3")
+            .month("timestamp4")
+            .year("timestamp5")
             .day("date1")
-            .month("date2")
-            .year("date3")
+            .week("date2")
+            .month("date3")
+            .year("date4")
             .bucket("long", 10)
             .truncate("string", 10)
             .build();
@@ -323,25 +328,36 @@ public class TestProjection {
 
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.strict(partitionSpec).project(equal(month("timestamp3"), 20));
+            Projections.strict(partitionSpec).project(equal(week("timestamp3"), 20));
     Assert.assertEquals(
-        "should expected timestamp3_month", "timestamp3_month", predicate.ref().name());
+        "should expected timestamp3_week", "timestamp3_week", predicate.ref().name());
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.inclusive(partitionSpec).project(equal(month("timestamp3"), 20));
+            Projections.inclusive(partitionSpec).project(equal(week("timestamp3"), 20));
     Assert.assertEquals(
-        "should expected timestamp3_month", "timestamp3_month", predicate.ref().name());
+        "should expected timestamp3_month", "timestamp3_week", predicate.ref().name());
+
+    predicate =
+            (UnboundPredicate<Integer>)
+                    Projections.strict(partitionSpec).project(equal(month("timestamp4"), 20));
+    Assert.assertEquals(
+            "should expected timestamp4_month", "timestamp4_month", predicate.ref().name());
+    predicate =
+            (UnboundPredicate<Integer>)
+                    Projections.inclusive(partitionSpec).project(equal(month("timestamp4"), 20));
+    Assert.assertEquals(
+            "should expected timestamp4_month", "timestamp4_month", predicate.ref().name());
 
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.strict(partitionSpec).project(equal(year("timestamp4"), 20));
+            Projections.strict(partitionSpec).project(equal(year("timestamp5"), 20));
     Assert.assertEquals(
-        "should expected timestamp4_year", "timestamp4_year", predicate.ref().name());
+        "should expected timestamp5_year", "timestamp5_year", predicate.ref().name());
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.inclusive(partitionSpec).project(equal(year("timestamp4"), 20));
+            Projections.inclusive(partitionSpec).project(equal(year("timestamp5"), 20));
     Assert.assertEquals(
-        "should expected timestamp4_year", "timestamp4_year", predicate.ref().name());
+        "should expected timestamp5_year", "timestamp5_year", predicate.ref().name());
 
     predicate =
         (UnboundPredicate<Integer>)
@@ -353,22 +369,31 @@ public class TestProjection {
     Assert.assertEquals("should expected date1_day", "date1_day", predicate.ref().name());
 
     predicate =
-        (UnboundPredicate<Integer>)
-            Projections.strict(partitionSpec).project(equal(month("date2"), 20));
-    Assert.assertEquals("should expected date2_month", "date2_month", predicate.ref().name());
+            (UnboundPredicate<Integer>)
+                    Projections.strict(partitionSpec).project(equal(week("date2"), 20));
+    Assert.assertEquals("should expected date2_week", "date2_week", predicate.ref().name());
     predicate =
-        (UnboundPredicate<Integer>)
-            Projections.inclusive(partitionSpec).project(equal(month("date2"), 20));
-    Assert.assertEquals("should expected date2_month", "date2_month", predicate.ref().name());
+            (UnboundPredicate<Integer>)
+                    Projections.inclusive(partitionSpec).project(equal(week("date2"), 20));
+    Assert.assertEquals("should expected date2_week", "date2_week", predicate.ref().name());
 
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.strict(partitionSpec).project(equal(year("date3"), 20));
-    Assert.assertEquals("should expected date3_year", "date3_year", predicate.ref().name());
+            Projections.strict(partitionSpec).project(equal(month("date3"), 20));
+    Assert.assertEquals("should expected date3_month", "date3_month", predicate.ref().name());
     predicate =
         (UnboundPredicate<Integer>)
-            Projections.inclusive(partitionSpec).project(equal(year("date3"), 20));
-    Assert.assertEquals("should expected date3_year", "date3_year", predicate.ref().name());
+            Projections.inclusive(partitionSpec).project(equal(month("date3"), 20));
+    Assert.assertEquals("should expected date3_month", "date3_month", predicate.ref().name());
+
+    predicate =
+        (UnboundPredicate<Integer>)
+            Projections.strict(partitionSpec).project(equal(year("date4"), 20));
+    Assert.assertEquals("should expected date4_year", "date4_year", predicate.ref().name());
+    predicate =
+        (UnboundPredicate<Integer>)
+            Projections.inclusive(partitionSpec).project(equal(year("date4"), 20));
+    Assert.assertEquals("should expected date4_year", "date4_year", predicate.ref().name());
 
     predicate =
         (UnboundPredicate<Integer>)

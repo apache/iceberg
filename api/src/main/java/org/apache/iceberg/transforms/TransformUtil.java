@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
@@ -42,6 +43,12 @@ class TransformUtil {
     return String.format(
         "%04d-%02d",
         EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12), 1 + Math.floorMod(monthOrdinal, 12));
+  }
+
+  static String humanWeek(int weekOrdinal) {
+    OffsetDateTime day = EPOCH.plusWeeks(weekOrdinal);
+    return String.format(
+            "%04d-W%02d", day.getYear(), day.get(ChronoField.ALIGNED_WEEK_OF_YEAR));
   }
 
   static String humanDay(int dayOrdinal) {

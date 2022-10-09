@@ -350,6 +350,25 @@ public class TestDatesProjection {
   }
 
   @Test
+  public void testWeekStrictEpoch() {
+    Integer date = (Integer) Literal.of("1970-01-01").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).week("date").build();
+
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1970-W01");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970-W01");
+    assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970-W02");
+    assertProjectionStrict(
+            spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-W01");
+    assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "1970-W01");
+    assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
+
+    Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
+    assertProjectionStrict(
+            spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[1969-W52, 1970-W01]");
+    assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
+  }
+
+  @Test
   public void testDayStrict() {
     Integer date = (Integer) Literal.of("2017-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
