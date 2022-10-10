@@ -48,7 +48,15 @@ Submit a Flink __batch__ job using the following sentences:
 ```sql
 -- Execute the flink job in batch mode for current session context
 SET execution.runtime-mode = batch;
+
+-- Read data from the latest snapshot of this table
 SELECT * FROM sample;
+
+-- Read data from the snapshot-id '3821550127947089987'
+SELECT * FROM sample /*+ OPTIONS('snapshot-id'='3821550127947089987')*/ ;
+
+-- Read data from the most recent snapshot as of the given time in milliseconds.
+SELECT * FROM sample /*+ OPTIONS('as-of-timestamp'='1665412874000')*/ ;
 ```
 
 ### Flink streaming read
