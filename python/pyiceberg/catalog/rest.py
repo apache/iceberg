@@ -302,8 +302,9 @@ class RestCatalog(Catalog):
             response = f"RESTError {exc.response.status_code}: Could not decode json payload: {exc.response.text}"
         except ValidationError as e:
             # In the case we don't have a proper response
+            errs = ", ".join(err["msg"] for err in e.errors())
             response = (
-                f"RESTError {exc.response.status_code}: Received unexpected JSON Payload: {exc.response.text}, errors: {e.errors}"
+                f"RESTError {exc.response.status_code}: Received unexpected JSON Payload: {exc.response.text}, errors: {errs}"
             )
 
         raise exception(response) from exc

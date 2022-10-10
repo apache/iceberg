@@ -116,7 +116,7 @@ def test_token_401(rest_mock: Mocker):
 
 def test_token_401_oauth_error(rest_mock: Mocker):
     """This test returns a OAuth error instead of an OpenAPI error"""
-    message = """RESTError 401: Received unexpected JSON Payload: {"error": "invalid_client", "error_description": "Invalid credentials"}, errors: <bound method ValidationError.errors of ValidationError(model='ErrorResponse', errors=[{'loc': ('error',), 'msg': 'value is not a valid dict', 'type': 'type_error.dict'}])>"""
+    message = """RESTError 401: Received unexpected JSON Payload: {"error": "invalid_client", "error_description": "Invalid credentials"}, errors: value is not a valid dict"""
     rest_mock.post(
         f"{TEST_URI}v1/oauth/tokens",
         json={"error": "invalid_client", "error_description": "Invalid credentials"},
