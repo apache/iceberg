@@ -54,7 +54,7 @@ public class ManifestFiles {
               GenericPartitionFieldSummary.class.getName()));
 
   @VisibleForTesting
-  static Cache<FileIO, ContentCache> newManifestCache() {
+  static Caffeine<Object, Object> newManifestCacheBuilder() {
     return Caffeine.newBuilder()
         .weakKeys()
         .softValues()
@@ -62,11 +62,11 @@ public class ManifestFiles {
         .removalListener(
             (io, contentCache, cause) ->
                 LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
-        .recordStats()
-        .build();
+        .recordStats();
   }
 
-  private static final Cache<FileIO, ContentCache> CONTENT_CACHES = newManifestCache();
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
+      newManifestCacheBuilder().build();
 
   @VisibleForTesting
   static ContentCache contentCache(FileIO io) {
