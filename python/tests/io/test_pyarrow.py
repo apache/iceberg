@@ -24,7 +24,8 @@ import pytest
 from pyarrow.fs import FileType
 
 from pyiceberg.io import InputStream, OutputStream
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO, convert_iceberg_schema_to_pyarrow
+from pyiceberg.schema import Schema
 
 
 def test_pyarrow_input_file():
@@ -264,3 +265,27 @@ def test_deleting_s3_file_not_found():
             PyArrowFileIO().delete("s3://foo/bar.txt")
 
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
+
+
+def test_convert_iceberg_schema_to_pyarrow_schema(table_schema_nested: Schema):
+    actual = convert_iceberg_schema_to_pyarrow(table_schema_nested)
+    expected = """foo: string
+bar: int32 not null
+baz: bool
+qux: list<item: string> not null
+  child 0, item: string
+quux: map<string, map<string, int32>> not null
+  child 0, entries: struct<key: string not null, value: map<string, int32>> not null
+      child 0, key: string not null
+      child 1, value: map<string, int32>
+          child 0, entries: struct<key: string not null, value: int32> not null
+              child 0, key: string not null
+              child 1, value: int32
+location: list<item: struct<latitude: float, longitude: float>> not null
+  child 0, item: struct<latitude: float, longitude: float>
+      child 0, latitude: float
+      child 1, longitude: float
+person: struct<name: string, age: int32 not null>
+  child 0, name: string
+  child 1, age: int32 not null"""
+    assert repr(actual) == expected
