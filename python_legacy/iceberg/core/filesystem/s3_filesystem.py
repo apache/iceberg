@@ -17,9 +17,9 @@
 
 import io
 import logging
+from functools import lru_cache
 import re
 import time
-from functools import lru_cache
 from urllib.parse import urlparse
 
 import boto3
