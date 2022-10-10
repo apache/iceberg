@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -77,6 +79,15 @@ public class TestAwsClientFactories {
   public void testDefaultAwsClientFactorySerializable() {
     Map<String, String> properties = Maps.newHashMap();
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(defaultAwsClientFactory);
+      Assert.assertTrue(
+          "DefaultAwsClientFactory should be serializable",
+          roundTripResult instanceof AwsClientFactories.DefaultAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize DefaultAwsClientFactory");
+    }
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(defaultAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
@@ -92,6 +103,15 @@ public class TestAwsClientFactories {
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
     properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     AwsClientFactory assumeRoleAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(assumeRoleAwsClientFactory);
+      Assert.assertTrue(
+          "AssumeRoleAwsClientFactory should be serializable",
+          roundTripResult instanceof AssumeRoleAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize AssumeRoleAwsClientFactory");
+    }
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(assumeRoleAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
@@ -111,6 +131,15 @@ public class TestAwsClientFactories {
             + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
         "emr");
     AwsClientFactory lakeFormationAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(lakeFormationAwsClientFactory);
+      Assert.assertTrue(
+          "LakeFormationAwsClientFactory should be serializable",
+          roundTripResult instanceof LakeFormationAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize LakeFormationAwsClientFactory");
+    }
     byte[] serializedFactoryBytes =
         SerializationUtil.serializeToBytes(lakeFormationAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
