@@ -1318,4 +1318,38 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals(
         "All reachable files before expiration should be deleted", expectedDeletes, deletedFiles);
   }
+
+  @Test
+  public void testExpireSomeCheckFilesDeleted() {
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    long after = rightAfterSnapshot();
+    waitUntilAfter(after);
+
+    table.newAppend().appendFile(FILE_D).commit();
+
+    table.newDelete().deleteFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(after)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    // C, D should be retained (live)
+    // B should be retained (previous snapshot points to it)
+    // A should be deleted
+    Assert.assertTrue(deletedFiles.contains(FILE_A.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_C.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_D.path().toString()));
+  }
 }

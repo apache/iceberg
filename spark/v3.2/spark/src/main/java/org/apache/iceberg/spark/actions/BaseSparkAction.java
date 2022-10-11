@@ -143,15 +143,16 @@ abstract class BaseSparkAction<ThisT> {
     return contentFileDS(table, null);
   }
 
-  protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshots) {
+  protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
     Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
-    if (snapshots != null) {
-      allManifests = filterAllManifests(allManifests, snapshots);
+    if (snapshotIds != null) {
+      allManifests = filterAllManifests(allManifests, snapshotIds);
     }
+
     Dataset<ManifestFileBean> allManifestsBean =
         allManifests
             .selectExpr(
@@ -171,12 +172,12 @@ abstract class BaseSparkAction<ThisT> {
     return manifestDS(table, null);
   }
 
-  protected Dataset<FileInfo> manifestDS(Table table, Set<Long> snapshots) {
-    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
-    if (snapshots != null) {
-      allManifests = filterAllManifests(allManifests, snapshots);
+  protected Dataset<FileInfo> manifestDS(Table table, Set<Long> snapshotIds) {
+    Dataset<Row> manifests = loadMetadataTable(table, ALL_MANIFESTS);
+    if (snapshotIds != null) {
+      manifests = filterAllManifests(manifests, snapshotIds);
     }
-    return allManifests.select(col("path"), lit(MANIFEST).as("type")).as(FileInfo.ENCODER);
+    return manifests.select(col("path"), lit(MANIFEST).as("type")).as(FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestListDS(Table table) {
@@ -320,9 +321,9 @@ abstract class BaseSparkAction<ThisT> {
     }
   }
 
-  protected Dataset<Row> filterAllManifests(Dataset<Row> allManifestDF, Set<Long> snapshots) {
+  protected Dataset<Row> filterAllManifests(Dataset<Row> allManifestDF, Set<Long> snapshotIds) {
     return allManifestDF.filter(
-        col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(snapshots));
+        col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(snapshotIds));
   }
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
