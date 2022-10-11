@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogMigrateUtil;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
@@ -803,7 +804,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       List<TableIdentifier> expectedIdentifiers,
       List<TableIdentifier> sourceIdentifiers) {
     Collection<TableIdentifier> migratedIdentifiers =
-        CatalogUtil.migrateTables(sourceIdentifiers, hadoopCatalog, catalog, 3);
+        CatalogMigrateUtil.migrateTables(sourceIdentifiers, hadoopCatalog, catalog, 3, true);
 
     org.assertj.core.api.Assertions.assertThat(expectedIdentifiers)
         .containsExactlyInAnyOrderElementsOf(migratedIdentifiers);
