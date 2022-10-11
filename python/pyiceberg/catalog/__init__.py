@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 _ENV_CONFIG = Config()
 
 TYPE = "type"
+URI = "uri"
 
 
 class CatalogType(Enum):
@@ -97,7 +98,9 @@ def load_catalog(name: str, **properties: str | None) -> Catalog:
         if inferred_catalog_type := infer_catalog_type(conf):
             catalog_type = inferred_catalog_type
         else:
-            raise ValueError(f"Invalid configuration. Could not determine the catalog type: {properties}")
+            raise ValueError(
+                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{name.upper()}__URI"
+            )
 
     if catalog_type:
         return AVAILABLE_CATALOGS[catalog_type](name, conf)

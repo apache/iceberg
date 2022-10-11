@@ -44,10 +44,6 @@ class RESTError(Exception):
     """Raises when there is an unknown response from the REST Catalog"""
 
 
-class BadCredentialsError(RESTError):
-    """Raises when providing invalid credentials"""
-
-
 class BadRequestError(RESTError):
     """Raises when an invalid request is being made"""
 

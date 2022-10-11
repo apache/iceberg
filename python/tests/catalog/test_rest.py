@@ -23,12 +23,10 @@ from requests_mock import Mocker
 from pyiceberg.catalog import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (
-    BadCredentialsError,
     NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
     NoSuchTableError,
     OAuthError,
-    RESTError,
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
@@ -96,34 +94,14 @@ def test_token_400(rest_mock: Mocker):
 
 
 def test_token_401(rest_mock: Mocker):
-    message = "Invalid client ID: abc"
+    message = "invalid_client"
     rest_mock.post(
         f"{TEST_URI}v1/oauth/tokens",
-        json={
-            "error": {
-                "message": message,
-                "type": "BadCredentialsException",
-                "code": 401,
-            }
-        },
+        json={"error": "invalid_client", "error_description": "Unknown or invalid client"},
         status_code=401,
     )
 
-    with pytest.raises(BadCredentialsError) as e:
-        RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS)
-    assert message in str(e.value)
-
-
-def test_token_401_oauth_error(rest_mock: Mocker):
-    """This test returns a OAuth error instead of an OpenAPI error"""
-    message = """RESTError 401: Received unexpected JSON Payload: {"error": "invalid_client", "error_description": "Invalid credentials"}, errors: value is not a valid dict"""
-    rest_mock.post(
-        f"{TEST_URI}v1/oauth/tokens",
-        json={"error": "invalid_client", "error_description": "Invalid credentials"},
-        status_code=401,
-    )
-
-    with pytest.raises(RESTError) as e:
+    with pytest.raises(OAuthError) as e:
         RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS)
     assert message in str(e.value)
 

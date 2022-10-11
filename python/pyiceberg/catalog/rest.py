@@ -31,6 +31,7 @@ from requests import HTTPError
 
 from pyiceberg import __version__
 from pyiceberg.catalog import (
+    URI,
     Catalog,
     Identifier,
     Properties,
@@ -38,7 +39,6 @@ from pyiceberg.catalog import (
 )
 from pyiceberg.exceptions import (
     AuthorizationExpiredError,
-    BadCredentialsError,
     BadRequestError,
     ForbiddenError,
     NamespaceAlreadyExistsError,
@@ -88,7 +88,9 @@ CLIENT_CREDENTIALS = "client_credentials"
 CREDENTIAL = "credential"
 GRANT_TYPE = "grant_type"
 SCOPE = "scope"
+TOKEN = "token"
 TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
+SEMICOLON = ":"
 
 NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
@@ -181,9 +183,10 @@ class RestCatalog(Catalog):
             properties: Properties that are passed along to the configuration
         """
         self.properties = properties
-        self.uri = properties["uri"]
-        if credential := properties.get("credential"):
-            properties["token"] = self._fetch_access_token(credential)
+        self.uri = properties[URI]
+
+        if credential := properties.get(CREDENTIAL):
+            properties[TOKEN] = self._fetch_access_token(credential)
         super().__init__(name, **self._fetch_config(properties))
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
@@ -225,7 +228,10 @@ class RestCatalog(Catalog):
         return url + endpoint.format(**kwargs)
 
     def _fetch_access_token(self, credential: str) -> str:
-        client_id, client_secret = credential.split(":")
+        if SEMICOLON not in credential:
+            raise ValueError("Expected semicolon in the credential to separate the client id and secret.")
+
+        client_id, client_secret = credential.split(SEMICOLON)
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
@@ -233,7 +239,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {400: OAuthError, 401: BadCredentialsError})
+            self._handle_non_200_response(exc, {400: OAuthError, 401: OAuthError})
 
         return TokenResponse(**response.json()).access_token
 
