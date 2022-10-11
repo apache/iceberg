@@ -23,12 +23,12 @@ import static org.apache.iceberg.NullOrder.NULLS_LAST;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
@@ -134,14 +134,19 @@ public class TestSpark3Util extends SparkTestBase {
     String testTableName = "default.testtable";
     SparkSession hiveSupportSession = spark.newSession();
     try {
-      hiveSupportSession.conf().set(SQLConf.V2_SESSION_CATALOG_IMPLEMENTATION().key(),
-        SparkSessionCatalog.class.getName());
+      hiveSupportSession
+          .conf()
+          .set(
+              SQLConf.V2_SESSION_CATALOG_IMPLEMENTATION().key(),
+              SparkSessionCatalog.class.getName());
       hiveSupportSession.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
 
       // create an iceberg table
-      String tableString = String.format("CREATE TABLE %s (id bigint, data string)" +
-          " USING iceberg PARTITIONED BY (data) TBLPROPERTIES('%s'='%s')", testTableName,
-        TableProperties.FORMAT_VERSION, "2");
+      String tableString =
+          String.format(
+              "CREATE TABLE %s (id bigint, data string)"
+                  + " USING iceberg PARTITIONED BY (data) TBLPROPERTIES('%s'='%s')",
+              testTableName, TableProperties.FORMAT_VERSION, "2");
       hiveSupportSession.sql(tableString);
       // Now load the created iceberg table
       Spark3Util.loadIcebergTable(hiveSupportSession, testTableName);

@@ -655,7 +655,7 @@ public class Spark3Util {
    * to get the latest one.
    *
    * @param spark SparkSession used for looking up catalog references and tables
-   * @param name The multipart identifier of the Iceberg table
+   * @param name  The multipart identifier of the Iceberg table
    * @return an Iceberg table
    */
   public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
@@ -671,10 +671,10 @@ public class Spark3Util {
     } catch (Exception e) {
       if (e instanceof ParseException) {
         throw (ParseException) e;
-      } else  if (e instanceof NoSuchTableException) {
+      } else if (e instanceof NoSuchTableException) {
         throw (NoSuchTableException) e;
-      } else if (e instanceof RuntimeException){
-        throw (RuntimeException)e;
+      } else if (e instanceof RuntimeException) {
+        throw (RuntimeException) e;
       } else {
         // wrap it
         throw new RuntimeException(e);
@@ -685,7 +685,7 @@ public class Spark3Util {
   /**
    * Returns the underlying Iceberg Catalog object represented by a Spark Catalog
    *
-   * @param spark SparkSession used for looking up catalog reference
+   * @param spark       SparkSession used for looking up catalog reference
    * @param catalogName The name of the Spark Catalog being referenced
    * @return the Iceberg catalog class being wrapped by the Spark Catalog
    */
@@ -694,16 +694,16 @@ public class Spark3Util {
       return executeWithSession(spark, () -> {
         CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
         Preconditions.checkArgument(
-          catalogPlugin instanceof HasIcebergCatalog,
-          String.format(
-            "Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. "
-              + "Actual Class: %s",
-            catalogName, catalogPlugin.getClass().getName()));
+            catalogPlugin instanceof HasIcebergCatalog,
+            String.format(
+                "Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. "
+                    + "Actual Class: %s",
+                catalogName, catalogPlugin.getClass().getName()));
         return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
       });
     } catch (Exception e) {
       if (e instanceof RuntimeException) {
-        throw (RuntimeException)e;
+        throw (RuntimeException) e;
       } else {
         // wrap it
         throw new RuntimeException(e);
@@ -750,13 +750,13 @@ public class Spark3Util {
    * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply Attempts to find the
    * catalog and identifier a multipart identifier represents
    *
-   * @param spark Spark session to use for resolution
-   * @param nameParts Multipart identifier representing a table
+   * @param spark          Spark session to use for resolution
+   * @param nameParts      Multipart identifier representing a table
    * @param defaultCatalog Catalog to use if none is specified
    * @return The CatalogPlugin and Identifier for the table
    */
   public static CatalogAndIdentifier catalogAndIdentifier(
-    SparkSession spark, List<String> nameParts, CatalogPlugin defaultCatalog) {
+      SparkSession spark, List<String> nameParts, CatalogPlugin defaultCatalog) {
     try {
       return executeWithSession(spark, () -> {
         CatalogManager catalogManager = spark.sessionState().catalogManager();
@@ -769,18 +769,18 @@ public class Spark3Util {
         }
 
         Pair<CatalogPlugin, Identifier> catalogIdentifier =
-          SparkUtil.catalogAndIdentifier(
-            nameParts,
-            catalogName -> {
-              try {
-                return catalogManager.catalog(catalogName);
-              } catch (Exception e) {
-                return null;
-              }
-            },
-            Identifier::of,
-            defaultCatalog,
-            currentNamespace);
+            SparkUtil.catalogAndIdentifier(
+                nameParts,
+                catalogName -> {
+                  try {
+                    return catalogManager.catalog(catalogName);
+                  } catch (Exception e) {
+                    return null;
+                  }
+                },
+                Identifier::of,
+                defaultCatalog,
+                currentNamespace);
         return new CatalogAndIdentifier(catalogIdentifier);
       });
     } catch (Exception e) {
