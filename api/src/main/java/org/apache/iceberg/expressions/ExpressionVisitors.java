@@ -55,6 +55,14 @@ public class ExpressionVisitors {
     public <T> R predicate(UnboundPredicate<T> pred) {
       return null;
     }
+
+    public <T, C> R aggregate(BoundAggregate<T, C> agg) {
+      throw new UnsupportedOperationException("aggregate is not supported");
+    }
+
+    public <T> R aggregate(UnboundAggregate<T> agg) {
+      return null;
+    }
   }
 
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
@@ -337,6 +345,12 @@ public class ExpressionVisitors {
         return visitor.predicate((BoundPredicate<?>) expr);
       } else {
         return visitor.predicate((UnboundPredicate<?>) expr);
+      }
+    } else if (expr instanceof Aggregate) {
+      if (expr instanceof BoundAggregate) {
+        return visitor.aggregate((BoundAggregate<?, ?>) expr);
+      } else {
+        return visitor.aggregate((UnboundAggregate<?>) expr);
       }
     } else {
       switch (expr.op()) {

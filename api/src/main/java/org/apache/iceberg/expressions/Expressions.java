@@ -308,4 +308,20 @@ public class Expressions {
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
   }
+
+  public static UnboundAggregate<String> count(String name) {
+    return new UnboundAggregate<>(Operation.COUNT, ref(name));
+  }
+
+  public static UnboundAggregate<String> countStar() {
+    return new UnboundAggregate<>(Operation.COUNT_STAR, null);
+  }
+
+  public static UnboundAggregate<String> max(String name) {
+    return new UnboundAggregate<>(Operation.MAX, ref(name));
+  }
+
+  public static UnboundAggregate<String> min(String name) {
+    return new UnboundAggregate<>(Operation.MIN, ref(name));
+  }
 }
