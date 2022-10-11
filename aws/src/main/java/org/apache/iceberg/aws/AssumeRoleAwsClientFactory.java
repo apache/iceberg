@@ -34,7 +34,7 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
-  private AssumeRoleRequest assumeRoleRequest;
+  private String roleSessionName;
 
   @Override
   public S3Client s3() {
@@ -74,25 +74,25 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
+    this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),
         "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleRegion(),
         "Cannot initialize AssumeRoleClientConfigFactory with null region");
-
-    this.assumeRoleRequest =
-        AssumeRoleRequest.builder()
-            .roleArn(awsProperties.clientAssumeRoleArn())
-            .roleSessionName(genSessionName())
-            .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
-            .externalId(awsProperties.clientAssumeRoleExternalId())
-            .tags(awsProperties.stsClientAssumeRoleTags())
-            .build();
   }
 
   protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
       T clientBuilder) {
+    AssumeRoleRequest assumeRoleRequest =
+        AssumeRoleRequest.builder()
+            .roleArn(awsProperties.clientAssumeRoleArn())
+            .roleSessionName(roleSessionName)
+            .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
+            .externalId(awsProperties.clientAssumeRoleExternalId())
+            .tags(awsProperties.stsClientAssumeRoleTags())
+            .build();
     clientBuilder
         .credentialsProvider(
             StsAssumeRoleCredentialsProvider.builder()
