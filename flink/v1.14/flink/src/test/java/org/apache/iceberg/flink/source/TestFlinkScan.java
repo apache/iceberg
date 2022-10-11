@@ -24,7 +24,6 @@ import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
@@ -79,7 +78,7 @@ public abstract class TestFlinkScan {
   }
 
   TestFlinkScan(String fileFormat) {
-    this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.fileFormat = FileFormat.fromString(fileFormat);
   }
 
   protected TableLoader tableLoader() {

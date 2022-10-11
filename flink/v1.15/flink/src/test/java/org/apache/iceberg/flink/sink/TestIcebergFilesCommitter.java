@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -91,7 +90,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   public TestIcebergFilesCommitter(String format, int formatVersion) {
     super(formatVersion);
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
   }
 
   @Override

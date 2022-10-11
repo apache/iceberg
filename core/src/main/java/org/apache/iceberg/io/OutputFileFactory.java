@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
-import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
@@ -126,7 +125,7 @@ public class OutputFileFactory {
 
       String formatAsString =
           table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      this.format = FileFormat.valueOf(formatAsString.toUpperCase(Locale.ROOT));
+      this.format = FileFormat.fromString(formatAsString);
     }
 
     public Builder defaultSpec(PartitionSpec newDefaultSpec) {

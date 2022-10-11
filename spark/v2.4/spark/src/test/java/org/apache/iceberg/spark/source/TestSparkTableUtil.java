@@ -146,7 +146,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     }
 
     public TableImport(String format) {
-      this.format = FileFormat.valueOf(format.toUpperCase());
+      this.format = FileFormat.fromString(format);
     }
 
     @Before

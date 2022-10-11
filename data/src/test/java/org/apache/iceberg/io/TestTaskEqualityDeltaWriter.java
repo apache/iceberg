@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -75,7 +74,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
   public TestTaskEqualityDeltaWriter(String fileFormat) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
   }
 
   @Override
