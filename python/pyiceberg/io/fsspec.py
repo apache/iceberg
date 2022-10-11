@@ -136,8 +136,6 @@ class FsspecFileIO(FileIO):
     """A FileIO implementation that uses fsspec"""
 
     def __init__(self, properties: Properties):
-        self._scheme_to_fs = {}
-        self._scheme_to_fs.update(SCHEME_TO_FS)
         self.get_fs: Callable = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
@@ -186,6 +184,6 @@ class FsspecFileIO(FileIO):
 
     def _get_fs(self, scheme: str) -> AbstractFileSystem:
         """Get a filesystem for a specific scheme"""
-        if scheme not in self._scheme_to_fs:
+        if scheme not in SCHEME_TO_FS:
             raise ValueError(f"No registered filesystem for scheme: {scheme}")
-        return self._scheme_to_fs[scheme](self.properties)
+        return SCHEME_TO_FS[scheme](self.properties)
