@@ -70,7 +70,7 @@ AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
 }
 
 
-def infer_catalog_type(catalog_properties: RecursiveDict) -> CatalogType | None:
+def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> CatalogType | None:
     """Tries to infer the type based on the dict
 
     Args:
@@ -78,6 +78,9 @@ def infer_catalog_type(catalog_properties: RecursiveDict) -> CatalogType | None:
 
     Returns:
         The inferred type based on the provided properties
+
+    Raises:
+        ValueError: Raises a ValueError in case properties are missing, or the wrong type
     """
     if uri := catalog_properties.get("uri"):
         if isinstance(uri, str):
@@ -85,22 +88,39 @@ def infer_catalog_type(catalog_properties: RecursiveDict) -> CatalogType | None:
                 return CatalogType.REST
             elif uri.startswith("thrift"):
                 return CatalogType.HIVE
-    return None
+            else:
+                raise ValueError(f"Could not infer the catalog type from the uri: {uri}")
+        else:
+            raise ValueError(f"Expects the URI to be a string, got: {type(uri)}")
+    raise ValueError(
+        f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{name.upper()}__URI"
+    )
 
 
 def load_catalog(name: str, **properties: str | None) -> Catalog:
+    """Load the catalog based on the properties
+
+    Will look up the properties from the config, based on the name
+
+    Args:
+        name: The name of the catalog
+        properties: The properties that are used next to the configuration
+
+    Returns:
+        An initialized Catalog
+
+    Raises:
+        ValueError: Raises a ValueError in case properties are missing or malformed,
+            or if it could not determine the catalog based on the properties
+    """
     env = _ENV_CONFIG.get_catalog_config(name)
     conf = merge_config(env or {}, properties)
 
+    catalog_type: CatalogType | None
     if provided_catalog_type := conf.get(TYPE):
         catalog_type = CatalogType[provided_catalog_type.upper()]
     else:
-        if inferred_catalog_type := infer_catalog_type(conf):
-            catalog_type = inferred_catalog_type
-        else:
-            raise ValueError(
-                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{name.upper()}__URI"
-            )
+        catalog_type = infer_catalog_type(name, conf)
 
     if catalog_type:
         return AVAILABLE_CATALOGS[catalog_type](name, conf)

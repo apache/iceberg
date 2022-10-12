@@ -228,10 +228,10 @@ class RestCatalog(Catalog):
         return url + endpoint.format(**kwargs)
 
     def _fetch_access_token(self, credential: str) -> str:
-        if SEMICOLON not in credential:
-            raise ValueError("Expected semicolon in the credential to separate the client id and secret.")
-
-        client_id, client_secret = credential.split(SEMICOLON)
+        if SEMICOLON in credential:
+            client_id, client_secret = credential.split(SEMICOLON)
+        else:
+            client_id, client_secret = credential, None
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
