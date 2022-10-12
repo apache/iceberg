@@ -176,7 +176,7 @@ ignore_missing_imports = true
 module = "tests.*"
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]   
+[[tool.mypy.overrides]]
 module = "botocore.*"
 ignore_missing_imports = true
 

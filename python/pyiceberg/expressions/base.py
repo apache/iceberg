@@ -664,17 +664,37 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
+    """Travers over an expression to bind the predicates to the schema
+
+    Args:
+      schema (Schema): A schema to use when binding the expression
+      expression (BooleanExpression): An expression containing UnboundPredicates that can be bound
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case a predicate is already bound
+    """
+    return visit(expression, BindVisitor(schema, case_sensitive))
+
+
 class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
 
     Args:
       schema (Schema): A schema to use when binding the expression
       case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case a predicate is already bound
     """
 
+    schema: Schema
+    case_sensitive: bool
+
     def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
-        self._schema = schema
-        self._case_sensitive = case_sensitive
+        self.schema = schema
+        self.case_sensitive = case_sensitive
 
     def visit_true(self) -> BooleanExpression:
         return AlwaysTrue()
@@ -692,7 +712,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return Or(left=left_result, right=right_result)
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
-        return predicate.bind(self._schema, case_sensitive=self._case_sensitive)
+        return predicate.bind(self.schema, case_sensitive=self.case_sensitive)
 
     def visit_bound_predicate(self, predicate: BoundPredicate) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
@@ -894,9 +914,8 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: list[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, partition_struct_schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True):
-        bound_partition_filter = partition_filter.bind(partition_struct_schema, case_sensitive)
-        self.partition_filter = rewrite_not(bound_partition_filter)
+    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True):
+        self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
 
     def eval(self, manifest: ManifestFile) -> bool:
         if partitions := manifest.partitions:
@@ -1074,7 +1093,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
 
 def manifest_evaluator(
-    partition_spec: PartitionSpec, schema: Schema, partition_filter: UnboundPredicate, case_sensitive: bool = True
+    partition_spec: PartitionSpec, schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True
 ) -> Callable[[ManifestFile], bool]:
     partition_schema = Schema(*partition_spec.partition_type(schema))
     evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
