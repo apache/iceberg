@@ -44,7 +44,7 @@ To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WIT
 
 Before executing the following SQL, please make sure you've configured the Flink SQL client correctly according to the quick start [document](../flink).
 
-The following SQL will create a Flink table in the current Flink catalog, which maps to the iceberg table `default_database.iceberg_table` managed in iceberg catalog.
+The following SQL will create a Flink table in the current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in iceberg catalog.
 
 ```sql
 CREATE TABLE flink_table (
