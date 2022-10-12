@@ -210,7 +210,7 @@ class Schema(IcebergBaseModel):
 
         return self._lazy_id_to_accessor[field_id]
 
-    def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
+    def select(self, *names: str, case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns
 
         Args:
@@ -219,20 +219,20 @@ class Schema(IcebergBaseModel):
 
         Returns:
             Schema: A new schema with pruned columns
+
+        Raises:
+            ValueError: If a column is selected that doesn't exist
         """
-        if case_sensitive:
-            return self._case_sensitive_select(schema=self, names=names)
-        return self._case_insensitive_select(schema=self, names=names)
 
-    @classmethod
-    def _case_sensitive_select(cls, schema: "Schema", names: List[str]):
-        # TODO: Add a PruneColumns schema visitor and use it here
-        raise NotImplementedError()
+        try:
+            if case_sensitive:
+                ids = {self._name_to_id[name] for name in names}
+            else:
+                ids = {self._lazy_name_to_id_lower[name.lower()] for name in names}
+        except KeyError as e:
+            raise ValueError(f"Could not find column: {e}") from e
 
-    @classmethod
-    def _case_insensitive_select(cls, schema: "Schema", names: List[str]):
-        # TODO: Add a PruneColumns schema visitor and use it here
-        raise NotImplementedError()
+        return prune_columns(self, ids)
 
 
 class SchemaVisitor(Generic[T], ABC):

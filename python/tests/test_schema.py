@@ -671,3 +671,24 @@ def test_prune_columns_struct_in_map_full():
 def test_prune_columns_select_original_schema(table_schema_nested: Schema):
     ids = set(range(table_schema_nested.highest_field_id))
     assert prune_columns(table_schema_nested, ids, True) == table_schema_nested
+
+
+def test_schema_select(table_schema_nested: Schema):
+    assert table_schema_nested.select("bar", "baz") == Schema(
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_schema_select_case_insensitive(table_schema_nested: Schema):
+    assert table_schema_nested.select("BAZ", case_sensitive=False) == Schema(
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[1]
+    )
+
+
+def test_schema_select_cant_be_found(table_schema_nested: Schema):
+    with pytest.raises(ValueError) as exc_info:
+        table_schema_nested.select("BAZ", case_sensitive=True)
+    assert "Could not find column: 'BAZ'" in str(exc_info.value)
