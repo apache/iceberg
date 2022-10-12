@@ -66,7 +66,8 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
 
   @Override
   default long estimatedRowsCount() {
-    double scannedFileFraction = ((double) length()) / file().fileSizeInBytes();
+    long splitOffset = (file().splitOffsets() != null) ? file().splitOffsets().get(0) : 0L;
+    double scannedFileFraction = ((double) length()) / (file().fileSizeInBytes() - splitOffset);
     return (long) (scannedFileFraction * file().recordCount());
   }
 }
