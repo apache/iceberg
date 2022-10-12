@@ -166,9 +166,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
    */
   public Dataset<FileInfo> expireFiles() {
     if (expiredFileDS == null) {
-
-      // Save old metadata
-      TableMetadata originalTable = ops.current();
+      // fetch metadata before expiration
+      TableMetadata originalMetadata = ops.current();
 
       // perform expiration
       org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
@@ -187,18 +186,13 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       expireSnapshots.cleanExpiredFiles(false).commit();
 
-      // determine expired files
-      TableMetadata updatedTable = ops.refresh();
-      Set<Long> retainedSnapshots =
-          updatedTable.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-      Set<Long> expiredSnapshots =
-          originalTable.snapshots().stream()
-              .map(Snapshot::snapshotId)
-              .filter(id -> !retainedSnapshots.contains(id))
-              .collect(Collectors.toSet());
+      // fetch valid files after expiration
+      TableMetadata updatedMetadata = ops.refresh();
+      Dataset<FileInfo> validFileDS = fileDS(updatedMetadata);
 
-      Dataset<FileInfo> validFileDS = fileDS(updatedTable);
-      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalTable, expiredSnapshots);
+      // fetch files referenced by expired snapshots
+      Set<Long> deletedSnapshotIds = findExpiredSnapshotIds(originalMetadata, updatedMetadata);
+      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalMetadata, deletedSnapshotIds);
 
       // determine expired files
       this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
@@ -250,17 +244,24 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private Dataset<FileInfo> fileDS(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, table.io());
-    return contentFileDS(staticTable)
-        .union(manifestDS(staticTable))
-        .union(manifestListDS(staticTable));
+    return fileDS(metadata, null);
   }
 
-  private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshots) {
+  private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshotIds) {
     Table staticTable = newStaticTable(metadata, table.io());
-    return contentFileDS(staticTable, snapshots)
-        .union(manifestDS(staticTable, snapshots))
-        .union(manifestListDS(staticTable, snapshots));
+    return contentFileDS(staticTable, snapshotIds)
+        .union(manifestDS(staticTable, snapshotIds))
+        .union(manifestListDS(staticTable, snapshotIds));
+  }
+
+  private Set<Long> findExpiredSnapshotIds(
+      TableMetadata originalMetadata, TableMetadata updatedMetadata) {
+    Set<Long> retainedSnapshots =
+        updatedMetadata.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+    return originalMetadata.snapshots().stream()
+        .map(Snapshot::snapshotId)
+        .filter(id -> !retainedSnapshots.contains(id))
+        .collect(Collectors.toSet());
   }
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {

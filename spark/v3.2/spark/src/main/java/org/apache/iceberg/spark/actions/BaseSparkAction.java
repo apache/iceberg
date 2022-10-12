@@ -63,6 +63,7 @@ import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -144,17 +145,13 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
-    Broadcast<Table> tableBroadcast =
-        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
-    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
-    if (snapshotIds != null) {
-      allManifests = filterAllManifests(allManifests, snapshotIds);
-    }
-
-    Dataset<ManifestFileBean> allManifestsBean =
-        allManifests
+    Dataset<Row> manifests = manifestDF(table, snapshotIds);
+    Dataset<ManifestFileBean> manifestsBean =
+        manifests
             .selectExpr(
                 "content",
                 "path",
@@ -165,7 +162,7 @@ abstract class BaseSparkAction<ThisT> {
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
 
-    return allManifestsBean.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return manifestsBean.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
@@ -173,11 +170,19 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> manifestDS(Table table, Set<Long> snapshotIds) {
-    Dataset<Row> manifests = loadMetadataTable(table, ALL_MANIFESTS);
+    return manifestDF(table, snapshotIds)
+        .select(col("path"), lit(MANIFEST).as("type"))
+        .as(FileInfo.ENCODER);
+  }
+
+  private Dataset<Row> manifestDF(Table table, Set<Long> snapshotIds) {
+    Dataset<Row> manifestDF = loadMetadataTable(table, ALL_MANIFESTS);
     if (snapshotIds != null) {
-      manifests = filterAllManifests(manifests, snapshotIds);
+      Column filterCond = col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(snapshotIds);
+      return manifestDF.filter(filterCond);
+    } else {
+      return manifestDF;
     }
-    return manifests.select(col("path"), lit(MANIFEST).as("type")).as(FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestListDS(Table table) {
@@ -319,11 +324,6 @@ abstract class BaseSparkAction<ThisT> {
           + manifestListsCount()
           + otherFilesCount();
     }
-  }
-
-  protected Dataset<Row> filterAllManifests(Dataset<Row> allManifestDF, Set<Long> snapshotIds) {
-    return allManifestDF.filter(
-        col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(snapshotIds));
   }
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {

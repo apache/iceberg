@@ -101,7 +101,7 @@ public class ReachableFileUtil {
    * Returns locations of manifest lists in a table.
    *
    * @param table table for which manifestList needs to be fetched
-   * @return the location of manifest Lists
+   * @return the location of manifest lists
    */
   public static List<String> manifestListLocations(Table table) {
     return manifestListLocations(table, null);
@@ -112,17 +112,17 @@ public class ReachableFileUtil {
    *
    * @param table table for which manifestList needs to be fetched
    * @param snapshotIds ids of snapshots for which manifest lists will be returned
-   * @return the location of manifest Lists
+   * @return the location of manifest lists
    */
   public static List<String> manifestListLocations(Table table, Set<Long> snapshotIds) {
-    Iterable<Snapshot> tableSnapshots = table.snapshots();
+    Iterable<Snapshot> snapshots = table.snapshots();
     if (snapshotIds != null) {
-      tableSnapshots = Iterables.filter(tableSnapshots, s -> snapshotIds.contains(s.snapshotId()));
+      snapshots = Iterables.filter(snapshots, s -> snapshotIds.contains(s.snapshotId()));
     }
 
     List<String> manifestListLocations = Lists.newArrayList();
-    for (Snapshot tableSnapshot : tableSnapshots) {
-      String manifestListLocation = tableSnapshot.manifestListLocation();
+    for (Snapshot snapshot : snapshots) {
+      String manifestListLocation = snapshot.manifestListLocation();
       if (manifestListLocation != null) {
         manifestListLocations.add(manifestListLocation);
       }
