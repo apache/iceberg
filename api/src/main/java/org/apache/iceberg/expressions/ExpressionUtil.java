@@ -195,13 +195,13 @@ public class ExpressionUtil {
   }
 
   private static class StringSanitizer extends ExpressionVisitors.ExpressionVisitor<String> {
-    private final long now;
+    private final long nowMicros;
     private final int today;
 
     private StringSanitizer() {
       long nowMillis = System.currentTimeMillis();
       OffsetDateTime nowDateTime = Instant.ofEpochMilli(nowMillis).atOffset(ZoneOffset.UTC);
-      this.now = nowMillis * 1000;
+      this.nowMicros = nowMillis * 1000;
       this.today = (int) ChronoUnit.DAYS.between(EPOCH, nowDateTime);
     }
 
@@ -258,23 +258,23 @@ public class ExpressionUtil {
         case NOT_NAN:
           return "not_nan(" + term + ")";
         case LT:
-          return term + " < " + sanitize(pred.literal(), now, today);
+          return term + " < " + sanitize(pred.literal(), nowMicros, today);
         case LT_EQ:
-          return term + " <= " + sanitize(pred.literal(), now, today);
+          return term + " <= " + sanitize(pred.literal(), nowMicros, today);
         case GT:
-          return term + " > " + sanitize(pred.literal(), now, today);
+          return term + " > " + sanitize(pred.literal(), nowMicros, today);
         case GT_EQ:
-          return term + " >= " + sanitize(pred.literal(), now, today);
+          return term + " >= " + sanitize(pred.literal(), nowMicros, today);
         case EQ:
-          return term + " = " + sanitize(pred.literal(), now, today);
+          return term + " = " + sanitize(pred.literal(), nowMicros, today);
         case NOT_EQ:
-          return term + " != " + sanitize(pred.literal(), now, today);
+          return term + " != " + sanitize(pred.literal(), nowMicros, today);
         case IN:
           return term
               + " IN "
               + abbreviateValues(
                       pred.literals().stream()
-                          .map(lit -> sanitize(lit, now, today))
+                          .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -283,14 +283,14 @@ public class ExpressionUtil {
               + " NOT IN "
               + abbreviateValues(
                       pred.literals().stream()
-                          .map(lit -> sanitize(lit, now, today))
+                          .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
-          return term + " STARTS WITH " + sanitize(pred.literal(), now, today);
+          return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
-          return term + " NOT STARTS WITH " + sanitize(pred.literal(), now, today);
+          return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());

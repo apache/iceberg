@@ -472,10 +472,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeTimestamptzPast() {
-    String ninetyMinutesAgoUtc =
-        OffsetDateTime.now()
-            .minusMinutes(90)
-            .toString();
+    String ninetyMinutesAgoUtc = OffsetDateTime.now().minusMinutes(90).toString();
 
     assertEquals(
         Expressions.equal("test", "(timestamp-1-hours-ago)"),
@@ -497,10 +494,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeTimestamptzLastWeek() {
-    String lastWeekUtc =
-        OffsetDateTime.now()
-            .minusWeeks(1)
-            .toString();
+    String lastWeekUtc = OffsetDateTime.now().minusWeeks(1).toString();
 
     assertEquals(
         Expressions.equal("test", "(timestamp-7-days-ago)"),
@@ -522,10 +516,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeTimestamptzFuture() {
-    String ninetyMinutesFromNowUtc =
-        OffsetDateTime.now()
-            .plusMinutes(90)
-            .toString();
+    String ninetyMinutesFromNowUtc = OffsetDateTime.now().plusMinutes(90).toString();
 
     assertEquals(
         Expressions.equal("test", "(timestamp-1-hours-from-now)"),
