@@ -78,7 +78,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   @Override
   public void deleteFile(String path) {
-    Path toDelete = new Path(path);
+    Path toDelete = new Path(path.replaceAll("s3", "s3a"));
     FileSystem fs = Util.getFs(toDelete, hadoopConf.get());
     try {
       fs.delete(toDelete, false /* not recursive */);
@@ -110,7 +110,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    Path prefixToList = new Path(prefix);
+    Path prefixToList = new Path(prefix.replaceAll("s3", "s3a"));
     FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
 
     return () -> {
@@ -132,7 +132,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   @Override
   public void deletePrefix(String prefix) {
-    Path prefixToDelete = new Path(prefix);
+    Path prefixToDelete = new Path(prefix.replaceAll("s3", "s3a"));
     FileSystem fs = Util.getFs(prefixToDelete, hadoopConf.get());
 
     try {

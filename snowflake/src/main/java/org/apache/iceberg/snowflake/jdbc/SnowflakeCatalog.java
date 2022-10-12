@@ -31,6 +31,8 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableOperations;
@@ -39,8 +41,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.hadoop.Configurable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,16 +49,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Object> {
+    implements Closeable, SupportsNamespaces, Configurable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
 
-  private FileIO io;
+  private Configuration conf;
   private String catalogName = "SnowflakeCatalog";
-  private Object conf;
+
+  private Map<String, String> catalogProperties = null;
+
   private Connection connection;
 
   public SnowflakeCatalog() {}
@@ -100,6 +102,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    catalogProperties = properties;
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
@@ -159,7 +162,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return null;
+    return new SnowflakeTableOperations(catalogProperties, catalogName, conf, tableIdentifier);
   }
 
   @Override
@@ -168,5 +171,12 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Object conf) {}
+  public void setConf(Configuration conf) {
+    this.conf = conf;
+  }
+
+  @Override
+  public Configuration getConf() {
+    return conf;
+  }
 }

@@ -159,7 +159,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   private FileStatus lazyStat() {
     if (stat == null) {
       try {
-        this.stat = fs.getFileStatus(path);
+        this.stat = fs.getFileStatus(new Path(path.toString().replaceAll("s3:", "s3a:")));
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
       }
@@ -178,7 +178,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   @Override
   public SeekableInputStream newStream() {
     try {
-      return HadoopStreams.wrap(fs.open(path));
+      return HadoopStreams.wrap(fs.open(new Path(path.toString().replaceAll("s3:", "s3a:"))));
     } catch (FileNotFoundException e) {
       throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
@@ -205,7 +205,9 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   public String[] getBlockLocations(long start, long end) {
     List<String> hosts = Lists.newArrayList();
     try {
-      for (BlockLocation bl : fs.getFileBlockLocations(path, start, end)) {
+      for (BlockLocation bl :
+          fs.getFileBlockLocations(
+              new Path(path.toString().replaceAll("s3:", "s3a:")), start, end)) {
         Collections.addAll(hosts, bl.getHosts());
       }
 
@@ -224,7 +226,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   @Override
   public boolean exists() {
     try {
-      return fs.exists(path);
+      return fs.exists(new Path(path.toString().replaceAll("s3:", "s3a:")));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
     }

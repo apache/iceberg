@@ -46,7 +46,7 @@ public class Util {
 
   public static FileSystem getFs(Path path, Configuration conf) {
     try {
-      return path.getFileSystem(conf);
+      return new Path(path.toString().replaceAll("s3:", "s3a:")).getFileSystem(conf);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
     }

@@ -221,7 +221,7 @@ public class TableMetadata implements Serializable {
   private final String metadataFileLocation;
   private final int formatVersion;
   private final String uuid;
-  private final String location;
+  private String location;
   private final long lastSequenceNumber;
   private final long lastUpdatedMillis;
   private final int lastColumnId;

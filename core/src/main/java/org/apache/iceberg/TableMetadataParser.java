@@ -27,6 +27,7 @@ import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -429,6 +430,9 @@ public class TableMetadataParser {
 
     // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
+    Map<String, String> updateProps = new HashMap<String, String>(properties);
+    updateProps.putIfAbsent("read.parquet.vectorization.enabled", "false");
+    properties = ImmutableMap.copyOf(updateProps);
     long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
