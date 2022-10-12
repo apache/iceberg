@@ -19,12 +19,12 @@ from pyiceberg.io import load_file_io
 from pyiceberg.manifest import (
     DataFile,
     DataFileContent,
-    FieldSummary,
     FileFormat,
     ManifestContent,
     ManifestEntry,
     ManifestEntryStatus,
     ManifestFile,
+    PartitionFieldSummary,
     read_manifest_entry,
     read_manifest_list,
 )
@@ -280,7 +280,7 @@ def test_read_manifest_list(generated_manifest_file_file: str):
             existing_data_files_count=0,
             deleted_data_files_count=0,
             partitions=[
-                FieldSummary(
+                PartitionFieldSummary(
                     contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
                 )
             ],
@@ -321,7 +321,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
             existing_rows_counts=None,
             deleted_rows_count=0,
             partitions=[
-                FieldSummary(
+                PartitionFieldSummary(
                     contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
                 )
             ],

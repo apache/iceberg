@@ -21,15 +21,25 @@ from dataclasses import dataclass
 from functools import reduce, singledispatch
 from typing import (
     Any,
+    Callable,
     ClassVar,
     Generic,
     TypeVar,
 )
 
+from pyiceberg.conversions import from_bytes
 from pyiceberg.expressions.literals import Literal
 from pyiceberg.files import StructProtocol
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import DoubleType, FloatType, NestedField
+from pyiceberg.table import PartitionSpec
+from pyiceberg.types import (
+    DoubleType,
+    FloatType,
+    IcebergType,
+    NestedField,
+    PrimitiveType,
+)
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
@@ -654,17 +664,37 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
+    """Travers over an expression to bind the predicates to the schema
+
+    Args:
+      schema (Schema): A schema to use when binding the expression
+      expression (BooleanExpression): An expression containing UnboundPredicates that can be bound
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case a predicate is already bound
+    """
+    return visit(expression, BindVisitor(schema, case_sensitive))
+
+
 class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
 
     Args:
       schema (Schema): A schema to use when binding the expression
       case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case a predicate is already bound
     """
 
+    schema: Schema
+    case_sensitive: bool
+
     def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
-        self._schema = schema
-        self._case_sensitive = case_sensitive
+        self.schema = schema
+        self.case_sensitive = case_sensitive
 
     def visit_true(self) -> BooleanExpression:
         return AlwaysTrue()
@@ -682,7 +712,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return Or(left=left_result, right=right_result)
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
-        return predicate.bind(self._schema, case_sensitive=self._case_sensitive)
+        return predicate.bind(self.schema, case_sensitive=self.case_sensitive)
 
     def visit_bound_predicate(self, predicate: BoundPredicate) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
@@ -775,7 +805,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
 
 
 @singledispatch
-def visit_bound_predicate(expr, visitor: BooleanExpressionVisitor[T]) -> T:  # pylint: disable=unused-argument
+def visit_bound_predicate(expr, _: BooleanExpressionVisitor[T]) -> T:
     raise TypeError(f"Unknown predicate: {expr}")
 
 
@@ -867,3 +897,204 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
 
     def visit_bound_predicate(self, predicate) -> BooleanExpression:
         return predicate
+
+
+ROWS_MIGHT_MATCH = True
+ROWS_CANNOT_MATCH = False
+IN_PREDICATE_LIMIT = 200
+
+
+def _from_byte_buffer(field_type: IcebergType, val: bytes):
+    if not isinstance(field_type, PrimitiveType):
+        raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
+    return from_bytes(field_type, val)
+
+
+class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
+    partition_fields: list[PartitionFieldSummary]
+    partition_filter: BooleanExpression
+
+    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True):
+        self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
+
+    def eval(self, manifest: ManifestFile) -> bool:
+        if partitions := manifest.partitions:
+            self.partition_fields = partitions
+            return visit(self.partition_filter, self)
+
+        # No partition information
+        return ROWS_MIGHT_MATCH
+
+    def visit_in(self, term: BoundTerm, literals: set[Literal[Any]]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        if len(literals) > IN_PREDICATE_LIMIT:
+            return ROWS_MIGHT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+
+        if all(lower > val.value for val in literals):
+            return ROWS_CANNOT_MATCH
+
+        if field.upper_bound is not None:
+            upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+            if all(upper < val.value for val in literals):
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_in(self, term: BoundTerm, literals: set[Literal[Any]]) -> bool:
+        # because the bounds are not necessarily a min or max value, this cannot be answered using
+        # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
+
+    def visit_is_nan(self, term: BoundTerm) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.contains_nan is False:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_nan(self, term: BoundTerm) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.contains_nan is True and field.contains_null is False and field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_is_null(self, term: BoundTerm) -> bool:
+        pos = term.ref().accessor.position
+
+        if self.partition_fields[pos].contains_null is False:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_null(self, term: BoundTerm) -> bool:
+        pos = term.ref().accessor.position
+
+        # contains_null encodes whether at least one partition value is null,
+        # lowerBound is null if all partition values are null
+        all_null = self.partition_fields[pos].contains_null is True and self.partition_fields[pos].lower_bound is None
+
+        if all_null and type(term.ref().field.field_type) in {DoubleType, FloatType}:
+            # floating point types may include NaN values, which we check separately.
+            # In case bounds don't include NaN value, contains_nan needs to be checked against.
+            all_null = self.partition_fields[pos].contains_nan is False
+
+        if all_null:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.lower_bound is None:
+            # values are all null and literal cannot contain null
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+
+        if lower > literal.value:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+
+        if literal.value > upper:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        # because the bounds are not necessarily a min or max value, this cannot be answered using
+        # them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than_or_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if literal.value > upper:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if literal.value >= upper:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+
+        if literal.value <= lower:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than_or_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+
+        if literal.value < lower:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_true(self) -> bool:
+        return ROWS_MIGHT_MATCH
+
+    def visit_false(self) -> bool:
+        return ROWS_CANNOT_MATCH
+
+    def visit_not(self, child_result: bool) -> bool:
+        return not child_result
+
+    def visit_and(self, left_result: bool, right_result: bool) -> bool:
+        return left_result and right_result
+
+    def visit_or(self, left_result: bool, right_result: bool) -> bool:
+        return left_result or right_result
+
+
+def manifest_evaluator(
+    partition_spec: PartitionSpec, schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True
+) -> Callable[[ManifestFile], bool]:
+    partition_schema = Schema(*partition_spec.partition_type(schema))
+    evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
+    return evaluator.eval
