@@ -65,8 +65,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
-import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableNamespaceCreateRequest;
+import org.apache.iceberg.rest.requests.NamespaceCreateRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -334,8 +335,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   @Override
   public void createNamespace(
       SessionContext context, Namespace namespace, Map<String, String> metadata) {
-    CreateNamespaceRequest request =
-        CreateNamespaceRequest.builder().withNamespace(namespace).setProperties(metadata).build();
+    NamespaceCreateRequest request =
+        ImmutableNamespaceCreateRequest.builder().namespace(namespace).properties(metadata).build();
 
     // for now, ignore the response because there is no way to return it
     client.post(

@@ -19,15 +19,18 @@
 package org.apache.iceberg.rest.requests;
 
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTRequest;
 
-/** A REST request to create a namespace, with an optional set of properties. */
+/**
+ * A REST request to create a namespace, with an optional set of properties.
+ *
+ * @deprecated Will be removed in 1.2.0 - Use {@link NamespaceCreateRequest}
+ */
+@Deprecated
 public class CreateNamespaceRequest implements RESTRequest {
 
   private Namespace namespace;
@@ -69,30 +72,25 @@ public class CreateNamespaceRequest implements RESTRequest {
   }
 
   public static class Builder {
-    private Namespace namespace;
-    private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+    private final ImmutableNamespaceCreateRequest.Builder builder;
 
-    private Builder() {}
+    private Builder() {
+      builder = ImmutableNamespaceCreateRequest.builder();
+    }
 
     public Builder withNamespace(Namespace ns) {
-      Preconditions.checkNotNull(ns, "Invalid namespace: null");
-      this.namespace = ns;
+      builder.namespace(ns);
       return this;
     }
 
     public Builder setProperties(Map<String, String> props) {
-      Preconditions.checkNotNull(props, "Invalid collection of properties: null");
-      Preconditions.checkArgument(!props.containsKey(null), "Invalid property: null");
-      Preconditions.checkArgument(
-          !props.containsValue(null),
-          "Invalid value for properties %s: null",
-          Maps.filterValues(props, Objects::isNull).keySet());
-      properties.putAll(props);
+      builder.properties(props);
       return this;
     }
 
     public CreateNamespaceRequest build() {
-      return new CreateNamespaceRequest(namespace, properties.build());
+      ImmutableNamespaceCreateRequest build = builder.build();
+      return new CreateNamespaceRequest(build.namespace(), build.properties());
     }
   }
 }

@@ -116,21 +116,21 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
     AssertHelpers.assertThrows(
         "The builder should not allow using null for the namespace",
         NullPointerException.class,
-        "Invalid namespace: null",
+        "namespace",
         () -> CreateNamespaceRequest.builder().withNamespace(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null collection of properties",
         NullPointerException.class,
-        "Invalid collection of properties: null",
+        null,
         () -> CreateNamespaceRequest.builder().setProperties(null).build());
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid property: null",
+        NullPointerException.class,
+        "properties key",
         () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build());
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
@@ -138,8 +138,8 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
     mapWithMultipleNullValues.put("b", "b");
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a value in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid value for properties [a]: null",
+        NullPointerException.class,
+        "properties value for key: a",
         () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build());
   }
 

@@ -40,8 +40,8 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.NamespaceCreateRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -101,7 +101,7 @@ public class RESTCatalogAdapter implements RESTClient {
     CREATE_NAMESPACE(
         HTTPMethod.POST,
         "v1/namespaces",
-        CreateNamespaceRequest.class,
+        NamespaceCreateRequest.class,
         CreateNamespaceResponse.class),
     LOAD_NAMESPACE(HTTPMethod.GET, "v1/namespaces/{namespace}", null, GetNamespaceResponse.class),
     DROP_NAMESPACE(HTTPMethod.DELETE, "v1/namespaces/{namespace}"),
@@ -266,7 +266,7 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case CREATE_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          CreateNamespaceRequest request = castRequest(CreateNamespaceRequest.class, body);
+          NamespaceCreateRequest request = castRequest(NamespaceCreateRequest.class, body);
           return castResponse(
               responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request));
         }

@@ -51,8 +51,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.NamespaceCreateRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -104,7 +104,7 @@ public class CatalogHandlers {
   }
 
   public static CreateNamespaceResponse createNamespace(
-      SupportsNamespaces catalog, CreateNamespaceRequest request) {
+      SupportsNamespaces catalog, NamespaceCreateRequest request) {
     Namespace namespace = request.namespace();
     catalog.createNamespace(namespace, request.properties());
     return CreateNamespaceResponse.builder()
