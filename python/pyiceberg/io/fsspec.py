@@ -15,46 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
-import logging
-from functools import lru_cache, partial
-from typing import Callable, Dict, Union
+
+from functools import lru_cache
+from typing import Callable, Union
 from urllib.parse import urlparse
 
-import requests
-from botocore import UNSIGNED
-from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
-from requests import HTTPError
 from s3fs import S3FileSystem
 
-from pyiceberg.exceptions import SignError
 from pyiceberg.io import FileIO, InputFile, OutputFile
 from pyiceberg.typedef import Properties
-
-logger = logging.getLogger(__name__)
-
-
-def tabular_signer(properties: Properties, request: AWSRequest, **_) -> None:
-    signer_url = properties["uri"].rstrip("/")
-    signer_headers = {"Authorization": f"Bearer {properties['token']}"}
-    signer_body = {
-        "method": request.method,
-        "region": request.context["client_region"],
-        "uri": request.url,
-        "headers": {key: [val] for key, val in request.headers.items()},
-    }
-    try:
-        response = requests.post(f"{signer_url}/v1/aws/s3/sign", headers=signer_headers, json=signer_body)
-        response.raise_for_status()
-        response_json = response.json()
-    except HTTPError as e:
-        raise SignError(f"Failed to sign request: {signer_headers}") from e
-
-    for key, value in response_json["headers"].items():
-        request.headers.add_header(key, value[0])
-
-
-SIGNERS: Dict[str, Callable[[Properties, AWSRequest], None]] = {"tabular": tabular_signer}
 
 
 def _s3(properties: Properties) -> AbstractFileSystem:
@@ -63,26 +33,10 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         "aws_access_key_id": properties.get("s3.access-key-id"),
         "aws_secret_access_key": properties.get("s3.secret-access-key"),
     }
-    config_kwargs = {}
-    register_events: Dict[str, Callable] = {}
 
-    if signer := properties.get("s3.signer"):
-        logger.info("Loading signer %s", signer)
-        if singer_func := SIGNERS.get(signer):
-            singer_func_with_properties = partial(singer_func, properties)
-            register_events["request-created.s3"] = singer_func_with_properties
+    config_kwargs = {"signature_version": properties.get("s3.signer")}
 
-            # Disable the AWS Signer
-            config_kwargs["signature_version"] = UNSIGNED
-        else:
-            raise ValueError(f"Signer not available: {signer}")
-
-    fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
-
-    for event_name, event_function in register_events.items():
-        fs.s3.meta.events.register_last(event_name, event_function)
-
-    return fs
+    return S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 
 
 SCHEME_TO_FS = {
