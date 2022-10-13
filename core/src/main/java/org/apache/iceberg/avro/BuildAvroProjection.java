@@ -101,6 +101,11 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         updatedFields.add(avroField);
 
       } else {
+        // TODO when we later add the API support for default values, the below condition:
+        // (field.isRequired() && field.initialDefaultValue() != null)
+        // can also pass the validation, and we simply don't need to add the field to the avro file
+        // read
+        // schema, since the default value read is handled at Iceberg level by constantMap
         Preconditions.checkArgument(
             field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
             "Missing required field: %s",

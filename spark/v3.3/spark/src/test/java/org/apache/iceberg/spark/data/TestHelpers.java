@@ -701,7 +701,6 @@ public class TestHelpers {
           .as("Actual should be an InternalRow: " + context)
           .isInstanceOf(InternalRow.class);
       assertEquals(context, (StructType) type, (InternalRow) expected, (InternalRow) actual);
-
     } else if (type instanceof ArrayType) {
       Assertions.assertThat(expected)
           .as("Expected should be an ArrayData: " + context)
@@ -710,7 +709,6 @@ public class TestHelpers {
           .as("Actual should be an ArrayData: " + context)
           .isInstanceOf(ArrayData.class);
       assertEquals(context, (ArrayType) type, (ArrayData) expected, (ArrayData) actual);
-
     } else if (type instanceof MapType) {
       Assertions.assertThat(expected)
           .as("Expected should be a MapData: " + context)
@@ -719,7 +717,6 @@ public class TestHelpers {
           .as("Actual should be a MapData: " + context)
           .isInstanceOf(MapData.class);
       assertEquals(context, (MapType) type, (MapData) expected, (MapData) actual);
-
     } else if (type instanceof BinaryType) {
       assertEqualBytes(context, (byte[]) expected, (byte[]) actual);
     } else {
@@ -807,5 +804,21 @@ public class TestHelpers {
     }
 
     return deleteFiles;
+  }
+
+  public static Object convertJavaPrimitiveToAvroPrimitive(
+      Map<Type, org.apache.avro.Schema> typeToSchema, Type.PrimitiveType primitive, Object value) {
+    // For the primitives that Avro needs a different type than Spark, fix
+    // them here.
+    switch (primitive.typeId()) {
+      case FIXED:
+        return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) value);
+      case BINARY:
+        return ByteBuffer.wrap((byte[]) value);
+      case UUID:
+        return UUID.nameUUIDFromBytes((byte[]) value);
+      default:
+        return value;
+    }
   }
 }

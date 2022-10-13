@@ -95,6 +95,13 @@ class GenericReader implements Serializable {
     InputFile input = io.newInputFile(task.file().path().toString());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
+    //TODO: Construct default value map from table schema, and merge it with the partition map to consolidate one id
+    // to constant map
+    //
+    // pseudo code demo below
+    // Map<Integer, ?> defaultValueMap = <logic to construct default value map from tableSchema>
+    // partition = partition.putAll(defaultValueMap); # hopefully we rename the `partition` to something else like
+    // idToConstant
 
     switch (task.file().format()) {
       case AVRO:
