@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.requests;
+package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,41 +27,41 @@ import org.apache.iceberg.rest.NamespaceWithProperties;
 import org.apache.iceberg.rest.NamespaceWithPropertiesParser;
 import org.apache.iceberg.util.JsonUtil;
 
-public class CreateNamespaceRequestParser {
+public class GetNamespaceResponseParser {
 
-  private CreateNamespaceRequestParser() {}
+  private GetNamespaceResponseParser() {}
 
-  public static String toJson(CreateNamespaceRequest request) {
-    return toJson(request, false);
+  public static String toJson(GetNamespaceResponse response) {
+    return toJson(response, false);
   }
 
-  public static String toJson(CreateNamespaceRequest request, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(request, gen), pretty);
+  public static String toJson(GetNamespaceResponse response, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
   }
 
-  public static void toJson(CreateNamespaceRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid namespace creation request: null");
+  public static void toJson(GetNamespaceResponse response, JsonGenerator gen) throws IOException {
+    Preconditions.checkArgument(null != response, "Invalid namespace creation response: null");
 
     NamespaceWithPropertiesParser.toJson(
         ImmutableNamespaceWithProperties.builder()
-            .namespace(request.namespace())
-            .properties(request.properties())
+            .namespace(response.namespace())
+            .properties(response.properties())
             .build(),
         gen);
   }
 
-  public static CreateNamespaceRequest fromJson(String json) {
-    return JsonUtil.parse(json, CreateNamespaceRequestParser::fromJson);
+  public static GetNamespaceResponse fromJson(String json) {
+    return JsonUtil.parse(json, GetNamespaceResponseParser::fromJson);
   }
 
-  public static CreateNamespaceRequest fromJson(JsonNode json) {
+  public static GetNamespaceResponse fromJson(JsonNode json) {
     Preconditions.checkArgument(
-        null != json, "Cannot parse namespace creation request from null object");
+        null != json, "Cannot parse namespace creation response from null object");
     Preconditions.checkArgument(
-        json.isObject(), "Cannot parse namespace creation request from non-object: %s", json);
+        json.isObject(), "Cannot parse namespace creation response from non-object: %s", json);
 
     NamespaceWithProperties namespaceWithProperties = NamespaceWithPropertiesParser.fromJson(json);
-    return ImmutableCreateNamespaceRequest.newBuilder()
+    return ImmutableGetNamespaceResponse.newBuilder()
         .namespace(namespaceWithProperties.namespace())
         .properties(namespaceWithProperties.properties())
         .build();

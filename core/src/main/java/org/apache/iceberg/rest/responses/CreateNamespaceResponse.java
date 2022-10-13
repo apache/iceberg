@@ -19,80 +19,56 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
+import org.immutables.value.Value;
 
 /** Represents a REST response for a request to create a namespace / database. */
-public class CreateNamespaceResponse implements RESTResponse {
+@Value.Immutable
+@Value.Style(builder = "newBuilder")
+public interface CreateNamespaceResponse extends RESTResponse {
 
-  private Namespace namespace;
-  private Map<String, String> properties;
+  Namespace namespace();
 
-  public CreateNamespaceResponse() {
-    // Required for Jackson deserialization.
-  }
-
-  private CreateNamespaceResponse(Namespace namespace, Map<String, String> properties) {
-    this.namespace = namespace;
-    this.properties = properties;
-    validate();
+  @Value.Default
+  default Map<String, String> properties() {
+    return ImmutableMap.of();
   }
 
   @Override
-  public void validate() {
-    Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+  default void validate() {
+    // nothing to do here as it's not possible to create an invalid CreateNamespaceResponse
   }
 
-  public Namespace namespace() {
-    return namespace;
+  /**
+   * @deprecated Will be removed in 1.2.0, use {@link ImmutableCreateNamespaceResponse#newBuilder()}
+   *     directly.
+   */
+  @Deprecated
+  static CreateNamespaceResponse.Builder builder() {
+    return new CreateNamespaceResponse.Builder();
   }
 
-  public Map<String, String> properties() {
-    return properties != null ? properties : ImmutableMap.of();
-  }
+  class Builder {
+    private final ImmutableCreateNamespaceResponse.Builder builder;
 
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("namespace", namespace)
-        .add("properties", properties)
-        .toString();
-  }
+    private Builder() {
+      builder = ImmutableCreateNamespaceResponse.newBuilder();
+    }
 
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public static class Builder {
-    private Namespace namespace;
-    private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
-
-    private Builder() {}
-
-    public Builder withNamespace(Namespace ns) {
-      Preconditions.checkNotNull(ns, "Invalid namespace: null");
-      this.namespace = ns;
+    public CreateNamespaceResponse.Builder withNamespace(Namespace ns) {
+      builder.namespace(ns);
       return this;
     }
 
-    public Builder setProperties(Map<String, String> props) {
-      Preconditions.checkNotNull(props, "Invalid collection of properties: null");
-      Preconditions.checkArgument(!props.containsKey(null), "Invalid property to set: null");
-      Preconditions.checkArgument(
-          !props.containsValue(null),
-          "Invalid value to set for properties %s: null",
-          Maps.filterValues(props, Objects::isNull).keySet());
-      properties.putAll(props);
+    public CreateNamespaceResponse.Builder setProperties(Map<String, String> props) {
+      builder.properties(props);
       return this;
     }
 
     public CreateNamespaceResponse build() {
-      return new CreateNamespaceResponse(namespace, properties.build());
+      return builder.build();
     }
   }
 }

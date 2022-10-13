@@ -50,8 +50,14 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponseParser;
+import org.apache.iceberg.rest.responses.ImmutableCreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.ImmutableGetNamespaceResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -92,7 +98,18 @@ public class RESTSerializers {
             ImmutableCreateNamespaceRequest.class, new CreateNamespaceRequestSerializer<>())
         .addDeserializer(CreateNamespaceRequest.class, new CreateNamespaceRequestDeserializer<>())
         .addDeserializer(
-            ImmutableCreateNamespaceRequest.class, new CreateNamespaceRequestDeserializer<>());
+            ImmutableCreateNamespaceRequest.class, new CreateNamespaceRequestDeserializer<>())
+        .addSerializer(CreateNamespaceResponse.class, new CreateNamespaceResponseSerializer<>())
+        .addSerializer(
+            ImmutableCreateNamespaceResponse.class, new CreateNamespaceResponseSerializer<>())
+        .addDeserializer(CreateNamespaceResponse.class, new CreateNamespaceResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableCreateNamespaceResponse.class, new CreateNamespaceResponseDeserializer<>())
+        .addSerializer(GetNamespaceResponse.class, new GetNamespaceResponseSerializer<>())
+        .addSerializer(ImmutableGetNamespaceResponse.class, new GetNamespaceResponseSerializer<>())
+        .addDeserializer(GetNamespaceResponse.class, new GetNamespaceResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableGetNamespaceResponse.class, new GetNamespaceResponseDeserializer<>());
     mapper.registerModule(module);
   }
 
@@ -305,6 +322,42 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) CreateNamespaceRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class CreateNamespaceResponseSerializer<T extends CreateNamespaceResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CreateNamespaceResponseParser.toJson(request, gen);
+    }
+  }
+
+  public static class CreateNamespaceResponseDeserializer<T extends CreateNamespaceResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) CreateNamespaceResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class GetNamespaceResponseSerializer<T extends GetNamespaceResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      GetNamespaceResponseParser.toJson(request, gen);
+    }
+  }
+
+  public static class GetNamespaceResponseDeserializer<T extends GetNamespaceResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) GetNamespaceResponseParser.fromJson(jsonNode);
     }
   }
 }

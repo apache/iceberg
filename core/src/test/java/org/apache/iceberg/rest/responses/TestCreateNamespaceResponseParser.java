@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.requests;
+package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -28,35 +28,35 @@ import org.junit.Test;
  * We mainly test for nullability and do a round-trip. Everything else is tested in {@link
  * org.apache.iceberg.rest.TestNamespaceWithPropertiesParser}.
  */
-public class TestCreateNamespaceRequestParser {
+public class TestCreateNamespaceResponseParser {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> CreateNamespaceRequestParser.toJson(null))
+    Assertions.assertThatThrownBy(() -> CreateNamespaceResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid namespace creation request: null");
+        .hasMessage("Invalid namespace creation response: null");
 
-    Assertions.assertThatThrownBy(() -> CreateNamespaceRequestParser.fromJson((JsonNode) null))
+    Assertions.assertThatThrownBy(() -> CreateNamespaceResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse namespace creation request from null object");
+        .hasMessage("Cannot parse namespace creation response from null object");
   }
 
   @Test
   public void namespaceWithoutProperties() {
-    CreateNamespaceRequest expected =
-        ImmutableCreateNamespaceRequest.newBuilder()
+    CreateNamespaceResponse expected =
+        ImmutableCreateNamespaceResponse.newBuilder()
             .namespace(Namespace.of("accounting", "tax"))
             .build();
 
-    CreateNamespaceRequest actual =
-        CreateNamespaceRequestParser.fromJson("{\"namespace\":[\"accounting\",\"tax\"]}");
+    CreateNamespaceResponse actual =
+        CreateNamespaceResponseParser.fromJson("{\"namespace\":[\"accounting\",\"tax\"]}");
     Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
   public void roundTripSerde() {
-    CreateNamespaceRequest request =
-        ImmutableCreateNamespaceRequest.newBuilder()
+    CreateNamespaceResponse response =
+        ImmutableCreateNamespaceResponse.newBuilder()
             .namespace(Namespace.of("accounting", "tax"))
             .properties(ImmutableMap.of("a", "1", "b", "2"))
             .build();
@@ -70,9 +70,9 @@ public class TestCreateNamespaceRequestParser {
             + "  }\n"
             + "}";
 
-    String json = CreateNamespaceRequestParser.toJson(request, true);
+    String json = CreateNamespaceResponseParser.toJson(response, true);
     Assertions.assertThat(json).isEqualTo(expectedJson);
 
-    Assertions.assertThat(CreateNamespaceRequestParser.fromJson(json)).isEqualTo(request);
+    Assertions.assertThat(CreateNamespaceResponseParser.fromJson(json)).isEqualTo(response);
   }
 }
