@@ -355,68 +355,68 @@ def primitive_reader(primitive: PrimitiveType) -> Reader:
     raise ValueError(f"Unknown type: {primitive}")
 
 
-@primitive_reader.register(FixedType)
+@primitive_reader.register
 def _(primitive: FixedType) -> Reader:
     return FixedReader(primitive.length)
 
 
-@primitive_reader.register(DecimalType)
+@primitive_reader.register
 def _(primitive: DecimalType) -> Reader:
     return DecimalReader(primitive.precision, primitive.scale)
 
 
-@primitive_reader.register(BooleanType)
+@primitive_reader.register
 def _(_: BooleanType) -> Reader:
     return BooleanReader()
 
 
-@primitive_reader.register(IntegerType)
+@primitive_reader.register
 def _(_: IntegerType) -> Reader:
     return IntegerReader()
 
 
-@primitive_reader.register(LongType)
+@primitive_reader.register
 def _(_: LongType) -> Reader:
     # Ints and longs are encoded the same way in Python and
     # also binary compatible in Avro
     return IntegerReader()
 
 
-@primitive_reader.register(FloatType)
+@primitive_reader.register
 def _(_: FloatType) -> Reader:
     return FloatReader()
 
 
-@primitive_reader.register(DoubleType)
+@primitive_reader.register
 def _(_: DoubleType) -> Reader:
     return DoubleReader()
 
 
-@primitive_reader.register(DateType)
+@primitive_reader.register
 def _(_: DateType) -> Reader:
     return DateReader()
 
 
-@primitive_reader.register(TimeType)
+@primitive_reader.register
 def _(_: TimeType) -> Reader:
     return TimeReader()
 
 
-@primitive_reader.register(TimestampType)
+@primitive_reader.register
 def _(_: TimestampType) -> Reader:
     return TimestampReader()
 
 
-@primitive_reader.register(TimestamptzType)
+@primitive_reader.register
 def _(_: TimestamptzType) -> Reader:
     return TimestamptzReader()
 
 
-@primitive_reader.register(StringType)
+@primitive_reader.register
 def _(_: StringType) -> Reader:
     return StringReader()
 
 
-@primitive_reader.register(BinaryType)
-def _(_: StringType) -> Reader:
+@primitive_reader.register
+def _(_: BinaryType) -> Reader:
     return BinaryReader()
