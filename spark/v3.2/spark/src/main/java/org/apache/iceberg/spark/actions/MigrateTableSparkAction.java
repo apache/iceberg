@@ -57,6 +57,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
+
   private boolean removeBackup = false;
 
   MigrateTableSparkAction(
@@ -234,7 +235,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
     try {
       destCatalog().dropTable(backupIdent);
     } catch (Exception e) {
-      LOG.error("Cannot drop the backup table {} after migrate is completed.", backupIdent, e);
+      LOG.error("Cannot drop the backup table {}, after the migration is completed.", backupIdent, e);
     }
   }
 }
