@@ -78,10 +78,10 @@ val df = spark.table("prod.db.table")
 Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3.x and 2.4.
 
 Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
-the identifier is specified. When using `spark.read.format("iceberg").path(table)` or `spark.table(table)` the `table`
+the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
 variable can take a number of forms as listed below:
 
-*  `file:/path/to/table`: loads a HadoopTable at given path
+*  `file:///path/to/table`: loads a HadoopTable at given path
 *  `tablename`: loads `currentCatalog.currentNamespace.tablename`
 *  `catalog.tablename`: loads `tablename` from the specified catalog.
 *  `namespace.tablename`: loads `namespace.tablename` from current catalog
