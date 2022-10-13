@@ -604,7 +604,8 @@ public class TestReplacePartitions extends TableTestBase {
         statuses(Status.ADDED));
     validateDeleteManifest(
         table.currentSnapshot().allManifests(table.io()).get(2),
-        seqs(2),
+        dataSeqs(2L),
+        fileSeqs(2L),
         ids(id2),
         files(FILE_A_DELETES),
         statuses(Status.ADDED));

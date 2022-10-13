@@ -30,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.LongStream;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -328,14 +327,28 @@ public class TableTestBase {
 
   ManifestEntry<DataFile> manifestEntry(
       ManifestEntry.Status status, Long snapshotId, DataFile file) {
+    return manifestEntry(status, snapshotId, 0L, 0L, file);
+  }
+
+  ManifestEntry<DataFile> manifestEntry(
+      ManifestEntry.Status status,
+      Long snapshotId,
+      Long dataSequenceNumber,
+      Long fileSequenceNumber,
+      DataFile file) {
+
     GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
-        return entry.wrapAppend(snapshotId, file);
+        if (dataSequenceNumber != null && dataSequenceNumber != 0) {
+          return entry.wrapAppend(snapshotId, dataSequenceNumber, file);
+        } else {
+          return entry.wrapAppend(snapshotId, file);
+        }
       case EXISTING:
-        return entry.wrapExisting(snapshotId, 0L, file);
+        return entry.wrapExisting(snapshotId, dataSequenceNumber, fileSequenceNumber, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, 0L, file);
+        return entry.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }
@@ -476,33 +489,35 @@ public class TableTestBase {
 
   void validateManifest(
       ManifestFile manifest, Iterator<Long> ids, Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest, null, ids, expectedFiles, null);
+    validateManifest(manifest, null, null, ids, expectedFiles, null);
   }
 
   void validateManifest(
       ManifestFile manifest,
-      Iterator<Long> seqs,
+      Iterator<Long> dataSeqs,
+      Iterator<Long> fileSeqs,
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest, seqs, ids, expectedFiles, null);
+    validateManifest(manifest, dataSeqs, fileSeqs, ids, expectedFiles, null);
   }
 
   void validateManifest(
       ManifestFile manifest,
-      Iterator<Long> seqs,
+      Iterator<Long> dataSeqs,
+      Iterator<Long> fileSeqs,
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
-      if (seqs != null) {
+      if (dataSeqs != null) {
         V1Assert.assertEquals(
             "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
         V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
 
-        Long expectedSequenceNumber = seqs.next();
+        Long expectedSequenceNumber = dataSeqs.next();
         V2Assert.assertEquals(
             "Data sequence number should match expected",
             expectedSequenceNumber,
@@ -518,6 +533,12 @@ public class TableTestBase {
               manifest.sequenceNumber(),
               entry.sequenceNumber().longValue());
         }
+      }
+      if (fileSeqs != null) {
+        V1Assert.assertEquals(
+            "File sequence number should default to 0", (Long) 0L, entry.fileSequenceNumber());
+        V2Assert.assertEquals(
+            "File sequence number should match", fileSeqs.next(), entry.fileSequenceNumber());
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -532,7 +553,8 @@ public class TableTestBase {
 
   void validateDeleteManifest(
       ManifestFile manifest,
-      Iterator<Long> seqs,
+      Iterator<Long> dataSeqs,
+      Iterator<Long> fileSeqs,
       Iterator<Long> ids,
       Iterator<DeleteFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
@@ -540,13 +562,13 @@ public class TableTestBase {
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
-      if (seqs != null) {
+      if (dataSeqs != null) {
         V1Assert.assertEquals(
             "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
         V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
 
-        Long expectedSequenceNumber = seqs.next();
+        Long expectedSequenceNumber = dataSeqs.next();
         V2Assert.assertEquals(
             "Data sequence number should match expected",
             expectedSequenceNumber,
@@ -562,6 +584,12 @@ public class TableTestBase {
               manifest.sequenceNumber(),
               entry.sequenceNumber().longValue());
         }
+      }
+      if (fileSeqs != null) {
+        V1Assert.assertEquals(
+            "File sequence number should default to 0", 0, entry.fileSequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "File sequence number should match", fileSeqs.next(), entry.fileSequenceNumber());
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -655,8 +683,12 @@ public class TableTestBase {
     return Iterators.forArray(statuses);
   }
 
-  static Iterator<Long> seqs(long... seqs) {
-    return LongStream.of(seqs).iterator();
+  static Iterator<Long> dataSeqs(Long... seqs) {
+    return Iterators.forArray(seqs);
+  }
+
+  static Iterator<Long> fileSeqs(Long... seqs) {
+    return Iterators.forArray(seqs);
   }
 
   static Iterator<Long> ids(Long... ids) {
