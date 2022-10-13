@@ -149,9 +149,8 @@ abstract class BaseSparkAction<ThisT> {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
-    Dataset<Row> manifests = manifestDF(table, snapshotIds);
-    Dataset<ManifestFileBean> manifestsBean =
-        manifests
+    Dataset<ManifestFileBean> manifestBeanDS =
+        manifestDF(table, snapshotIds)
             .selectExpr(
                 "content",
                 "path",
@@ -162,7 +161,7 @@ abstract class BaseSparkAction<ThisT> {
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
 
-    return manifestsBean.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
