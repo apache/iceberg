@@ -438,7 +438,7 @@ def test_prune_columns_list(table_schema_nested: Schema):
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -457,7 +457,7 @@ def test_prune_columns_list_full(table_schema_nested: Schema):
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -479,7 +479,7 @@ def test_prune_columns_map(table_schema_nested: Schema):
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -509,7 +509,7 @@ def test_prune_columns_map_full(table_schema_nested: Schema):
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -531,7 +531,7 @@ def test_prune_columns_map_key(table_schema_nested: Schema):
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -544,7 +544,7 @@ def test_prune_columns_struct(table_schema_nested: Schema):
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -558,7 +558,7 @@ def test_prune_columns_struct_full(table_schema_nested: Schema):
             required=False,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -625,7 +625,7 @@ def test_prune_columns_struct_in_map():
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -647,7 +647,7 @@ def test_prune_columns_struct_in_map_full():
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
     assert prune_columns(table_schema_nested, {11}, True) == Schema(
         NestedField(
@@ -664,7 +664,7 @@ def test_prune_columns_struct_in_map_full():
             required=True,
         ),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
@@ -678,13 +678,13 @@ def test_schema_select(table_schema_nested: Schema):
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[],
     )
 
 
 def test_schema_select_case_insensitive(table_schema_nested: Schema):
     assert table_schema_nested.select("BAZ", case_sensitive=False) == Schema(
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[1]
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False), schema_id=1, identifier_field_ids=[]
     )
 
 

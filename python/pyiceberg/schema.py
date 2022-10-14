@@ -800,7 +800,11 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
 def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
     result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
-    return Schema(*(result or StructType()).fields, schema_id=schema.schema_id, identifier_field_ids=schema.identifier_field_ids)
+    return Schema(
+        *(result or StructType()).fields,
+        schema_id=schema.schema_id,
+        identifier_field_ids=list(selected.intersection(schema.identifier_field_ids)),
+    )
 
 
 class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
