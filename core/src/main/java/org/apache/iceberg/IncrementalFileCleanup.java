@@ -127,7 +127,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                     exc))
         .run(
             snapshot -> {
-              try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+              try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
                 for (ManifestFile manifest : manifests) {
                   validManifests.add(manifest.path());
 
@@ -210,7 +210,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 }
 
                 // find any manifests that are no longer needed
-                try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
+                try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
                   for (ManifestFile manifest : manifests) {
                     if (!validManifests.contains(manifest.path())) {
                       manifestsToDelete.add(manifest.path());
