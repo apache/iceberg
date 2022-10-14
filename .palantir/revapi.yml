@@ -1,4 +1,18 @@
 acceptedBreaks:
+  "1.2.0-SNAPSHOT":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::useBranch(java.lang.String)"
+      justification: "new API method for Ref"
+    - code: "java.method.addedToInterface"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::toSnapshot(java.lang.String)"
+      justification: "new API method for Ref"
+    - code: "java.method.addedToInterface"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotInclusive(java.lang.String)"
+      justification: "new API method for Ref"
+    - code: "java.method.addedToInterface"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotExclusive(java.lang.String)"
+      justification: "new API method for Ref"
   "1.0.0":
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"

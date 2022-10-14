@@ -52,6 +52,56 @@ public class TestBaseIncrementalAppendScan
   }
 
   @Test
+  public void testFromSnapshotInclusiveWithBranch() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    String tagName = "t1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
+    table.manageSnapshots().createTag(tagName, snapshotAId).commit();
+
+    String tagName2 = "t2";
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    long snapshotBId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(tagName2, snapshotBId).commit();
+
+    table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
+    long snapshotCId = table.snapshot(branchName).snapshotId();
+
+    IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagName);
+    Assert.assertEquals(3, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scan2 = newScan().fromSnapshotInclusive(tagName).toSnapshot(tagName2);
+    Assert.assertEquals(3, Iterables.size(scan2.planFiles()));
+
+    IncrementalAppendScan scan3 = newScan().fromSnapshotInclusive(tagName).useBranch(branchName);
+    Assert.assertEquals(2, Iterables.size(scan3.planFiles()));
+
+    IncrementalAppendScan scanWithTagSnapshot =
+        newScan().fromSnapshotInclusive(tagName).toSnapshot(snapshotCId);
+    Assert.assertEquals(2, Iterables.size(scanWithTagSnapshot.planFiles()));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Cannot find the snapshot ref: %s", "b3"),
+        () -> newScan().fromSnapshotInclusive(snapshotCId).useBranch("b3"));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Ref %s is not a branch", tagName),
+        () -> newScan().fromSnapshotInclusive(snapshotCId).useBranch(tagName));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Ref %s is not a tag", branchName),
+        () -> newScan().fromSnapshotInclusive(branchName));
+  }
+
+  @Test
   public void testFromSnapshotExclusive() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
@@ -66,6 +116,53 @@ public class TestBaseIncrementalAppendScan
     IncrementalAppendScan scanWithToSnapshot =
         newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(snapshotBId);
     Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
+  }
+
+  @Test
+  public void testFromSnapshotExclusiveWithRef() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    String tagName = "t1";
+    table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
+    table.manageSnapshots().createTag(tagName, snapshotAId).commit();
+
+    String tagName2 = "t2";
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    long snapshotBId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(tagName2, snapshotBId).commit();
+
+    table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
+    long snapshotCId = table.snapshot(branchName).snapshotId();
+
+    IncrementalAppendScan scan = newScan().fromSnapshotExclusive(tagName);
+    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scan2 = newScan().fromSnapshotExclusive(tagName).toSnapshot(tagName2);
+    Assert.assertEquals(2, Iterables.size(scan2.planFiles()));
+
+    IncrementalAppendScan scanWithToSnapshot =
+        newScan().fromSnapshotExclusive(tagName).useBranch(branchName);
+    Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Cannot find the snapshot ref: %s", "b2"),
+        () -> newScan().fromSnapshotExclusive(snapshotCId).useBranch("b2"));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Ref %s is not a branch", tagName),
+        () -> newScan().fromSnapshotExclusive(snapshotCId).useBranch(tagName));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Ref %s is not a tag", branchName),
+        () -> newScan().fromSnapshotExclusive(branchName));
   }
 
   @Test
@@ -94,11 +191,16 @@ public class TestBaseIncrementalAppendScan
     long snapshotAId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
+    String tagName = "t2";
+    table.manageSnapshots().createTag(tagName, snapshotBId).commit();
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan = newScan().toSnapshot(snapshotBId);
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scan2 = newScan().toSnapshot(tagName);
+    Assert.assertEquals(2, Iterables.size(scan2.planFiles()));
   }
 
   @Test

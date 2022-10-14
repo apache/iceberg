@@ -21,6 +21,7 @@ package org.apache.iceberg;
 /** API for configuring an incremental scan. */
 public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends Scan<ThisT, T, G> {
+
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
    *
@@ -32,6 +33,18 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
    */
   ThisT fromSnapshotInclusive(long fromSnapshotId);
+
+  /**
+   * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
+   *
+   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param fromSnapshotRef the start ref name that points to a particular snapshot ID (inclusive)
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  ThisT fromSnapshotInclusive(String fromSnapshotRef);
 
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
@@ -46,6 +59,18 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   ThisT fromSnapshotExclusive(long fromSnapshotId);
 
   /**
+   * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
+   *
+   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param fromSnapshotRef the start ref name that points to a particular snapshot ID (exclusive)
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  ThisT fromSnapshotExclusive(String fromSnapshotRef);
+
+  /**
    * Instructs this scan to look for changes up to a particular snapshot (inclusive).
    *
    * <p>If the end snapshot is not configured, it is defaulted to the current table snapshot
@@ -55,4 +80,23 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @return this for method chaining
    */
   ThisT toSnapshot(long toSnapshotId);
+
+  /**
+   * Instructs this scan to look for changes up to a particular snapshot ref (inclusive).
+   *
+   * <p>If the end snapshot is not configured, it is defaulted to the current table snapshot
+   * (inclusive).
+   *
+   * @param fromSnapshotRef the end snapshot Ref (inclusive)
+   * @return this for method chaining
+   */
+  ThisT toSnapshot(String fromSnapshotRef);
+
+  /**
+   * Use the specified branch
+   *
+   * @param branchName the branch name
+   * @return this for method chaining
+   */
+  ThisT useBranch(String branchName);
 }

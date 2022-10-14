@@ -35,6 +35,17 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
       Long fromSnapshotIdExclusive, long toSnapshotIdInclusive);
 
   @Override
+  public ThisT fromSnapshotInclusive(String fromSnapshotRef) {
+    SnapshotRef snapshotRef = table().refs().get(fromSnapshotRef);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref %s", fromSnapshotRef);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", fromSnapshotRef);
+
+    TableScanContext newContext = context().fromSnapshotIdInclusive(snapshotRef.snapshotId());
+
+    return newRefinedScan(tableOps(), table(), schema(), newContext);
+  }
+
+  @Override
   public ThisT fromSnapshotInclusive(long fromSnapshotId) {
     Preconditions.checkArgument(
         table().snapshot(fromSnapshotId) != null,
@@ -42,6 +53,19 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         fromSnapshotId);
     TableScanContext newContext = context().fromSnapshotIdInclusive(fromSnapshotId);
     return newRefinedScan(table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT fromSnapshotExclusive(String fromSnapshotRef) {
+    // for exclusive behavior, table().snapshot(fromSnapshotId) check can't be applied
+    // as fromSnapshotId could be matched to a parent snapshot that is already expired
+    SnapshotRef snapshotRef = table().refs().get(fromSnapshotRef);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref %s", fromSnapshotRef);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", fromSnapshotRef);
+
+    TableScanContext newContext = context().fromSnapshotIdExclusive(snapshotRef.snapshotId());
+
+    return newRefinedScan(tableOps(), table(), schema(), newContext);
   }
 
   @Override
@@ -58,6 +82,26 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         table().snapshot(toSnapshotId) != null, "Cannot find the end snapshot: %s", toSnapshotId);
     TableScanContext newContext = context().toSnapshotId(toSnapshotId);
     return newRefinedScan(table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT toSnapshot(String toSnapshotRef) {
+    SnapshotRef snapshotRef = table().refs().get(toSnapshotRef);
+    Preconditions.checkArgument(
+        snapshotRef != null, "Cannot find the snapshot ref: %s", toSnapshotRef);
+    Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", toSnapshotRef);
+
+    TableScanContext newContext = context().toSnapshotId(snapshotRef.snapshotId());
+    return newRefinedScan(tableOps(), table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT useBranch(String branchName) {
+    SnapshotRef snapshotRef = table().refs().get(branchName);
+    Preconditions.checkArgument(
+        snapshotRef != null, "Cannot find the snapshot ref: %s", branchName);
+    Preconditions.checkArgument(snapshotRef.isBranch(), "Ref %s is not a branch", branchName);
+    return newRefinedScan(tableOps(), table(), schema(), context().useRef(branchName));
   }
 
   @Override
@@ -102,7 +146,13 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
     if (context().toSnapshotId() != null) {
       return context().toSnapshotId();
     } else {
-      Snapshot currentSnapshot = table().currentSnapshot();
+      Snapshot currentSnapshot;
+      if (context().ref() != null) {
+        currentSnapshot = table().snapshot(context().ref());
+      } else {
+        currentSnapshot = table().currentSnapshot();
+      }
+
       Preconditions.checkArgument(
           currentSnapshot != null, "End snapshot is not set and table has no current snapshot");
       return currentSnapshot.snapshotId();
@@ -126,7 +176,6 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot ID,
         // which can be null
         return table().snapshot(fromSnapshotId).parentId();
-
       } else {
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
