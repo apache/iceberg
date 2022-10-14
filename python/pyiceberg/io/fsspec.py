@@ -48,12 +48,12 @@ def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSReq
         response.raise_for_status()
         response_json = response.json()
     except HTTPError as e:
-        raise SignError(f"Failed to sign request: {signer_headers}") from e
+        raise SignError(f"Failed to sign request: {signer_body}") from e
 
     for key, value in response_json["headers"].items():
-        request.headers.add_header(key, value[0])
+        request.headers.add_header(key, ", ".join(value))
 
-    return AWSRequest
+    return request
 
 
 SIGNERS: Dict[str, Callable[[Properties, AWSRequest], AWSRequest]] = {"S3V4RestSigner": s3v4_rest_signer}
@@ -72,7 +72,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         logger.info("Loading signer %s", signer)
         if singer_func := SIGNERS.get(signer):
             singer_func_with_properties = partial(singer_func, properties)
-            register_events["request-created.s3"] = singer_func_with_properties
+            register_events["before-sign.s3"] = singer_func_with_properties
 
             # Disable the AWS Signer
             config_kwargs["signature_version"] = UNSIGNED
@@ -82,7 +82,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     fs = S3FileSystem(client_kwargs=client_kwargs, config_kwargs=config_kwargs)
 
     for event_name, event_function in register_events.items():
-        fs.s3.meta.events.register_last(event_name, event_function)
+        fs.s3.meta.events.register_last(event_name, event_function, unique_id=1925)
 
     return fs
 
