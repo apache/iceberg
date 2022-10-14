@@ -310,8 +310,6 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     if (cleanExpiredFiles) {
       cleanExpiredSnapshots();
-    } else {
-      LOG.info("Cleaning up manifest and data files disabled, leaving them in place");
     }
   }
 
@@ -326,6 +324,9 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (incrementalCleanup == null) {
       incrementalCleanup = current.refs().size() == 1;
     }
+
+    LOG.info(
+        "Cleaning up expired files (local, {})", incrementalCleanup ? "incremental" : "reachable");
 
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
