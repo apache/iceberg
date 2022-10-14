@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -100,10 +101,25 @@ public class ReachableFileUtil {
    * Returns locations of manifest lists in a table.
    *
    * @param table table for which manifestList needs to be fetched
-   * @return the location of manifest Lists
+   * @return the location of manifest lists
    */
   public static List<String> manifestListLocations(Table table) {
+    return manifestListLocations(table, null);
+  }
+
+  /**
+   * Returns locations of manifest lists in a table.
+   *
+   * @param table table for which manifestList needs to be fetched
+   * @param snapshotIds ids of snapshots for which manifest lists will be returned
+   * @return the location of manifest lists
+   */
+  public static List<String> manifestListLocations(Table table, Set<Long> snapshotIds) {
     Iterable<Snapshot> snapshots = table.snapshots();
+    if (snapshotIds != null) {
+      snapshots = Iterables.filter(snapshots, s -> snapshotIds.contains(s.snapshotId()));
+    }
+
     List<String> manifestListLocations = Lists.newArrayList();
     for (Snapshot snapshot : snapshots) {
       String manifestListLocation = snapshot.manifestListLocation();
