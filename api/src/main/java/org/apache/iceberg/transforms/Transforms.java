@@ -242,7 +242,7 @@ public class Transforms {
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns a month {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform
    * @return a month transform
@@ -252,7 +252,7 @@ public class Transforms {
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns a day {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform
    * @return a day transform
@@ -262,10 +262,10 @@ public class Transforms {
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns an hour {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform
-   * @return a hour transform
+   * @return an hour transform
    */
   public static <T> Transform<T, Integer> hour() {
     return Hours.get();
