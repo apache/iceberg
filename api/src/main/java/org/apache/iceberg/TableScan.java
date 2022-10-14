@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-
 /** API for configuring a table scan. */
 public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTask> {
   /**
@@ -60,18 +58,6 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    *     a tag
    */
   TableScan asOfTime(long timestampMillis);
-
-  /**
-   * Create a new {@link TableScan} from this that will read the given data columns. This produces
-   * an expected schema that includes all fields that are either selected or used by this scan's
-   * filter expression.
-   *
-   * @param columns column names from the table's schema
-   * @return a new scan based on this with the given projection columns
-   */
-  default TableScan select(String... columns) {
-    return select(Lists.newArrayList(columns));
-  }
 
   /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to

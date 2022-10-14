@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Scan objects are immutable and can be shared between threads. Refinement methods, like {@link
@@ -84,6 +85,17 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    * @return a new scan based on this with the given projection columns
    */
   ThisT select(Collection<String> columns);
+
+  /**
+   * Create a new scan from this that will read the given columns. This produces an expected schema
+   * that includes all fields that are either selected or used by this scan's filter expression.
+   *
+   * @param columns column names
+   * @return a new scan based on this with the given projection columns
+   */
+  default ThisT select(String... columns) {
+    return select(Lists.newArrayList(columns));
+  }
 
   /**
    * Create a new scan from the results of this filtered by the {@link Expression}.
