@@ -36,12 +36,34 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
       Long fromSnapshotIdExclusive, long toSnapshotIdInclusive);
 
   @Override
+  public ThisT fromSnapshotInclusive(long fromSnapshotId, String branch) {
+    Preconditions.checkArgument(
+        table().snapshot(fromSnapshotId) != null,
+        "Cannot find the starting snapshot: %s",
+        fromSnapshotId);
+    Preconditions.checkArgument(
+        table().snapshot(branch) != null, "Cannot find the branch: %s", branch);
+    TableScanContext newContext = context().fromSnapshotIdInclusive(fromSnapshotId).useRef(branch);
+    return newRefinedScan(tableOps(), table(), schema(), newContext);
+  }
+
+  @Override
   public ThisT fromSnapshotInclusive(long fromSnapshotId) {
     Preconditions.checkArgument(
         table().snapshot(fromSnapshotId) != null,
         "Cannot find the starting snapshot: %s",
         fromSnapshotId);
     TableScanContext newContext = context().fromSnapshotIdInclusive(fromSnapshotId);
+    return newRefinedScan(tableOps(), table(), schema(), newContext);
+  }
+
+  @Override
+  public ThisT fromSnapshotExclusive(long fromSnapshotId, String branch) {
+    // for exclusive behavior, table().snapshot(fromSnapshotId) check can't be applied
+    // as fromSnapshotId could be matched to a parent snapshot that is already expired
+    Preconditions.checkArgument(
+        table().snapshot(branch) != null, "Cannot find the branch: %s", branch);
+    TableScanContext newContext = context().fromSnapshotIdExclusive(fromSnapshotId).useRef(branch);
     return newRefinedScan(tableOps(), table(), schema(), newContext);
   }
 
@@ -103,7 +125,13 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
     if (context().toSnapshotId() != null) {
       return context().toSnapshotId();
     } else {
-      Snapshot currentSnapshot = table().currentSnapshot();
+      Snapshot currentSnapshot;
+      if (context().branch() != null) {
+        currentSnapshot = table().snapshot(context().branch());
+      } else {
+        currentSnapshot = table().currentSnapshot();
+      }
+
       Preconditions.checkArgument(
           currentSnapshot != null, "End snapshot is not set and table has no current snapshot");
       return currentSnapshot.snapshotId();

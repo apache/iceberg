@@ -45,6 +45,7 @@ final class TableScanContext {
   private final ExecutorService planExecutor;
   private final boolean fromSnapshotInclusive;
   private final MetricsReporter metricsReporter;
+  private final String branch;
 
   TableScanContext() {
     this.snapshotId = null;
@@ -60,6 +61,7 @@ final class TableScanContext {
     this.planExecutor = null;
     this.fromSnapshotInclusive = false;
     this.metricsReporter = new LoggingMetricsReporter();
+    this.branch = null;
   }
 
   private TableScanContext(
@@ -75,7 +77,8 @@ final class TableScanContext {
       Long toSnapshotId,
       ExecutorService planExecutor,
       boolean fromSnapshotInclusive,
-      MetricsReporter metricsReporter) {
+      MetricsReporter metricsReporter,
+      String branch) {
     this.snapshotId = snapshotId;
     this.rowFilter = rowFilter;
     this.ignoreResiduals = ignoreResiduals;
@@ -89,6 +92,7 @@ final class TableScanContext {
     this.planExecutor = planExecutor;
     this.fromSnapshotInclusive = fromSnapshotInclusive;
     this.metricsReporter = metricsReporter;
+    this.branch = branch;
   }
 
   Long snapshotId() {
@@ -109,7 +113,30 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
+  }
+
+  String branch() {
+    return branch;
+  }
+
+  TableScanContext useRef(String ref) {
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        colStats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        metricsReporter,
+        ref);
   }
 
   Expression rowFilter() {
@@ -130,7 +157,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   boolean ignoreResiduals() {
@@ -151,7 +179,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   boolean caseSensitive() {
@@ -172,7 +201,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   boolean returnColumnStats() {
@@ -193,7 +223,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   Collection<String> selectedColumns() {
@@ -216,7 +247,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   Schema projectedSchema() {
@@ -239,7 +271,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   Map<String, String> options() {
@@ -263,7 +296,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   Long fromSnapshotId() {
@@ -284,7 +318,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         false,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   TableScanContext fromSnapshotIdInclusive(long id) {
@@ -301,7 +336,8 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         true,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   boolean fromSnapshotInclusive() {
@@ -326,7 +362,8 @@ final class TableScanContext {
         id,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   ExecutorService planExecutor() {
@@ -351,7 +388,8 @@ final class TableScanContext {
         toSnapshotId,
         executor,
         fromSnapshotInclusive,
-        metricsReporter);
+        metricsReporter,
+        branch);
   }
 
   MetricsReporter metricsReporter() {
@@ -372,6 +410,7 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        reporter);
+        reporter,
+        branch);
   }
 }

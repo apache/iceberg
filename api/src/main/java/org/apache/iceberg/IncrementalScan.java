@@ -21,6 +21,22 @@ package org.apache.iceberg;
 /** API for configuring an incremental scan. */
 public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends Scan<ThisT, T, G> {
+
+  /**
+   * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
+   *
+   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param fromSnapshotId the start snapshot ID (inclusive)
+   * @param branch the ref used
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  default ThisT fromSnapshotInclusive(long fromSnapshotId, String branch) {
+    throw new UnsupportedOperationException("Unsupported starting from the specified reference.");
+  }
+
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
    *
@@ -32,6 +48,21 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
    */
   ThisT fromSnapshotInclusive(long fromSnapshotId);
+
+  /**
+   * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
+   *
+   * <p>If the start snapshot is not configured, it is defaulted to the oldest ancestor of the end
+   * snapshot (inclusive).
+   *
+   * @param fromSnapshotId the start snapshot ID (exclusive)
+   * @param branch the ref used
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
+   */
+  default ThisT fromSnapshotExclusive(long fromSnapshotId, String branch) {
+    throw new UnsupportedOperationException("Unsupported starting from the specified reference.");
+  }
 
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
