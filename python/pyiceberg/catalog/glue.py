@@ -86,11 +86,11 @@ def _convert_glue_to_iceberg(glue_table: Dict[str, Any], io: FileIO) -> Table:
 
     if PROP_TABLE_TYPE not in properties:
         raise NoSuchTableError(
-            f"Property table_type missing, could not determine type: "
+            f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
             f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
         )
     glue_table_type = properties.get(PROP_TABLE_TYPE)
-    if glue_table_type != ICEBERG:
+    if glue_table_type.upper() != ICEBERG:
         raise NoSuchTableError(
             f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
             f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
@@ -179,12 +179,11 @@ class GlueCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database {database_name} not found") from e
 
         try:
-            load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
+            loaded_table = self.load_table(identifier=(database_name, table_name))
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table {database_name}.{table_name} fail to be created") from e
 
-        glue_table = load_table_response[PROP_GLUE_TABLE]
-        return _convert_glue_to_iceberg(glue_table, io)
+        return loaded_table
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
@@ -201,7 +200,7 @@ class GlueCatalog(Catalog):
         try:
             load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
         except self.glue.exceptions.EntityNotFoundException as e:
-            raise NoSuchTableError(f"Table does not exists: {table_name}") from e
+            raise NoSuchTableError(f"Table does not exists: {database_name}.{table_name}") from e
         loaded_table = load_table_response[PROP_GLUE_TABLE]
         io = load_file_io(self.properties, loaded_table[PROP_GLUE_TABLE_PARAMETERS][PROP_METADATA_LOCATION])
         return _convert_glue_to_iceberg(loaded_table, io)
