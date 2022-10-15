@@ -97,8 +97,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
-  public MigrateTableSparkAction dropBackup(boolean dropBackup) {
-    this.dropBackup = dropBackup;
+  public MigrateTableSparkAction dropBackup() {
+    this.dropBackup = true;
     return this;
   }
 

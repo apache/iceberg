@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -91,12 +92,16 @@ class MigrateTableProcedure extends BaseProcedure {
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
 
-    MigrateTable.Result result =
-        SparkActions.get()
-            .migrateTable(tableName)
-            .tableProperties(properties)
-            .dropBackup(dropBackup)
-            .execute();
+    MigrateTableSparkAction migrateTableSparkAction =
+        SparkActions.get().migrateTable(tableName).tableProperties(properties);
+
+    MigrateTable.Result result;
+    if (dropBackup) {
+      result = migrateTableSparkAction.dropBackup().execute();
+    } else {
+      result = migrateTableSparkAction.execute();
+    }
+
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

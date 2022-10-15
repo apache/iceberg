@@ -91,12 +91,16 @@ class MigrateTableProcedure extends BaseProcedure {
 
     boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
 
-    MigrateTable.Result result =
-        SparkActions.get()
-            .migrateTable(tableName)
-            .tableProperties(properties)
-            .dropBackup(dropBackup)
-            .execute();
+    MigrateTable migrateTable =
+        SparkActions.get().migrateTable(tableName).tableProperties(properties);
+
+    MigrateTable.Result result;
+    if (dropBackup) {
+      result = migrateTable.dropBackup().execute();
+    } else {
+      result = migrateTable.execute();
+    }
+
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

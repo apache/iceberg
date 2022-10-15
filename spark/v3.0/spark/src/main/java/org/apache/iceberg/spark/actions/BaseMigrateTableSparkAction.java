@@ -98,8 +98,8 @@ public class BaseMigrateTableSparkAction
   }
 
   @Override
-  public MigrateTable dropBackup(boolean dropBackup) {
-    this.dropBackup = dropBackup;
+  public MigrateTable dropBackup() {
+    this.dropBackup = true;
     return this;
   }
 

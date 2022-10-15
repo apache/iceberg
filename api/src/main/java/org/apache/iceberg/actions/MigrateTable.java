@@ -44,10 +44,9 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   /**
    * Drops the backup of the original table after a successful migration
    *
-   * @param dropBackup if true, removes the backup table
    * @return this for method chaining
    */
-  MigrateTable dropBackup(boolean dropBackup);
+  MigrateTable dropBackup();
 
   /** The action result that contains a summary of the execution. */
   interface Result {
