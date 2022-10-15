@@ -34,7 +34,12 @@ from pyiceberg.catalog import (
     Properties,
     PropertiesUpdateSummary,
 )
-from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError, TableAlreadyExistsError
+from pyiceberg.exceptions import (
+    NoSuchIcebergTableError,
+    NoSuchNamespaceError,
+    NoSuchTableError,
+    TableAlreadyExistsError,
+)
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile, ToOutputFile
@@ -101,7 +106,7 @@ class GlueCatalog(Catalog):
         glue_table_type = properties[PROP_TABLE_TYPE]
 
         if glue_table_type.upper() != ICEBERG:
-            raise NoSuchTableError(
+            raise NoSuchIcebergTableError(
                 f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
