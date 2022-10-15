@@ -30,7 +30,7 @@ MY_USERNAME = "jonasjiang"
 
 
 def get_random_table_name():
-    prefix = "my_iceberg_table-"
+    prefix = "my_iceberg_table-round3-"
     random_tag = "".join(random.choice(string.ascii_letters) for _ in range(20))
     return (prefix + random_tag).lower()
 

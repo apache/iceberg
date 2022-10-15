@@ -81,34 +81,6 @@ def _construct_table_input(table_name: str, metadata_location: str, properties: 
     return table_input
 
 
-def _convert_glue_to_iceberg(glue_table: Dict[str, Any], io: FileIO) -> Table:
-    properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
-
-    if PROP_TABLE_TYPE not in properties:
-        raise NoSuchTableError(
-            f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
-            f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
-        )
-    glue_table_type = properties[PROP_TABLE_TYPE]
-    if glue_table_type.upper() != ICEBERG:
-        raise NoSuchTableError(
-            f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
-            f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
-        )
-    if prop_meta_location := properties.get(PROP_METADATA_LOCATION):
-        metadata_location = prop_meta_location
-    else:
-        raise NoSuchTableError(f"Table property {PROP_METADATA_LOCATION} is missing")
-
-    file = io.new_input(metadata_location)
-    metadata = FromInputFile.table_metadata(file)
-    return Table(
-        identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
-        metadata=metadata,
-        metadata_location=metadata_location,
-    )
-
-
 def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
     ToOutputFile.table_metadata(metadata, io.new_output(metadate_path))
 
@@ -117,6 +89,38 @@ class GlueCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self.glue = boto3.client("glue")
+
+    def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
+        properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
+
+        if PROP_TABLE_TYPE not in properties:
+            raise NoSuchTableError(
+                f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
+                f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
+            )
+        glue_table_type = properties[PROP_TABLE_TYPE]
+
+        if glue_table_type.upper() != ICEBERG:
+            raise NoSuchTableError(
+                f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
+                f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
+            )
+
+        if PROP_METADATA_LOCATION not in properties:
+            raise NoSuchTableError(
+                f"Table property {PROP_METADATA_LOCATION} is missing, cannot find metadata for: "
+                f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
+            )
+        metadata_location = properties[PROP_METADATA_LOCATION]
+
+        io = load_file_io(properties=self.properties, location=metadata_location)
+        file = io.new_input(metadata_location)
+        metadata = FromInputFile.table_metadata(file)
+        return Table(
+            identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
+            metadata=metadata,
+            metadata_location=metadata_location,
+        )
 
     def _default_warehouse_location(self, database_name: str, table_name: str):
         try:
@@ -167,7 +171,7 @@ class GlueCatalog(Catalog):
         metadata = new_table_metadata(
             location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
         )
-        io = load_file_io({**self.properties, **properties}, location=location)
+        io = load_file_io(properties=self.properties, location=metadata_location)
         _write_metadata(metadata, io, metadata_location)
         try:
             self.glue.create_table(
@@ -201,9 +205,8 @@ class GlueCatalog(Catalog):
             load_table_response = self.glue.get_table(DatabaseName=database_name, Name=table_name)
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {database_name}.{table_name}") from e
-        loaded_table = load_table_response[PROP_GLUE_TABLE]
-        io = load_file_io(self.properties, loaded_table[PROP_GLUE_TABLE_PARAMETERS][PROP_METADATA_LOCATION])
-        return _convert_glue_to_iceberg(loaded_table, io)
+
+        return self._convert_glue_to_iceberg(load_table_response[PROP_GLUE_TABLE])
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         raise NotImplementedError("currently unsupported")
