@@ -88,6 +88,8 @@ pyarrow = ["pyarrow"]
 snappy = ["python-snappy"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
+boto3 = ["boto3"]
+moto = ["moto"]
 
 [tool.pytest.ini_options]
 markers = [
