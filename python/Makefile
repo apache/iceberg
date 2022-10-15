@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs
+	poetry install -E pyarrow -E hive -E s3fs -E boto3 -E moto
 
 check-license:
 	./dev/check-license
