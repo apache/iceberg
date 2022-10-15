@@ -89,7 +89,7 @@ def _convert_glue_to_iceberg(glue_table: Dict[str, Any], io: FileIO) -> Table:
             f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
             f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
         )
-    glue_table_type = properties.get(PROP_TABLE_TYPE)
+    glue_table_type = properties[PROP_TABLE_TYPE]
     if glue_table_type.upper() != ICEBERG:
         raise NoSuchTableError(
             f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
