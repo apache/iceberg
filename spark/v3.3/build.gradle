@@ -27,6 +27,16 @@ def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
 ]
 
+configure(sparkProjects) {
+  configurations {
+    all {
+      resolutionStrategy {
+        force 'com.fasterxml.jackson.module:jackson-bom:2.13.4'
+      }
+    }
+  }
+}
+
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
