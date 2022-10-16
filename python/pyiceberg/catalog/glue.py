@@ -50,7 +50,7 @@ from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, Partition
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
-ICEBERG = "ICEBERG"
+ICEBERG = "iceberg"
 EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE"
 
 PROP_TABLE_TYPE = "table_type"
@@ -71,7 +71,7 @@ PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
 def _construct_parameters(metadata_location: str) -> Properties:
-    return {PROP_TABLE_TYPE: ICEBERG, PROP_METADATA_LOCATION: metadata_location}
+    return {PROP_TABLE_TYPE: ICEBERG.upper(), PROP_METADATA_LOCATION: metadata_location}
 
 
 def _construct_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
@@ -106,7 +106,7 @@ class GlueCatalog(Catalog):
             )
         glue_table_type = properties[PROP_TABLE_TYPE]
 
-        if glue_table_type.upper() != ICEBERG:
+        if glue_table_type.lower() != ICEBERG:
             raise NoSuchIcebergTableError(
                 f"Property table_type is {glue_table_type}, expected {ICEBERG}: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
