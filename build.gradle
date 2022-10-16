@@ -96,6 +96,7 @@ allprojects {
   group = "org.apache.iceberg"
   version = projectVersion
   repositories {
+    maven { url "https://repository.apache.org/content/repositories/orgapachespark-1430/" }
     mavenCentral()
     mavenLocal()
   }
