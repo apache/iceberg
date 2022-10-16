@@ -37,6 +37,7 @@ from pyiceberg.catalog import (
 from pyiceberg.exceptions import (
     NoSuchIcebergTableError,
     NoSuchNamespaceError,
+    NoSuchPropertyException,
     NoSuchTableError,
     TableAlreadyExistsError,
 )
@@ -99,7 +100,7 @@ class GlueCatalog(Catalog):
         properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
 
         if PROP_TABLE_TYPE not in properties:
-            raise NoSuchTableError(
+            raise NoSuchPropertyException(
                 f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
@@ -112,7 +113,7 @@ class GlueCatalog(Catalog):
             )
 
         if PROP_METADATA_LOCATION not in properties:
-            raise NoSuchTableError(
+            raise NoSuchPropertyException(
                 f"Table property {PROP_METADATA_LOCATION} is missing, cannot find metadata for: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
