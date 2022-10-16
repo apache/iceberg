@@ -31,7 +31,7 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-bom:2.13.4'
+        force 'com.fasterxml.jackson.module:jackson-databind:2.13.4'
       }
     }
   }
