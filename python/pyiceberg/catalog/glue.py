@@ -34,6 +34,12 @@ from pyiceberg.catalog import (
     Properties,
     PropertiesUpdateSummary,
 )
+from pyiceberg.catalog.base import (
+    ICEBERG,
+    METADATA_LOCATION,
+    TABLE_TYPE,
+    WAREHOUSE,
+)
 from pyiceberg.exceptions import (
     NoSuchIcebergTableError,
     NoSuchNamespaceError,
@@ -50,12 +56,7 @@ from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, Partition
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
-ICEBERG = "iceberg"
 EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE"
-
-PROP_TABLE_TYPE = "table_type"
-PROP_WAREHOUSE = "warehouse"
-PROP_METADATA_LOCATION = "metadata_location"
 
 PROP_GLUE_TABLE = "Table"
 PROP_GLUE_TABLE_TYPE = "TableType"
@@ -71,7 +72,7 @@ PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 
 
 def _construct_parameters(metadata_location: str) -> Properties:
-    return {PROP_TABLE_TYPE: ICEBERG.upper(), PROP_METADATA_LOCATION: metadata_location}
+    return {TABLE_TYPE: ICEBERG.upper(), METADATA_LOCATION: metadata_location}
 
 
 def _construct_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
@@ -99,12 +100,12 @@ class GlueCatalog(Catalog):
     def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
         properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
 
-        if PROP_TABLE_TYPE not in properties:
+        if TABLE_TYPE not in properties:
             raise NoSuchPropertyException(
-                f"Property {PROP_TABLE_TYPE} missing, could not determine type: "
+                f"Property {TABLE_TYPE} missing, could not determine type: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
-        glue_table_type = properties[PROP_TABLE_TYPE]
+        glue_table_type = properties[TABLE_TYPE]
 
         if glue_table_type.lower() != ICEBERG:
             raise NoSuchIcebergTableError(
@@ -112,12 +113,12 @@ class GlueCatalog(Catalog):
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
 
-        if PROP_METADATA_LOCATION not in properties:
+        if METADATA_LOCATION not in properties:
             raise NoSuchPropertyException(
-                f"Table property {PROP_METADATA_LOCATION} is missing, cannot find metadata for: "
+                f"Table property {METADATA_LOCATION} is missing, cannot find metadata for: "
                 f"{glue_table[PROP_GLUE_TABLE_DATABASE_NAME]}.{glue_table[PROP_GLUE_TABLE_NAME]}"
             )
-        metadata_location = properties[PROP_METADATA_LOCATION]
+        metadata_location = properties[METADATA_LOCATION]
 
         io = load_file_io(properties=self.properties, location=metadata_location)
         file = io.new_input(metadata_location)
@@ -137,8 +138,8 @@ class GlueCatalog(Catalog):
         if database_location := response.get(PROP_GLUE_DATABASE).get(PROP_GLUE_DATABASE_LOCATION):
             return f"{database_location}/{table_name}"
 
-        if PROP_WAREHOUSE in self.properties:
-            return f"{self.properties[PROP_WAREHOUSE]}/{database_name}.db/{table_name}"
+        if WAREHOUSE in self.properties:
+            return f"{self.properties[WAREHOUSE]}/{database_name}.db/{table_name}"
 
         raise ValueError("No default path is set, please specify a location when creating a table")
 
