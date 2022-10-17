@@ -112,7 +112,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private volatile ScheduledExecutorService refreshExecutor = null;
 
   public RESTSessionCatalog() {
-    this(new HTTPClientFactory());
+    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
   }
 
   RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {

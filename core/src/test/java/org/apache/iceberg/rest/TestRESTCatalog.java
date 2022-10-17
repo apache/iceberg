@@ -144,7 +144,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    this.restCatalog = new RESTCatalog(context, (config) -> new HTTPClientFactory().apply(config));
+    this.restCatalog =
+        new RESTCatalog(
+            context,
+            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
     restCatalog.setConf(conf);
     restCatalog.initialize(
         "prod",
@@ -263,8 +266,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     AssertHelpers.assertThrows(
         "Configuration passed to initialize must have uri",
-        IllegalArgumentException.class,
-        "REST Catalog server URI is required",
+        NullPointerException.class,
+        "Invalid uri for http client: null",
         () -> restCat.initialize("prod", ImmutableMap.of()));
 
     restCat.close();
