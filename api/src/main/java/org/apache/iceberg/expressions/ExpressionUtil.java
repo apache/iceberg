@@ -317,21 +317,7 @@ public class ExpressionUtil {
 
   private static String sanitize(Literal<?> literal, long now, int today) {
     if (literal instanceof Literals.StringLiteral) {
-      CharSequence value = ((Literals.StringLiteral) literal).value();
-      if (DATE.matcher(value).matches()) {
-        Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
-        return sanitizeDate(date.value(), today);
-      } else if (TIMESTAMP.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-        return sanitizeTimestamp(ts.value(), now);
-      } else if (TIMESTAMPTZ.matcher(value).matches()) {
-        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-        return sanitizeTimestamp(ts.value(), now);
-      } else if (TIME.matcher(value).matches()) {
-        return "(time)";
-      } else {
-        return sanitizeString(value);
-      }
+      return sanitizeString(((Literals.StringLiteral) literal).value(), now, today);
     } else if (literal instanceof Literals.DateLiteral) {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
@@ -348,7 +334,7 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
     } else {
       // for uuid, decimal, fixed, and binary, match the string result
-      return sanitizeString(literal.value().toString());
+      return sanitizeSimpleString(literal.value().toString());
     }
   }
 
@@ -389,7 +375,24 @@ public class ExpressionUtil {
     return "(" + numDigits + "-digit-" + type + ")";
   }
 
-  private static String sanitizeString(CharSequence value) {
+  private static String sanitizeString(CharSequence value, long now, int today) {
+    if (DATE.matcher(value).matches()) {
+      Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
+      return sanitizeDate(date.value(), today);
+    } else if (TIMESTAMP.matcher(value).matches()) {
+      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
+      return sanitizeTimestamp(ts.value(), now);
+    } else if (TIMESTAMPTZ.matcher(value).matches()) {
+      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
+      return sanitizeTimestamp(ts.value(), now);
+    } else if (TIME.matcher(value).matches()) {
+      return "(time)";
+    } else {
+      return sanitizeSimpleString(value);
+    }
+  }
+
+  private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format("(hash-%08x)", HASH_FUNC.apply(value));
   }
