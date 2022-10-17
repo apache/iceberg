@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -80,7 +81,7 @@ public class TestNessieTable extends BaseTestIceberg {
                   optional(2, "data", Types.LongType.get()))
               .fields());
 
-  private File tableLocation;
+  private String tableLocation;
 
   public TestNessieTable() {
     super(BRANCH);
@@ -90,7 +91,8 @@ public class TestNessieTable extends BaseTestIceberg {
   @BeforeEach
   public void beforeEach(@NessieUri URI uri) throws IOException {
     super.beforeEach(uri);
-    this.tableLocation = new File(catalog.createTable(TABLE_IDENTIFIER, schema).location());
+    this.tableLocation =
+        catalog.createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
   }
 
   @Override
@@ -98,7 +100,7 @@ public class TestNessieTable extends BaseTestIceberg {
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
-      tableLocation.delete();
+      FileUtils.deleteDirectory(new File(tableLocation));
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -570,23 +572,23 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @SuppressWarnings(
       "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
-  private List<String> metadataFiles(File tablePath) {
+  private List<String> metadataFiles(String tablePath) {
+
     return Arrays.stream(
-            Objects.requireNonNull(
-                new File((tablePath + "/" + "metadata").replace("file:", "")).listFiles()))
+            Objects.requireNonNull(new File((tablePath + "/" + "metadata")).listFiles()))
         .map(File::getAbsolutePath)
         .collect(Collectors.toList());
   }
 
-  protected List<String> metadataVersionFiles(File tablePath) {
+  protected List<String> metadataVersionFiles(String tablePath) {
     return filterByExtension(tablePath, getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
-  protected List<String> manifestFiles(File tablePath) {
+  protected List<String> manifestFiles(String tablePath) {
     return filterByExtension(tablePath, ".avro");
   }
 
-  private List<String> filterByExtension(File tablePath, String extension) {
+  private List<String> filterByExtension(String tablePath, String extension) {
     return metadataFiles(tablePath).stream()
         .filter(f -> f.endsWith(extension))
         .collect(Collectors.toList());
