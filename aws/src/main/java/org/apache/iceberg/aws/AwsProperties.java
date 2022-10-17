@@ -829,8 +829,9 @@ public class AwsProperties implements Serializable {
               properties, S3FILEIO_MULTIPART_SIZE, S3FILEIO_MULTIPART_SIZE_DEFAULT);
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException(
-          "Input malformed or exceeded maximum multipart upload size 5GB: %s"
-              + properties.get(S3FILEIO_MULTIPART_SIZE));
+          String.format(
+              "Input malformed or exceeded maximum multipart upload size 5GB: %s",
+              properties.get(S3FILEIO_MULTIPART_SIZE)));
     }
     this.s3FileIoMultipartThresholdFactor =
         PropertyUtil.propertyAsDouble(
