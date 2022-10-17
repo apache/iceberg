@@ -354,7 +354,7 @@ def _(_: TimestampType) -> pa.DataType:
 
 @_iceberg_to_pyarrow_type.register
 def _(_: TimestamptzType) -> pa.DataType:
-    return pa.timestamp(unit="ms")
+    return pa.timestamp(unit="ms", tz="+00:00")
 
 
 @_iceberg_to_pyarrow_type.register
