@@ -20,12 +20,35 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
+import pyarrow as pa
 import pytest
 from pyarrow.fs import FileType
 
 from pyiceberg.io import InputStream, OutputStream
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO, convert_iceberg_schema_to_pyarrow
-from pyiceberg.schema import Schema
+from pyiceberg.io.pyarrow import (
+    PyArrowFile,
+    PyArrowFileIO,
+    _ConvertToArrowSchema,
+    schema_to_pyarrow,
+)
+from pyiceberg.schema import Schema, visit
+from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
+    IntegerType,
+    ListType,
+    LongType,
+    MapType,
+    StringType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+)
 
 
 def test_pyarrow_input_file():
@@ -267,8 +290,8 @@ def test_deleting_s3_file_not_found():
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
 
-def test_convert_iceberg_schema_to_pyarrow_schema(table_schema_nested: Schema):
-    actual = convert_iceberg_schema_to_pyarrow(table_schema_nested)
+def test_schema_to_pyarrow_schema(table_schema_nested: Schema):
+    actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
 bar: int32 not null
 baz: bool
@@ -289,3 +312,102 @@ person: struct<name: string, age: int32 not null>
   child 0, name: string
   child 1, age: int32 not null"""
     assert repr(actual) == expected
+
+
+def test_fixed_type_to_pyarrow():
+    length = 22
+    iceberg_type = FixedType(length)
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary(length)
+
+
+def test_decimal_type_to_pyarrow():
+    precision = 25
+    scale = 19
+    iceberg_type = DecimalType(precision, scale)
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.decimal128(precision, scale)
+
+
+def test_boolean_type_to_pyarrow():
+    iceberg_type = BooleanType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.bool_()
+
+
+def test_integer_type_to_pyarrow():
+    iceberg_type = IntegerType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int32()
+
+
+def test_long_type_to_pyarrow():
+    iceberg_type = LongType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int64()
+
+
+def test_float_type_to_pyarrow():
+    iceberg_type = FloatType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float32()
+
+
+def test_double_type_to_pyarrow():
+    iceberg_type = DoubleType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float64()
+
+
+def test_date_type_to_pyarrow():
+    iceberg_type = DateType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.date32()
+
+
+def test_time_type_to_pyarrow():
+    iceberg_type = TimeType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.time64("us")
+
+
+def test_timestamp_type_to_pyarrow():
+    iceberg_type = TimestampType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="ms")
+
+
+def test_timestamptz_type_to_pyarrow():
+    iceberg_type = TimestamptzType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="ms", tz="+00:00")
+
+
+def test_string_type_to_pyarrow():
+    iceberg_type = StringType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.string()
+
+
+def test_binary_type_to_pyarrow():
+    iceberg_type = BinaryType()
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary()
+
+
+def test_struct_type_to_pyarrow(table_schema_simple: Schema):
+    expected = pa.struct(
+        [
+            pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"id": "3"}),
+        ]
+    )
+    assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
+
+
+def test_map_type_to_pyarrow():
+    iceberg_map = MapType(
+        key_id=1,
+        key_type=IntegerType(),
+        value_id=2,
+        value_type=StringType(),
+        value_required=True,
+    )
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(pa.int32(), pa.string())
+
+
+def test_list_type_to_pyarrow():
+    iceberg_map = ListType(
+        element_id=1,
+        element_type=IntegerType(),
+        element_required=True,
+    )
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(pa.int32())

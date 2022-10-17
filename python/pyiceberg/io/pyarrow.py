@@ -268,7 +268,7 @@ class PyArrowFileIO(FileIO):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
 
 
-def convert_iceberg_schema_to_pyarrow(schema: Schema) -> pa.schema:
+def schema_to_pyarrow(schema: Schema) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
@@ -281,7 +281,10 @@ class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
 
     def field(self, field: NestedField, field_result: pa.DataType) -> pa.Field:
         return pa.field(
-            name=field.name, type=field_result, nullable=not field.required, metadata={"doc": field.doc} if field.doc else {}
+            name=field.name,
+            type=field_result,
+            nullable=not field.required,
+            metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
         )
 
     def list(self, _: ListType, element_result: pa.DataType) -> pa.DataType:
@@ -344,7 +347,7 @@ def _(_: DateType) -> pa.DataType:
 
 @_iceberg_to_pyarrow_type.register
 def _(_: TimeType) -> pa.DataType:
-    return pa.time64(unit="ms")
+    return pa.time64("us")
 
 
 @_iceberg_to_pyarrow_type.register
@@ -364,4 +367,5 @@ def _(_: StringType) -> pa.DataType:
 
 @_iceberg_to_pyarrow_type.register
 def _(_: BinaryType) -> pa.DataType:
+    # Variable length by default
     return pa.binary()
