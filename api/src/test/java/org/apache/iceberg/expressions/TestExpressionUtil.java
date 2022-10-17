@@ -397,7 +397,7 @@ public class TestExpressionUtil {
   public void testSanitizeTimestampLastWeek() {
     String lastWeekLocal =
         OffsetDateTime.now()
-            .minusWeeks(1)
+            .minusHours(180)
             .atZoneSameInstant(ZoneOffset.UTC)
             .toLocalDateTime()
             .toString();
@@ -494,7 +494,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeTimestamptzLastWeek() {
-    String lastWeekUtc = OffsetDateTime.now().minusWeeks(1).toString();
+    String lastWeekUtc = OffsetDateTime.now().minusHours(180).toString();
 
     assertEquals(
         Expressions.equal("test", "(timestamp-7-days-ago)"),
