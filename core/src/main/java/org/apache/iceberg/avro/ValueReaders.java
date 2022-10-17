@@ -595,7 +595,10 @@ public class ValueReaders {
     }
 
     protected StructReader(
-        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+        List<ValueReader<?>> readers,
+        Types.StructType struct,
+        Schema record,
+        Map<Integer, ?> idToConstant) {
       this.readers = readers.toArray(new ValueReader[0]);
 
       List<Types.NestedField> fields = struct.fields();
@@ -612,6 +615,9 @@ public class ValueReaders {
         } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
           positionList.add(pos);
           constantList.add(false);
+        } else if (record.getField(field.name()) == null && field.initialDefault() != null) {
+          positionList.add(pos);
+          constantList.add(field.initialDefault());
         }
       }
 

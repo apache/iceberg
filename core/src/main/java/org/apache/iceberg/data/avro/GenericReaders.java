@@ -25,6 +25,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
@@ -53,8 +54,11 @@ class GenericReaders {
   }
 
   static ValueReader<Record> struct(
-      StructType struct, List<ValueReader<?>> readers, Map<Integer, ?> idToConstant) {
-    return new GenericRecordReader(readers, struct, idToConstant);
+      StructType struct,
+      Schema record,
+      List<ValueReader<?>> readers,
+      Map<Integer, ?> idToConstant) {
+    return new GenericRecordReader(readers, struct, record, idToConstant);
   }
 
   private static class DateReader implements ValueReader<LocalDate> {
@@ -105,8 +109,11 @@ class GenericReaders {
     private final StructType structType;
 
     private GenericRecordReader(
-        List<ValueReader<?>> readers, StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+        List<ValueReader<?>> readers,
+        StructType struct,
+        Schema record,
+        Map<Integer, ?> idToConstant) {
+      super(readers, struct, record, idToConstant);
       this.structType = struct;
     }
 

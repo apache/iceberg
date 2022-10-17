@@ -83,7 +83,7 @@ public class FlinkAvroReader implements DatumReader<RowData>, SupportsRowPositio
     @Override
     public ValueReader<?> record(
         Types.StructType expected, Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return FlinkValueReaders.struct(fields, expected.asStructType(), idToConstant);
+      return FlinkValueReaders.struct(fields, expected.asStructType(), record, idToConstant);
     }
 
     @Override

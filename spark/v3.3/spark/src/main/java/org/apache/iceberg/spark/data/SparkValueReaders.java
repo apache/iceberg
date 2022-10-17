@@ -26,6 +26,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
@@ -75,8 +76,8 @@ public class SparkValueReaders {
   }
 
   static ValueReader<InternalRow> struct(
-      List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(readers, struct, idToConstant);
+      List<ValueReader<?>> readers, Types.StructType struct, Schema record, Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, struct, record, idToConstant);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -253,8 +254,8 @@ public class SparkValueReaders {
     private final int numFields;
 
     protected StructReader(
-        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+        List<ValueReader<?>> readers, Types.StructType struct, Schema record, Map<Integer, ?> idToConstant) {
+      super(readers, struct, record, idToConstant);
       this.numFields = readers.size();
     }
 

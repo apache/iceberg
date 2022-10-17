@@ -24,6 +24,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.flink.table.data.ArrayData;
@@ -87,8 +88,8 @@ public class FlinkValueReaders {
   }
 
   static ValueReader<RowData> struct(
-      List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(readers, struct, idToConstant);
+      List<ValueReader<?>> readers, Types.StructType struct, Schema record, Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, struct, record, idToConstant);
   }
 
   private static class StringReader implements ValueReader<StringData> {
@@ -286,8 +287,8 @@ public class FlinkValueReaders {
     private final int numFields;
 
     private StructReader(
-        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+        List<ValueReader<?>> readers, Types.StructType struct, Schema record, Map<Integer, ?> idToConstant) {
+      super(readers, struct, record, idToConstant);
       this.numFields = readers.size();
     }
 

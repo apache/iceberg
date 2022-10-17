@@ -103,9 +103,17 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       } else {
         Preconditions.checkArgument(
-            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
-            "Missing required field: %s",
+            (field.isRequired() && field.initialDefault() != null)
+                || field.isOptional()
+                || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
+            "Missing required field that doesn't have a default value: %s",
             field.name());
+        // If the field from Iceberg schema has initial default value, we just pass and don't
+        // project it to the avro file read schema with the generated _r field name,
+        // the default value will be directly read from the Iceberg layer
+        if (field.initialDefault() != null) {
+          continue;
+        }
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField =

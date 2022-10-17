@@ -80,8 +80,11 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
   }
 
   protected ValueReader<?> createStructReader(
-      Types.StructType struct, List<ValueReader<?>> fields, Map<Integer, ?> idToConstant) {
-    return GenericReaders.struct(struct, fields, idToConstant);
+      Types.StructType struct,
+      Schema record,
+      List<ValueReader<?>> fields,
+      Map<Integer, ?> idToConstant) {
+    return GenericReaders.struct(struct, record, fields, idToConstant);
   }
 
   private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
@@ -94,7 +97,7 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     @Override
     public ValueReader<?> record(
         Types.StructType struct, Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return createStructReader(struct, fields, idToConstant);
+      return createStructReader(struct, record, fields, idToConstant);
     }
 
     @Override
