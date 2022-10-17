@@ -231,7 +231,7 @@ class RestCatalog(Catalog):
         if SEMICOLON in credential:
             client_id, client_secret = credential.split(SEMICOLON)
         else:
-            client_id, client_secret = credential, None
+            client_id, client_secret = None, credential
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
