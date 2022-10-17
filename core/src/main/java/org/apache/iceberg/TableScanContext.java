@@ -96,7 +96,7 @@ final class TableScanContext {
   }
 
   TableScanContext useSnapshotId(Long scanSnapshotId) {
-    return Builder.builder(this).snapshotId(scanSnapshotId).build();
+    return Builder.from(this).snapshotId(scanSnapshotId).build();
   }
 
   Expression rowFilter() {
@@ -104,7 +104,7 @@ final class TableScanContext {
   }
 
   TableScanContext filterRows(Expression filter) {
-    return Builder.builder(this).rowFilter(filter).build();
+    return Builder.from(this).rowFilter(filter).build();
   }
 
   boolean ignoreResiduals() {
@@ -112,7 +112,7 @@ final class TableScanContext {
   }
 
   TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {
-    return Builder.builder(this).ignoreResiduals(shouldIgnoreResiduals).build();
+    return Builder.from(this).ignoreResiduals(shouldIgnoreResiduals).build();
   }
 
   boolean caseSensitive() {
@@ -120,7 +120,7 @@ final class TableScanContext {
   }
 
   TableScanContext setCaseSensitive(boolean isCaseSensitive) {
-    return Builder.builder(this).caseSensitive(isCaseSensitive).build();
+    return Builder.from(this).caseSensitive(isCaseSensitive).build();
   }
 
   boolean returnColumnStats() {
@@ -128,7 +128,7 @@ final class TableScanContext {
   }
 
   TableScanContext shouldReturnColumnStats(boolean returnColumnStats) {
-    return Builder.builder(this).colStats(returnColumnStats).build();
+    return Builder.from(this).colStats(returnColumnStats).build();
   }
 
   Collection<String> selectedColumns() {
@@ -138,7 +138,7 @@ final class TableScanContext {
   TableScanContext selectColumns(Collection<String> columns) {
     Preconditions.checkState(
         projectedSchema == null, "Cannot select columns when projection schema is set");
-    return Builder.builder(this).projectedSchema(null).selectedColumns(columns).build();
+    return Builder.from(this).projectedSchema(null).selectedColumns(columns).build();
   }
 
   Schema projectedSchema() {
@@ -148,7 +148,7 @@ final class TableScanContext {
   TableScanContext project(Schema schema) {
     Preconditions.checkState(
         selectedColumns == null, "Cannot set projection schema when columns are selected");
-    return Builder.builder(this).projectedSchema(schema).selectedColumns(null).build();
+    return Builder.from(this).projectedSchema(schema).selectedColumns(null).build();
   }
 
   Map<String, String> options() {
@@ -160,7 +160,7 @@ final class TableScanContext {
     builder.putAll(options);
     builder.put(property, value);
 
-    return Builder.builder(this).options(builder.build()).build();
+    return Builder.from(this).options(builder.build()).build();
   }
 
   Long fromSnapshotId() {
@@ -168,11 +168,11 @@ final class TableScanContext {
   }
 
   TableScanContext fromSnapshotIdExclusive(long id) {
-    return Builder.builder(this).fromSnapshotId(id).fromSnapshotInclusive(false).build();
+    return Builder.from(this).fromSnapshotId(id).fromSnapshotInclusive(false).build();
   }
 
   TableScanContext fromSnapshotIdInclusive(long id) {
-    return Builder.builder(this).fromSnapshotId(id).fromSnapshotInclusive(true).build();
+    return Builder.from(this).fromSnapshotId(id).fromSnapshotInclusive(true).build();
   }
 
   boolean fromSnapshotInclusive() {
@@ -184,7 +184,7 @@ final class TableScanContext {
   }
 
   TableScanContext toSnapshotId(long id) {
-    return Builder.builder(this).toSnapshotId(id).build();
+    return Builder.from(this).toSnapshotId(id).build();
   }
 
   ExecutorService planExecutor() {
@@ -196,7 +196,7 @@ final class TableScanContext {
   }
 
   TableScanContext planWith(ExecutorService executor) {
-    return Builder.builder(this).planExecutor(executor).build();
+    return Builder.from(this).planExecutor(executor).build();
   }
 
   MetricsReporter metricsReporter() {
@@ -204,7 +204,7 @@ final class TableScanContext {
   }
 
   TableScanContext reportWith(MetricsReporter reporter) {
-    return Builder.builder(this).metricsReporter(reporter).build();
+    return Builder.from(this).metricsReporter(reporter).build();
   }
 
   private static final class Builder {
@@ -238,7 +238,7 @@ final class TableScanContext {
           .metricsReporter(context.metricsReporter);
     }
 
-    static Builder builder(TableScanContext context) {
+    static Builder from(TableScanContext context) {
       return new Builder(context);
     }
 
