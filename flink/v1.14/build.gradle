@@ -119,7 +119,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
 
   configurations {
     implementation {
-      exclude group: 'org.apache.flink'
       // included in Flink
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
@@ -132,7 +131,9 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   }
 
   dependencies {
-    implementation project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")
+    implementation(project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")) {
+      exclude group: 'org.apache.flink'
+    }
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
@@ -144,7 +145,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     }
 
     // for dropwizard histogram metrics implementation
-    implementation "org.apache.flink:flink-metrics-dropwizard:${flinkMajorVersion}"
+    implementation "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
   }
 
   shadowJar {
