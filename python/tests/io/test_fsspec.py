@@ -18,8 +18,12 @@
 import uuid
 
 import pytest
+from botocore.awsrequest import AWSRequest
+from requests_mock import Mocker
 
+from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec
+from pyiceberg.io.fsspec import s3v4_rest_signer
 from tests.io.test_io import LocalInputFile
 
 
@@ -198,3 +202,95 @@ def test_writing_avro_file(generated_manifest_entry_file, fsspec_fileio):
         with fsspec_fileio.new_input(location=f"s3://warehouse/{filename}").open() as in_f:
             b2 = in_f.read()
             assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3
+
+
+TEST_URI = "https://iceberg-test-signer"
+
+
+def test_s3v4_rest_signer(requests_mock: Mocker):
+    new_uri = "https://other-bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro"
+    requests_mock.post(
+        f"{TEST_URI}/v1/aws/s3/sign",
+        json={
+            "uri": new_uri,
+            "headers": {
+                "Authorization": [
+                    "AWS4-HMAC-SHA256 Credential=ASIAQPRZZYGHUT57DL3I/20221017/us-west-2/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=430582a17d61ab02c272896fa59195f277af4bdf2121c441685e589f044bbe02"
+                ],
+                "Host": ["bucket.s3.us-west-2.amazonaws.com"],
+                "User-Agent": ["Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0"],
+                "x-amz-content-sha256": ["UNSIGNED-PAYLOAD"],
+                "X-Amz-Date": ["20221017T102940Z"],
+                "X-Amz-Security-Token": [
+                    "YQoJb3JpZ2luX2VjEDoaCXVzLXdlc3QtMiJGMEQCID/fFxZP5oaEgQmcwP6XhZa0xSq9lmLSx8ffaWbySfUPAiAesa7sjd/WV4uwRTO0S03y/MWVtgpH+/NyZQ4bZgLVriqrAggTEAEaDDAzMzQwNzIyMjE1OSIMOeFOWhZIurMmAqjsKogCxMCqxX8ZjK0gacAkcDqBCyA7qTSLhdfKQIH/w7WpLBU1km+cRUWWCudan6gZsAq867DBaKEP7qI05DAWr9MChAkgUgyI8/G3Z23ET0gAedf3GsJbakB0F1kklx8jPmj4BPCht9RcTiXiJ5DxTS/cRCcalIQXmPFbaJSqpBusVG2EkWnm1v7VQrNPE2Os2b2P293vpbhwkyCEQiGRVva4Sw9D1sKvqSsK10QCRG+os6dFEOu1kARaXi6pStvR4OVmj7OYeAYjzaFchn7nz2CSae0M4IluiYQ01eQAywbfRo9DpKSmDM/DnPZWJnD/woLhaaaCrCxSSEaFsvGOHFhLd3Rknw1v0jADMILUtJoGOp4BpqKqyMz0CY3kpKL0jfR3ykTf/ge9wWVE0Alr7wRIkGCIURkhslGHqSyFRGoTqIXaxU+oPbwlw/0w/nYO7qQ6bTANOWye/wgw4h/NmJ6vU7wnZTXwREf1r6MF72++bE/fMk19LfVb8jN/qrUqAUXTc8gBAUxL5pgy8+oT/JnI2BkVrrLS4ilxEXP9Ahm+6GDUYXV4fBpqpZwdkzQ/5Gw="
+                ],
+            },
+            "extensions": {},
+        },
+        status_code=200,
+    )
+
+    request = AWSRequest(
+        method="HEAD",
+        url="https://bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro",
+        headers={"User-Agent": "Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0"},
+        data=b"",
+        params={},
+        auth_path="/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro",
+    )
+    request.context = {
+        "client_region": "us-west-2",
+        "has_streaming_input": False,
+        "auth_type": None,
+        "signing": {"bucket": "bucket"},
+        "retries": {"attempt": 1, "invocation-id": "75d143fb-0219-439b-872c-18213d1c8d54"},
+    }
+
+    signed_request = s3v4_rest_signer({"token": "abc", "uri": TEST_URI}, request)
+
+    assert signed_request.url == new_uri
+    assert dict(signed_request.headers) == {
+        "Authorization": "AWS4-HMAC-SHA256 Credential=ASIAQPRZZYGHUT57DL3I/20221017/us-west-2/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=430582a17d61ab02c272896fa59195f277af4bdf2121c441685e589f044bbe02",
+        "Host": "bucket.s3.us-west-2.amazonaws.com",
+        "User-Agent": "Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0",
+        "X-Amz-Date": "20221017T102940Z",
+        "X-Amz-Security-Token": "YQoJb3JpZ2luX2VjEDoaCXVzLXdlc3QtMiJGMEQCID/fFxZP5oaEgQmcwP6XhZa0xSq9lmLSx8ffaWbySfUPAiAesa7sjd/WV4uwRTO0S03y/MWVtgpH+/NyZQ4bZgLVriqrAggTEAEaDDAzMzQwNzIyMjE1OSIMOeFOWhZIurMmAqjsKogCxMCqxX8ZjK0gacAkcDqBCyA7qTSLhdfKQIH/w7WpLBU1km+cRUWWCudan6gZsAq867DBaKEP7qI05DAWr9MChAkgUgyI8/G3Z23ET0gAedf3GsJbakB0F1kklx8jPmj4BPCht9RcTiXiJ5DxTS/cRCcalIQXmPFbaJSqpBusVG2EkWnm1v7VQrNPE2Os2b2P293vpbhwkyCEQiGRVva4Sw9D1sKvqSsK10QCRG+os6dFEOu1kARaXi6pStvR4OVmj7OYeAYjzaFchn7nz2CSae0M4IluiYQ01eQAywbfRo9DpKSmDM/DnPZWJnD/woLhaaaCrCxSSEaFsvGOHFhLd3Rknw1v0jADMILUtJoGOp4BpqKqyMz0CY3kpKL0jfR3ykTf/ge9wWVE0Alr7wRIkGCIURkhslGHqSyFRGoTqIXaxU+oPbwlw/0w/nYO7qQ6bTANOWye/wgw4h/NmJ6vU7wnZTXwREf1r6MF72++bE/fMk19LfVb8jN/qrUqAUXTc8gBAUxL5pgy8+oT/JnI2BkVrrLS4ilxEXP9Ahm+6GDUYXV4fBpqpZwdkzQ/5Gw=",
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+
+
+def test_s3v4_rest_signer_forbidden(requests_mock: Mocker):
+    requests_mock.post(
+        f"{TEST_URI}/v1/aws/s3/sign",
+        json={
+            "method": "HEAD",
+            "region": "us-west-2",
+            "uri": "https://bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro",
+            "headers": {"User-Agent": ["Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0"]},
+        },
+        status_code=401,
+    )
+
+    request = AWSRequest(
+        method="HEAD",
+        url="https://bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro",
+        headers={"User-Agent": "Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0"},
+        data=b"",
+        params={},
+        auth_path="/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro",
+    )
+    request.context = {
+        "client_region": "us-west-2",
+        "has_streaming_input": False,
+        "auth_type": None,
+        "signing": {"bucket": "bucket"},
+        "retries": {"attempt": 1, "invocation-id": "75d143fb-0219-439b-872c-18213d1c8d54"},
+    }
+
+    with pytest.raises(SignError) as exc_info:
+        _ = s3v4_rest_signer({"token": "abc", "uri": TEST_URI}, request)
+
+    assert (
+        """Failed to sign request 401: {'method': 'HEAD', 'region': 'us-west-2', 'uri': 'https://bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro', 'headers': {'User-Agent': ['Botocore/1.27.59 Python/3.10.7 Darwin/21.5.0']}}"""
+        in str(exc_info.value)
+    )

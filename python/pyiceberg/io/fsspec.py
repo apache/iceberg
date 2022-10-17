@@ -48,10 +48,12 @@ def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSReq
         response.raise_for_status()
         response_json = response.json()
     except HTTPError as e:
-        raise SignError(f"Failed to sign request: {signer_body}") from e
+        raise SignError(f"Failed to sign request {response.status_code}: {signer_body}") from e
 
     for key, value in response_json["headers"].items():
         request.headers.add_header(key, ", ".join(value))
+
+    request.url = response_json["uri"]
 
     return request
 
