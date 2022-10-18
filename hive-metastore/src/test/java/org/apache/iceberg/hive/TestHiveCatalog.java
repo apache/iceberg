@@ -804,7 +804,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       List<TableIdentifier> expectedIdentifiers,
       List<TableIdentifier> sourceIdentifiers) {
     Collection<TableIdentifier> migratedIdentifiers =
-        CatalogMigrateUtil.migrateTables(sourceIdentifiers, hadoopCatalog, catalog, 3, true);
+        CatalogMigrateUtil.migrateTables(sourceIdentifiers, hadoopCatalog, catalog, 3);
 
     org.assertj.core.api.Assertions.assertThat(expectedIdentifiers)
         .containsExactlyInAnyOrderElementsOf(migratedIdentifiers);
