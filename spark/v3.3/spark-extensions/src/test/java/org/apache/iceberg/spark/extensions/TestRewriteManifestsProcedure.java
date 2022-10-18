@@ -32,29 +32,11 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.Metadata;
-import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
-
-  private static final StructField[] dateStruct = {
-    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
-    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("ts", DataTypes.DateType, true, Metadata.empty())
-  };
-
-  private static final StructField[] timeStampStruct = {
-    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
-    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
-  };
 
   public TestRewriteManifestsProcedure(
       String catalogName, String implementation, Map<String, String> config) {
@@ -132,8 +114,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
                                 "Will Doe",
                                 "facilities",
                                 partitionColumn(partitionColType, "2021-01-04"))),
-                        new StructType(
-                            ("DATE".equals(partitionColType) ? dateStruct : timeStampStruct)))
+                        spark.table(tableName).schema())
                     .writeTo(tableName)
                     .append();
               } catch (NoSuchTableException e) {
