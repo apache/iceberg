@@ -72,7 +72,7 @@ public class SnapshotUtil {
   public static boolean isParentAncestorOf(
       Table table, long snapshotId, long ancestorParentSnapshotId) {
     for (Snapshot snapshot : ancestorsOf(snapshotId, table::snapshot)) {
-      if (snapshot.parentId() == ancestorParentSnapshotId) {
+      if (snapshot.parentId() != null && snapshot.parentId() == ancestorParentSnapshotId) {
         return true;
       }
     }
