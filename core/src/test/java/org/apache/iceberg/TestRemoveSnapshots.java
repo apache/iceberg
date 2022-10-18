@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -1150,10 +1151,7 @@ public class TestRemoveSnapshots extends TableTestBase {
             .add(firstSnapshot.manifestListLocation())
             .add(secondSnapshot.manifestListLocation())
             .add(thirdSnapshot.manifestListLocation())
-            .addAll(
-                secondSnapshot.allManifests(FILE_IO).stream()
-                    .map(ManifestFile::path)
-                    .collect(Collectors.toList()))
+            .addAll(manifestPaths(secondSnapshot, table.io()))
             .addAll(
                 manifestOfDeletedFiles.stream()
                     .map(ManifestFile::path)
@@ -1453,6 +1451,64 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals(
         "Should have 2 snapshots (initial removed)", 2, Iterables.size(table.snapshots()));
     Assert.assertNull(table.ops().current().snapshot(initialSnapshotId));
+  }
+
+  @Test
+  public void testRetainFilesOnRetainedBranches() {
+    // Append a file to main and test branch
+    String testBranch = "test-branch";
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot appendA = table.currentSnapshot();
+    table.manageSnapshots().createBranch(testBranch, appendA.snapshotId()).commit();
+
+    // Delete A from main
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot deletionA = table.currentSnapshot();
+    // Add B to main
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> expectedDeletes = Sets.newHashSet();
+
+    // Only deletionA's manifest list and manifests should be removed
+    expectedDeletes.add(deletionA.manifestListLocation());
+    expectedDeletes.addAll(manifestPaths(deletionA, table.io()));
+    table.expireSnapshots().expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    Assert.assertEquals(2, Iterables.size(table.snapshots()));
+    Assert.assertEquals(expectedDeletes, deletedFiles);
+
+    // Delete A on test branch
+    table.newDelete().deleteFile(FILE_A).toBranch(testBranch).commit();
+    Snapshot branchDelete = table.snapshot(testBranch);
+
+    // Append C on test branch
+    table.newAppend().appendFile(FILE_C).toBranch(testBranch).commit();
+    Snapshot testBranchHead = table.snapshot(testBranch);
+
+    deletedFiles = Sets.newHashSet();
+    expectedDeletes = Sets.newHashSet();
+
+    waitUntilAfter(testBranchHead.timestampMillis());
+    table
+        .expireSnapshots()
+        .expireOlderThan(testBranchHead.timestampMillis())
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    expectedDeletes.add(appendA.manifestListLocation());
+    expectedDeletes.addAll(manifestPaths(appendA, table.io()));
+    expectedDeletes.add(branchDelete.manifestListLocation());
+    expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
+    expectedDeletes.add(FILE_A.path().toString());
+
+    Assert.assertEquals(2, Iterables.size(table.snapshots()));
+    Assert.assertEquals(expectedDeletes, deletedFiles);
+  }
+
+  private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
+    return snapshot.allManifests(io).stream().map(ManifestFile::path).collect(Collectors.toSet());
   }
 
   private RemoveSnapshots removeSnapshots(Table table) {

@@ -349,6 +349,45 @@ public class TableTestBase {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
   }
 
+  @SuppressWarnings("checkstyle:HiddenField")
+  Snapshot commit(Table table, SnapshotUpdate snapshotUpdate, String branch) {
+    Snapshot snapshot;
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      snapshotUpdate.commit();
+      snapshot = table.currentSnapshot();
+    } else {
+      ((SnapshotProducer) snapshotUpdate.toBranch(branch)).commit();
+      snapshot = table.snapshot(branch);
+    }
+
+    return snapshot;
+  }
+
+  Snapshot apply(SnapshotUpdate snapshotUpdate, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return ((SnapshotProducer) snapshotUpdate).apply();
+    } else {
+      return ((SnapshotProducer) snapshotUpdate.toBranch(branch)).apply();
+    }
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  Snapshot latestSnapshot(Table table, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.currentSnapshot();
+    }
+
+    return table.snapshot(branch);
+  }
+
+  Snapshot latestSnapshot(TableMetadata metadata, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.currentSnapshot();
+    }
+
+    return metadata.snapshot(metadata.ref(branch).snapshotId());
+  }
+
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
     Assert.assertEquals(
         "Should not change delete manifests",
