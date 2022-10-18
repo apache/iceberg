@@ -158,7 +158,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
             row(2, "b", UPDATE_PREIMAGE.name(), 2, snap2.snapshotId()),
             row(2, "d", UPDATE_POSTIMAGE.name(), 2, snap2.snapshotId()),
             row(3, "c", "INSERT", 2, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id", viewName));
+        sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
   @Test
