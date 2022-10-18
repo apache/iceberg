@@ -178,11 +178,11 @@ public class Transforms {
   }
 
   /**
-   * Returns a hour {@link Transform} for timestamps.
+   * Returns an hour {@link Transform} for timestamps.
    *
    * @param type the {@link Type source type} for the transform
    * @param <T> Java type passed to this transform
-   * @return a hour transform
+   * @return an hour transform
    * @deprecated use {@link #hour()} instead; will be removed in 2.0.0
    */
   @Deprecated
@@ -262,7 +262,7 @@ public class Transforms {
   }
 
   /**
-   * Returns an hour {@link Transform} for date or timestamp types.
+   * Returns an hour {@link Transform} for timestamp types.
    *
    * @param <T> Java type passed to this transform
    * @return an hour transform
