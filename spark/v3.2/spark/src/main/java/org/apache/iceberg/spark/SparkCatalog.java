@@ -35,7 +35,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -54,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.actions.SparkActions;
+import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
@@ -67,6 +67,7 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
+import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
@@ -137,23 +138,22 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
+  public Table loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      Pair<Table, Long> icebergTable = load(ident);
-      return new SparkTable(icebergTable.first(), icebergTable.second(), !cacheEnabled);
+      return load(ident);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
   }
 
   @Override
-  public SparkTable createTable(
+  public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
-      Table icebergTable =
+      org.apache.iceberg.Table icebergTable =
           builder
               .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
               .withLocation(properties.get("location"))
@@ -218,8 +218,7 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public SparkTable alterTable(Identifier ident, TableChange... changes)
-      throws NoSuchTableException {
+  public Table alterTable(Identifier ident, TableChange... changes) throws NoSuchTableException {
     SetProperty setLocation = null;
     SetProperty setSnapshotId = null;
     SetProperty pickSnapshotId = null;
@@ -252,7 +251,7 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     try {
-      Table table = load(ident).first();
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
       commitChanges(
           table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
       return new SparkTable(table, true /* refreshEagerly */);
@@ -269,7 +268,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean purgeTable(Identifier ident) {
     try {
-      Table table = load(ident).first();
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
       ValidationException.check(
           PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
           "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
@@ -493,7 +492,7 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   private static void commitChanges(
-      Table table,
+      org.apache.iceberg.Table table,
       SetProperty setLocation,
       SetProperty setSnapshotId,
       SetProperty pickSnapshotId,
@@ -546,23 +545,24 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Pair<Table, Long> load(Identifier ident) {
+  private Table load(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return loadFromPathIdentifier((PathIdentifier) ident);
     }
 
     try {
-      return Pair.of(icebergCatalog.loadTable(buildIdentifier(ident)), null);
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      return new SparkTable(table, !cacheEnabled);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       if (ident.namespace().length == 0) {
         throw e;
       }
 
-      // if the original load didn't work, the identifier may be extended and include a snapshot
-      // selector
+      // if the original load didn't work, try using the namespace as an identifier because
+      // the original identifier may include a snapshot selector or may point to the changelog
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
-      Table table;
+      org.apache.iceberg.Table table;
       try {
         table = icebergCatalog.loadTable(namespaceAsIdent);
       } catch (Exception ignored) {
@@ -572,19 +572,27 @@ public class SparkCatalog extends BaseCatalog {
       }
 
       // loading the namespace as a table worked, check the name to see if it is a valid selector
+      // or if the name points to the changelog
+
+      if (ident.name().equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
+        return new SparkChangelogTable(table, !cacheEnabled);
+      }
+
       Matcher at = AT_TIMESTAMP.matcher(ident.name());
       if (at.matches()) {
         long asOfTimestamp = Long.parseLong(at.group(1));
-        return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+        long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+        return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
       Matcher id = SNAPSHOT_ID.matcher(ident.name());
       if (id.matches()) {
         long snapshotId = Long.parseLong(id.group(1));
-        return Pair.of(table, snapshotId);
+        return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
-      // the name wasn't a valid snapshot selector. throw the original exception
+      // the name wasn't a valid snapshot selector and did not point to the changelog
+      // throw the original exception
       throw e;
     }
   }
@@ -600,13 +608,21 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Pair<Table, Long> loadFromPathIdentifier(PathIdentifier ident) {
+  @SuppressWarnings("CyclomaticComplexity")
+  private Table loadFromPathIdentifier(PathIdentifier ident) {
     Pair<String, List<String>> parsed = parseLocationString(ident.location());
 
     String metadataTableName = null;
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    boolean isChangelog = false;
+
     for (String meta : parsed.second()) {
+      if (meta.equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
+        isChangelog = true;
+        continue;
+      }
+
       if (MetadataTableType.from(meta) != null) {
         metadataTableName = meta;
         continue;
@@ -629,15 +645,22 @@ public class SparkCatalog extends BaseCatalog {
         "Cannot specify both snapshot-id and as-of-timestamp: %s",
         ident.location());
 
-    Table table =
+    Preconditions.checkArgument(
+        !isChangelog || (snapshotId == null && asOfTimestamp == null),
+        "Cannot specify snapshot-id and as-of-timestamp for changelogs");
+
+    org.apache.iceberg.Table table =
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
-    if (snapshotId != null) {
-      return Pair.of(table, snapshotId);
+    if (isChangelog) {
+      return new SparkChangelogTable(table, !cacheEnabled);
+
     } else if (asOfTimestamp != null) {
-      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+      return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+
     } else {
-      return Pair.of(table, null);
+      return new SparkTable(table, snapshotId, !cacheEnabled);
     }
   }
 

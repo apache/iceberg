@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -238,6 +239,38 @@ public class SparkScanBuilder
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
+  public Scan buildChangelogScan() {
+    Preconditions.checkArgument(
+        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        "Cannot set neither %s nor %s for changelogs",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
+
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalChangelogScan scan =
+        table
+            .newIncrementalChangelogScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (startSnapshotId != null) {
+      scan = scan.fromSnapshotExclusive(startSnapshotId);
+    }
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
   public Scan buildMergeOnReadScan() {
     Preconditions.checkArgument(
         readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
@@ -306,8 +339,8 @@ public class SparkScanBuilder
         spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
   }
 
-  private TableScan configureSplitPlanning(TableScan scan) {
-    TableScan configuredScan = scan;
+  private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {
+    T configuredScan = scan;
 
     Long splitSize = readConf.splitSizeOption();
     if (splitSize != null) {
