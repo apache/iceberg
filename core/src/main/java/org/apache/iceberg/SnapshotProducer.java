@@ -44,6 +44,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -57,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -205,6 +207,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
+  protected abstract Long startingSnapshotId();
+
   @Override
   public Snapshot apply() {
     refresh();
@@ -213,7 +217,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    validate(base, parentSnapshot);
+    try {
+      validate(base, parentSnapshot);
+    } catch (ValidationException ve) {
+      parentSnapshotId = snapshotIdToRollbackToOnConflict(parentSnapshotId);
+      // if no snapshot is found, so that roll backing to it avoids conflicts,
+      // then re-throw caught exception
+      if (parentSnapshotId == null) {
+        throw ve;
+      }
+      parentSnapshot = base.snapshot(parentSnapshotId);
+    }
+
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
@@ -611,6 +626,47 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (NumberFormatException e) {
         // ignore and do not add total
       }
+    }
+  }
+
+  private Long snapshotIdToRollbackToOnConflict(Long parentSnapshotId) {
+    Long newParentSnapshotId = parentSnapshotId;
+    if (PropertyUtil.propertyAsBoolean(
+        base.properties(),
+        TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED,
+        TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED_DEFAULT)) {
+      // add a set snapshot op on top of base to roll back to parent snapshot
+      boolean isCommitSuccessfullyApplied = false;
+      // Update parentSnapshot to it's grandParent
+      // provided parentSnapshot is of type replace and never rollback beyond startingSnapshotId
+      while (newParentSnapshotId != null
+          && DataOperations.REPLACE.equals(base.snapshot(newParentSnapshotId).operation())
+          && !newParentSnapshotId.equals(startingSnapshotId())) {
+        // create a tempTableOperation to pass base with rollback to validate of update
+        TableOperations tempTableOps = ops.temp(base);
+        newParentSnapshotId = base.snapshot(newParentSnapshotId).parentId();
+        if (newParentSnapshotId == null) {
+          return null;
+        }
+        Snapshot parentSnapshot = base.snapshot(newParentSnapshotId);
+
+        SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(tempTableOps);
+        setSnapshotOp.rollbackTo(newParentSnapshotId).commit();
+        try {
+          validate(tempTableOps.current(), parentSnapshot);
+          isCommitSuccessfullyApplied = true;
+        } catch (ValidationException validationException) {
+          // swallow the exception for re-trying
+        }
+      }
+
+      if (!isCommitSuccessfullyApplied) {
+        return null;
+      }
+
+      return newParentSnapshotId;
+    } else {
+      return null;
     }
   }
 }

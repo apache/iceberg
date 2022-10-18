@@ -37,7 +37,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
@@ -495,7 +494,6 @@ public class BaseTransaction implements Transaction {
         .run(ops.io()::deleteFile);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
       // use refreshed the metadata
@@ -509,55 +507,6 @@ public class BaseTransaction implements Transaction {
           // Cannot pass even with retry due to conflicting metadata changes. So, break the
           // retry-loop.
           throw new PendingUpdateFailedException(e);
-
-        } catch (ValidationException e) {
-          if (PropertyUtil.propertyAsBoolean(
-              base.properties(),
-              TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED,
-              TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED_DEFAULT)) {
-
-            // use refreshed metadata
-            this.base = underlyingOps.current();
-            this.current = underlyingOps.current();
-            Long rollbackToSnapshotId = current.currentSnapshot().parentId();
-            long currentSnapshotId = current.currentSnapshot().snapshotId();
-            boolean updatesAppliedSuccessfully = false;
-
-            while (rollbackToSnapshotId != null
-                && !updatesAppliedSuccessfully
-                && DataOperations.REPLACE.equals(current.snapshot(currentSnapshotId).operation())) {
-              SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(transactionOps);
-              setSnapshotOp.rollbackTo(rollbackToSnapshotId);
-
-              List<PendingUpdate> modifiedUpdates = Lists.newArrayList();
-              modifiedUpdates.add(setSnapshotOp);
-              modifiedUpdates.addAll(updates);
-
-              boolean allUpdatedApplied = true;
-              for (PendingUpdate pendingUpdate : modifiedUpdates) {
-                try {
-                  pendingUpdate.commit();
-                } catch (CommitFailedException ex) {
-                  throw new PendingUpdateFailedException(ex);
-                } catch (ValidationException ve) {
-                  // use refreshed metadata
-                  this.base = underlyingOps.current();
-                  this.current = underlyingOps.current();
-                  currentSnapshotId = rollbackToSnapshotId;
-                  rollbackToSnapshotId = current.snapshot(rollbackToSnapshotId).parentId();
-                  allUpdatedApplied = false;
-                  break;
-                }
-              }
-              updatesAppliedSuccessfully = allUpdatedApplied;
-            }
-            // if all updates were not applied successfully, re-throw the validation exception.
-            if (!updatesAppliedSuccessfully) {
-              throw e;
-            }
-          } else {
-            throw e;
-          }
         }
       }
     }
