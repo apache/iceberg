@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -38,7 +39,8 @@ public class TestCopyOnWriteMerge extends TestMerge {
 
   @Override
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.MERGE_MODE, "copy-on-write");
+    return ImmutableMap.of(
+        TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 
   @Test

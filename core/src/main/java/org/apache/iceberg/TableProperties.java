@@ -314,7 +314,7 @@ public class TableProperties {
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String DELETE_MODE = "write.delete.mode";
-  public static final String DELETE_MODE_DEFAULT = "copy-on-write";
+  public static final String DELETE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   public static final String DELETE_DISTRIBUTION_MODE = "write.delete.distribution-mode";
 
@@ -322,7 +322,7 @@ public class TableProperties {
   public static final String UPDATE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String UPDATE_MODE = "write.update.mode";
-  public static final String UPDATE_MODE_DEFAULT = "copy-on-write";
+  public static final String UPDATE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   public static final String UPDATE_DISTRIBUTION_MODE = "write.update.distribution-mode";
 
@@ -330,7 +330,7 @@ public class TableProperties {
   public static final String MERGE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String MERGE_MODE = "write.merge.mode";
-  public static final String MERGE_MODE_DEFAULT = "copy-on-write";
+  public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   /**
    * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
