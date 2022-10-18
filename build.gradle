@@ -177,7 +177,12 @@ subprojects {
     maxHeapSize = "1500m"
 
     testLogging {
-      events "failed"
+      // see also https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
+      if ("true".equalsIgnoreCase(System.getenv('GITHUB_ACTIONS'))) {
+        events "failed", "passed"
+      } else {
+        events "failed"
+      }
       exceptionFormat "full"
     }
   }
