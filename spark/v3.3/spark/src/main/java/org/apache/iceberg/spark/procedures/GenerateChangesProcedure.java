@@ -62,7 +62,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty())
+            new StructField("view_name", DataTypes.StringType, false, Metadata.empty())
           });
 
   private GenerateChangesProcedure(TableCatalog tableCatalog) {
