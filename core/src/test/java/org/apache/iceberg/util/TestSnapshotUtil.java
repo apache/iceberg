@@ -75,9 +75,9 @@ public class TestSnapshotUtil {
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
     table.newFastAppend().appendFile(FILE_A).commit();
-    this.snapshotAId = table.currentSnapshot().snapshotId();
-
-    snapshotATimestamp = System.currentTimeMillis();
+    Snapshot snapshotA = table.currentSnapshot();
+    this.snapshotAId = snapshotA.snapshotId();
+    this.snapshotATimestamp = snapshotA.timestampMillis() + 1;
 
     table.newFastAppend().appendFile(FILE_A).commit();
     this.snapshotBId = table.currentSnapshot().snapshotId();
