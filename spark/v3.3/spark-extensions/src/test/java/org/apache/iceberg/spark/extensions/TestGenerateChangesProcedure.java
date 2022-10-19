@@ -132,12 +132,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot snap0 = table.currentSnapshot();
-
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
-    table.refresh();
     Snapshot snap1 = table.currentSnapshot();
 
     sql("INSERT OVERWRITE %s VALUES (3, 'c'), (2, 'd')", tableName);
@@ -146,19 +142,50 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(" + "identifier_columns => 'id'," + "table => '%s')",
+            "CALL %s.system.generate_changes(table => '%s', identifier_columns => 'id')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap0.snapshotId()),
-            row(2, "b", "INSERT", 1, snap1.snapshotId()),
-            row(2, "b", UPDATE_PREIMAGE.name(), 2, snap2.snapshotId()),
-            row(2, "d", UPDATE_POSTIMAGE.name(), 2, snap2.snapshotId()),
-            row(3, "c", "INSERT", 2, snap2.snapshotId())),
+            row(1, "a", "INSERT", 0, snap1.snapshotId()),
+            row(2, "b", "INSERT", 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId()),
+            row(3, "c", "INSERT", 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @Test
+  public void testUpdateWithFilter() {
+    sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (3, 'c'), (2, 'd')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.generate_changes(table => '%s', identifier_columns => 'id')",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", "INSERT", 0, snap1.snapshotId()),
+            row(2, "b", "INSERT", 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId())),
+        // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
+        // phase
+        sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
   }
 
   @Test
