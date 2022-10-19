@@ -28,6 +28,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -75,9 +76,11 @@ public class TestSnapshotUtil {
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
     table.newFastAppend().appendFile(FILE_A).commit();
-    this.snapshotAId = table.currentSnapshot().snapshotId();
+    Snapshot snapshotA = table.currentSnapshot();
+    this.snapshotAId = snapshotA.snapshotId();
+    this.snapshotATimestamp = snapshotA.timestampMillis();
 
-    snapshotATimestamp = System.currentTimeMillis();
+    TestHelpers.waitUntilAfter(snapshotATimestamp);
 
     table.newFastAppend().appendFile(FILE_A).commit();
     this.snapshotBId = table.currentSnapshot().snapshotId();
@@ -129,7 +132,7 @@ public class TestSnapshotUtil {
     snapshot = SnapshotUtil.oldestAncestorOf(table, snapshotDId);
     Assert.assertEquals(snapshotAId, snapshot.snapshotId());
 
-    snapshot = SnapshotUtil.oldestAncestorAfter(table, snapshotATimestamp);
+    snapshot = SnapshotUtil.oldestAncestorAfter(table, snapshotATimestamp + 1);
     Assert.assertEquals(snapshotBId, snapshot.snapshotId());
   }
 
