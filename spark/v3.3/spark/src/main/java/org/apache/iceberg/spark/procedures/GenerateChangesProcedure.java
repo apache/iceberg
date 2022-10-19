@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Arrays;
+import java.util.UUID;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -132,11 +133,13 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
   private Dataset<Row> withUpdate(Dataset<Row> df, String[] identifiers) {
     Column[] partitionSpec = getPartitionSpec(df, identifiers);
+    String countCol = UUID.randomUUID().toString().replace("-", "");
+    String rankCol = UUID.randomUUID().toString().replace("-", "");
 
     Dataset<Row> dfWithUpdate =
-        df.withColumn("count", functions.count("*").over(Window.partitionBy(partitionSpec)))
+        df.withColumn(countCol, functions.count("*").over(Window.partitionBy(partitionSpec)))
             .withColumn(
-                "rank",
+                rankCol,
                 functions
                     .rank()
                     .over(
@@ -145,18 +148,18 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
     Dataset<Row> preImageDf =
         dfWithUpdate
-            .filter("rank = 1")
-            .filter("count = 2")
-            .drop("rank", "count")
+            .filter(rankCol + " = 1")
+            .filter(countCol + " = 2")
+            .drop(rankCol, countCol)
             .withColumn(
                 MetadataColumns.CHANGE_TYPE.name(),
                 functions.lit(ChangelogOperation.UPDATE_PREIMAGE.name()));
 
     Dataset<Row> postImageDf =
         dfWithUpdate
-            .filter("rank = 2")
-            .filter("count = 2")
-            .drop("rank", "count")
+            .filter(rankCol + " = 2")
+            .filter(countCol + " = 2")
+            .drop(rankCol, countCol)
             .withColumn(
                 MetadataColumns.CHANGE_TYPE.name(),
                 functions.lit(ChangelogOperation.UPDATE_POSTIMAGE.name()));
@@ -165,7 +168,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
     Dataset<Row> dfWithoutCarryOver = removeCarryOvers(preImageDf.union(postImageDf));
 
     // should we throw an exception if count > 2?
-    Dataset<Row> othersDf = dfWithUpdate.select("*").where("count != 2").drop("rank", "count");
+    Dataset<Row> othersDf = dfWithUpdate.filter(countCol + " != 2").drop(rankCol, countCol);
 
     return dfWithoutCarryOver.union(othersDf);
   }
@@ -177,10 +180,11 @@ public class GenerateChangesProcedure extends BaseProcedure {
             .map(df::col)
             .toArray(Column[]::new);
 
+    String countCol = UUID.randomUUID().toString().replace("-", "");
     Dataset<Row> dfWithCount =
-        df.withColumn("count", functions.count("*").over(Window.partitionBy(partitionSpec)));
+        df.withColumn(countCol, functions.count("*").over(Window.partitionBy(partitionSpec)));
 
-    return dfWithCount.filter("count = 1").drop("count");
+    return dfWithCount.filter(countCol + " = 1").drop(countCol);
   }
 
   @NotNull
