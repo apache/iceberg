@@ -56,7 +56,7 @@ abstract class FileCleanupStrategy {
           .select(
               "manifest_path", "manifest_length", "added_snapshot_id", "deleted_data_files_count");
 
-  protected CloseableIterable<ManifestFile> readManifestFiles(Snapshot snapshot) {
+  protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {
       return Avro.read(fileIO.newInputFile(snapshot.manifestListLocation()))
           .rename("manifest_file", GenericManifestFile.class.getName())

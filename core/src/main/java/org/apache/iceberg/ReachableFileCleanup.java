@@ -63,39 +63,83 @@ class ReachableFileCleanup extends FileCleanupStrategy {
         }
       }
     }
+    Set<ManifestFile> deletionCandidates = readManifests(expiredSnapshots);
 
-    Set<ManifestFile> candidateManifestFilesForDeletion = readManifests(expiredSnapshots);
-    Set<ManifestFile> manifestFilesAfterExpiration = readManifests(snapshotsAfterExpiration);
+    if (!deletionCandidates.isEmpty()) {
+      Set<ManifestFile> currentManifests = ConcurrentHashMap.newKeySet();
+      Set<ManifestFile> manifestsToDelete =
+          pruneReferencedManifests(
+              snapshotsAfterExpiration, deletionCandidates, currentManifests::add);
 
-    Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
-    for (ManifestFile candidateManifestFile : candidateManifestFilesForDeletion) {
-      if (!manifestFilesAfterExpiration.contains(candidateManifestFile)) {
-        manifestsToDelete.add(candidateManifestFile);
+      if (!manifestsToDelete.isEmpty()) {
+        Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
+        deleteFiles(dataFilesToDelete, "data");
+        Set<String> manifestPathsToDelete =
+            manifestsToDelete.stream().map(ManifestFile::path).collect(Collectors.toSet());
+        deleteFiles(manifestPathsToDelete, "manifest");
       }
     }
 
-    Set<String> dataFilesToDelete =
-        findFilesToDelete(manifestsToDelete, manifestFilesAfterExpiration);
-    deleteFiles(dataFilesToDelete, "data");
-    Set<String> manifestPathsToDelete =
-        manifestsToDelete.stream().map(ManifestFile::path).collect(Collectors.toSet());
-
-    deleteFiles(manifestPathsToDelete, "manifest");
     deleteFiles(manifestListsToDelete, "manifest list");
   }
 
+  private Set<ManifestFile> pruneReferencedManifests(
+      Set<Snapshot> snapshots,
+      Set<ManifestFile> deletionCandidates,
+      Consumer<ManifestFile> currentManifestCallback) {
+    Set<ManifestFile> candidateSet = ConcurrentHashMap.newKeySet();
+    candidateSet.addAll(deletionCandidates);
+    Tasks.foreach(snapshots)
+        .retry(3)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(planExecutorService)
+        .onFailure(
+            (snapshot, exc) ->
+                LOG.warn(
+                    "Failed to determine manifests for snapshot {}", snapshot.snapshotId(), exc))
+        .run(
+            snapshot -> {
+              try (CloseableIterable<ManifestFile> manifestFiles = readManifests(snapshot)) {
+                for (ManifestFile manifestFile : manifestFiles) {
+                  candidateSet.remove(manifestFile);
+                  if (candidateSet.isEmpty()) {
+                    return;
+                  }
+
+                  currentManifestCallback.accept(manifestFile.copy());
+                }
+              } catch (IOException e) {
+                throw new RuntimeIOException(
+                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+              }
+            });
+
+    return candidateSet;
+  }
+
   private Set<ManifestFile> readManifests(Set<Snapshot> snapshots) {
-    Set<ManifestFile> manifestFiles = Sets.newHashSet();
-    for (Snapshot snapshot : snapshots) {
-      try (CloseableIterable<ManifestFile> manifestFilesForSnapshot = readManifestFiles(snapshot)) {
-        for (ManifestFile manifestFile : manifestFilesForSnapshot) {
-          manifestFiles.add(manifestFile.copy());
-        }
-      } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
-      }
-    }
+    Set<ManifestFile> manifestFiles = ConcurrentHashMap.newKeySet();
+    Tasks.foreach(snapshots)
+        .retry(3)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(planExecutorService)
+        .onFailure(
+            (snapshot, exc) ->
+                LOG.warn(
+                    "Failed to determine manifests for snapshot {}", snapshot.snapshotId(), exc))
+        .run(
+            snapshot -> {
+              try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
+                for (ManifestFile manifestFile : manifests) {
+                  manifestFiles.add(manifestFile.copy());
+                }
+              } catch (IOException e) {
+                throw new RuntimeIOException(
+                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+              }
+            });
 
     return manifestFiles;
   }
@@ -112,9 +156,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
         .onFailure(
             (item, exc) ->
                 LOG.warn(
-                    "Failed to determine live files in manifest {}: this may cause orphaned data files",
-                    item.path(),
-                    exc))
+                    "Failed to determine live files in manifest {}. Retrying", item.path(), exc))
         .run(
             manifest -> {
               try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
@@ -137,9 +179,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
           .onFailure(
               (item, exc) ->
                   LOG.warn(
-                      "Failed to determine live files in manifest {}: this may cause orphaned data files",
-                      item.path(),
-                      exc))
+                      "Failed to determine live files in manifest {}. Retrying", item.path(), exc))
           .run(
               manifest -> {
                 if (filesToDelete.isEmpty()) {
@@ -155,7 +195,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               });
 
     } catch (Throwable e) {
-      LOG.warn("Failed to determine the data files to be removed", e);
+      LOG.warn("Failed to list all reachable files", e);
       return Sets.newHashSet();
     }
 
