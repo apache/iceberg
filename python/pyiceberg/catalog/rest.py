@@ -28,7 +28,6 @@ from typing import (
 import requests
 from pydantic import Field, ValidationError
 from requests import HTTPError, Session
-from requests.structures import CaseInsensitiveDict
 
 from pyiceberg import __version__
 from pyiceberg.catalog import (
@@ -197,7 +196,7 @@ class RestCatalog(Catalog):
         if credential := properties.get(CREDENTIAL):
             properties[TOKEN] = self._fetch_access_token(credential)
 
-        self.session.headers = self.headers
+        self._set_session_headers()
         super().__init__(name, **self._fetch_config(properties))
 
     def _set_session_ssl_config(self):
@@ -218,16 +217,13 @@ class RestCatalog(Catalog):
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
-    @property
-    def headers(self) -> CaseInsensitiveDict[Union[str, bytes]]:
-        headers: CaseInsensitiveDict[Union[str, bytes]] = CaseInsensitiveDict()
-        headers["Content-type"] = "application/json"
-        headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
-        headers["User-Agent"] = f"PyIceberg/{__version__}"
+    def _set_session_headers(self):
+        self.session.headers["Content-type"] = "application/json"
+        self.session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
+        self.session.headers["User-Agent"] = f"PyIceberg/{__version__}"
 
         if token := self.properties.get("token"):
-            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
-        return headers
+            self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
         """Constructs the endpoint

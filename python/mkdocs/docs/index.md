@@ -91,6 +91,14 @@ catalog:
   rest:
     uri: http://rest-catalog/ws/
     credential: t-1234:secret
+
+  mtls-secured-catalog:
+    uri: https://rest-catalog/ws/
+    ssl:
+      client:
+        cert: /absolute/path/to/client.crt
+        key: /absolute/path/to/client.key
+      cabundle: /absolute/path/to/cabundle.pem
 ```
 
 Lastly, you can also set it using environment variables:
