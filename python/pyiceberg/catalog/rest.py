@@ -27,7 +27,8 @@ from typing import (
 
 import requests
 from pydantic import Field, ValidationError
-from requests import HTTPError
+from requests import HTTPError, Session
+from requests.structures import CaseInsensitiveDict
 
 from pyiceberg import __version__
 from pyiceberg.catalog import (
@@ -91,6 +92,11 @@ SCOPE = "scope"
 TOKEN = "token"
 TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
 SEMICOLON = ":"
+KEY = "key"
+CERT = "cert"
+CLIENT = "client"
+CA_BUNDLE = "cabundle"
+SSL = "ssl"
 
 NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
@@ -168,6 +174,7 @@ class OAuthErrorResponse(IcebergBaseModel):
 class RestCatalog(Catalog):
     token: Optional[str]
     uri: str
+    session: Session
 
     def __init__(
         self,
@@ -184,10 +191,25 @@ class RestCatalog(Catalog):
         """
         self.properties = properties
         self.uri = properties[URI]
+        self.session = requests.Session()
+        self._set_session_ssl_config()
 
         if credential := properties.get(CREDENTIAL):
             properties[TOKEN] = self._fetch_access_token(credential)
+
+        self.session.headers = self.headers
         super().__init__(name, **self._fetch_config(properties))
+
+    def _set_session_ssl_config(self):
+        """Sets the client side and server side SSL cert verification, if provided as properties."""
+        if ssl_config := self.properties.get(SSL):
+            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
+                self.session.verify = ssl_ca_bundle
+            if ssl_client := ssl_config.get(CLIENT):
+                if all(k in ssl_client for k in (CERT, KEY)):
+                    self.session.cert = (ssl_client[CERT], ssl_client[KEY])
+                elif ssl_client_cert := ssl_client.get(CERT):
+                    self.session.cert = ssl_client_cert
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
@@ -197,12 +219,12 @@ class RestCatalog(Catalog):
         return identifier_tuple
 
     @property
-    def headers(self) -> Properties:
-        headers = {
-            "Content-type": "application/json",
-            "X-Client-Version": ICEBERG_REST_SPEC_VERSION,
-            "User-Agent": f"PyIceberg/{__version__}",
-        }
+    def headers(self) -> CaseInsensitiveDict[Union[str, bytes]]:
+        headers: CaseInsensitiveDict[Union[str, bytes]] = CaseInsensitiveDict()
+        headers["Content-type"] = "application/json"
+        headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
+        headers["User-Agent"] = f"PyIceberg/{__version__}"
+
         if token := self.properties.get("token"):
             headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
         return headers
@@ -235,7 +257,7 @@ class RestCatalog(Catalog):
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
-        response = requests.post(url=url, data=data)
+        response = self.session.post(url=url, data=data)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -244,7 +266,7 @@ class RestCatalog(Catalog):
         return TokenResponse(**response.json()).access_token
 
     def _fetch_config(self, properties: Properties) -> Properties:
-        response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
+        response = self.session.get(self.url(Endpoints.get_config, prefixed=False))
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -334,10 +356,9 @@ class RestCatalog(Catalog):
             properties=properties,
         )
         serialized_json = request.json()
-        response = requests.post(
+        response = self.session.post(
             self.url(Endpoints.create_table, namespace=namespace_and_table["namespace"]),
             data=serialized_json,
-            headers=self.headers,
         )
         try:
             response.raise_for_status()
@@ -355,10 +376,7 @@ class RestCatalog(Catalog):
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace_concat = NAMESPACE_SEPARATOR.join(namespace_tuple)
-        response = requests.get(
-            self.url(Endpoints.list_tables, namespace=namespace_concat),
-            headers=self.headers,
-        )
+        response = self.session.get(self.url(Endpoints.list_tables, namespace=namespace_concat))
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -371,9 +389,7 @@ class RestCatalog(Catalog):
         if len(identifier_tuple) <= 1:
             raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier}")
 
-        response = requests.get(
-            self.url(Endpoints.load_table, prefixed=True, **self._split_identifier_for_path(identifier)), headers=self.headers
-        )
+        response = self.session.get(self.url(Endpoints.load_table, prefixed=True, **self._split_identifier_for_path(identifier)))
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -387,9 +403,8 @@ class RestCatalog(Catalog):
         )
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
-        response = requests.delete(
+        response = self.session.delete(
             self.url(Endpoints.drop_table, prefixed=True, purge=purge_requested, **self._split_identifier_for_path(identifier)),
-            headers=self.headers,
         )
         try:
             response.raise_for_status()
@@ -404,7 +419,7 @@ class RestCatalog(Catalog):
             "source": self._split_identifier_for_json(from_identifier),
             "destination": self._split_identifier_for_json(to_identifier),
         }
-        response = requests.post(self.url(Endpoints.rename_table), json=payload, headers=self.headers)
+        response = self.session.post(self.url(Endpoints.rename_table), json=payload)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -413,7 +428,7 @@ class RestCatalog(Catalog):
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         payload = {"namespace": namespace_tuple, "properties": properties}
-        response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
+        response = self.session.post(self.url(Endpoints.create_namespace), json=payload)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -422,7 +437,7 @@ class RestCatalog(Catalog):
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
-        response = requests.delete(self.url(Endpoints.drop_namespace, namespace=namespace), headers=self.headers)
+        response = self.session.delete(self.url(Endpoints.drop_namespace, namespace=namespace))
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -430,13 +445,12 @@ class RestCatalog(Catalog):
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         namespace_tuple = self.identifier_to_tuple(namespace)
-        response = requests.get(
+        response = self.session.get(
             self.url(
                 f"{Endpoints.list_namespaces}?parent={NAMESPACE_SEPARATOR.join(namespace_tuple)}"
                 if namespace_tuple
                 else Endpoints.list_namespaces
             ),
-            headers=self.headers,
         )
         try:
             response.raise_for_status()
@@ -449,7 +463,7 @@ class RestCatalog(Catalog):
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
-        response = requests.get(self.url(Endpoints.load_namespace_metadata, namespace=namespace), headers=self.headers)
+        response = self.session.get(self.url(Endpoints.load_namespace_metadata, namespace=namespace))
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -463,7 +477,7 @@ class RestCatalog(Catalog):
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
-        response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload, headers=self.headers)
+        response = self.session.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload)
         try:
             response.raise_for_status()
         except HTTPError as exc:
