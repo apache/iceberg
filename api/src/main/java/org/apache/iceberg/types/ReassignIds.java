@@ -73,9 +73,19 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       Types.NestedField field = fields.get(i);
       int fieldId = id(sourceStruct, field.name());
       if (field.isRequired()) {
-        newFields.add(Types.NestedField.required(fieldId, field.name(), types.get(i), field.doc()));
+        newFields.add(Types.NestedField.required(
+            fieldId,
+            field.name(),
+            types.get(i),
+            field.doc(),
+            field.metadata()));
       } else {
-        newFields.add(Types.NestedField.optional(fieldId, field.name(), types.get(i), field.doc()));
+        newFields.add(Types.NestedField.optional(
+            fieldId,
+            field.name(),
+            types.get(i),
+            field.doc(),
+            field.metadata()));
       }
     }
 

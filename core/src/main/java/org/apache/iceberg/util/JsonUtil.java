@@ -339,4 +339,17 @@ public class JsonUtil {
           "Cannot parse long from  non-long value: %s", element);
     }
   }
+
+  public static JsonNode getJsonNodeOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    Preconditions.checkArgument(pNode != null && pNode.isObject(),
+        "Cannot parse %s from non-object value: %s", property, pNode);
+    return pNode;
+  }
 }

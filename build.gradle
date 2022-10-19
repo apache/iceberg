@@ -221,6 +221,8 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
     testImplementation "org.apache.avro:avro"
   }
 

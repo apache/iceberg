@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.Collection;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Metadata;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -81,7 +82,11 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If name contains "."
    */
-  UpdateSchema addColumn(String name, Type type, String doc);
+  default UpdateSchema addColumn(String name, Type type, String doc) {
+    return addColumn(name, type, doc, null);
+  }
+
+  UpdateSchema addColumn(String name, Type type, String doc, Metadata metadata);
 
   /**
    * Add a new column to a nested struct.
@@ -128,7 +133,11 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If parent doesn't identify a struct
    */
-  UpdateSchema addColumn(String parent, String name, Type type, String doc);
+  default UpdateSchema addColumn(String parent, String name, Type type, String doc) {
+    return addColumn(parent, name, type, doc, null);
+  }
+
+  UpdateSchema addColumn(String parent, String name, Type type, String doc, Metadata metadata);
 
   /**
    * Add a new required top-level column.
@@ -169,7 +178,11 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If name contains "."
    */
-  UpdateSchema addRequiredColumn(String name, Type type, String doc);
+  default UpdateSchema addRequiredColumn(String name, Type type, String doc) {
+    return addRequiredColumn(name, type, doc, null);
+  }
+
+  UpdateSchema addRequiredColumn(String name, Type type, String doc, Metadata metadata);
 
   /**
    * Add a new required top-level column.
@@ -222,7 +235,16 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If parent doesn't identify a struct
    */
-  UpdateSchema addRequiredColumn(String parent, String name, Type type, String doc);
+  default UpdateSchema addRequiredColumn(String parent, String name, Type type, String doc) {
+    return addRequiredColumn(parent, name, type, doc, null);
+  }
+
+  UpdateSchema addRequiredColumn(
+      String parent,
+      String name,
+      Type type,
+      String doc,
+      Metadata metadata);
 
   /**
    * Rename a column in the schema.
@@ -295,6 +317,8 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *                                  with other additions, renames, or updates.
    */
   UpdateSchema updateColumnDoc(String name, String newDoc);
+
+  UpdateSchema updateColumnMetadata(String name, Metadata metadata);
 
   /**
    * Update a column to optional.

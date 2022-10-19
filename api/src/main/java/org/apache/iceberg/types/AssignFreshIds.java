@@ -90,9 +90,19 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       Types.NestedField field = fields.get(i);
       Type type = types.next();
       if (field.isOptional()) {
-        newFields.add(Types.NestedField.optional(newIds.get(i), field.name(), type, field.doc()));
+        newFields.add(Types.NestedField.optional(
+            newIds.get(i),
+            field.name(),
+            type,
+            field.doc(),
+            field.metadata()));
       } else {
-        newFields.add(Types.NestedField.required(newIds.get(i), field.name(), type, field.doc()));
+        newFields.add(Types.NestedField.required(
+            newIds.get(i),
+            field.name(),
+            type,
+            field.doc(),
+            field.metadata()));
       }
     }
 

@@ -31,6 +31,7 @@ import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Metadata;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -59,6 +60,7 @@ public class SchemaParser {
   private static final String REQUIRED = "required";
   private static final String ELEMENT_REQUIRED = "element-required";
   private static final String VALUE_REQUIRED = "value-required";
+  private static final String METADATA = "metadata";
 
   private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
     toJson(struct, null, null, generator);
@@ -91,6 +93,10 @@ public class SchemaParser {
       toJson(field.type(), generator);
       if (field.doc() != null) {
         generator.writeStringField(DOC, field.doc());
+      }
+      if (field.metadata() != null) {
+        generator.writeFieldName(METADATA);
+        Metadata.toJson(field.metadata(), generator);
       }
       generator.writeEndObject();
     }
@@ -213,11 +219,12 @@ public class SchemaParser {
       Type type = typeFromJson(field.get(TYPE));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
+      Metadata metadata = Metadata.fromJson(JsonUtil.getJsonNodeOrNull(METADATA, field));
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
       if (isRequired) {
-        fields.add(Types.NestedField.required(id, name, type, doc));
+        fields.add(Types.NestedField.required(id, name, type, doc, metadata));
       } else {
-        fields.add(Types.NestedField.optional(id, name, type, doc));
+        fields.add(Types.NestedField.optional(id, name, type, doc, metadata));
       }
     }
 

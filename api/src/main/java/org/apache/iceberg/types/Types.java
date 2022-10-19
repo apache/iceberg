@@ -415,27 +415,55 @@ public class Types {
 
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
-      return new NestedField(true, id, name, type, null);
+      return new NestedField(true, id, name, type, null, null);
     }
 
     public static NestedField optional(int id, String name, Type type, String doc) {
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, null);
+    }
+
+    public static NestedField optional(
+        int id,
+        String name,
+        Type type,
+        String doc,
+        Metadata metadata) {
+      return new NestedField(true, id, name, type, doc, metadata);
     }
 
     public static NestedField required(int id, String name, Type type) {
-      return new NestedField(false, id, name, type, null);
+      return new NestedField(false, id, name, type, null, null);
     }
 
     public static NestedField required(int id, String name, Type type, String doc) {
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, null);
+    }
+
+    public static NestedField required(
+        int id,
+        String name,
+        Type type,
+        String doc,
+        Metadata metadata) {
+      return new NestedField(false, id, name, type, doc, metadata);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
-      return new NestedField(isOptional, id, name, type, null);
+      return new NestedField(isOptional, id, name, type, null, null);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
-      return new NestedField(isOptional, id, name, type, doc);
+      return new NestedField(isOptional, id, name, type, doc, null);
+    }
+
+    public static NestedField of(
+        int id,
+        boolean isOptional,
+        String name,
+        Type type,
+        String doc,
+        Metadata metadata) {
+      return new NestedField(isOptional, id, name, type, doc, metadata);
     }
 
     private final boolean isOptional;
@@ -443,8 +471,15 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
+    private final Metadata metadata;
 
-    private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
+    private NestedField(
+        boolean isOptional,
+        int id,
+        String name,
+        Type type,
+        String doc,
+        Metadata metadata) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
@@ -452,6 +487,7 @@ public class Types {
       this.name = name;
       this.type = type;
       this.doc = doc;
+      this.metadata = metadata;
     }
 
     public boolean isOptional() {
@@ -462,7 +498,7 @@ public class Types {
       if (isOptional) {
         return this;
       }
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, null);
     }
 
     public boolean isRequired() {
@@ -473,7 +509,7 @@ public class Types {
       if (!isOptional) {
         return this;
       }
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, null);
     }
 
     public int fieldId() {
@@ -492,11 +528,16 @@ public class Types {
       return doc;
     }
 
+    public Metadata metadata() {
+      return metadata;
+    }
+
     @Override
     public String toString() {
       return String.format("%d: %s: %s %s",
           id, name, isOptional ? "optional" : "required", type) +
-          (doc != null ? " (" + doc + ")" : "");
+          (doc != null ? " (" + doc + ")" : "") +
+          (metadata != null ? " (" + metadata + ")" : "");
     }
 
     @Override
@@ -515,6 +556,8 @@ public class Types {
       } else if (!name.equals(that.name)) {
         return false;
       } else if (!Objects.equals(doc, that.doc)) {
+        return false;
+      } else if (!Objects.equals(metadata, that.metadata)) {
         return false;
       }
       return type.equals(that.type);
