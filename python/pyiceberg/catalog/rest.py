@@ -199,7 +199,7 @@ class RestCatalog(Catalog):
         self._set_session_headers()
         super().__init__(name, **self._fetch_config(properties))
 
-    def _set_session_ssl_config(self):
+    def _set_session_ssl_config(self) -> None:
         """Sets the client side and server side SSL cert verification, if provided as properties."""
         if ssl_config := self.properties.get(SSL):
             if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
