@@ -186,6 +186,14 @@ public class RewriteDataFilesSparkAction
     }
   }
 
+  @Override
+  protected SparkSession spark() {
+    // Disable Adaptive Query Execution as this may change the output partitioning of our write
+    SparkSession spark = super.spark().cloneSession();
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    return spark;
+  }
+
   Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks =
         table
@@ -490,10 +498,7 @@ public class RewriteDataFilesSparkAction
   }
 
   private BinPackStrategy binPackStrategy() {
-    // Disable Adaptive Query Execution as this may change the output partitioning of our write
-    SparkSession spark = spark().cloneSession();
-    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    return new SparkBinPackStrategy(table, spark);
+    return new SparkBinPackStrategy(table, spark());
   }
 
   private SortStrategy sortStrategy() {
