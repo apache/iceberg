@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from functools import lru_cache
 import io
 import logging
-from functools import lru_cache
 import re
 import time
 from urllib.parse import urlparse
