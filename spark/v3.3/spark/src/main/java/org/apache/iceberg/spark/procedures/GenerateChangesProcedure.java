@@ -90,7 +90,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
     // Compute the pre-image and post-images if the identifier columns are provided.
     if (!args.isNullAt(4)) {
       String[] identifierColumns = args.getString(4).split(",");
-      if (identifierColumns == null || identifierColumns.length > 0) {
+      if (identifierColumns.length > 0) {
         df = withUpdate(df, identifierColumns);
       }
     }
