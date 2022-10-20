@@ -190,7 +190,7 @@ class RestCatalog(Catalog):
         """
         self.properties = properties
         self.uri = properties[URI]
-        self.session = requests.Session()
+        self.session = Session()
         self._set_session_ssl_config()
 
         if credential := properties.get(CREDENTIAL):
