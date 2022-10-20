@@ -85,7 +85,9 @@ def test_token_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    assert RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).properties["token"] == TEST_TOKEN
+    assert (
+        RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).session.headers["Authorization"] == f"Bearer {TEST_TOKEN}"
+    )
 
 
 def test_token_400(rest_mock: Mocker):

@@ -25,7 +25,6 @@ from typing import (
     Union,
 )
 
-import requests
 from pydantic import Field, ValidationError
 from requests import HTTPError, Session
 
@@ -171,9 +170,9 @@ class OAuthErrorResponse(IcebergBaseModel):
 
 
 class RestCatalog(Catalog):
-    token: Optional[str]
     uri: str
     session: Session
+    properties: dict
 
     def __init__(
         self,
@@ -190,17 +189,14 @@ class RestCatalog(Catalog):
         """
         self.properties = properties
         self.uri = properties[URI]
-        self.session = Session()
-        self._set_session_ssl_config()
-
-        if credential := properties.get(CREDENTIAL):
-            properties[TOKEN] = self._fetch_access_token(credential)
-
-        self._set_session_headers()
+        self._create_session()
         super().__init__(name, **self._fetch_config(properties))
 
-    def _set_session_ssl_config(self) -> None:
-        """Sets the client side and server side SSL cert verification, if provided as properties."""
+    def _create_session(self) -> None:
+        """Creates a request session with provided catalog configuration"""
+
+        self.session = Session()
+        # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
             if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
                 self.session.verify = ssl_ca_bundle
@@ -210,20 +206,24 @@ class RestCatalog(Catalog):
                 elif ssl_client_cert := ssl_client.get(CERT):
                     self.session.cert = ssl_client_cert
 
+        # Set HTTP headers
+        self.session.headers["Content-type"] = "application/json"
+        self.session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
+        self.session.headers["User-Agent"] = f"PyIceberg/{__version__}"
+
+        # Set Auth token for subsequent calls in the session
+        if token := self.properties.get(TOKEN):
+            self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
+        elif credential := self.properties.get(CREDENTIAL):
+            token = self._fetch_access_token(credential)
+            self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
+
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
         identifier_tuple = Catalog.identifier_to_tuple(identifier)
         if len(identifier_tuple) < 1:
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
-
-    def _set_session_headers(self):
-        self.session.headers["Content-type"] = "application/json"
-        self.session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
-        self.session.headers["User-Agent"] = f"PyIceberg/{__version__}"
-
-        if token := self.properties.get("token"):
-            self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
         """Constructs the endpoint
