@@ -35,8 +35,8 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -55,8 +55,8 @@ public class OSSOutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
-  private final Counter<Long> writeBytes;
-  private final Counter<Integer> writeOperations;
+  private final Counter writeBytes;
+  private final Counter writeOperations;
 
   OSSOutputStream(
       OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
@@ -66,9 +66,8 @@ public class OSSOutputStream extends PositionOutputStream {
 
     this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());
     this.stream = newStream(currentStagingFile);
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations =
-        metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
   }
 
   private static File newStagingFile(String ossStagingDirectory) {
@@ -122,7 +121,7 @@ public class OSSOutputStream extends PositionOutputStream {
     Preconditions.checkState(!closed, "Already closed.");
     stream.write(b, off, len);
     pos += len;
-    writeBytes.increment((long) len);
+    writeBytes.increment(len);
     writeOperations.increment();
   }
 

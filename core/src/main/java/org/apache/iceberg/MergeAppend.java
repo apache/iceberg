@@ -49,6 +49,12 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
   }
 
   @Override
+  public MergeAppend toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   public AppendFiles appendManifest(ManifestFile manifest) {
     Preconditions.checkArgument(
         !manifest.hasExistingFiles(), "Cannot append manifest with existing files");

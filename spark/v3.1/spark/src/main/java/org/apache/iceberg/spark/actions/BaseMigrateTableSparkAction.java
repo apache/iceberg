@@ -59,6 +59,8 @@ public class BaseMigrateTableSparkAction
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
+  private boolean dropBackup = false;
+
   public BaseMigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
@@ -92,6 +94,12 @@ public class BaseMigrateTableSparkAction
   @Override
   public MigrateTable tableProperty(String property, String value) {
     setProperty(property, value);
+    return this;
+  }
+
+  @Override
+  public MigrateTable dropBackup() {
+    this.dropBackup = true;
     return this;
   }
 
@@ -143,6 +151,8 @@ public class BaseMigrateTableSparkAction
             LOG.error("Cannot abort staged changes", abortException);
           }
         }
+      } else if (dropBackup) {
+        dropBackupTable();
       }
     }
 
@@ -219,6 +229,15 @@ public class BaseMigrateTableSparkAction
               + "Use the backup table {} to restore the original table manually.",
           backupIdent,
           e);
+    }
+  }
+
+  private void dropBackupTable() {
+    try {
+      destCatalog().dropTable(backupIdent);
+    } catch (Exception e) {
+      LOG.error(
+          "Cannot drop the backup table {}, after the migration is completed.", backupIdent, e);
     }
   }
 }

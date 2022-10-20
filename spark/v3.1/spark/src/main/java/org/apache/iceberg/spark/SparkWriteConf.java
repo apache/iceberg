@@ -99,8 +99,16 @@ public class SparkWriteConf {
   }
 
   public String overwriteMode() {
-    String overwriteMode = writeOptions.get("overwrite-mode");
+    String overwriteMode = writeOptions.get(SparkWriteOptions.OVERWRITE_MODE);
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
+  }
+
+  public boolean wapEnabled() {
+    return confParser
+        .booleanConf()
+        .tableProperty(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED)
+        .defaultValue(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT)
+        .parse();
   }
 
   public String wapId() {
@@ -115,7 +123,7 @@ public class SparkWriteConf {
             .tableProperty(TableProperties.DEFAULT_FILE_FORMAT)
             .defaultValue(TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
             .parse();
-    return FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH));
+    return FileFormat.fromString(valueAsString);
   }
 
   public long targetDataFileSize() {

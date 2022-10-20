@@ -57,6 +57,60 @@ public class CatalogProperties {
   public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
 
+  /**
+   * Controls whether to use caching during manifest reads or not.
+   *
+   * <p>Enabling manifest file caching require the following configuration constraints to be true:
+   *
+   * <ul>
+   *   <li>{@link #IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS} must be a non-negative value.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} must be a positive value.
+   *   <li>{@link #IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH} must be a positive value.
+   * </ul>
+   */
+  public static final String IO_MANIFEST_CACHE_ENABLED = "io.manifest.cache-enabled";
+
+  public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
+
+  /**
+   * Controls the maximum duration for which an entry stays in the manifest cache.
+   *
+   * <p>Must be a non-negative value. Following are specific behaviors of this config:
+   *
+   * <ul>
+   *   <li>Zero - Cache entries expires only if it gets evicted due to memory pressure from {@link
+   *       #IO_MANIFEST_CACHE_MAX_TOTAL_BYTES} setting.
+   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
+   *       milliseconds
+   * </ul>
+   */
+  public static final String IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS =
+      "io.manifest.cache.expiration-interval-ms";
+
+  public static final long IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT =
+      TimeUnit.SECONDS.toMillis(60);
+
+  /**
+   * Controls the maximum total amount of bytes to cache in manifest cache.
+   *
+   * <p>Must be a positive value.
+   */
+  public static final String IO_MANIFEST_CACHE_MAX_TOTAL_BYTES =
+      "io.manifest.cache.max-total-bytes";
+
+  public static final long IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT = 100 * 1024 * 1024;
+
+  /**
+   * Controls the maximum length of file to be considered for caching.
+   *
+   * <p>An {@link org.apache.iceberg.io.InputFile} will not be cached if the length is longer than
+   * this limit. Must be a positive value.
+   */
+  public static final String IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH =
+      "io.manifest.cache.max-content-length";
+
+  public static final long IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT = 8 * 1024 * 1024;
+
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
   public static final int CLIENT_POOL_SIZE_DEFAULT = 2;

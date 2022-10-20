@@ -44,10 +44,6 @@ class RESTError(Exception):
     """Raises when there is an unknown response from the REST Catalog"""
 
 
-class BadCredentialsError(RESTError):
-    """Raises when providing invalid credentials"""
-
-
 class BadRequestError(RESTError):
     """Raises when an invalid request is being made"""
 
@@ -74,3 +70,11 @@ class AuthorizationExpiredError(RESTError):
 
 class OAuthError(RESTError):
     """Raises when there is an error with the OAuth call"""
+
+
+class NoSuchPropertyException(Exception):
+    """When a property is missing"""
+
+
+class NotInstalledError(Exception):
+    """When an optional dependency is not installed"""

@@ -53,6 +53,7 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
+import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -137,7 +138,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
-    return new IcebergSourceReader<>(lazyTable().name(), readerFunction, readerContext);
+    IcebergSourceReaderMetrics metrics =
+        new IcebergSourceReaderMetrics(readerContext.metricGroup(), lazyTable().name());
+    return new IcebergSourceReader<>(metrics, readerFunction, readerContext);
   }
 
   @Override
@@ -232,107 +235,107 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder caseSensitive(boolean newCaseSensitive) {
+    public Builder<T> caseSensitive(boolean newCaseSensitive) {
       this.contextBuilder.caseSensitive(newCaseSensitive);
       return this;
     }
 
-    public Builder useSnapshotId(Long newSnapshotId) {
+    public Builder<T> useSnapshotId(Long newSnapshotId) {
       this.contextBuilder.useSnapshotId(newSnapshotId);
       return this;
     }
 
-    public Builder streamingStartingStrategy(StreamingStartingStrategy newStartingStrategy) {
+    public Builder<T> streamingStartingStrategy(StreamingStartingStrategy newStartingStrategy) {
       this.contextBuilder.startingStrategy(newStartingStrategy);
       return this;
     }
 
-    public Builder startSnapshotTimestamp(Long newStartSnapshotTimestamp) {
+    public Builder<T> startSnapshotTimestamp(Long newStartSnapshotTimestamp) {
       this.contextBuilder.startSnapshotTimestamp(newStartSnapshotTimestamp);
       return this;
     }
 
-    public Builder startSnapshotId(Long newStartSnapshotId) {
+    public Builder<T> startSnapshotId(Long newStartSnapshotId) {
       this.contextBuilder.startSnapshotId(newStartSnapshotId);
       return this;
     }
 
-    public Builder endSnapshotId(Long newEndSnapshotId) {
+    public Builder<T> endSnapshotId(Long newEndSnapshotId) {
       this.contextBuilder.endSnapshotId(newEndSnapshotId);
       return this;
     }
 
-    public Builder asOfTimestamp(Long newAsOfTimestamp) {
+    public Builder<T> asOfTimestamp(Long newAsOfTimestamp) {
       this.contextBuilder.asOfTimestamp(newAsOfTimestamp);
       return this;
     }
 
-    public Builder splitSize(Long newSplitSize) {
+    public Builder<T> splitSize(Long newSplitSize) {
       this.contextBuilder.splitSize(newSplitSize);
       return this;
     }
 
-    public Builder splitLookback(Integer newSplitLookback) {
+    public Builder<T> splitLookback(Integer newSplitLookback) {
       this.contextBuilder.splitLookback(newSplitLookback);
       return this;
     }
 
-    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+    public Builder<T> splitOpenFileCost(Long newSplitOpenFileCost) {
       this.contextBuilder.splitOpenFileCost(newSplitOpenFileCost);
       return this;
     }
 
-    public Builder streaming(boolean streaming) {
+    public Builder<T> streaming(boolean streaming) {
       this.contextBuilder.streaming(streaming);
       return this;
     }
 
-    public Builder monitorInterval(Duration newMonitorInterval) {
+    public Builder<T> monitorInterval(Duration newMonitorInterval) {
       this.contextBuilder.monitorInterval(newMonitorInterval);
       return this;
     }
 
-    public Builder nameMapping(String newNameMapping) {
+    public Builder<T> nameMapping(String newNameMapping) {
       this.contextBuilder.nameMapping(newNameMapping);
       return this;
     }
 
-    public Builder project(Schema newProjectedSchema) {
+    public Builder<T> project(Schema newProjectedSchema) {
       this.contextBuilder.project(newProjectedSchema);
       return this;
     }
 
-    public Builder project(TableSchema newProjectedFlinkSchema) {
+    public Builder<T> project(TableSchema newProjectedFlinkSchema) {
       this.projectedFlinkSchema = newProjectedFlinkSchema;
       return this;
     }
 
-    public Builder filters(List<Expression> newFilters) {
+    public Builder<T> filters(List<Expression> newFilters) {
       this.contextBuilder.filters(newFilters);
       return this;
     }
 
-    public Builder limit(long newLimit) {
+    public Builder<T> limit(long newLimit) {
       this.contextBuilder.limit(newLimit);
       return this;
     }
 
-    public Builder includeColumnStats(boolean newIncludeColumnStats) {
+    public Builder<T> includeColumnStats(boolean newIncludeColumnStats) {
       this.contextBuilder.includeColumnStats(newIncludeColumnStats);
       return this;
     }
 
-    public Builder planParallelism(int planParallelism) {
+    public Builder<T> planParallelism(int planParallelism) {
       this.contextBuilder.planParallelism(planParallelism);
       return this;
     }
 
-    public Builder exposeLocality(boolean newExposeLocality) {
+    public Builder<T> exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;
     }
 
-    public Builder properties(Map<String, String> properties) {
+    public Builder<T> properties(Map<String, String> properties) {
       contextBuilder.fromProperties(properties);
       return this;
     }

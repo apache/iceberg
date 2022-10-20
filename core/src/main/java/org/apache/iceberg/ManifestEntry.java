@@ -60,6 +60,11 @@ interface ManifestEntry<F extends ContentFile<F>> {
   /** Returns the status of the file, whether EXISTING, ADDED, or DELETED. */
   Status status();
 
+  /** Returns whether this entry is live */
+  default boolean isLive() {
+    return status() == Status.ADDED || status() == Status.EXISTING;
+  }
+
   /** Returns id of the snapshot in which the file was added to the table. */
   Long snapshotId();
 
@@ -70,14 +75,47 @@ interface ManifestEntry<F extends ContentFile<F>> {
    */
   void setSnapshotId(long snapshotId);
 
-  /** Returns the sequence number of the snapshot in which the file was added to the table. */
+  /**
+   * Returns the data sequence number of the file.
+   *
+   * <p>Independently of the entry status, this method represents the sequence number to which the
+   * file should apply. Note the data sequence number may differ from the sequence number of the
+   * snapshot in which the underlying file was added. New snapshots can add files that belong to
+   * older sequence numbers (e.g. compaction). The data sequence number also does not change when
+   * the file is marked as deleted.
+   *
+   * <p>This method can return null if the data sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the data sequence number for manifest entries with
+   * status DELETED (older Iceberg versions).
+   */
+  Long dataSequenceNumber();
+
+  /**
+   * Sets the data sequence number for this manifest entry.
+   *
+   * @param dataSequenceNumber a data sequence number
+   */
+  void setDataSequenceNumber(long dataSequenceNumber);
+
+  /**
+   * Returns the data sequence number of the file if the entry status is ADDED or EXISTING.
+   * Otherwise, returns the sequence number of the snapshot in which the file was removed.
+   *
+   * <p>Note that usage of this method should be avoided as it behaves inconsistently for different
+   * entry statutes. Use {@link #dataSequenceNumber()} instead.
+   *
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #dataSequenceNumber()} instead.
+   */
+  @Deprecated
   Long sequenceNumber();
 
   /**
    * Set the sequence number for this manifest entry.
    *
    * @param sequenceNumber a sequence number
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use the data sequence number instead.
    */
+  @Deprecated
   void setSequenceNumber(long sequenceNumber);
 
   /** Returns a file. */

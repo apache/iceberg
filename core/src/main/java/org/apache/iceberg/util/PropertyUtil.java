@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
 
@@ -34,6 +37,14 @@ public class PropertyUtil {
       return Boolean.parseBoolean(value);
     }
     return defaultValue;
+  }
+
+  public static Boolean propertyAsNullableBoolean(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+    return null;
   }
 
   public static double propertyAsDouble(
@@ -54,6 +65,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Integer propertyAsNullableInt(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Integer.parseInt(value);
+    }
+    return null;
+  }
+
   public static long propertyAsLong(
       Map<String, String> properties, String property, long defaultValue) {
     String value = properties.get(property);
@@ -61,6 +80,14 @@ public class PropertyUtil {
       return Long.parseLong(value);
     }
     return defaultValue;
+  }
+
+  public static Long propertyAsNullableLong(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Long.parseLong(value);
+    }
+    return null;
   }
 
   public static String propertyAsString(
@@ -91,5 +118,42 @@ public class PropertyUtil {
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
         .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
+  }
+
+  public static Map<String, String> applySchemaChanges(
+      Map<String, String> properties,
+      List<String> deletedColumns,
+      Map<String, String> renamedColumns,
+      Set<String> columnProperties) {
+    if (properties.keySet().stream()
+        .noneMatch(key -> columnProperties.stream().anyMatch(key::startsWith))) {
+      return properties;
+    } else {
+      Map<String, String> updatedProperties = Maps.newHashMap();
+      properties
+          .keySet()
+          .forEach(
+              key -> {
+                String prefix =
+                    columnProperties.stream().filter(key::startsWith).findFirst().orElse(null);
+
+                if (prefix != null) {
+                  String columnAlias = key.replaceFirst(prefix, "");
+                  if (renamedColumns.get(columnAlias) != null) {
+                    // The name has changed.
+                    String newKey = prefix + renamedColumns.get(columnAlias);
+                    updatedProperties.put(newKey, properties.get(key));
+                  } else if (!deletedColumns.contains(columnAlias)) {
+                    // Copy over the original.
+                    updatedProperties.put(key, properties.get(key));
+                  }
+                  // Implicit drop if deleted.
+                } else {
+                  updatedProperties.put(key, properties.get(key));
+                }
+              });
+
+      return updatedProperties;
+    }
   }
 }

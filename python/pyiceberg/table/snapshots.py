@@ -15,10 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 from enum import Enum
-from typing import Dict, Optional, Union
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 
 from pydantic import Field, PrivateAttr, root_validator
 
+from pyiceberg.io import FileIO
+from pyiceberg.manifest import ManifestFile, read_manifest_list
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 OPERATION = "operation"
@@ -38,6 +45,9 @@ class Operation(Enum):
     REPLACE = "replace"
     OVERWRITE = "overwrite"
     DELETE = "delete"
+
+    def __repr__(self) -> str:
+        return f"Operation.{self.name}"
 
 
 class Summary(IcebergBaseModel):
@@ -79,6 +89,10 @@ class Summary(IcebergBaseModel):
     def additional_properties(self) -> Dict[str, str]:
         return self._additional_properties
 
+    def __repr__(self) -> str:
+        repr_properties = f", **{repr(self._additional_properties)}" if self._additional_properties else ""
+        return f"Summary({repr(self.operation)}{repr_properties})"
+
 
 class Snapshot(IcebergBaseModel):
     snapshot_id: int = Field(alias="snapshot-id")
@@ -88,3 +102,26 @@ class Snapshot(IcebergBaseModel):
     manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
+
+    def __str__(self) -> str:
+        operation = f"{self.summary.operation}: " if self.summary else ""
+        parent_id = f", parent_id={self.parent_snapshot_id}" if self.parent_snapshot_id else ""
+        schema_id = f", schema_id={self.schema_id}" if self.schema_id is not None else ""
+        result_str = f"{operation}id={self.snapshot_id}{parent_id}{schema_id}"
+        return result_str
+
+    def fetch_manifest_list(self, io: FileIO) -> List[ManifestFile]:
+        if self.manifest_list is not None:
+            file = io.new_input(self.manifest_list)
+            return list(read_manifest_list(file))
+        return []
+
+
+class MetadataLogEntry(IcebergBaseModel):
+    metadata_file: str = Field(alias="metadata-file")
+    timestamp_ms: int = Field(alias="timestamp-ms")
+
+
+class SnapshotLogEntry(IcebergBaseModel):
+    snapshot_id: str = Field(alias="snapshot-id")
+    timestamp_ms: int = Field(alias="timestamp-ms")

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -66,19 +65,7 @@ public class PartitionSpecParser {
   }
 
   public static String toJson(UnboundPartitionSpec spec, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(spec, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(spec, gen), pretty);
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
@@ -89,7 +76,7 @@ public class PartitionSpecParser {
     Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
     UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
-    buildFromJsonFields(builder, json.get(FIELDS));
+    buildFromJsonFields(builder, JsonUtil.get(FIELDS, json));
     return builder.build();
   }
 
@@ -126,16 +113,7 @@ public class PartitionSpecParser {
   }
 
   static String toJsonFields(PartitionSpec spec) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJsonFields(spec, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJsonFields(spec, gen), false);
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, JsonNode json) {

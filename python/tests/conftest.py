@@ -26,17 +26,23 @@ retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Union
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    Union,
+)
 from urllib.parse import urlparse
 
 import pytest
 
 from pyiceberg import schema
-from pyiceberg.io.base import (
+from pyiceberg.io import (
     FileIO,
     InputFile,
     OutputFile,
     OutputStream,
+    fsspec,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
@@ -53,7 +59,17 @@ from pyiceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
-from tests.io.test_io_base import LocalInputFile
+from tests.io.test_io import LocalInputFile
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
+    )
+    parser.addoption("--s3.access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
+    parser.addoption(
+        "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
+    )
 
 
 class FooStruct:
@@ -219,9 +235,77 @@ def all_avro_types() -> Dict[str, Any]:
     }
 
 
+EXAMPLE_TABLE_METADATA_V2 = {
+    "format-version": 2,
+    "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
+    "location": "s3://bucket/test/location",
+    "last-sequence-number": 34,
+    "last-updated-ms": 1602638573590,
+    "last-column-id": 3,
+    "current-schema-id": 1,
+    "schemas": [
+        {"type": "struct", "schema-id": 0, "fields": [{"id": 1, "name": "x", "required": True, "type": "long"}]},
+        {
+            "type": "struct",
+            "schema-id": 1,
+            "identifier-field-ids": [1, 2],
+            "fields": [
+                {"id": 1, "name": "x", "required": True, "type": "long"},
+                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                {"id": 3, "name": "z", "required": True, "type": "long"},
+            ],
+        },
+    ],
+    "default-spec-id": 0,
+    "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+    "last-partition-id": 1000,
+    "default-sort-order-id": 3,
+    "sort-orders": [
+        {
+            "order-id": 3,
+            "fields": [
+                {"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"},
+                {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"},
+            ],
+        }
+    ],
+    "properties": {"read.split.target.size": 134217728},
+    "current-snapshot-id": 3055729675574597004,
+    "snapshots": [
+        {
+            "snapshot-id": 3051729675574597004,
+            "timestamp-ms": 1515100955770,
+            "sequence-number": 0,
+            "summary": {"operation": "append"},
+            "manifest-list": "s3://a/b/1.avro",
+        },
+        {
+            "snapshot-id": 3055729675574597004,
+            "parent-snapshot-id": 3051729675574597004,
+            "timestamp-ms": 1555100955770,
+            "sequence-number": 1,
+            "summary": {"operation": "append"},
+            "manifest-list": "s3://a/b/2.avro",
+            "schema-id": 1,
+        },
+    ],
+    "snapshot-log": [
+        {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
+        {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
+    ],
+    "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}],
+    "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}},
+}
+
+
+@pytest.fixture
+def example_table_metadata_v2() -> Dict[str, Any]:
+    return EXAMPLE_TABLE_METADATA_V2
+
+
 @pytest.fixture
 def catalog() -> InMemoryCatalog:
-    return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})
+    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
 
 
 manifest_entry_records = [
@@ -853,7 +937,7 @@ def LocalFileIOFixture():
 
 
 @pytest.fixture(scope="session")
-def generated_manifest_entry_file(avro_schema_manifest_entry):
+def generated_manifest_entry_file(avro_schema_manifest_entry: Dict[str, Any]) -> Generator[str, None, None]:
     from fastavro import parse_schema, writer
 
     parsed_schema = parse_schema(avro_schema_manifest_entry)
@@ -866,10 +950,15 @@ def generated_manifest_entry_file(avro_schema_manifest_entry):
 
 
 @pytest.fixture(scope="session")
-def generated_manifest_file_file(avro_schema_manifest_file):
+def generated_manifest_file_file(
+    avro_schema_manifest_file: Dict[str, Any], generated_manifest_entry_file: str
+) -> Generator[str, None, None]:
     from fastavro import parse_schema, writer
 
     parsed_schema = parse_schema(avro_schema_manifest_file)
+
+    # Make sure that a valid manifest_path is set
+    manifest_file_records[0]["manifest_path"] = generated_manifest_entry_file
 
     with TemporaryDirectory() as tmpdir:
         tmp_avro_file = tmpdir + "/manifest.avro"
@@ -1043,3 +1132,13 @@ def iceberg_manifest_entry_schema() -> Schema:
         schema_id=1,
         identifier_field_ids=[],
     )
+
+
+@pytest.fixture
+def fsspec_fileio(request):
+    properties = {
+        "s3.endpoint": request.config.getoption("--s3.endpoint"),
+        "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
+        "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)

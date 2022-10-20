@@ -20,21 +20,30 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestMetadataUpdateParser {
+
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static final Schema ID_DATA_SCHEMA =
       new Schema(
@@ -346,26 +355,24 @@ public class TestMetadataUpdateParser {
 
   /** AddSnapshot * */
   @Test
-  public void testAddSnapshotToJson() {
+  public void testAddSnapshotToJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
+            0,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
-            manifests);
+            manifestList);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -375,26 +382,24 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
-  public void testAddSnapshotFromJson() {
+  public void testAddSnapshotFromJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
+
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
     Snapshot snapshot =
         new BaseSnapshot(
-            null,
+            0,
             snapshotId,
             parentId,
             System.currentTimeMillis(),
             DataOperations.REPLACE,
             summary,
             schemaId,
-            manifests);
+            manifestList);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
@@ -675,7 +680,7 @@ public class TestMetadataUpdateParser {
     AssertHelpers.assertThrows(
         "Parsing updates from SetProperties with a property set to null should throw",
         IllegalArgumentException.class,
-        "Cannot parse prop2 to a string value: null",
+        "Cannot parse to a string value: prop2: null",
         () -> MetadataUpdateParser.fromJson(json));
   }
 
@@ -738,6 +743,49 @@ public class TestMetadataUpdateParser {
         "Remove properties should serialize to the correct JSON value", expected, actual);
   }
 
+  @Test
+  public void testSetStatistics() {
+    String json =
+        "{\"action\":\"set-statistics\",\"snapshot-id\":42,\"statistics\":{\"snapshot-id\":42,"
+            + "\"statistics-path\":\"s3://bucket/warehouse/stats.puffin\",\"file-size-in-bytes\":124,"
+            + "\"file-footer-size-in-bytes\":27,\"blob-metadata\":[{\"type\":\"boring-type\","
+            + "\"snapshot-id\":42,\"sequence-number\":2,\"fields\":[1],"
+            + "\"properties\":{\"prop-key\":\"prop-value\"}}]}}";
+    MetadataUpdate expected =
+        new MetadataUpdate.SetStatistics(
+            42,
+            new GenericStatisticsFile(
+                42,
+                "s3://bucket/warehouse/stats.puffin",
+                124,
+                27,
+                ImmutableList.of(
+                    new GenericBlobMetadata(
+                        "boring-type",
+                        42,
+                        2,
+                        ImmutableList.of(1),
+                        ImmutableMap.of("prop-key", "prop-value")))));
+    assertEquals(
+        MetadataUpdateParser.SET_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
+    Assert.assertEquals(
+        "Set statistics should convert to the correct JSON value",
+        json,
+        MetadataUpdateParser.toJson(expected));
+  }
+
+  @Test
+  public void testRemoveStatistics() {
+    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":42}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(42);
+    assertEquals(
+        MetadataUpdateParser.REMOVE_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
+    Assert.assertEquals(
+        "Remove statistics should convert to the correct JSON value",
+        json,
+        MetadataUpdateParser.toJson(expected));
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -778,6 +826,16 @@ public class TestMetadataUpdateParser {
         assertEqualsSetDefaultSortOrder(
             (MetadataUpdate.SetDefaultSortOrder) expectedUpdate,
             (MetadataUpdate.SetDefaultSortOrder) actualUpdate);
+        break;
+      case MetadataUpdateParser.SET_STATISTICS:
+        assertEqualsSetStatistics(
+            (MetadataUpdate.SetStatistics) expectedUpdate,
+            (MetadataUpdate.SetStatistics) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_STATISTICS:
+        assertEqualsRemoveStatistics(
+            (MetadataUpdate.RemoveStatistics) expectedUpdate,
+            (MetadataUpdate.RemoveStatistics) actualUpdate);
         break;
       case MetadataUpdateParser.ADD_SNAPSHOT:
         assertEqualsAddSnapshot(
@@ -908,6 +966,66 @@ public class TestMetadataUpdateParser {
         "Sort order id should be the same", expected.sortOrderId(), actual.sortOrderId());
   }
 
+  private static void assertEqualsSetStatistics(
+      MetadataUpdate.SetStatistics expected, MetadataUpdate.SetStatistics actual) {
+    Assert.assertEquals("Snapshot IDs should be equal", expected.snapshotId(), actual.snapshotId());
+    Assert.assertEquals(
+        "Statistics files snapshot IDs should be equal",
+        expected.statisticsFile().snapshotId(),
+        actual.statisticsFile().snapshotId());
+    Assert.assertEquals(
+        "Statistics files paths should be equal",
+        expected.statisticsFile().path(),
+        actual.statisticsFile().path());
+    Assert.assertEquals(
+        "Statistics files size should be equal",
+        expected.statisticsFile().fileSizeInBytes(),
+        actual.statisticsFile().fileSizeInBytes());
+    Assert.assertEquals(
+        "Statistics files footer size should be equal",
+        expected.statisticsFile().fileFooterSizeInBytes(),
+        actual.statisticsFile().fileFooterSizeInBytes());
+    Assert.assertEquals(
+        "Statistics blob list size should be equal",
+        expected.statisticsFile().blobMetadata().size(),
+        actual.statisticsFile().blobMetadata().size());
+
+    Streams.zip(
+            expected.statisticsFile().blobMetadata().stream(),
+            actual.statisticsFile().blobMetadata().stream(),
+            Pair::of)
+        .forEachOrdered(
+            pair -> {
+              BlobMetadata expectedBlob = pair.first();
+              BlobMetadata actualBlob = pair.second();
+
+              Assert.assertEquals(
+                  "Expected blob type should be equal", expectedBlob.type(), actualBlob.type());
+              Assert.assertEquals(
+                  "Expected blob fields should be equal",
+                  expectedBlob.fields(),
+                  actualBlob.fields());
+              Assert.assertEquals(
+                  "Expected blob source snapshot ID should be equal",
+                  expectedBlob.sourceSnapshotId(),
+                  actualBlob.sourceSnapshotId());
+              Assert.assertEquals(
+                  "Expected blob source snapshot sequence number should be equal",
+                  expectedBlob.sourceSnapshotSequenceNumber(),
+                  actualBlob.sourceSnapshotSequenceNumber());
+              Assert.assertEquals(
+                  "Expected blob properties should be equal",
+                  expectedBlob.properties(),
+                  actualBlob.properties());
+            });
+  }
+
+  private static void assertEqualsRemoveStatistics(
+      MetadataUpdate.RemoveStatistics expected, MetadataUpdate.RemoveStatistics actual) {
+    Assert.assertEquals(
+        "Snapshots to remove should be the same", expected.snapshotId(), actual.snapshotId());
+  }
+
   private static void assertEqualsAddSnapshot(
       MetadataUpdate.AddSnapshot expected, MetadataUpdate.AddSnapshot actual) {
     Assert.assertEquals(
@@ -991,5 +1109,23 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsSetLocation(
       MetadataUpdate.SetLocation expected, MetadataUpdate.SetLocation actual) {
     Assert.assertEquals("Location should be the same", expected.location(), actual.location());
+  }
+
+  private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
+      throws IOException {
+    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    manifestList.deleteOnExit();
+
+    List<ManifestFile> manifests =
+        ImmutableList.of(
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+
+    try (ManifestListWriter writer =
+        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+      writer.addAll(manifests);
+    }
+
+    return localInput(manifestList).location();
   }
 }

@@ -55,9 +55,14 @@ public enum RewriteJobOrder {
   }
 
   public static RewriteJobOrder fromName(String orderName) {
-    Preconditions.checkArgument(orderName != null, "Rewrite job order name should not be null");
+    Preconditions.checkArgument(orderName != null, "Invalid rewrite job order name: null");
     // Replace the hyphen in order name with underscore to map to the enum value. For example:
     // bytes-asc to BYTES_ASC
-    return RewriteJobOrder.valueOf(orderName.replaceFirst("-", "_").toUpperCase(Locale.ENGLISH));
+    try {
+      return RewriteJobOrder.valueOf(orderName.replaceFirst("-", "_").toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid rewrite job order name: %s", orderName), e);
+    }
   }
 }

@@ -56,7 +56,7 @@ public class SortOrderParser {
   }
 
   private static String toJson(SortDirection direction) {
-    return direction.toString().toLowerCase(Locale.ROOT);
+    return direction.toString().toLowerCase(Locale.ENGLISH);
   }
 
   private static String toJson(NullOrder nullOrder) {
@@ -125,7 +125,7 @@ public class SortOrderParser {
         json.isObject(), "Cannot parse sort order from non-object: %s", json);
     int orderId = JsonUtil.getInt(ORDER_ID, json);
     UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
-    buildFromJsonFields(builder, json.get(FIELDS));
+    buildFromJsonFields(builder, JsonUtil.get(FIELDS, json));
     return builder.build();
   }
 
@@ -144,17 +144,13 @@ public class SortOrderParser {
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
 
       String directionAsString = JsonUtil.getString(DIRECTION, element);
-      SortDirection direction = toDirection(directionAsString);
+      SortDirection direction = SortDirection.fromString(directionAsString);
 
       String nullOrderingAsString = JsonUtil.getString(NULL_ORDER, element);
       NullOrder nullOrder = toNullOrder(nullOrderingAsString);
 
       builder.addSortField(transform, sourceId, direction, nullOrder);
     }
-  }
-
-  private static SortDirection toDirection(String directionAsString) {
-    return SortDirection.valueOf(directionAsString.toUpperCase(Locale.ROOT));
   }
 
   private static NullOrder toNullOrder(String nullOrderingAsString) {

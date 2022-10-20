@@ -28,8 +28,8 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -48,7 +48,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
-import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -116,23 +115,23 @@ public class TestFilteredScan {
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
 
     // define UDFs used by partition tests
-    Transform<Long, Integer> bucket4 = Transforms.bucket(Types.LongType.get(), 4);
+    Function<Object, Integer> bucket4 = Transforms.bucket(4).bind(Types.LongType.get());
     spark.udf().register("bucket4", (UDF1<Long, Integer>) bucket4::apply, IntegerType$.MODULE$);
 
-    Transform<Long, Integer> day = Transforms.day(Types.TimestampType.withZone());
+    Function<Object, Integer> day = Transforms.day().bind(Types.TimestampType.withZone());
     spark
         .udf()
         .register(
             "ts_day",
-            (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
+            (UDF1<Timestamp, Integer>) timestamp -> day.apply(fromJavaTimestamp(timestamp)),
             IntegerType$.MODULE$);
 
-    Transform<Long, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
+    Function<Object, Integer> hour = Transforms.hour().bind(Types.TimestampType.withZone());
     spark
         .udf()
         .register(
             "ts_hour",
-            (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
+            (UDF1<Timestamp, Integer>) timestamp -> hour.apply(fromJavaTimestamp(timestamp)),
             IntegerType$.MODULE$);
 
     spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
@@ -181,7 +180,7 @@ public class TestFilteredScan {
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    FileFormat fileFormat = FileFormat.fromString(format);
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 

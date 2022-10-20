@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
@@ -66,7 +65,7 @@ public class RowDataRewriter implements Serializable {
             .properties()
             .getOrDefault(
                 TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(formatString);
   }
 
   public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {

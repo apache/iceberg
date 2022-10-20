@@ -49,15 +49,15 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 In Spark 3, tables use identifiers that include a [catalog name](../spark-configuration#using-catalogs).
 
 ```sql
-SELECT * FROM prod.db.table -- catalog: prod, namespace: db, table: table
+SELECT * FROM prod.db.table; -- catalog: prod, namespace: db, table: table
 ```
 
 Metadata tables, like `history` and `snapshots`, can use the Iceberg table name as a namespace.
 
 For example, to read from the `files` metadata table for `prod.db.table`:
 
-```
-SELECT * FROM prod.db.table.files
+```sql
+SELECT * FROM prod.db.table.files;
 ```
 |content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
@@ -78,10 +78,10 @@ val df = spark.table("prod.db.table")
 Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3.x and 2.4.
 
 Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
-the identifier is specified. When using `spark.read.format("iceberg").path(table)` or `spark.table(table)` the `table`
+the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
 variable can take a number of forms as listed below:
 
-*  `file:/path/to/table`: loads a HadoopTable at given path
+*  `file:///path/to/table`: loads a HadoopTable at given path
 *  `tablename`: loads `currentCatalog.currentNamespace.tablename`
 *  `catalog.tablename`: loads `tablename` from the specified catalog.
 *  `namespace.tablename`: loads `namespace.tablename` from current catalog
@@ -107,14 +107,14 @@ SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
 
 In addition, `FOR SYSTEM_TIME AS OF` and `FOR SYSTEM_VERSION AS OF` clauses are also supported:
 
-```
+```sql
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF '1986-10-26 01:21:00';
 SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 10963874102873;
 ```
 
 Timestamps may also be supplied as a Unix timestamp, in seconds:
 
-```
+```sql
 -- timestamp in seconds
 SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
@@ -211,7 +211,7 @@ For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#re
 To show table history:
 
 ```sql
-SELECT * FROM prod.db.table.history
+SELECT * FROM prod.db.table.history;
 ```
 
 | made_current_at | snapshot_id  | parent_id | is_current_ancestor |
@@ -232,7 +232,7 @@ SELECT * FROM prod.db.table.history
 To show table metadata log entries:
 
 ```sql
-SELECT * from prod.db.table.metadata_log_entries
+SELECT * from prod.db.table.metadata_log_entries;
 ```
 
 | timestamp | file | latest_snapshot_id | latest_schema_id | latest_sequence_number |
@@ -246,7 +246,7 @@ SELECT * from prod.db.table.metadata_log_entries
 To show the valid snapshots for a table:
 
 ```sql
-SELECT * FROM prod.db.table.snapshots
+SELECT * FROM prod.db.table.snapshots;
 ```
 
 | committed_at | snapshot_id | parent_id | operation | manifest_list | summary |
@@ -280,7 +280,7 @@ order by made_current_at
 To show a table's current data files:
 
 ```sql
-SELECT * FROM prod.db.table.files
+SELECT * FROM prod.db.table.files;
 ```
 
 |content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
@@ -294,7 +294,7 @@ SELECT * FROM prod.db.table.files
 To show a table's current file manifests:
 
 ```sql
-SELECT * FROM prod.db.table.manifests
+SELECT * FROM prod.db.table.manifests;
 ```
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries |
@@ -315,15 +315,18 @@ Note:
 To show a table's current partitions:
 
 ```sql
-SELECT * FROM prod.db.table.partitions
+SELECT * FROM prod.db.table.partitions;
 ```
 
-| partition | record_count | file_count |
-| -- | -- | -- |
-|  {20211001, 11}|           1|         1|
-|  {20211002, 11}|           1|         1|
-|  {20211001, 10}|           1|         1|
-|  {20211002, 10}|           1|         1|
+| partition | record_count | file_count | spec_id |
+| -- | -- | -- | -- |
+|  {20211001, 11}|           1|         1|         0|
+|  {20211002, 11}|           1|         1|         0|
+|  {20211001, 10}|           1|         1|         0|
+|  {20211002, 10}|           1|         1|         0|
+
+Note:
+For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
 
 ### All Metadata Tables
 
@@ -338,7 +341,7 @@ The "all" metadata tables may produce more than one row per data file or manifes
 To show all of the table's data files and each file's metadata:
 
 ```sql
-SELECT * FROM prod.db.table.all_data_files
+SELECT * FROM prod.db.table.all_data_files;
 ```
 
 | content | file_path | file_format | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|
@@ -352,7 +355,7 @@ SELECT * FROM prod.db.table.all_data_files
 To show all of the table's manifest files:
 
 ```sql
-SELECT * FROM prod.db.table.all_manifests
+SELECT * FROM prod.db.table.all_manifests;
 ```
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
@@ -368,13 +371,45 @@ Note:
 2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
     This usually occurs when reading from V1 table, where `contains_nan` is not populated.
 
-## Inspecting with DataFrames
+### References
+
+To show a table's known snapshot references:
+
+```sql
+SELECT * FROM prod.db.table.refs;
+```
+
+| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
+| -- | -- | -- | -- | -- | -- |
+| main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
+| testTag | TAG | 4686954189838128572 | 10 | null | null |
+
+### Inspecting with DataFrames
 
 Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:
 
 ```scala
 // named metastore table
-spark.read.format("iceberg").load("db.table.files").show(truncate = false)
+spark.read.format("iceberg").load("db.table.files")
 // Hadoop path table
-spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files")
+```
+
+### Time Travel with Metadata Tables
+
+To inspect a tables's metadata with the time travel feature:
+
+```sql
+-- get the table's file manifests at timestamp Sep 20, 2021 08:00:00
+SELECT * FROM prod.db.table.manifests TIMESTAMP AS OF '2021-09-20 08:00:00';
+
+-- get the table's partitions with snapshot id 10963874102873L
+SELECT * FROM prod.db.table.partitions VERSION AS OF 10963874102873;
+```
+
+Metadata tables can also be inspected with time travel using the DataFrameReader API:
+
+```scala
+// load the table's file metadata at snapshot-id 10963874102873 as DataFrame
+spark.read.format("iceberg").option("snapshot-id", 10963874102873L).load("db.table.files")
 ```

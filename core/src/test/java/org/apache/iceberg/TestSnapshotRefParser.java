@@ -144,14 +144,14 @@ public class TestSnapshotRefParser {
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with invalid snapshot id",
         IllegalArgumentException.class,
-        "Cannot parse snapshot-id to a long value",
+        "Cannot parse to a long value: snapshot-id: \"invalid-snapshot-id\"",
         () -> SnapshotRefParser.fromJson(invalidSnapshotId));
 
     String invalidTagType = "{\"snapshot-id\":1,\"type\":\"not-a-valid-tag-type\"}";
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with invalid tag",
         IllegalArgumentException.class,
-        "No enum constant",
+        "Invalid snapshot ref type: not-a-valid-tag-type",
         () -> SnapshotRefParser.fromJson(invalidTagType));
 
     String invalidRefAge =
@@ -159,7 +159,7 @@ public class TestSnapshotRefParser {
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with invalid ref age",
         IllegalArgumentException.class,
-        "Cannot parse max-ref-age-ms to a long",
+        "Cannot parse to a long value: max-ref-age-ms: \"not-a-valid-value\"",
         () -> SnapshotRefParser.fromJson(invalidRefAge));
 
     String invalidSnapshotsToKeep =
@@ -168,7 +168,7 @@ public class TestSnapshotRefParser {
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with missing snapshot id",
         IllegalArgumentException.class,
-        "Cannot parse min-snapshots-to-keep to an integer value",
+        "Cannot parse to an integer value: min-snapshots-to-keep: \"invalid-number\"",
         () -> SnapshotRefParser.fromJson(invalidSnapshotsToKeep));
 
     String invalidMaxSnapshotAge =
@@ -176,7 +176,7 @@ public class TestSnapshotRefParser {
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with missing snapshot id",
         IllegalArgumentException.class,
-        "Cannot parse max-snapshot-age-ms to a long value",
+        "Cannot parse to a long value: max-snapshot-age-ms: \"invalid-age\"",
         () -> SnapshotRefParser.fromJson(invalidMaxSnapshotAge));
   }
 }

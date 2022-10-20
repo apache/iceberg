@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -210,7 +209,7 @@ public class DataFiles {
     }
 
     public Builder withFormat(String newFormat) {
-      this.format = FileFormat.valueOf(newFormat.toUpperCase(Locale.ENGLISH));
+      this.format = FileFormat.fromString(newFormat);
       return this;
     }
 

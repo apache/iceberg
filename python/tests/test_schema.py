@@ -16,14 +16,15 @@
 # under the License.
 
 from textwrap import dedent
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import pytest
 
 from pyiceberg import schema
 from pyiceberg.expressions.base import Accessor
 from pyiceberg.files import StructProtocol
-from pyiceberg.schema import Schema, build_position_accessors
+from pyiceberg.schema import Schema, build_position_accessors, prune_columns
+from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
     BooleanType,
     FloatType,
@@ -48,22 +49,20 @@ def test_schema_str(table_schema_simple: Schema):
     )
 
 
-@pytest.mark.parametrize(
-    "schema_repr, expected_repr",
-    [
-        (
-            schema.Schema(NestedField(1, "foo", StringType()), schema_id=1),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), required=True),), schema_id=1, identifier_field_ids=[])",
-        ),
-        (
-            schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False)), schema_id=1, identifier_field_ids=[])",
-        ),
-    ],
-)
-def test_schema_repr(schema_repr: Schema, expected_repr: str):
+def test_schema_repr_single_field():
     """Test schema representation"""
-    assert repr(schema_repr) == expected_repr
+    actual = repr(schema.Schema(NestedField(1, "foo", StringType()), schema_id=1))
+    expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), schema_id=1, identifier_field_ids=[])"
+    assert expected == actual
+
+
+def test_schema_repr_two_fields():
+    """Test schema representation"""
+    actual = repr(
+        schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), required=False), schema_id=1)
+    )
+    expected = "Schema(NestedField(field_id=1, name='foo', field_type=StringType(), required=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), required=False), schema_id=1, identifier_field_ids=[])"
+    assert expected == actual
 
 
 def test_schema_raise_on_duplicate_names():
@@ -388,8 +387,8 @@ def test_build_position_accessors(table_schema_nested):
 
 def test_build_position_accessors_with_struct(table_schema_nested: Schema):
     class TestStruct(StructProtocol):
-        def __init__(self, pos: Optional[Dict[int, Any]] = None):
-            self._pos: Dict[int, Any] = pos or {}
+        def __init__(self, pos: Dict[int, Any] = EMPTY_DICT):
+            self._pos: Dict[int, Any] = pos
 
         def set(self, pos: int, value) -> None:
             pass
@@ -416,3 +415,259 @@ def test_deserialize_schema(table_schema_simple: Schema):
     )
     expected = table_schema_simple
     assert actual == expected
+
+
+def test_prune_columns_string(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {1}, False) == Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False), schema_id=1, identifier_field_ids=[1]
+    )
+
+
+def test_prune_columns_string_full(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {1}, True) == Schema(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False), schema_id=1, identifier_field_ids=[1]
+    )
+
+
+def test_prune_columns_list(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {5}, False) == Schema(
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(type="list", element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_list_itself(table_schema_nested: Schema):
+    with pytest.raises(ValueError) as exc_info:
+        assert prune_columns(table_schema_nested, {4}, False)
+    assert "Cannot explicitly project List or Map types, 4:qux of type list<string> was selected" in str(exc_info.value)
+
+
+def test_prune_columns_list_full(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {5}, True) == Schema(
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(type="list", element_id=5, element_type=StringType(), element_required=True),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_map(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {9}, False) == Schema(
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                type="map",
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    type="map", key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_map_itself(table_schema_nested: Schema):
+    with pytest.raises(ValueError) as exc_info:
+        assert prune_columns(table_schema_nested, {6}, False)
+    assert "Cannot explicitly project List or Map types, 6:quux of type map<string, map<string, int>> was selected" in str(
+        exc_info.value
+    )
+
+
+def test_prune_columns_map_full(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {9}, True) == Schema(
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                type="map",
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    type="map", key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_map_key(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {10}, False) == Schema(
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                type="map",
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    type="map", key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_struct(table_schema_nested: Schema):
+    assert prune_columns(table_schema_nested, {16}, False) == Schema(
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(NestedField(field_id=16, name="name", field_type=StringType(), required=False)),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_struct_full(table_schema_nested: Schema):
+    actual = prune_columns(table_schema_nested, {16}, True)
+    assert actual == Schema(
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(NestedField(field_id=16, name="name", field_type=StringType(), required=False)),
+            required=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_empty_struct():
+    schema_empty_struct = Schema(
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(),
+            required=False,
+        )
+    )
+    assert prune_columns(schema_empty_struct, {15}, False) == Schema(
+        NestedField(field_id=15, name="person", field_type=StructType(), required=False), schema_id=0, identifier_field_ids=[]
+    )
+
+
+def test_prune_columns_empty_struct_full():
+    schema_empty_struct = Schema(
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(),
+            required=False,
+        )
+    )
+    assert prune_columns(schema_empty_struct, {15}, True) == Schema(
+        NestedField(field_id=15, name="person", field_type=StructType(), required=False), schema_id=0, identifier_field_ids=[]
+    )
+
+
+def test_prune_columns_struct_in_map():
+    table_schema_nested = Schema(
+        NestedField(
+            field_id=6,
+            name="id_to_person",
+            field_type=MapType(
+                key_id=7,
+                key_type=IntegerType(),
+                value_id=8,
+                value_type=StructType(
+                    NestedField(field_id=10, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=11, name="age", field_type=IntegerType(), required=True),
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+    assert prune_columns(table_schema_nested, {11}, False) == Schema(
+        NestedField(
+            field_id=6,
+            name="id_to_person",
+            field_type=MapType(
+                type="map",
+                key_id=7,
+                key_type=IntegerType(),
+                value_id=8,
+                value_type=StructType(NestedField(field_id=11, name="age", field_type=IntegerType(), required=True)),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_struct_in_map_full():
+    table_schema_nested = Schema(
+        NestedField(
+            field_id=6,
+            name="id_to_person",
+            field_type=MapType(
+                key_id=7,
+                key_type=IntegerType(),
+                value_id=8,
+                value_type=StructType(
+                    NestedField(field_id=10, name="name", field_type=StringType(), required=False),
+                    NestedField(field_id=11, name="age", field_type=IntegerType(), required=True),
+                ),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+    assert prune_columns(table_schema_nested, {11}, True) == Schema(
+        NestedField(
+            field_id=6,
+            name="id_to_person",
+            field_type=MapType(
+                type="map",
+                key_id=7,
+                key_type=IntegerType(),
+                value_id=8,
+                value_type=StructType(NestedField(field_id=11, name="age", field_type=IntegerType(), required=True)),
+                value_required=True,
+            ),
+            required=True,
+        ),
+        schema_id=1,
+        identifier_field_ids=[1],
+    )
+
+
+def test_prune_columns_select_original_schema(table_schema_nested: Schema):
+    ids = set(range(table_schema_nested.highest_field_id))
+    assert prune_columns(table_schema_nested, ids, True) == table_schema_nested

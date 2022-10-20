@@ -67,6 +67,11 @@ class SparkConfParser {
       return self();
     }
 
+    public BooleanConfParser defaultValue(String value) {
+      this.defaultValue = Boolean.parseBoolean(value);
+      return self();
+    }
+
     public boolean parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Boolean::parseBoolean, defaultValue);
@@ -89,6 +94,10 @@ class SparkConfParser {
     public int parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Integer::parseInt, defaultValue);
+    }
+
+    public Integer parseOptional() {
+      return parse(Integer::parseInt, null);
     }
   }
 
@@ -131,6 +140,10 @@ class SparkConfParser {
     public String parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Function.identity(), defaultValue);
+    }
+
+    public String parseOptional() {
+      return parse(Function.identity(), null);
     }
   }
 

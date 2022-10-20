@@ -57,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This action first leverages {@link org.apache.iceberg.ExpireSnapshots} to expire snapshots and
  * then uses metadata tables to find files that can be safely deleted. This is done by anti-joining
- * two Datasets that contain all manifest and data files before and after the expiration. The
+ * two Datasets that contain all manifest and content files before and after the expiration. The
  * snapshot expiration will be fully committed before any deletes are issued.
  *
  * <p>This operation performs a shuffle so the parallelism can be controlled through
@@ -72,7 +72,7 @@ public class BaseExpireSnapshotsSparkAction
 
   public static final String STREAM_RESULTS = "stream-results";
 
-  private static final String DATA_FILE = "Data File";
+  private static final String CONTENT_FILE = "Content File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
 
@@ -233,7 +233,7 @@ public class BaseExpireSnapshotsSparkAction
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, this.table.io());
-    return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
+    return appendTypeString(buildValidContentFileDF(staticTable), CONTENT_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
@@ -266,9 +266,9 @@ public class BaseExpireSnapshotsSparkAction
               String type = fileInfo.getString(1);
               deleteFunc.accept(file);
               switch (type) {
-                case DATA_FILE:
+                case CONTENT_FILE:
                   dataFileCount.incrementAndGet();
-                  LOG.trace("Deleted Data File: {}", file);
+                  LOG.trace("Deleted Content File: {}", file);
                   break;
                 case MANIFEST:
                   manifestCount.incrementAndGet();

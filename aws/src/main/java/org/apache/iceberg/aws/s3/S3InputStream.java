@@ -22,12 +22,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -51,8 +53,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private long next = 0;
   private boolean closed = false;
 
-  private final Counter<Long> readBytes;
-  private final Counter<Integer> readOperations;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   private int skipSize = 1024 * 1024;
 
@@ -65,9 +67,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.location = location;
     this.awsProperties = awsProperties;
 
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations =
-        metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }
@@ -107,7 +108,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
-    readBytes.increment((long) bytesRead);
+    readBytes.increment(bytesRead);
     readOperations.increment();
 
     return bytesRead;
@@ -185,7 +186,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
     closeStream();
-    stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+
+    try {
+      stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+    } catch (NoSuchKeyException e) {
+      throw new NotFoundException(e, "Location does not exist: %s", location);
+    }
   }
 
   private void closeStream() throws IOException {

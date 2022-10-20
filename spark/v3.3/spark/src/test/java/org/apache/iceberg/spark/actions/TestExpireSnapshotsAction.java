@@ -37,6 +37,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -1176,10 +1178,10 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should not delete any files", 0, deletedFiles.size());
 
-    Assert.assertSame(
-        "Multiple calls to expire should return the same deleted files",
-        pendingDeletes,
-        action.expire());
+    Assert.assertEquals(
+        "Multiple calls to expire should return the same count of deleted files",
+        pendingDeletes.count(),
+        action.expire().count());
   }
 
   @Test
@@ -1214,5 +1216,140 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
               4L,
               jobsRunDuringStreamResults);
         });
+  }
+
+  @Test
+  public void testExpireAfterExecute() {
+    table
+        .newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+
+    rightAfterSnapshot();
+
+    table
+        .newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    table
+        .newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = rightAfterSnapshot();
+
+    ExpireSnapshotsSparkAction action = SparkActions.get().expireSnapshots(table);
+
+    action.expireOlderThan(t3).retainLast(2);
+
+    ExpireSnapshots.Result result = action.execute();
+    checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
+
+    List<FileInfo> typedExpiredFiles = action.expireFiles().collectAsList();
+    Assert.assertEquals("Expired results must match", 1, typedExpiredFiles.size());
+
+    List<Row> untypedExpiredFiles = action.expire().collectAsList();
+    Assert.assertEquals("Expired results must match", 1, untypedExpiredFiles.size());
+  }
+
+  @Test
+  public void testExpireFileDeletionMostExpired() {
+    textExpireAllCheckFilesDeleted(5, 2);
+  }
+
+  @Test
+  public void testExpireFileDeletionMostRetained() {
+    textExpireAllCheckFilesDeleted(2, 5);
+  }
+
+  public void textExpireAllCheckFilesDeleted(int dataFilesExpired, int dataFilesRetained) {
+    // Add data files to be expired
+    Set<String> dataFiles = Sets.newHashSet();
+    for (int i = 0; i < dataFilesExpired; i++) {
+      DataFile df =
+          DataFiles.builder(SPEC)
+              .withPath(String.format("/path/to/data-expired-%d.parquet", i))
+              .withFileSizeInBytes(10)
+              .withPartitionPath("c1=1")
+              .withRecordCount(1)
+              .build();
+      dataFiles.add(df.path().toString());
+      table.newFastAppend().appendFile(df).commit();
+    }
+
+    // Delete them all, these will be deleted on expire snapshot
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+    // Clears "DELETED" manifests
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+
+    Set<String> manifestsBefore = TestHelpers.reachableManifestPaths(table);
+
+    // Add data files to be retained, which are not deleted.
+    for (int i = 0; i < dataFilesRetained; i++) {
+      DataFile df =
+          DataFiles.builder(SPEC)
+              .withPath(String.format("/path/to/data-retained-%d.parquet", i))
+              .withFileSizeInBytes(10)
+              .withPartitionPath("c1=1")
+              .withRecordCount(1)
+              .build();
+      table.newFastAppend().appendFile(df).commit();
+    }
+
+    long end = rightAfterSnapshot();
+
+    Set<String> expectedDeletes = Sets.newHashSet();
+    expectedDeletes.addAll(ReachableFileUtil.manifestListLocations(table));
+    // all snapshot manifest lists except current will be deleted
+    expectedDeletes.remove(table.currentSnapshot().manifestListLocation());
+    expectedDeletes.addAll(
+        manifestsBefore); // new manifests are reachable from current snapshot and not deleted
+    expectedDeletes.addAll(
+        dataFiles); // new data files are reachable from current snapshot and not deleted
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(end)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals(
+        "All reachable files before expiration should be deleted", expectedDeletes, deletedFiles);
+  }
+
+  @Test
+  public void testExpireSomeCheckFilesDeleted() {
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    long after = rightAfterSnapshot();
+    waitUntilAfter(after);
+
+    table.newAppend().appendFile(FILE_D).commit();
+
+    table.newDelete().deleteFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(after)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    // C, D should be retained (live)
+    // B should be retained (previous snapshot points to it)
+    // A should be deleted
+    Assert.assertTrue(deletedFiles.contains(FILE_A.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_C.path().toString()));
+    Assert.assertFalse(deletedFiles.contains(FILE_D.path().toString()));
   }
 }

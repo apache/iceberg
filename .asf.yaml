@@ -31,7 +31,7 @@ github:
     wiki: true
     issues: true
     projects: true
-  collaborators:  # Note: the number of collaborators is limited to 10
+  collaborators:  # Note: the number of collaborators is limited to 20
     - chenjunjiedada
     - kbendick
     - jun-he
@@ -41,6 +41,9 @@ github:
     - findepi
     - SreeramGarlapati
     - samredai
+    - Fokko
+  ghp_branch: gh-pages
+  ghp_path: ~
 
 notifications:
     commits:      commits@iceberg.apache.org

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -165,25 +164,14 @@ public class SchemaParser {
   }
 
   public static String toJson(Schema schema, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(
+        gen -> toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), gen),
+        pretty);
   }
 
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
       return Types.fromPrimitiveString(json.asText());
-
     } else if (json.isObject()) {
       JsonNode typeObj = json.get(TYPE);
       if (typeObj != null) {
@@ -202,7 +190,7 @@ public class SchemaParser {
   }
 
   private static Types.StructType structFromJson(JsonNode json) {
-    JsonNode fieldArray = json.get(FIELDS);
+    JsonNode fieldArray = JsonUtil.get(FIELDS, json);
     Preconditions.checkArgument(
         fieldArray.isArray(), "Cannot parse struct fields from non-array: %s", fieldArray);
 
@@ -215,7 +203,7 @@ public class SchemaParser {
 
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
-      Type type = typeFromJson(field.get(TYPE));
+      Type type = typeFromJson(JsonUtil.get(TYPE, field));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
@@ -231,7 +219,7 @@ public class SchemaParser {
 
   private static Types.ListType listFromJson(JsonNode json) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
-    Type elementType = typeFromJson(json.get(ELEMENT));
+    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json));
     boolean isRequired = JsonUtil.getBool(ELEMENT_REQUIRED, json);
 
     if (isRequired) {
@@ -243,10 +231,10 @@ public class SchemaParser {
 
   private static Types.MapType mapFromJson(JsonNode json) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
-    Type keyType = typeFromJson(json.get(KEY));
+    Type keyType = typeFromJson(JsonUtil.get(KEY, json));
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
-    Type valueType = typeFromJson(json.get(VALUE));
+    Type valueType = typeFromJson(JsonUtil.get(VALUE, json));
 
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
 

@@ -18,199 +18,266 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.io.Serializable;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.immutables.value.Value;
 
 /** A Table Scan report that contains all relevant information from a Table Scan. */
-public class ScanReport implements Serializable {
+@Value.Immutable
+public interface ScanReport extends MetricsReport {
 
-  private final String tableName;
-  private final long snapshotId;
-  private final Expression filter;
-  private final Schema projection;
-  private final ScanMetrics scanMetrics;
+  String tableName();
 
-  private ScanReport(
-      String tableName,
-      long snapshotId,
-      Expression filter,
-      Schema projection,
-      ScanMetrics scanMetrics) {
-    this.tableName = tableName;
-    this.snapshotId = snapshotId;
-    this.filter = filter;
-    this.projection = projection;
-    this.scanMetrics = scanMetrics;
-  }
+  long snapshotId();
 
-  public String tableName() {
-    return tableName;
-  }
+  Expression filter();
 
-  public long snapshotId() {
-    return snapshotId;
-  }
+  Schema projection();
 
-  public Expression filter() {
-    return filter;
-  }
+  ScanMetricsResult scanMetrics();
 
-  public Schema projection() {
-    return projection;
-  }
+  /** A serializable version of a {@link Timer} that carries its result. */
+  @Value.Immutable
+  interface TimerResult {
 
-  public ScanMetrics scanMetrics() {
-    return scanMetrics;
-  }
+    TimeUnit timeUnit();
 
-  public static Builder builder() {
-    return new Builder();
-  }
+    Duration totalDuration();
 
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("tableName", tableName)
-        .add("snapshotId", snapshotId)
-        .add("filter", filter)
-        .add("projection", projection)
-        .add("scanMetrics", scanMetrics)
-        .toString();
-  }
+    long count();
 
-  public static class Builder {
-    private String tableName;
-    private long snapshotId = -1L;
-    private Expression filter;
-    private Schema projection;
-    private ScanMetrics scanMetrics;
+    static TimerResult fromTimer(Timer timer) {
+      Preconditions.checkArgument(null != timer, "Invalid timer: null");
+      if (timer.isNoop()) {
+        return null;
+      }
 
-    private Builder() {}
-
-    public Builder withTableName(String newTableName) {
-      this.tableName = newTableName;
-      return this;
+      return ImmutableTimerResult.builder()
+          .timeUnit(timer.unit())
+          .totalDuration(timer.totalDuration())
+          .count(timer.count())
+          .build();
     }
 
-    public Builder withSnapshotId(long newSnapshotId) {
-      this.snapshotId = newSnapshotId;
-      return this;
+    static TimerResult of(TimeUnit timeUnit, Duration duration, long count) {
+      return ImmutableTimerResult.builder()
+          .timeUnit(timeUnit)
+          .totalDuration(duration)
+          .count(count)
+          .build();
+    }
+  }
+
+  /** A serializable version of a {@link Counter} that carries its result. */
+  @Value.Immutable
+  interface CounterResult {
+
+    Unit unit();
+
+    long value();
+
+    static CounterResult fromCounter(Counter counter) {
+      Preconditions.checkArgument(null != counter, "Invalid counter: null");
+      if (counter.isNoop()) {
+        return null;
+      }
+
+      return ImmutableCounterResult.builder().unit(counter.unit()).value(counter.value()).build();
     }
 
-    public Builder withFilter(Expression newFilter) {
-      this.filter = newFilter;
-      return this;
+    static CounterResult of(Unit unit, long value) {
+      return ImmutableCounterResult.builder().unit(unit).value(value).build();
     }
+  }
 
-    public Builder withProjection(Schema newProjection) {
-      this.projection = newProjection;
-      return this;
-    }
+  /** A serializable version of {@link ScanMetrics} that carries its results. */
+  @Value.Immutable
+  interface ScanMetricsResult {
+    @Nullable
+    TimerResult totalPlanningDuration();
 
-    public Builder fromScanMetrics(ScanMetrics newScanMetrics) {
-      this.scanMetrics = newScanMetrics;
-      return this;
-    }
+    @Nullable
+    CounterResult resultDataFiles();
 
-    public ScanReport build() {
-      Preconditions.checkArgument(null != tableName, "Invalid table name: null");
-      Preconditions.checkArgument(null != filter, "Invalid expression filter: null");
-      Preconditions.checkArgument(null != projection, "Invalid schema projection: null");
+    @Nullable
+    CounterResult resultDeleteFiles();
+
+    @Nullable
+    CounterResult totalDataManifests();
+
+    @Nullable
+    CounterResult totalDeleteManifests();
+
+    @Nullable
+    CounterResult scannedDataManifests();
+
+    @Nullable
+    CounterResult skippedDataManifests();
+
+    @Nullable
+    CounterResult totalFileSizeInBytes();
+
+    @Nullable
+    CounterResult totalDeleteFileSizeInBytes();
+
+    @Nullable
+    CounterResult skippedDataFiles();
+
+    @Nullable
+    CounterResult skippedDeleteFiles();
+
+    @Nullable
+    CounterResult scannedDeleteManifests();
+
+    @Nullable
+    CounterResult skippedDeleteManifests();
+
+    @Nullable
+    CounterResult indexedDeleteFiles();
+
+    @Nullable
+    CounterResult equalityDeleteFiles();
+
+    @Nullable
+    CounterResult positionalDeleteFiles();
+
+    static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
       Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
-      return new ScanReport(tableName, snapshotId, filter, projection, scanMetrics);
+      return ImmutableScanMetricsResult.builder()
+          .totalPlanningDuration(TimerResult.fromTimer(scanMetrics.totalPlanningDuration()))
+          .resultDataFiles(CounterResult.fromCounter(scanMetrics.resultDataFiles()))
+          .resultDeleteFiles(CounterResult.fromCounter(scanMetrics.resultDeleteFiles()))
+          .totalDataManifests(CounterResult.fromCounter(scanMetrics.totalDataManifests()))
+          .totalDeleteManifests(CounterResult.fromCounter(scanMetrics.totalDeleteManifests()))
+          .scannedDataManifests(CounterResult.fromCounter(scanMetrics.scannedDataManifests()))
+          .skippedDataManifests(CounterResult.fromCounter(scanMetrics.skippedDataManifests()))
+          .totalFileSizeInBytes(CounterResult.fromCounter(scanMetrics.totalFileSizeInBytes()))
+          .totalDeleteFileSizeInBytes(
+              CounterResult.fromCounter(scanMetrics.totalDeleteFileSizeInBytes()))
+          .skippedDataFiles(CounterResult.fromCounter(scanMetrics.skippedDataFiles()))
+          .skippedDeleteFiles(CounterResult.fromCounter(scanMetrics.skippedDeleteFiles()))
+          .scannedDeleteManifests(CounterResult.fromCounter(scanMetrics.scannedDeleteManifests()))
+          .skippedDeleteManifests(CounterResult.fromCounter(scanMetrics.skippedDeleteManifests()))
+          .indexedDeleteFiles(CounterResult.fromCounter(scanMetrics.indexedDeleteFiles()))
+          .equalityDeleteFiles(CounterResult.fromCounter(scanMetrics.equalityDeleteFiles()))
+          .positionalDeleteFiles(CounterResult.fromCounter(scanMetrics.positionalDeleteFiles()))
+          .build();
     }
   }
 
   /** Carries all metrics for a particular scan */
-  public static class ScanMetrics {
-    public static final ScanMetrics NOOP = new ScanMetrics(MetricsContext.nullMetrics());
-    private final Timer totalPlanningDuration;
-    private final Counter<Integer> resultDataFiles;
-    private final Counter<Integer> resultDeleteFiles;
-    private final Counter<Integer> totalDataManifests;
-    private final Counter<Integer> totalDeleteManifests;
-    private final Counter<Integer> scannedDataManifests;
-    private final Counter<Integer> skippedDataManifests;
-    private final Counter<Long> totalFileSizeInBytes;
-    private final Counter<Long> totalDeleteFileSizeInBytes;
+  @Value.Immutable
+  abstract class ScanMetrics {
+    public static final String TOTAL_PLANNING_DURATION = "total-planning-duration";
+    public static final String RESULT_DATA_FILES = "result-data-files";
+    public static final String RESULT_DELETE_FILES = "result-delete-files";
+    public static final String SCANNED_DATA_MANIFESTS = "scanned-data-manifests";
+    public static final String SCANNED_DELETE_MANIFESTS = "scanned-delete-manifests";
+    public static final String TOTAL_DATA_MANIFESTS = "total-data-manifests";
+    public static final String TOTAL_DELETE_MANIFESTS = "total-delete-manifests";
+    public static final String TOTAL_FILE_SIZE_IN_BYTES = "total-file-size-in-bytes";
+    public static final String TOTAL_DELETE_FILE_SIZE_IN_BYTES = "total-delete-file-size-in-bytes";
+    public static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
+    public static final String SKIPPED_DELETE_MANIFESTS = "skipped-delete-manifests";
+    public static final String SKIPPED_DATA_FILES = "skipped-data-files";
+    public static final String SKIPPED_DELETE_FILES = "skipped-delete-files";
+    public static final String INDEXED_DELETE_FILES = "indexed-delete-files";
+    public static final String EQUALITY_DELETE_FILES = "equality-delete-files";
+    public static final String POSITIONAL_DELETE_FILES = "positional-delete-files";
 
-    public ScanMetrics(MetricsContext metricsContext) {
-      Preconditions.checkArgument(null != metricsContext, "Invalid metrics context: null");
-      this.totalPlanningDuration =
-          metricsContext.timer("totalPlanningDuration", TimeUnit.NANOSECONDS);
-      this.resultDataFiles =
-          metricsContext.counter("resultDataFiles", Integer.class, MetricsContext.Unit.COUNT);
-      this.resultDeleteFiles =
-          metricsContext.counter("resultDeleteFiles", Integer.class, MetricsContext.Unit.COUNT);
-      this.scannedDataManifests =
-          metricsContext.counter("scannedDataManifests", Integer.class, MetricsContext.Unit.COUNT);
-      this.totalDataManifests =
-          metricsContext.counter("totalDataManifests", Integer.class, MetricsContext.Unit.COUNT);
-      this.totalDeleteManifests =
-          metricsContext.counter("totalDeleteManifests", Integer.class, MetricsContext.Unit.COUNT);
-      this.totalFileSizeInBytes =
-          metricsContext.counter("totalFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
-      this.totalDeleteFileSizeInBytes =
-          metricsContext.counter(
-              "totalDeleteFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
-      this.skippedDataManifests =
-          metricsContext.counter("skippedDataManifests", Integer.class, MetricsContext.Unit.COUNT);
+    public static ScanMetrics noop() {
+      return ScanMetrics.of(MetricsContext.nullMetrics());
     }
 
+    public abstract MetricsContext metricsContext();
+
+    @Value.Derived
     public Timer totalPlanningDuration() {
-      return totalPlanningDuration;
+      return metricsContext().timer(TOTAL_PLANNING_DURATION, TimeUnit.NANOSECONDS);
     }
 
-    public Counter<Integer> resultDataFiles() {
-      return resultDataFiles;
+    @Value.Derived
+    public Counter resultDataFiles() {
+      return metricsContext().counter(RESULT_DATA_FILES);
     }
 
-    public Counter<Integer> resultDeleteFiles() {
-      return resultDeleteFiles;
+    @Value.Derived
+    public Counter resultDeleteFiles() {
+      return metricsContext().counter(RESULT_DELETE_FILES);
     }
 
-    public Counter<Integer> scannedDataManifests() {
-      return scannedDataManifests;
+    @Value.Derived
+    public Counter scannedDataManifests() {
+      return metricsContext().counter(SCANNED_DATA_MANIFESTS);
     }
 
-    public Counter<Integer> totalDataManifests() {
-      return totalDataManifests;
+    @Value.Derived
+    public Counter totalDataManifests() {
+      return metricsContext().counter(TOTAL_DATA_MANIFESTS);
     }
 
-    public Counter<Integer> totalDeleteManifests() {
-      return totalDeleteManifests;
+    @Value.Derived
+    public Counter totalDeleteManifests() {
+      return metricsContext().counter(TOTAL_DELETE_MANIFESTS);
     }
 
-    public Counter<Long> totalFileSizeInBytes() {
-      return totalFileSizeInBytes;
+    @Value.Derived
+    public Counter totalFileSizeInBytes() {
+      return metricsContext().counter(TOTAL_FILE_SIZE_IN_BYTES, MetricsContext.Unit.BYTES);
     }
 
-    public Counter<Long> totalDeleteFileSizeInBytes() {
-      return totalDeleteFileSizeInBytes;
+    @Value.Derived
+    public Counter totalDeleteFileSizeInBytes() {
+      return metricsContext().counter(TOTAL_DELETE_FILE_SIZE_IN_BYTES, MetricsContext.Unit.BYTES);
     }
 
-    public Counter<Integer> skippedDataManifests() {
-      return skippedDataManifests;
+    @Value.Derived
+    public Counter skippedDataManifests() {
+      return metricsContext().counter(SKIPPED_DATA_MANIFESTS);
     }
 
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .addValue(totalPlanningDuration)
-          .addValue(resultDataFiles)
-          .addValue(resultDeleteFiles)
-          .addValue(scannedDataManifests)
-          .addValue(skippedDataManifests)
-          .addValue(totalDataManifests)
-          .addValue(totalDeleteManifests)
-          .addValue(totalFileSizeInBytes)
-          .addValue(totalDeleteFileSizeInBytes)
-          .toString();
+    @Value.Derived
+    public Counter skippedDataFiles() {
+      return metricsContext().counter(SKIPPED_DATA_FILES);
+    }
+
+    @Value.Derived
+    public Counter skippedDeleteFiles() {
+      return metricsContext().counter(SKIPPED_DELETE_FILES);
+    }
+
+    @Value.Derived
+    public Counter scannedDeleteManifests() {
+      return metricsContext().counter(SCANNED_DELETE_MANIFESTS);
+    }
+
+    @Value.Derived
+    public Counter skippedDeleteManifests() {
+      return metricsContext().counter(SKIPPED_DELETE_MANIFESTS);
+    }
+
+    @Value.Derived
+    public Counter indexedDeleteFiles() {
+      return metricsContext().counter(INDEXED_DELETE_FILES);
+    }
+
+    @Value.Derived
+    public Counter equalityDeleteFiles() {
+      return metricsContext().counter(EQUALITY_DELETE_FILES);
+    }
+
+    @Value.Derived
+    public Counter positionalDeleteFiles() {
+      return metricsContext().counter(POSITIONAL_DELETE_FILES);
+    }
+
+    public static ScanMetrics of(MetricsContext metricsContext) {
+      return ImmutableScanMetrics.builder().metricsContext(metricsContext).build();
     }
   }
 }

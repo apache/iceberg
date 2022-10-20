@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -73,7 +72,7 @@ public class TestTaskWriters {
   private Table table;
 
   public TestTaskWriters(String format, boolean partitioned) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
     this.partitioned = partitioned;
   }
 

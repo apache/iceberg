@@ -177,6 +177,13 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
+
+  public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
+  public static final String ORC_BLOOM_FILTER_COLUMNS_DEFAULT = "";
+
+  public static final String ORC_BLOOM_FILTER_FPP = "write.orc.bloom.filter.fpp";
+  public static final double ORC_BLOOM_FILTER_FPP_DEFAULT = 0.05;
+
   public static final String DELETE_ORC_STRIPE_SIZE_BYTES = "write.delete.orc.stripe-size-bytes";
   public static final long ORC_STRIPE_SIZE_BYTES_DEFAULT = 64L * 1024 * 1024; // 64 MB
 
@@ -246,8 +253,11 @@ public class TableProperties {
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
-  public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
-  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
+  /** @deprecated will be removed in 2.0.0, writing manifest lists is always enabled */
+  @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
+
+  /** @deprecated will be removed in 2.0.0, writing manifest lists is always enabled */
+  @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";

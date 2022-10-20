@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,19 +41,7 @@ public class SnapshotRefParser {
   }
 
   public static String toJson(SnapshotRef ref, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-
-      toJson(ref, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(ref, gen), pretty);
   }
 
   public static void toJson(SnapshotRef ref, JsonGenerator generator) throws IOException {
@@ -87,8 +74,7 @@ public class SnapshotRefParser {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse snapshot reference from a non-object: %s", node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type =
-        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type = SnapshotRefType.fromString(JsonUtil.getString(TYPE, node));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);

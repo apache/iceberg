@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.mr.hive;
 
-import java.util.Locale;
 import java.util.Properties;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -78,12 +77,11 @@ public class HiveIcebergOutputFormat<T>
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = table.spec();
     FileFormat fileFormat =
-        FileFormat.valueOf(
+        FileFormat.fromString(
             PropertyUtil.propertyAsString(
-                    table.properties(),
-                    TableProperties.DEFAULT_FILE_FORMAT,
-                    TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
-                .toUpperCase(Locale.ENGLISH));
+                table.properties(),
+                TableProperties.DEFAULT_FILE_FORMAT,
+                TableProperties.DEFAULT_FILE_FORMAT_DEFAULT));
     long targetFileSize =
         PropertyUtil.propertyAsLong(
             table.properties(),

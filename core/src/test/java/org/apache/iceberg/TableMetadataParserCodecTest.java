@@ -19,14 +19,11 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 public class TableMetadataParserCodecTest {
-
-  @Rule public ExpectedException exceptionRule = ExpectedException.none();
 
   @Test
   public void testCompressionCodec() {
@@ -43,15 +40,15 @@ public class TableMetadataParserCodecTest {
 
   @Test
   public void testInvalidCodecName() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage("No enum constant");
-    Codec.fromName("invalid");
+    Assertions.assertThatThrownBy(() -> Codec.fromName("invalid"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid codec name: invalid");
   }
 
   @Test
   public void testInvalidFileName() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage("path/to/file.parquet is not a valid metadata file");
-    Codec.fromFileName("path/to/file.parquet");
+    Assertions.assertThatThrownBy(() -> Codec.fromFileName("path/to/file.parquet"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("path/to/file.parquet is not a valid metadata file");
   }
 }

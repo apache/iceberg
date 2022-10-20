@@ -30,7 +30,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.metrics.ScanReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -79,7 +79,7 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion,
-      ScanReporter scanReporter) {
+      MetricsReporter reporter) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
@@ -90,7 +90,7 @@ public class TestTables {
         newTableMetadata(
             schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
 
-    return new TestTable(ops, name, scanReporter);
+    return new TestTable(ops, name, reporter);
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -180,8 +180,8 @@ public class TestTables {
       this.ops = ops;
     }
 
-    private TestTable(TestTableOperations ops, String name, ScanReporter scanReporter) {
-      super(ops, name, scanReporter);
+    private TestTable(TestTableOperations ops, String name, MetricsReporter reporter) {
+      super(ops, name, reporter);
       this.ops = ops;
     }
 

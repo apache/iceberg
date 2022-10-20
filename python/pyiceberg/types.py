@@ -97,6 +97,10 @@ class IcebergType(IcebergBaseModel, Singleton):
     def is_primitive(self) -> bool:
         return isinstance(self, PrimitiveType)
 
+    @property
+    def is_struct(self) -> bool:
+        return isinstance(self, StructType)
+
 
 class PrimitiveType(IcebergType):
     """Base class for all Iceberg Primitive Types"""
@@ -168,6 +172,7 @@ class DecimalType(PrimitiveType):
         super().__init__(
             __root__=f"decimal({precision}, {scale})",
         )
+        # assert precision < scale, "precision should be smaller than scale"
         self._precision = precision
         self._scale = scale
 

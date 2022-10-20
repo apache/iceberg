@@ -61,19 +61,18 @@ public class TestBucketingProjection {
     Assert.assertNotEquals(
         "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
-    Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual =
           Lists.newArrayList(values).stream()
               .sorted()
-              .map(v -> transform.toHumanString(v))
+              .map(String::valueOf)
               .collect(Collectors.toList())
               .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString(literal.value());
+      Literal<?> literal = predicate.literal();
+      String output = String.valueOf(literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }
@@ -103,19 +102,18 @@ public class TestBucketingProjection {
     Assert.assertNotEquals(
         "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
-    Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual =
           Lists.newArrayList(values).stream()
               .sorted()
-              .map(v -> transform.toHumanString(v))
+              .map(String::valueOf)
               .collect(Collectors.toList())
               .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString(literal.value());
+      Literal<?> literal = predicate.literal();
+      String output = String.valueOf(literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }

@@ -29,6 +29,7 @@ import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
@@ -51,6 +52,18 @@ public class TestTableSerialization extends HadoopTableTestBase {
     table.updateSchema().addColumn("new_col", Types.IntegerType.get()).commit();
 
     TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));
+    Table serializableTable = SerializableTable.copyOf(table);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+  }
+
+  @Test
+  public void testSerializableTableWithSnapshot() throws IOException, ClassNotFoundException {
+    table.newAppend().appendFile(FILE_A).commit();
+    TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));
+    Table serializableTable = SerializableTable.copyOf(table);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
   }
 
   @Test
@@ -75,6 +88,9 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Table metadataTable = getMetaDataTable(table, type);
       TestHelpers.assertSerializedAndLoadedMetadata(
           metadataTable, TestHelpers.roundTripSerialize(metadataTable));
+      Table serializableTable = SerializableTable.copyOf(metadataTable);
+      TestHelpers.assertSerializedAndLoadedMetadata(
+          serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
     }
   }
 

@@ -132,12 +132,28 @@ The new table properties in the `REPLACE TABLE` command will be merged with any 
 
 ## `DROP TABLE`
 
-To delete a table, run:
+The drop table behavior changed in 0.14.
+
+Prior to 0.14, running `DROP TABLE` would remove the table from the catalog and delete the table contents as well.
+
+From 0.14 onwards, `DROP TABLE` would only remove the table from the catalog.
+In order to delete the table contents `DROP TABLE PURGE` should be used.
+
+### `DROP TABLE`
+
+To drop the table from the catalog, run:
 
 ```sql
 DROP TABLE prod.db.sample
 ```
 
+### `DROP TABLE PURGE`
+
+To drop the table from the catalog and delete the table's contents, run:
+
+```sql
+DROP TABLE prod.db.sample PURGE
+```
 
 ## `ALTER TABLE`
 
@@ -364,6 +380,16 @@ For example, if you partition by days and move to partitioning by hours, overwri
 {{< hint danger >}}
 Be careful when dropping a partition field because it will change the schema of metadata tables, like `files`, and may cause metadata queries to fail or produce different results.
 {{< /hint >}}
+
+### `ALTER TABLE ... REPLACE PARTITION FIELD`
+
+A partition field can be replaced by a new partition field in a single metadata update by using `REPLACE PARTITION FIELD`:
+
+```sql
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts)
+-- use optional AS keyword to specify a custom name for the new partition field 
+ALTER TABLE prod.db.sample REPLACE PARTITION FIELD ts_day WITH days(ts) AS day_of_ts
+```
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
 

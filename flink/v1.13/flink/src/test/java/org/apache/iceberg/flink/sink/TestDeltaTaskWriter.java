@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileContent;
@@ -68,7 +67,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   public TestDeltaTaskWriter(String fileFormat) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
   }
 
   @Override

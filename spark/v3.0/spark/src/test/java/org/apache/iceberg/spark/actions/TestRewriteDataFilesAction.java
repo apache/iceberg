@@ -66,6 +66,7 @@ import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -1449,7 +1450,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
               .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
               .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
 
-      posDeleteWriter.delete(path, rowPosition);
+      PositionDelete<Record> posDelete = PositionDelete.create();
+      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {

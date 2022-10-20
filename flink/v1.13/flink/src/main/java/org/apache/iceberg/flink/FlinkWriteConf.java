@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.DistributionMode;
@@ -81,7 +80,7 @@ public class FlinkWriteConf {
             .tableProperty(TableProperties.DEFAULT_FILE_FORMAT)
             .defaultValue(TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
             .parse();
-    return FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH));
+    return FileFormat.fromString(valueAsString);
   }
 
   public long targetDataFileSize() {

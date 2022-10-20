@@ -35,14 +35,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  tox:
+  openapi-spec-validator:
     runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Install
         working-directory: ./open-api
-        run: pip install openapi-spec-validator && openapi-spec-validator rest-catalog-open-api.yaml
+        run: pip install openapi-spec-validator
+      - name: Validate
+        working-directory: ./open-api
+        run: openapi-spec-validator rest-catalog-open-api.yaml

@@ -18,16 +18,16 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Test;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -57,24 +57,6 @@ public class TestAwsClientFactories {
   }
 
   @Test
-  public void testS3FileIoCredentialsProviders() {
-    AwsCredentialsProvider basicCredentials =
-        AwsClientFactories.credentialsProvider("key", "secret", null);
-    Assert.assertTrue(
-        "Should use basic credentials if access key ID and secret access key are set",
-        basicCredentials.resolveCredentials() instanceof AwsBasicCredentials);
-    AwsCredentialsProvider sessionCredentials =
-        AwsClientFactories.credentialsProvider("key", "secret", "token");
-    Assert.assertTrue(
-        "Should use session credentials if session token is set",
-        sessionCredentials.resolveCredentials() instanceof AwsSessionCredentials);
-    Assert.assertTrue(
-        "Should use default credentials if nothing is set",
-        AwsClientFactories.credentialsProvider(null, null, null)
-            instanceof DefaultCredentialsProvider);
-  }
-
-  @Test
   public void testS3FileIoCredentialsVerification() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.S3FILEIO_ACCESS_KEY_ID, "key");
@@ -91,6 +73,80 @@ public class TestAwsClientFactories {
         ValidationException.class,
         "S3 client access key ID and secret access key must be set at the same time",
         () -> AwsClientFactories.from(properties));
+  }
+
+  @Test
+  public void testDefaultAwsClientFactorySerializable() {
+    Map<String, String> properties = Maps.newHashMap();
+    AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(defaultAwsClientFactory);
+      Assert.assertTrue(
+          "DefaultAwsClientFactory should be serializable",
+          roundTripResult instanceof AwsClientFactories.DefaultAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize DefaultAwsClientFactory");
+    }
+    byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(defaultAwsClientFactory);
+    AwsClientFactory deserializedClientFactory =
+        SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
+    Assert.assertTrue(
+        "DefaultAwsClientFactory should be serializable",
+        deserializedClientFactory instanceof AwsClientFactories.DefaultAwsClientFactory);
+  }
+
+  @Test
+  public void testAssumeRoleAwsClientFactorySerializable() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    AwsClientFactory assumeRoleAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(assumeRoleAwsClientFactory);
+      Assert.assertTrue(
+          "AssumeRoleAwsClientFactory should be serializable",
+          roundTripResult instanceof AssumeRoleAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize AssumeRoleAwsClientFactory");
+    }
+    byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(assumeRoleAwsClientFactory);
+    AwsClientFactory deserializedClientFactory =
+        SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
+    Assert.assertTrue(
+        "AssumeRoleAwsClientFactory should be serializable",
+        deserializedClientFactory instanceof AssumeRoleAwsClientFactory);
+  }
+
+  @Test
+  public void testLakeFormationAwsClientFactorySerializable() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, "arn::test");
+    properties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    properties.put(
+        AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX
+            + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
+        "emr");
+    AwsClientFactory lakeFormationAwsClientFactory = AwsClientFactories.from(properties);
+    try {
+      AwsClientFactory roundTripResult =
+          TestHelpers.KryoHelpers.roundTripSerialize(lakeFormationAwsClientFactory);
+      Assert.assertTrue(
+          "LakeFormationAwsClientFactory should be serializable",
+          roundTripResult instanceof LakeFormationAwsClientFactory);
+    } catch (IOException e) {
+      Assert.fail("kryoSerializer should serialize and deserialize LakeFormationAwsClientFactory");
+    }
+    byte[] serializedFactoryBytes =
+        SerializationUtil.serializeToBytes(lakeFormationAwsClientFactory);
+    AwsClientFactory deserializedClientFactory =
+        SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
+    Assert.assertTrue(
+        "LakeFormationAwsClientFactory should be serializable",
+        deserializedClientFactory instanceof LakeFormationAwsClientFactory);
   }
 
   public static class CustomFactory implements AwsClientFactory {

@@ -278,7 +278,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
           e);
     } catch (DynamoDbException e) {
       LOG.error(
-          "Failed to release lock {} by for entity: {}, owner: {}, encountered unexpected DynamoDB exception",
+          "Failed to release lock for entity: {}, owner: {}, encountered unexpected DynamoDB exception",
           entityId,
           ownerId,
           e);

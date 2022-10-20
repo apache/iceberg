@@ -27,19 +27,24 @@ buildscript {
   }
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
-    classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.8.0'
-    classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
+    classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.11.0'
+    classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.15.0'
+    classpath ('org.eclipse.jgit:org.eclipse.jgit:5.13.1.202206130422-r') {
+      // gradle-git-version automatically uses a jgit version that requires JDK11
+      // so we need to enforce the latest jgit version that works with JDK8
+      force = true
+    }
   }
 }
 
 plugins {
-  id 'nebula.dependency-recommender' version '9.0.2'
+  id 'nebula.dependency-recommender' version '11.0.0'
 }
 
 try {
@@ -225,7 +230,10 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"
+    testImplementation "com.esotericsoftware:kryo"
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -253,6 +261,8 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
@@ -269,10 +279,14 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    testImplementation "org.eclipse.jetty:jetty-servlet"
+    testImplementation "org.eclipse.jetty:jetty-server"
     testImplementation 'org.mock-server:mockserver-netty'
     testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation "com.esotericsoftware:kryo"
+    testImplementation "com.google.guava:guava-testlib"
   }
 }
 
@@ -385,6 +399,8 @@ project(':iceberg-aws') {
       exclude module: "logback-classic"
       exclude group: 'junit'
     }
+    testImplementation "com.esotericsoftware:kryo"
+    testImplementation "org.xerial:sqlite-jdbc"
   }
 
   sourceSets {
@@ -427,6 +443,7 @@ project(':iceberg-gcp') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
@@ -526,7 +543,9 @@ project(':iceberg-orc') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(':iceberg-common')
+    testImplementation 'org.apache.orc:orc-tools'
   }
 }
 

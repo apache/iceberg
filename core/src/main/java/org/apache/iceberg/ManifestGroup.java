@@ -85,7 +85,7 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
-    this.scanMetrics = ScanReport.ScanMetrics.NOOP;
+    this.scanMetrics = ScanReport.ScanMetrics.noop();
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -181,7 +181,7 @@ class ManifestGroup {
 
     DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
 
-    boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
+    boolean dropStats = ManifestReader.dropStats(columns);
     if (!deleteFiles.isEmpty()) {
       select(ManifestReader.withStatsColumns(columns));
     }
@@ -311,16 +311,22 @@ class ManifestGroup {
                 if (ignoreExisting) {
                   entries =
                       CloseableIterable.filter(
-                          entries, entry -> entry.status() != ManifestEntry.Status.EXISTING);
+                          scanMetrics.skippedDataFiles(),
+                          entries,
+                          entry -> entry.status() != ManifestEntry.Status.EXISTING);
                 }
 
                 if (evaluator != null) {
                   entries =
                       CloseableIterable.filter(
-                          entries, entry -> evaluator.eval((GenericDataFile) entry.file()));
+                          scanMetrics.skippedDataFiles(),
+                          entries,
+                          entry -> evaluator.eval((GenericDataFile) entry.file()));
                 }
 
-                entries = CloseableIterable.filter(entries, manifestEntryPredicate);
+                entries =
+                    CloseableIterable.filter(
+                        scanMetrics.skippedDataFiles(), entries, manifestEntryPredicate);
 
                 iterable = entryFn.apply(manifest, entries);
 
@@ -348,7 +354,7 @@ class ManifestGroup {
           }
           ctx.scanMetrics().totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
           ctx.scanMetrics().resultDataFiles().increment();
-          ctx.scanMetrics().resultDeleteFiles().increment(deleteFiles.length);
+          ctx.scanMetrics().resultDeleteFiles().increment((long) deleteFiles.length);
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });

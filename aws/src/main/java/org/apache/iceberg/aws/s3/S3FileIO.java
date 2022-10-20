@@ -22,7 +22,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -44,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -80,7 +83,7 @@ public class S3FileIO
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-  private Map<String, String> properties = null;
+  private SerializableMap<String, String> properties = null;
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
@@ -154,7 +157,7 @@ public class S3FileIO
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return properties.immutableMap();
   }
 
   /**
@@ -182,41 +185,53 @@ public class S3FileIO
           .run(path -> tagFileToDelete(path, awsProperties.s3DeleteTags()));
     }
 
-    if (!awsProperties.isS3DeleteEnabled()) {
-      return;
-    }
-
-    SetMultimap<String, String> bucketToObjects =
-        Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
-    int numberOfFailedDeletions = 0;
-    for (String path : paths) {
-      S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
-      String bucket = location.bucket();
-      String objectKey = location.key();
-      Set<String> objectsInBucket = bucketToObjects.get(bucket);
-      if (objectsInBucket.size() == awsProperties.s3FileIoDeleteBatchSize()) {
-        List<String> failedDeletionsForBatch = deleteObjectsInBucket(bucket, objectsInBucket);
-        numberOfFailedDeletions += failedDeletionsForBatch.size();
-        failedDeletionsForBatch.forEach(
-            failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
-        bucketToObjects.removeAll(bucket);
+    if (awsProperties.isS3DeleteEnabled()) {
+      SetMultimap<String, String> bucketToObjects =
+          Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
+      List<Future<List<String>>> deletionTasks = Lists.newArrayList();
+      for (String path : paths) {
+        S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+        String bucket = location.bucket();
+        String objectKey = location.key();
+        bucketToObjects.get(bucket).add(objectKey);
+        if (bucketToObjects.get(bucket).size() == awsProperties.s3FileIoDeleteBatchSize()) {
+          Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
+          Future<List<String>> deletionTask =
+              executorService().submit(() -> deleteBatch(bucket, keys));
+          deletionTasks.add(deletionTask);
+          bucketToObjects.removeAll(bucket);
+        }
       }
-      bucketToObjects.get(bucket).add(objectKey);
-    }
 
-    // Delete the remainder
-    for (Map.Entry<String, Collection<String>> bucketToObjectsEntry :
-        bucketToObjects.asMap().entrySet()) {
-      final String bucket = bucketToObjectsEntry.getKey();
-      final Collection<String> objects = bucketToObjectsEntry.getValue();
-      List<String> failedDeletions = deleteObjectsInBucket(bucket, objects);
-      failedDeletions.forEach(
-          failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
-      numberOfFailedDeletions += failedDeletions.size();
-    }
+      // Delete the remainder
+      for (Map.Entry<String, Collection<String>> bucketToObjectsEntry :
+          bucketToObjects.asMap().entrySet()) {
+        String bucket = bucketToObjectsEntry.getKey();
+        Collection<String> keys = bucketToObjectsEntry.getValue();
+        Future<List<String>> deletionTask =
+            executorService().submit(() -> deleteBatch(bucket, keys));
+        deletionTasks.add(deletionTask);
+      }
 
-    if (numberOfFailedDeletions > 0) {
-      throw new BulkDeletionFailureException(numberOfFailedDeletions);
+      int totalFailedDeletions = 0;
+
+      for (Future<List<String>> deletionTask : deletionTasks) {
+        try {
+          List<String> failedDeletions = deletionTask.get();
+          failedDeletions.forEach(path -> LOG.warn("Failed to delete object at path {}", path));
+          totalFailedDeletions += failedDeletions.size();
+        } catch (ExecutionException e) {
+          LOG.warn("Caught unexpected exception during batch deletion: ", e.getCause());
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          deletionTasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
+          throw new RuntimeException("Interrupted when waiting for deletions to complete", e);
+        }
+      }
+
+      if (totalFailedDeletions > 0) {
+        throw new BulkDeletionFailureException(totalFailedDeletions);
+      }
     }
   }
 
@@ -244,26 +259,33 @@ public class S3FileIO
     client().putObjectTagging(putObjectTaggingRequest);
   }
 
-  private List<String> deleteObjectsInBucket(String bucket, Collection<String> objects) {
-    if (!objects.isEmpty()) {
-      List<ObjectIdentifier> objectIds =
-          objects.stream()
-              .map(objectKey -> ObjectIdentifier.builder().key(objectKey).build())
-              .collect(Collectors.toList());
-      DeleteObjectsRequest deleteObjectsRequest =
-          DeleteObjectsRequest.builder()
-              .bucket(bucket)
-              .delete(Delete.builder().objects(objectIds).build())
-              .build();
-      DeleteObjectsResponse response = client().deleteObjects(deleteObjectsRequest);
-      if (response.hasErrors()) {
-        return response.errors().stream()
-            .map(error -> String.format("s3://%s/%s", bucket, error.key()))
+  private List<String> deleteBatch(String bucket, Collection<String> keysToDelete) {
+    List<ObjectIdentifier> objectIds =
+        keysToDelete.stream()
+            .map(key -> ObjectIdentifier.builder().key(key).build())
             .collect(Collectors.toList());
+    DeleteObjectsRequest request =
+        DeleteObjectsRequest.builder()
+            .bucket(bucket)
+            .delete(Delete.builder().objects(objectIds).build())
+            .build();
+    List<String> failures = Lists.newArrayList();
+    try {
+      DeleteObjectsResponse response = client().deleteObjects(request);
+      if (response.hasErrors()) {
+        failures.addAll(
+            response.errors().stream()
+                .map(error -> String.format("s3://%s/%s", request.bucket(), error.key()))
+                .collect(Collectors.toList()));
       }
+    } catch (Exception e) {
+      LOG.warn("Encountered failure when deleting batch", e);
+      failures.addAll(
+          request.delete().objects().stream()
+              .map(obj -> String.format("s3://%s/%s", request.bucket(), obj.key()))
+              .collect(Collectors.toList()));
     }
-
-    return Lists.newArrayList();
+    return failures;
   }
 
   @Override
@@ -329,8 +351,8 @@ public class S3FileIO
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.awsProperties = new AwsProperties(props);
-    this.properties = props;
+    this.properties = SerializableMap.copyOf(props);
+    this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -339,6 +361,9 @@ public class S3FileIO
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
       this.s3 = clientFactory::s3;
+      if (awsProperties.s3PreloadClientEnabled()) {
+        client();
+      }
     }
 
     // Report Hadoop metrics if Hadoop is available
@@ -349,7 +374,7 @@ public class S3FileIO
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(props);
+      context.initialize(properties);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import datetime
+import uuid
 from copy import copy
 from typing import (
     Any,
@@ -23,29 +25,43 @@ from typing import (
     Optional,
     Union,
 )
-from uuid import UUID, uuid4
 
 from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
-from pyiceberg.schema import Schema
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.schema import Schema, assign_fresh_schema_ids
+from pyiceberg.table.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
-from pyiceberg.table.snapshots import Snapshot
-from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
+from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
+from pyiceberg.table.sorting import (
+    UNSORTED_SORT_ORDER,
+    UNSORTED_SORT_ORDER_ID,
+    SortOrder,
+    assign_fresh_sort_order_ids,
+)
+from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.utils.datetime import datetime_to_micros
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+
+CURRENT_SNAPSHOT_ID = "current_snapshot_id"
+CURRENT_SCHEMA_ID = "current_schema_id"
+SCHEMAS = "schemas"
+DEFAULT_SPEC_ID = "default_spec_id"
+PARTITION_SPEC = "partition_spec"
+PARTITION_SPECS = "partition_specs"
+SORT_ORDERS = "sort_orders"
+REFS = "refs"
 
 INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
-DEFAULT_LAST_PARTITION_ID = 1000
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the current-schema-id is actually present in schemas"""
-    current_schema_id = values["current_schema_id"]
+    current_schema_id = values[CURRENT_SCHEMA_ID]
 
-    for schema in values["schemas"]:
+    for schema in values[SCHEMAS]:
         if schema.schema_id == current_schema_id:
             return values
 
@@ -56,7 +72,7 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
 
-    partition_specs: List[PartitionSpec] = values["partition_specs"]
+    partition_specs: List[PartitionSpec] = values[PARTITION_SPECS]
     for spec in partition_specs:
         if spec.spec_id == default_spec_id:
             return values
@@ -69,7 +85,7 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     default_sort_order_id: int = values["default_sort_order_id"]
 
     if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
-        sort_orders: List[SortOrder] = values["sort_orders"]
+        sort_orders: List[SortOrder] = values[SORT_ORDERS]
         for sort_order in sort_orders:
             if sort_order.order_id == default_sort_order_id:
                 return values
@@ -82,34 +98,32 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
-    def current_schema(self) -> Schema:
-        return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
-
-    @root_validator(pre=True)
+    @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
-        if data.get("current-snapshot-id") == -1:
+        if data[CURRENT_SNAPSHOT_ID] == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
-            data["current-snapshot-id"] = None
+            data[CURRENT_SNAPSHOT_ID] = None
         return data
 
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as refs is an actual pydantic object
-        if current_snapshot_id := data.get("current_snapshot_id"):
-            data["refs"] = {MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)}
+        if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
+            if MAIN_BRANCH not in data[REFS]:
+                data[REFS][MAIN_BRANCH] = SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)
         return data
 
     location: str = Field()
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
 
-    table_uuid: Optional[UUID] = Field(alias="table-uuid", default_factory=uuid4)
+    table_uuid: uuid.UUID = Field(alias="table-uuid", default_factory=uuid.uuid4)
     """A UUID that identifies the table, generated when the table is created.
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_updated_ms: int = Field(alias="last-updated-ms")
+    last_updated_ms: int = Field(alias="last-updated-ms", default_factory=lambda: datetime_to_micros(datetime.datetime.now()))
     """Timestamp in milliseconds from the unix epoch when the table
     was last updated. Each table metadata file should update this
     field just before writing."""
@@ -131,18 +145,18 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: int = Field(alias="last-partition-id")
+    last_partition_id: Optional[int] = Field(alias="last-partition-id")
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
 
     properties: Dict[str, str] = Field(default_factory=dict)
-    """	A string to string map of table properties. This is used to
+    """A string to string map of table properties. This is used to
     control settings that affect reading and writing and is not intended
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
 
-    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
+    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id", default=None)
     """ID of the current table snapshot."""
 
     snapshots: List[Snapshot] = Field(default_factory=list)
@@ -151,7 +165,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     deleted from the file system until the last snapshot in which it was
     listed is garbage collected."""
 
-    snapshot_log: List[Dict[str, Any]] = Field(alias="snapshot-log", default_factory=list)
+    snapshot_log: List[SnapshotLogEntry] = Field(alias="snapshot-log", default_factory=list)
     """A list (optional) of timestamp and snapshot ID pairs that encodes
     changes to the current snapshot for the table. Each time the
     current-snapshot-id is changed, a new entry should be added with the
@@ -159,7 +173,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     expired from the list of valid snapshots, all entries before a snapshot
     that has expired should be removed."""
 
-    metadata_log: List[Dict[str, Any]] = Field(alias="metadata-log", default_factory=list)
+    metadata_log: List[MetadataLogEntry] = Field(alias="metadata-log", default_factory=list)
     """A list (optional) of timestamp and metadata file location pairs that
     encodes changes to the previous metadata files for the table. Each time
     a new metadata file is created, a new entry of the previous metadata
@@ -197,13 +211,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
 
-    @root_validator(pre=True)
+    @root_validator
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2
-
-        Set some sensible defaults for V1, so we comply with the schema
-        this is in pre=True, meaning that this will be done before validation.
-        We don't want to make the fields optional, since they are required for V2
 
         Args:
             data: The raw arguments when initializing a V1 TableMetadata
@@ -211,10 +221,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the defaults applied
         """
-        if data.get("schema") and "schema-id" not in data["schema"]:
-            data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        if data.get("partition-spec") and "last-partition-id" not in data:
-            data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
+        # When the schema doesn't have an ID
+        if data.get("schema") and "schema_id" not in data["schema"]:
+            data["schema"]["schema_id"] = DEFAULT_SCHEMA_ID
+
         return data
 
     @root_validator(skip_on_failure=True)
@@ -252,11 +262,18 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the partition_specs set, if not provided
         """
-        if not data.get("partition_specs"):
-            fields = data["partition_spec"]
-            data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
+        if not data.get(PARTITION_SPECS):
+            fields = data[PARTITION_SPEC]
+            migrated_spec = PartitionSpec(*fields)
+            data[PARTITION_SPECS] = [migrated_spec]
+            data[DEFAULT_SPEC_ID] = migrated_spec.spec_id
         else:
             check_partition_specs(data)
+
+        if "last_partition_id" not in data or data.get("last_partition_id") is None:
+            if partition_specs := data.get(PARTITION_SPECS):
+                data["last_partition_id"] = max(spec.last_assigned_field_id for spec in partition_specs)
+
         return data
 
     @root_validator(skip_on_failure=True)
@@ -272,8 +289,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the sort_orders set, if not provided
         """
-        if not data.get("sort_orders"):
-            data["sort_orders"] = [UNSORTED_SORT_ORDER]
+        if not data.get(SORT_ORDERS):
+            data[SORT_ORDERS] = [UNSORTED_SORT_ORDER]
         else:
             check_sort_orders(data)
         return data
@@ -323,29 +340,48 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     def check_sort_orders(cls, values: Dict[str, Any]):
         return check_sort_orders(values)
 
-    format_version: Literal[2] = Field(alias="format-version")
+    format_version: Literal[2] = Field(alias="format-version", default=2)
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
-
-    table_uuid: UUID = Field(alias="table-uuid")
-    """A UUID that identifies the table, generated when the table is created.
-    Implementations must throw an exception if a table’s UUID does not match
-    the expected UUID after refreshing metadata."""
 
     last_sequence_number: int = Field(alias="last-sequence-number", default=INITIAL_SEQUENCE_NUMBER)
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
 
 
-class TableMetadata:
+TableMetadata = Union[TableMetadataV1, TableMetadataV2]
+
+
+def new_table_metadata(
+    schema: Schema, partition_spec: PartitionSpec, sort_order: SortOrder, location: str, properties: Properties = EMPTY_DICT
+) -> TableMetadata:
+    fresh_schema = assign_fresh_schema_ids(schema)
+    fresh_partition_spec = assign_fresh_partition_spec_ids(partition_spec, schema, fresh_schema)
+    fresh_sort_order = assign_fresh_sort_order_ids(sort_order, schema, fresh_schema)
+
+    return TableMetadataV2(
+        location=location,
+        schemas=[fresh_schema],
+        last_column_id=fresh_schema.highest_field_id,
+        current_schema_id=fresh_schema.schema_id,
+        partition_specs=[fresh_partition_spec],
+        default_spec_id=fresh_partition_spec.spec_id,
+        sort_orders=[fresh_sort_order],
+        default_sort_order_id=fresh_sort_order.order_id,
+        properties=properties,
+        last_partition_id=fresh_partition_spec.last_assigned_field_id,
+    )
+
+
+class TableMetadataUtil:
     """Helper class for parsing TableMetadata"""
 
     # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
-    # TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(alias="format-version", discriminator="format-version")]
+    # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]
 
     @staticmethod
-    def parse_obj(data: dict) -> Union[TableMetadataV1, TableMetadataV2]:
+    def parse_obj(data: dict) -> TableMetadata:
         if "format-version" not in data:
             raise ValidationError(f"Missing format-version in TableMetadata: {data}")
 

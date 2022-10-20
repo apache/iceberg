@@ -49,6 +49,17 @@ public interface Table {
   TableScan newScan();
 
   /**
+   * Create a new {@link BatchScan batch scan} for this table.
+   *
+   * <p>Once a batch scan is created, it can be refined to project columns and filter data.
+   *
+   * @return a batch scan for this table
+   */
+  default BatchScan newBatchScan() {
+    return new BatchScanAdapter(newScan());
+  }
+
+  /**
    * Create a new {@link IncrementalAppendScan scan} for this table.
    *
    * <p>Once a scan is created, it can be refined to project columns and filter data.
@@ -264,20 +275,22 @@ public interface Table {
   DeleteFiles newDelete();
 
   /**
+   * Create a new {@link UpdateStatistics update table statistics API} to add or remove statistics
+   * files in this table.
+   *
+   * @return a new {@link UpdateStatistics}
+   */
+  default UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException(
+        "Updating statistics is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}
    */
   ExpireSnapshots expireSnapshots();
-
-  /**
-   * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
-   *
-   * @return a new {@link Rollback}
-   * @deprecated Replaced by {@link #manageSnapshots()}
-   */
-  @Deprecated
-  Rollback rollback();
 
   /**
    * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and
@@ -305,6 +318,13 @@ public interface Table {
 
   /** Returns a {@link LocationProvider} to provide locations for new data files. */
   LocationProvider locationProvider();
+
+  /**
+   * Returns the current statistics files for the table
+   *
+   * @return the current statistics files for the table
+   */
+  List<StatisticsFile> statisticsFiles();
 
   /**
    * Returns the current refs for the table

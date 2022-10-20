@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -180,7 +179,7 @@ public class TestFilteredScan {
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    FileFormat fileFormat = FileFormat.fromString(format);
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 

@@ -243,7 +243,7 @@ public class TestRowDelta extends V2TableTestBase {
     // manifest with FILE_A deleted
     validateManifest(
         snap.dataManifests(table.io()).get(1),
-        seqs(2, 1),
+        seqs(1, 1),
         ids(replaceSnapshotId, appendSnapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.DELETED, Status.EXISTING));
@@ -350,7 +350,8 @@ public class TestRowDelta extends V2TableTestBase {
                 .newRowDelta()
                 .addDeletes(FILE_A_DELETES)
                 .validateFromSnapshot(validateFromSnapshotId)
-                .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+                .validateNoConflictingDataFiles()
                 .commit());
 
     Assert.assertEquals(
@@ -383,7 +384,8 @@ public class TestRowDelta extends V2TableTestBase {
         .validateDeletedFiles()
         .validateFromSnapshot(validateFromSnapshotId)
         .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
-        .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .validateNoConflictingDataFiles()
         .commit();
 
     Snapshot snap = table.currentSnapshot();
@@ -448,7 +450,7 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
     validateManifest(
         snap.dataManifests(table.io()).get(0),
-        seqs(2),
+        seqs(1),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -457,7 +459,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
         snap.deleteManifests(table.io()).get(0),
-        seqs(2, 1),
+        seqs(1, 1),
         ids(snap.snapshotId(), deltaSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(Status.DELETED, Status.EXISTING));
@@ -492,7 +494,7 @@ public class TestRowDelta extends V2TableTestBase {
     int deleteManifestPos = snap.dataManifests(table.io()).get(0).deletedFilesCount() > 0 ? 0 : 1;
     validateManifest(
         snap.dataManifests(table.io()).get(deleteManifestPos),
-        seqs(2),
+        seqs(1),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -508,7 +510,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
         snap.deleteManifests(table.io()).get(0),
-        seqs(2, 1),
+        seqs(1, 1),
         ids(snap.snapshotId(), deltaSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(Status.DELETED, Status.EXISTING));
@@ -541,7 +543,7 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
     validateManifest(
         snap.dataManifests(table.io()).get(0),
-        seqs(2),
+        seqs(1),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -550,7 +552,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
         snap.deleteManifests(table.io()).get(0),
-        seqs(2, 2),
+        seqs(1, 1),
         ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(Status.DELETED, Status.DELETED));
@@ -578,7 +580,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 data manifest", 1, deleteSnap.dataManifests(table.io()).size());
     validateManifest(
         deleteSnap.dataManifests(table.io()).get(0),
-        seqs(2),
+        seqs(1),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -610,7 +612,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 delete manifest", 1, nextSnap.deleteManifests(table.io()).size());
     validateDeleteManifest(
         nextSnap.deleteManifests(table.io()).get(0),
-        seqs(3),
+        seqs(1),
         ids(nextSnap.snapshotId()),
         files(FILE_A_DELETES),
         statuses(Status.DELETED));
@@ -638,7 +640,7 @@ public class TestRowDelta extends V2TableTestBase {
         "Should produce 1 data manifest", 1, deleteSnap.dataManifests(table.io()).size());
     validateManifest(
         deleteSnap.dataManifests(table.io()).get(0),
-        seqs(2),
+        seqs(1),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -667,7 +669,7 @@ public class TestRowDelta extends V2TableTestBase {
         nextSnap.dataManifests(table.io()).get(0).deletedFilesCount() > 0 ? 0 : 1;
     validateManifest(
         nextSnap.dataManifests(table.io()).get(deleteManifestPos),
-        seqs(2),
+        seqs(1),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -741,7 +743,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition B
     table.newDelete().deleteFile(dataFile2).commit();
@@ -803,7 +806,8 @@ public class TestRowDelta extends V2TableTestBase {
             .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
-            .validateNoConflictingAppends(conflictDetectionFilter);
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles();
 
     // concurrently delete the file for partition A
     table.newDelete().deleteFile(dataFile1).commit();
@@ -1077,7 +1081,8 @@ public class TestRowDelta extends V2TableTestBase {
         .newRowDelta()
         .addDeletes(FILE_A_DELETES)
         .validateFromSnapshot(firstSnapshot.snapshotId())
-        .validateNoConflictingAppends(conflictDetectionFilter)
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
         .commit();
 
     AssertHelpers.assertThrows(
@@ -1299,7 +1304,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     validateManifest(
         mergedDataManifest,
-        seqs(1, 3),
+        seqs(1, 1),
         ids(currentSnapshotId, currentSnapshotId),
         files(dataFile2, dataFile1),
         statuses(Status.ADDED, Status.DELETED));
@@ -1410,6 +1415,22 @@ public class TestRowDelta extends V2TableTestBase {
                 .conflictDetectionFilter(conflictDetectionFilter)
                 .validateNoConflictingDataFiles()
                 .validateNoConflictingDeleteFiles()
+                .commit());
+  }
+
+  @Test
+  public void testRowDeltaToBranchUnsupported() {
+    AssertHelpers.assertThrows(
+        "Should reject committing row delta to branch",
+        UnsupportedOperationException.class,
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRowDelta does not support branch commits",
+        () ->
+            table
+                .newRowDelta()
+                .caseSensitive(false)
+                .addRows(FILE_B)
+                .addDeletes(FILE_A2_DELETES)
+                .toBranch("someBranch")
                 .commit());
   }
 }

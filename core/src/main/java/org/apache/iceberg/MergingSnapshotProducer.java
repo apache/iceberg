@@ -758,13 +758,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    Snapshot current = base.currentSnapshot();
-
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
-            base.schema(), current != null ? current.dataManifests(ops.io()) : null);
+            base.schema(), snapshot != null ? snapshot.dataManifests(ops.io()) : null);
     long minDataSequenceNumber =
         filtered.stream()
             .map(ManifestFile::minSequenceNumber)
@@ -777,7 +775,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
-            base.schema(), current != null ? current.deleteManifests(ops.io()) : null);
+            base.schema(), snapshot != null ? snapshot.deleteManifests(ops.io()) : null);
 
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep =

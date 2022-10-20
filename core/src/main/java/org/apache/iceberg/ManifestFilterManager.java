@@ -357,7 +357,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         || canContainDropBySeq;
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
+  @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private boolean manifestHasDeletedFiles(
       PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
@@ -368,8 +368,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
           deletePaths.contains(file.path())
               || dropPartitions.contains(file.specId(), file.partition())
               || (isDelete
-                  && entry.sequenceNumber() > 0
-                  && entry.sequenceNumber() < minSequenceNumber);
+                  && entry.isLive()
+                  && entry.dataSequenceNumber() > 0
+                  && entry.dataSequenceNumber() < minSequenceNumber);
 
       if (markedForDelete || evaluator.rowsMightMatch(file)) {
         boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
@@ -415,8 +416,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       deletePaths.contains(file.path())
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete
-                              && entry.sequenceNumber() > 0
-                              && entry.sequenceNumber() < minSequenceNumber);
+                              && entry.isLive()
+                              && entry.dataSequenceNumber() > 0
+                              && entry.dataSequenceNumber() < minSequenceNumber);
                   if (entry.status() != ManifestEntry.Status.DELETED) {
                     if (markedForDelete || evaluator.rowsMightMatch(file)) {
                       boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);

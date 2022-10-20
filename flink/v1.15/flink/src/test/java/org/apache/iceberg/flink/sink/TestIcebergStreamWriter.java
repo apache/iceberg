@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
@@ -87,7 +86,7 @@ public class TestIcebergStreamWriter {
   }
 
   public TestIcebergStreamWriter(String format, boolean partitioned) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
     this.partitioned = partitioned;
   }
 
@@ -225,12 +224,36 @@ public class TestIcebergStreamWriter {
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
-      // invoke endInput again.
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles * 2, result.dataFiles().length);
+      // Datafiles should not be sent again
+      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+    }
+  }
+
+  @Test
+  public void testBoundedStreamTriggeredEndInputBeforeTriggeringCheckpoint() throws Exception {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
+      testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
+      testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
+
+      testHarness.endInput();
+
+      long expectedDataFiles = partitioned ? 2 : 1;
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      Assert.assertEquals(0, result.deleteFiles().length);
+      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+
+      testHarness.prepareSnapshotPreBarrier(1L);
+
+      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      Assert.assertEquals(0, result.deleteFiles().length);
+      // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
+      // is triggered, write should only send WriteResult once
+      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
     }
   }
 

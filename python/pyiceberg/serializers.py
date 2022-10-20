@@ -17,10 +17,9 @@
 
 import codecs
 import json
-from typing import Union
 
-from pyiceberg.io.base import InputFile, InputStream, OutputFile
-from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
+from pyiceberg.io import InputFile, InputStream, OutputFile
+from pyiceberg.table.metadata import TableMetadata, TableMetadataUtil
 
 
 class FromByteStream:
@@ -35,8 +34,8 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader
         """
         reader = codecs.getreader(encoding)
-        metadata = json.load(reader(byte_stream))  # type: ignore
-        return TableMetadata.parse_obj(metadata)  # type: ignore
+        metadata = json.load(reader(byte_stream))
+        return TableMetadataUtil.parse_obj(metadata)
 
 
 class FromInputFile:
@@ -54,22 +53,20 @@ class FromInputFile:
             TableMetadata: A table metadata instance
 
         """
-        return FromByteStream.table_metadata(byte_stream=input_file.open(), encoding=encoding)
+        with input_file.open() as input_stream:
+            return FromByteStream.table_metadata(byte_stream=input_stream, encoding=encoding)
 
 
 class ToOutputFile:
     """A collection of methods that serialize Iceberg objects into files given an OutputFile instance"""
 
     @staticmethod
-    def table_metadata(
-        metadata: Union[TableMetadataV1, TableMetadataV2], output_file: OutputFile, overwrite: bool = False
-    ) -> None:
+    def table_metadata(metadata: TableMetadata, output_file: OutputFile, overwrite: bool = False) -> None:
         """Write a TableMetadata instance to an output file
 
         Args:
             output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
-        f = output_file.create(overwrite=overwrite)
-        f.write(metadata.json().encode("utf-8"))
-        f.close()
+        with output_file.create(overwrite=overwrite) as output_stream:
+            output_stream.write(metadata.json().encode("utf-8"))

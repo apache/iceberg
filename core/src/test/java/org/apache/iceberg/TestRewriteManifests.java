@@ -962,7 +962,7 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestEntry<DataFile> appendEntry =
         manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
-    appendEntry.setSequenceNumber(snapshot.sequenceNumber());
+    appendEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
     ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
 
@@ -980,7 +980,7 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestEntry<DataFile> deleteEntry =
         manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
-    deleteEntry.setSequenceNumber(snapshot.sequenceNumber());
+    deleteEntry.setDataSequenceNumber(snapshot.sequenceNumber());
 
     ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
 
@@ -1086,6 +1086,20 @@ public class TestRewriteManifests extends TableTestBase {
         rewriteManifests::commit);
 
     Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
+  }
+
+  @Test
+  public void testRewriteManifestsOnBranchUnsupported() {
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+
+    AssertHelpers.assertThrows(
+        "Should reject committing rewrite manifests to branch",
+        UnsupportedOperationException.class,
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits",
+        () -> table.rewriteManifests().toBranch("someBranch").commit());
   }
 
   private void validateSummary(

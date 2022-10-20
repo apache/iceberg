@@ -24,8 +24,8 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 
 /** Use ECS append API to write data. */
@@ -48,17 +48,16 @@ class EcsAppendOutputStream extends PositionOutputStream {
   /** Pos for {@link PositionOutputStream} */
   private long pos;
 
-  private final Counter<Long> writeBytes;
-  private final Counter<Integer> writeOperations;
+  private final Counter writeBytes;
+  private final Counter writeOperations;
 
   private EcsAppendOutputStream(
       S3Client client, EcsURI uri, byte[] localCache, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.localCache = ByteBuffer.wrap(localCache);
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations =
-        metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
   }
 
   /** Use built-in 1 KiB byte buffer */
@@ -103,7 +102,7 @@ class EcsAppendOutputStream extends PositionOutputStream {
     }
 
     pos += len;
-    writeBytes.increment((long) len);
+    writeBytes.increment(len);
     writeOperations.increment();
   }
 

@@ -33,7 +33,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -277,7 +276,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   public TestMetricsRowGroupFilterTypes(
       String format, String column, Object readValue, Object skipValue) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
     this.column = column;
     this.readValue = readValue;
     this.skipValue = skipValue;

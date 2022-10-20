@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  tox:
+  lint-and-test:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -43,7 +43,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
     - name: Install
@@ -54,4 +54,4 @@ jobs:
       run: make lint
     - name: Tests
       working-directory: ./python
-      run: make test
+      run: make test-s3

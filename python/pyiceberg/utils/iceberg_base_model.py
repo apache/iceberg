@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from functools import cached_property
+from typing import Optional, Set
 
 from pydantic import BaseModel
 
@@ -37,17 +38,20 @@ class IcebergBaseModel(BaseModel):
     class Config:
         keep_untouched = (cached_property,)
         allow_population_by_field_name = True
-        copy_on_model_validation = False
         frozen = True
 
-    def dict(self, exclude_none: bool = True, **kwargs):
-        return super().dict(exclude_none=exclude_none, **kwargs)
-
-    def json(self, exclude_none: bool = True, by_alias: bool = True, **kwargs):
+    def _exclude_private_properties(self, exclude: Optional[Set[str]] = None) -> Set[str]:
         # A small trick to exclude private properties. Properties are serialized by pydantic,
         # regardless if they start with an underscore.
         # This will look at the dict, and find the fields and exclude them
-        exclude = set.union(
-            {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, kwargs.get("exclude", set())
+        return set.union(
+            {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, exclude or set()
         )
-        return super().json(exclude_none=exclude_none, exclude=exclude, by_alias=by_alias, **kwargs)
+
+    def dict(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, **kwargs):
+        return super().dict(exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), **kwargs)
+
+    def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs):
+        return super().json(
+            exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
+        )

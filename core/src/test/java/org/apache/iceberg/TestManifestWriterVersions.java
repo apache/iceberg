@@ -197,6 +197,7 @@ public class TestManifestWriterVersions {
   void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
+    Assert.assertEquals("Data sequence number", expectedSequenceNumber, entry.dataSequenceNumber());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }
@@ -205,6 +206,7 @@ public class TestManifestWriterVersions {
       ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
+    Assert.assertEquals("Data sequence number", expectedSequenceNumber, entry.dataSequenceNumber());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }

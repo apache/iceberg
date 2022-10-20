@@ -217,6 +217,14 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    checkLastOperationCommitted("UpdateStatistics");
+    UpdateStatistics updateStatistics = new SetStatistics(transactionOps);
+    updates.add(updateStatistics);
+    return updateStatistics;
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     checkLastOperationCommitted("ExpireSnapshots");
     ExpireSnapshots expire = new RemoveSnapshots(transactionOps);
@@ -712,13 +720,13 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    public ExpireSnapshots expireSnapshots() {
-      return BaseTransaction.this.expireSnapshots();
+    public UpdateStatistics updateStatistics() {
+      return BaseTransaction.this.updateStatistics();
     }
 
     @Override
-    public Rollback rollback() {
-      throw new UnsupportedOperationException("Transaction tables do not support rollback");
+    public ExpireSnapshots expireSnapshots() {
+      return BaseTransaction.this.expireSnapshots();
     }
 
     @Override
@@ -745,6 +753,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public LocationProvider locationProvider() {
       return transactionOps.locationProvider();
+    }
+
+    @Override
+    public List<StatisticsFile> statisticsFiles() {
+      return current.statisticsFiles();
     }
 
     @Override

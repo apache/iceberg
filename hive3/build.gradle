@@ -18,9 +18,9 @@
  */
 
 // overriding default versions for Hive3
-def hiveVersion = "3.1.2"
-def hadoopVersion = "3.1.0"
-def tezVersion = "0.10.1"
+def hiveVersion = "3.1.3"
+def hadoopVersion = "3.3.4"
+def tezVersion = "0.10.2"
 
 project(':iceberg-hive3') {
 
@@ -96,10 +96,10 @@ project(':iceberg-hive3') {
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
 
-    testImplementation("org.apache.avro:avro:1.9.2")
+    testImplementation("org.apache.avro:avro")
     testImplementation("org.apache.calcite:calcite-core")
     testImplementation("com.esotericsoftware:kryo-shaded:4.0.2")
-    testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
+    testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.13.4")
     testImplementation("org.apache.hive:hive-service:${hiveVersion}") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.apache.orc'

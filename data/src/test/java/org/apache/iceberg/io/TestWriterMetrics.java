@@ -227,10 +227,10 @@ public abstract class TestWriterMetrics<T> {
         OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
 
     T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter =
+    DataWriter<T> dataWriter =
         newWriterFactory(maxColumnTable)
             .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
-    dataWriter.add(row);
+    dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 
@@ -287,10 +287,10 @@ public abstract class TestWriterMetrics<T> {
         OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
 
     T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter =
+    DataWriter<T> dataWriter =
         newWriterFactory(maxColumnTable)
             .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
-    dataWriter.add(row);
+    dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 

@@ -310,19 +310,24 @@ class V2Metadata {
         case 1:
           return wrapped.snapshotId();
         case 2:
-          if (wrapped.sequenceNumber() == null) {
-            // if the entry's sequence number is null, then it will inherit the sequence number of
-            // the current commit.
+          if (wrapped.dataSequenceNumber() == null) {
+            // if the entry's data sequence number is null,
+            // then it will inherit the sequence number of the current commit.
             // to validate that this is correct, check that the snapshot id is either null (will
-            // also be inherited) or
-            // that it matches the id of the current commit.
+            // also be inherited) or that it matches the id of the current commit.
             Preconditions.checkState(
                 wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
                 "Found unassigned sequence number for an entry from snapshot: %s",
                 wrapped.snapshotId());
+
+            // inheritance should work only for ADDED entries
+            Preconditions.checkState(
+                wrapped.status() == Status.ADDED,
+                "Only entries with status ADDED can have null sequence number");
+
             return null;
           }
-          return wrapped.sequenceNumber();
+          return wrapped.dataSequenceNumber();
         case 3:
           return fileWrapper.wrap(wrapped.file());
         default:
@@ -343,6 +348,16 @@ class V2Metadata {
     @Override
     public void setSnapshotId(long snapshotId) {
       wrapped.setSnapshotId(snapshotId);
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
     }
 
     @Override

@@ -24,7 +24,9 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.transforms.Transforms;
 
 /**
  * Base class for metadata tables.
@@ -63,7 +65,9 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
     PartitionSpec.Builder identitySpecBuilder =
         PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
-    spec.fields().forEach(pf -> identitySpecBuilder.add(pf.fieldId(), pf.name(), "identity"));
+    for (PartitionField field : spec.fields()) {
+      identitySpecBuilder.add(field.fieldId(), field.name(), Transforms.identity());
+    }
     return identitySpecBuilder.build();
   }
 
@@ -159,6 +163,11 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   }
 
   @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ImmutableList.of();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return table().refs();
   }
@@ -224,13 +233,13 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   }
 
   @Override
-  public ExpireSnapshots expireSnapshots() {
-    throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
+  public UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException("Cannot update statistics of a metadata table");
   }
 
   @Override
-  public Rollback rollback() {
-    throw new UnsupportedOperationException("Cannot roll back a metadata table");
+  public ExpireSnapshots expireSnapshots() {
+    throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
   }
 
   @Override

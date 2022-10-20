@@ -54,6 +54,11 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   }
 
   @Override
+  public TableScan useRef(String ref) {
+    throw new UnsupportedOperationException("Cannot select ref in table: " + tableType());
+  }
+
+  @Override
   public TableScan asOfTime(long timestampMillis) {
     throw new UnsupportedOperationException("Cannot select snapshot in table: " + tableType());
   }

@@ -109,7 +109,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   public void testRoundTripSerdeWithV1TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata v1Metadata =
-        TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
@@ -130,14 +130,14 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
         "Cannot parse type from json when there is no type",
         IllegalArgumentException.class,
         "Cannot parse type from json:",
-        () -> TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson));
+        () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson));
   }
 
   @Test
   public void testRoundTripSerdeWithV2TableMetadata() throws Exception {
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata v2Metadata =
-        TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson);
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
     // missing fields
     // are filled in with their default values.
@@ -157,8 +157,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String json =
         String.format(
             "{\"metadata-location\":\"%s\",\"metadata\":%s}", TEST_METADATA_LOCATION, metadataJson);
-    TableMetadata metadata =
-        TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, metadataJson);
+    TableMetadata metadata = TableMetadataParser.fromJson(TEST_METADATA_LOCATION, metadataJson);
     LoadTableResponse actual = deserialize(json);
     LoadTableResponse expected = LoadTableResponse.builder().withTableMetadata(metadata).build();
     assertEquals(actual, expected);

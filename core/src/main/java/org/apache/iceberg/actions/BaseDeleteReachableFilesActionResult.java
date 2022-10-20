@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 public class BaseDeleteReachableFilesActionResult implements DeleteReachableFiles.Result {
 
   private final long deletedDataFilesCount;
+  private final long deletedPosDeleteFilesCount;
+  private final long deletedEqDeleteFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
   private final long deletedOtherFilesCount;
@@ -31,6 +33,23 @@ public class BaseDeleteReachableFilesActionResult implements DeleteReachableFile
       long deletedManifestListsCount,
       long otherDeletedFilesCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedPosDeleteFilesCount = 0;
+    this.deletedEqDeleteFilesCount = 0;
+    this.deletedManifestsCount = deletedManifestsCount;
+    this.deletedManifestListsCount = deletedManifestListsCount;
+    this.deletedOtherFilesCount = otherDeletedFilesCount;
+  }
+
+  public BaseDeleteReachableFilesActionResult(
+      long deletedDataFilesCount,
+      long deletedPosDeleteFilesCount,
+      long deletedEqDeleteFilesCount,
+      long deletedManifestsCount,
+      long deletedManifestListsCount,
+      long otherDeletedFilesCount) {
+    this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedPosDeleteFilesCount = deletedPosDeleteFilesCount;
+    this.deletedEqDeleteFilesCount = deletedEqDeleteFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
     this.deletedOtherFilesCount = otherDeletedFilesCount;
@@ -39,6 +58,16 @@ public class BaseDeleteReachableFilesActionResult implements DeleteReachableFile
   @Override
   public long deletedDataFilesCount() {
     return deletedDataFilesCount;
+  }
+
+  @Override
+  public long deletedPositionDeleteFilesCount() {
+    return deletedPosDeleteFilesCount;
+  }
+
+  @Override
+  public long deletedEqualityDeleteFilesCount() {
+    return deletedEqDeleteFilesCount;
   }
 
   @Override

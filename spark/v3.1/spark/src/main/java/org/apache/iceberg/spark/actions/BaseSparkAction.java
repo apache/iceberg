@@ -110,7 +110,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
-  protected Dataset<Row> buildValidDataFileDF(Table table) {
+  // builds a DF of delete and data file locations by reading all manifests
+  protected Dataset<Row> buildValidContentFileDF(Table table) {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
@@ -145,6 +146,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, false));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    otherMetadataFiles.addAll(ReachableFileUtil.statisticsFilesLocations(table));
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 

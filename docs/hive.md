@@ -178,9 +178,8 @@ SET iceberg.catalog.hadoop.warehouse=hdfs://example.com:8020/warehouse;
 Register an AWS `GlueCatalog` called `glue`:
 
 ```
-SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.GlueCatalog;
+SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
-SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
 SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 

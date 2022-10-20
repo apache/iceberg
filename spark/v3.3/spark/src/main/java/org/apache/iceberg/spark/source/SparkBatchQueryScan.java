@@ -259,6 +259,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       Snapshot snapshot = table().currentSnapshot();
       return estimateStatistics(snapshot);
     }
+
   }
 
   @Override

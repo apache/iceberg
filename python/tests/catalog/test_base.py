@@ -25,8 +25,12 @@ from typing import (
 
 import pytest
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -35,10 +39,11 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
-from pyiceberg.table.metadata import INITIAL_SPEC_ID
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.table import Table
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.transforms import IdentityTransform
+from pyiceberg.typedef import EMPTY_DICT
 from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 
@@ -48,8 +53,8 @@ class InMemoryCatalog(Catalog):
     __tables: Dict[Identifier, Table]
     __namespaces: Dict[Identifier, Properties]
 
-    def __init__(self, name: str, properties: Properties):
-        super().__init__(name, properties)
+    def __init__(self, name: str, **properties: str):
+        super().__init__(name, **properties)
         self.__tables = {}
         self.__namespaces = {}
 
@@ -60,7 +65,7 @@ class InMemoryCatalog(Catalog):
         location: Optional[str] = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Optional[Properties] = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
 
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -72,7 +77,11 @@ class InMemoryCatalog(Catalog):
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
-            table = Table(identifier=identifier, metadata=EXAMPLE_TABLE_METADATA_V1)
+            table = Table(
+                identifier=identifier,
+                metadata=EXAMPLE_TABLE_METADATA_V1,
+                metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
+            )
             self.__tables[identifier] = table
             return table
 
@@ -105,10 +114,12 @@ class InMemoryCatalog(Catalog):
         if to_namespace not in self.__namespaces:
             self.__namespaces[to_namespace] = {}
 
-        self.__tables[to_identifier] = Table(identifier=to_identifier, metadata=table.metadata)
+        self.__tables[to_identifier] = Table(
+            identifier=to_identifier, metadata=table.metadata, metadata_location=table.metadata_location
+        )
         return self.__tables[to_identifier]
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
             raise NamespaceAlreadyExistsError(f"Namespace already exists: {namespace}")
@@ -133,7 +144,7 @@ class InMemoryCatalog(Catalog):
 
         return list_tables
 
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         return list(self.__namespaces.keys())
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
@@ -144,7 +155,7 @@ class InMemoryCatalog(Catalog):
             raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}") from error
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         removed: Set[str] = set()
         updated: Set[str] = set()
@@ -175,7 +186,7 @@ TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
 TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
-TEST_TABLE_PARTITION_SPEC = PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=())
+TEST_TABLE_PARTITION_SPEC = PartitionSpec(PartitionField(name="x", transform=IdentityTransform(), source_id=1, field_id=1000))
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
 NO_SUCH_TABLE_ERROR = "Table does not exist: \\('com', 'organization', 'department', 'my_table'\\)"
 TABLE_ALREADY_EXISTS_ERROR = "Table already exists: \\('com', 'organization', 'department', 'my_table'\\)"
@@ -189,7 +200,7 @@ def given_catalog_has_a_table(catalog: InMemoryCatalog) -> Table:
         identifier=TEST_TABLE_IDENTIFIER,
         schema=TEST_TABLE_SCHEMA,
         location=TEST_TABLE_LOCATION,
-        partition_spec=TEST_TABLE_PARTITION_SPEC,
+        partition_spec=UNPARTITIONED_PARTITION_SPEC,
         properties=TEST_TABLE_PROPERTIES,
     )
 

@@ -78,7 +78,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     }
   }
 
-  /** Discover incremental changes between @{code lastPosition} and current table snapshot */
+  /** Discover incremental changes between {@code lastPosition} and current table snapshot */
   private ContinuousEnumerationResult discoverIncrementalSplits(
       IcebergEnumeratorPosition lastPosition) {
     Snapshot currentSnapshot = table.currentSnapshot();

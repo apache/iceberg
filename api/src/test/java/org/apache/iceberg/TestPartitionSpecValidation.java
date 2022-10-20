@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.Assert;
@@ -301,7 +302,7 @@ public class TestPartitionSpecValidation {
         PartitionSpec.builderFor(SCHEMA)
             .year("ts", "custom_year")
             .bucket("ts", 4, "custom_bucket")
-            .add(1, "id_partition2", "bucket[4]")
+            .add(1, "id_partition2", Transforms.bucket(4))
             .truncate("s", 1, "custom_truncate")
             .build();
 
@@ -316,9 +317,9 @@ public class TestPartitionSpecValidation {
   public void testAddPartitionFieldsWithFieldIds() {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA)
-            .add(1, 1005, "id_partition1", "bucket[4]")
-            .add(1, 1006, "id_partition2", "bucket[5]")
-            .add(1, 1002, "id_partition3", "bucket[6]")
+            .add(1, 1005, "id_partition1", Transforms.bucket(4))
+            .add(1, 1006, "id_partition2", Transforms.bucket(5))
+            .add(1, 1002, "id_partition3", Transforms.bucket(6))
             .build();
 
     Assert.assertEquals(1005, spec.fields().get(0).fieldId());
@@ -331,8 +332,8 @@ public class TestPartitionSpecValidation {
   public void testAddPartitionFieldsWithAndWithoutFieldIds() {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA)
-            .add(1, "id_partition2", "bucket[5]")
-            .add(1, 1005, "id_partition1", "bucket[4]")
+            .add(1, "id_partition2", Transforms.bucket(5))
+            .add(1, 1005, "id_partition1", Transforms.bucket(4))
             .truncate("s", 1, "custom_truncate")
             .build();
 

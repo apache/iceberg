@@ -32,8 +32,12 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RowDataReader extends BaseRowReader<FileScanTask> {
+  private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
+
   RowDataReader(
       ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task, expectedSchema, caseSensitive);
@@ -47,7 +51,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
   @Override
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().path().toString();
-    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes());
+    LOG.debug("Opening data file {}", filePath);
+    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes(), counter());
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();

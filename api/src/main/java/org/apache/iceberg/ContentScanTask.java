@@ -63,4 +63,11 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
    * @return a residual expression to apply to rows from this scan
    */
   Expression residual();
+
+  @Override
+  default long estimatedRowsCount() {
+    long splitOffset = (file().splitOffsets() != null) ? file().splitOffsets().get(0) : 0L;
+    double scannedFileFraction = ((double) length()) / (file().fileSizeInBytes() - splitOffset);
+    return (long) (scannedFileFraction * file().recordCount());
+  }
 }

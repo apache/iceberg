@@ -31,8 +31,8 @@ import java.util.List;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -57,8 +57,8 @@ class GCSInputStream extends SeekableInputStream {
   private final ByteBuffer singleByteBuffer = ByteBuffer.wrap(new byte[1]);
   private ByteBuffer byteBuffer;
 
-  private final Counter<Long> readBytes;
-  private final Counter<Integer> readOperations;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   GCSInputStream(
       Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
@@ -66,9 +66,8 @@ class GCSInputStream extends SeekableInputStream {
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
 
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations =
-        metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
 
     createStack = Thread.currentThread().getStackTrace();
 
@@ -131,7 +130,7 @@ class GCSInputStream extends SeekableInputStream {
 
     int bytesRead = channel.read(byteBuffer);
     pos += bytesRead;
-    readBytes.increment((long) bytesRead);
+    readBytes.increment(bytesRead);
     readOperations.increment();
 
     return bytesRead;

@@ -126,7 +126,7 @@ public interface ManifestFile {
   /** Returns the sequence number of the commit that added the manifest file. */
   long sequenceNumber();
 
-  /** Returns the lowest sequence number of any data file in the manifest. */
+  /** Returns the lowest data sequence number of any live file in the manifest. */
   long minSequenceNumber();
 
   /** Returns iD of the snapshot that added the manifest file to table metadata. */

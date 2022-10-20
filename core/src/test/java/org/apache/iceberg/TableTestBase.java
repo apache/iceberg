@@ -335,7 +335,7 @@ public class TableTestBase {
       case EXISTING:
         return entry.wrapExisting(snapshotId, 0L, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, file);
+        return entry.wrapDelete(snapshotId, 0L, file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }
@@ -347,6 +347,45 @@ public class TableTestBase {
 
   void validateSnapshot(Snapshot old, Snapshot snap, long sequenceNumber, DataFile... newFiles) {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  Snapshot commit(Table table, SnapshotUpdate snapshotUpdate, String branch) {
+    Snapshot snapshot;
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      snapshotUpdate.commit();
+      snapshot = table.currentSnapshot();
+    } else {
+      ((SnapshotProducer) snapshotUpdate.toBranch(branch)).commit();
+      snapshot = table.snapshot(branch);
+    }
+
+    return snapshot;
+  }
+
+  Snapshot apply(SnapshotUpdate snapshotUpdate, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return ((SnapshotProducer) snapshotUpdate).apply();
+    } else {
+      return ((SnapshotProducer) snapshotUpdate.toBranch(branch)).apply();
+    }
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  Snapshot latestSnapshot(Table table, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.currentSnapshot();
+    }
+
+    return table.snapshot(branch);
+  }
+
+  Snapshot latestSnapshot(TableMetadata metadata, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.currentSnapshot();
+    }
+
+    return metadata.snapshot(metadata.ref(branch).snapshotId());
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
@@ -374,9 +413,23 @@ public class TableTestBase {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
         V2Assert.assertEquals(
-            "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
+            "Data sequence number should match expected",
+            sequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              snap.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
@@ -445,9 +498,26 @@ public class TableTestBase {
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
+        Long expectedSequenceNumber = seqs.next();
         V2Assert.assertEquals(
-            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+            "Data sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              expectedSequenceNumber,
+              entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              manifest.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -472,9 +542,26 @@ public class TableTestBase {
       DeleteFile expected = expectedFiles.next();
       if (seqs != null) {
         V1Assert.assertEquals(
+            "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
+        V1Assert.assertEquals(
             "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+
+        Long expectedSequenceNumber = seqs.next();
         V2Assert.assertEquals(
-            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+            "Data sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
+        if (entry.isLive()) {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              expectedSequenceNumber,
+              entry.sequenceNumber());
+        } else {
+          V2Assert.assertEquals(
+              "Sequence number should match expected",
+              manifest.sequenceNumber(),
+              entry.sequenceNumber().longValue());
+        }
       }
       Assert.assertEquals(
           "Path should match expected", expected.path().toString(), file.path().toString());
@@ -590,10 +677,18 @@ public class TableTestBase {
 
   /** Used for assertions that only apply if the table version is v2. */
   protected static class Assertions {
-    private final boolean enabled;
+    private boolean enabled;
 
     private Assertions(int validForVersion, int formatVersion) {
       this.enabled = validForVersion == formatVersion;
+    }
+
+    void disable() {
+      this.enabled = false;
+    }
+
+    void enable() {
+      this.enabled = true;
     }
 
     void assertEquals(String context, int expected, int actual) {

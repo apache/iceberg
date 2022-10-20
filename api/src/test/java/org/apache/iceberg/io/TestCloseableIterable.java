@@ -27,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.TestableCloseableIterable.TestableCloseableIterator;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
-import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
@@ -104,7 +104,7 @@ public class TestCloseableIterable {
     Assertions.assertThatThrownBy(
             () -> CloseableIterable.whenComplete(CloseableIterable.combine(items, () -> {}), null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot execute a null Runnable after completion");
+        .hasMessage("Invalid runnable: null");
 
     try (CloseableIterable<Integer> iter =
         CloseableIterable.whenComplete(
@@ -203,8 +203,7 @@ public class TestCloseableIterable {
 
   @Test
   public void count() {
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x");
     CloseableIterable<Integer> items =
         CloseableIterable.count(
             counter, CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)));
@@ -215,8 +214,7 @@ public class TestCloseableIterable {
 
   @Test
   public void countSkipped() {
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x");
     CloseableIterable<Integer> items =
         CloseableIterable.filter(
             counter,
@@ -233,8 +231,7 @@ public class TestCloseableIterable {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x");
     Assertions.assertThatThrownBy(() -> CloseableIterable.count(counter, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid iterable: null");
@@ -248,8 +245,7 @@ public class TestCloseableIterable {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
-    MetricsContext.Counter<Integer> counter =
-        new DefaultMetricsContext().counter("x", Integer.class, MetricsContext.Unit.COUNT);
+    Counter counter = new DefaultMetricsContext().counter("x");
     Assertions.assertThatThrownBy(
             () -> CloseableIterable.filter(counter, null, Predicate.isEqual(true)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -259,5 +255,13 @@ public class TestCloseableIterable {
             () -> CloseableIterable.filter(counter, CloseableIterable.empty(), null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid predicate: null");
+  }
+
+  @Test
+  public void transformNullCheck() {
+    Assertions.assertThatThrownBy(
+            () -> CloseableIterable.transform(CloseableIterable.empty(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid transform: null");
   }
 }

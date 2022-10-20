@@ -35,6 +35,11 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
   }
 
   @Override
+  default long estimatedRowsCount() {
+    return tasks().stream().mapToLong(ScanTask::estimatedRowsCount).sum();
+  }
+
+  @Override
   default int filesCount() {
     return tasks().stream().mapToInt(ScanTask::filesCount).sum();
   }

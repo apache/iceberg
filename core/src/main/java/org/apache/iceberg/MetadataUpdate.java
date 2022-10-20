@@ -178,6 +178,46 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class SetStatistics implements MetadataUpdate {
+    private final long snapshotId;
+    private final StatisticsFile statisticsFile;
+
+    public SetStatistics(long snapshotId, StatisticsFile statisticsFile) {
+      this.snapshotId = snapshotId;
+      this.statisticsFile = statisticsFile;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    public StatisticsFile statisticsFile() {
+      return statisticsFile;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setStatistics(snapshotId, statisticsFile);
+    }
+  }
+
+  class RemoveStatistics implements MetadataUpdate {
+    private final long snapshotId;
+
+    public RemoveStatistics(long snapshotId) {
+      this.snapshotId = snapshotId;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeStatistics(snapshotId);
+    }
+  }
+
   class AddSnapshot implements MetadataUpdate {
     private final Snapshot snapshot;
 
