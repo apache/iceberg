@@ -421,12 +421,32 @@ Existing data files are added to the Iceberg table's metadata and can be read us
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
 
+Migrate will create a backup table with name [`table__BACKUP__`]. If you feel confident that the migration succeeded 
+feel free to drop the backup table. You can also explicitly pass  [`drop_backup => true`] to drop the backup table after 
+migration finishes.
+
+#### Warning
+
+Currently, migrate renames the source table to create a backup table. Sometimes renaming a table is not a catalog
+level operation only and might result in actually creating a new folder corresponding to the backup table in your
+warehouse. In this case dropping the backup table after a successful migration could be dangerous because the metadata 
+files of the newly created iceberg table might point to the files in the backup table folder in your warehouse.
+So, dropping the backup table with purge might actually delete the files in the [`table__BACKUP__`] folder in your 
+warehouse. Since the metadata files are pointing to the [`table__BACKUP__`] folder you might actually lose your data.
+
+Furthermore, If your warehouse resides in object stores like S3, then rename is not an atomic operation and might result 
+in data movement. This is not only expensive, but also cause correctness issues if rename fails.
+
+This issue can be observed for hive tables created using the [`STORED AS`] statement.
+
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to migrate |
-| `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
+| Argument Name | Required? | Type | Description                                                                          |
+|---------------|---------|------|--------------------------------------------------------------------------------------|
+| `table`       | ✔️ | string | Name of the table to migrate                                                         |
+| `properties`  | ️ | map<string, string> | Properties for the new Iceberg table                                                 |
+| `drop_backup` |   | boolean | When true, the backup table is dropped after succesful migration (defaults to false) |
+
 
 #### Output
 
