@@ -25,6 +25,10 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
@@ -202,6 +206,8 @@ public class ORC {
       OrcConf.COMPRESS.setString(conf, context.compressionKind().name());
       OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().name());
       OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
+      OrcConf.BLOOM_FILTER_COLUMNS.setString(conf, context.bloomFilterColumns());
+      OrcConf.BLOOM_FILTER_FPP.setDouble(conf, context.bloomFilterFpp());
 
       return new OrcFileAppender<>(
           schema,
@@ -219,6 +225,8 @@ public class ORC {
       private final int vectorizedRowBatchSize;
       private final CompressionKind compressionKind;
       private final CompressionStrategy compressionStrategy;
+      private final String bloomFilterColumns;
+      private final double bloomFilterFpp;
 
       public long stripeSize() {
         return stripeSize;
@@ -240,17 +248,29 @@ public class ORC {
         return compressionStrategy;
       }
 
+      public String bloomFilterColumns() {
+        return bloomFilterColumns;
+      }
+
+      public double bloomFilterFpp() {
+        return bloomFilterFpp;
+      }
+
       private Context(
           long stripeSize,
           long blockSize,
           int vectorizedRowBatchSize,
           CompressionKind compressionKind,
-          CompressionStrategy compressionStrategy) {
+          CompressionStrategy compressionStrategy,
+          String bloomFilterColumns,
+          double bloomFilterFpp) {
         this.stripeSize = stripeSize;
         this.blockSize = blockSize;
         this.vectorizedRowBatchSize = vectorizedRowBatchSize;
         this.compressionKind = compressionKind;
         this.compressionStrategy = compressionStrategy;
+        this.bloomFilterColumns = bloomFilterColumns;
+        this.bloomFilterFpp = bloomFilterFpp;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -286,8 +306,31 @@ public class ORC {
             PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
         CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
 
+        String bloomFilterColumns =
+            PropertyUtil.propertyAsString(
+                config,
+                OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(),
+                ORC_BLOOM_FILTER_COLUMNS_DEFAULT);
+        bloomFilterColumns =
+            PropertyUtil.propertyAsString(config, ORC_BLOOM_FILTER_COLUMNS, bloomFilterColumns);
+
+        double bloomFilterFpp =
+            PropertyUtil.propertyAsDouble(
+                config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), ORC_BLOOM_FILTER_FPP_DEFAULT);
+        bloomFilterFpp =
+            PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
+        Preconditions.checkArgument(
+            bloomFilterFpp > 0.0 && bloomFilterFpp < 1.0,
+            "Bloom filter fpp must be > 0.0 and < 1.0");
+
         return new Context(
-            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+            stripeSize,
+            blockSize,
+            vectorizedRowBatchSize,
+            compressionKind,
+            compressionStrategy,
+            bloomFilterColumns,
+            bloomFilterFpp);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -318,7 +361,13 @@ public class ORC {
                 : dataContext.compressionStrategy();
 
         return new Context(
-            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+            stripeSize,
+            blockSize,
+            vectorizedRowBatchSize,
+            compressionKind,
+            compressionStrategy,
+            dataContext.bloomFilterColumns(),
+            dataContext.bloomFilterFpp());
       }
 
       private static CompressionKind toCompressionKind(String codecAsString) {

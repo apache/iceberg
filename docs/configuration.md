@@ -64,6 +64,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.orc.block-size-bytes         | 268435456 (256 MB) | Define the default file system block size for ORC files |
 | write.orc.compression-codec        | zlib               | ORC compression codec: zstd, lz4, lzo, zlib, snappy, none |
 | write.orc.compression-strategy     | speed              | ORC compression strategy: speed, compression |
+| write.orc.bloom.filter.columns     | (not set)          | Comma separated list of column names for which a Bloom filter must be created |
+| write.orc.bloom.filter.fpp         | 0.05               | False positive probability for Bloom filter (must > 0.0 and < 1.0) |
 | write.location-provider.impl       | null               | Optional custom implementation for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
