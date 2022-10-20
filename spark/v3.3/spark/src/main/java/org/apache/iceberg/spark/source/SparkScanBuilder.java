@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.IncrementalChangelogScan;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -187,29 +186,10 @@ public class SparkScanBuilder
     String branch = readConf.branch();
     String tag = readConf.branch();
 
-    Preconditions.checkArgument(
-        branch == null || tag == null,
-        "Cannot set both %s and %s to select which table snapshot to scan",
-        SparkReadOptions.BRANCH,
-        SparkReadOptions.TAG);
-
-    Preconditions.checkArgument(
-        snapshotId == null || asOfTimestamp == null,
-        "Cannot set both %s and %s to select which table snapshot to scan",
-        SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
-
-    String snapshotRef = branch != null ? branch : tag;
-    Preconditions.checkArgument(
-        snapshotId == null || snapshotRef == null,
-        "Cannot set both %s and %s to select which table snapshot to scan",
-        SparkReadOptions.SNAPSHOT_ID,
-        "branch/tag");
-
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
 
-    if (snapshotId != null || asOfTimestamp != null) {
+    if (snapshotId != null || asOfTimestamp != null || branch != null || tag != null) {
       Preconditions.checkArgument(
           startSnapshotId == null && endSnapshotId == null,
           "Cannot set %s and %s for incremental scans when either %s or %s is set",
@@ -243,9 +223,9 @@ public class SparkScanBuilder
     }
 
     if (branch != null) {
-      scan.useSnapshotRef(branch);
+      scan.useRef(branch);
     } else if (tag != null) {
-      scan.useSnapshotRef(tag);
+      scan.useRef(tag);
     }
 
     if (startSnapshotId != null) {
