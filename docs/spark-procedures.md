@@ -425,20 +425,6 @@ Migrate will create a backup table with name [`table__BACKUP__`]. If you feel co
 feel free to drop the backup table. You can also explicitly pass  [`drop_backup => true`] to drop the backup table after 
 migration finishes.
 
-#### Warning
-
-Currently, migrate renames the source table to create a backup table. Sometimes renaming a table is not a catalog
-level operation only and might result in actually creating a new folder corresponding to the backup table in your
-warehouse. In this case dropping the backup table after a successful migration could be dangerous because the metadata 
-files of the newly created iceberg table might point to the files in the backup table folder in your warehouse.
-So, dropping the backup table with purge might actually delete the files in the [`table__BACKUP__`] folder in your 
-warehouse. Since the metadata files are pointing to the [`table__BACKUP__`] folder you might actually lose your data.
-
-Furthermore, If your warehouse resides in object stores like S3, then rename is not an atomic operation and might result 
-in data movement. This is not only expensive, but also cause correctness issues if rename fails.
-
-This issue can be observed for hive tables created using the [`STORED AS`] statement.
-
 #### Usage
 
 | Argument Name | Required? | Type | Description                                                                          |
