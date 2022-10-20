@@ -85,8 +85,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     // Forward all catalog properties that begin with `hive.` into configuration for use in setting
-    // up the
-    // MetastoreClient
+    // up the MetastoreClient
     for (Map.Entry<String, String> entry : properties.entrySet()) {
       if (entry.getKey().startsWith(HIVE_PROPERTY_PREFIX)) {
         this.conf.set(entry.getKey(), entry.getValue());
