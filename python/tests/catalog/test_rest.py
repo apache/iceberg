@@ -53,6 +53,9 @@ TEST_HEADERS = {
     "User-Agent": f"PyIceberg/{pyiceberg.__version__}",
     "Authorization": f"Bearer {TEST_TOKEN}",
 }
+OAUTH_TEST_HEADERS = {
+    "Content-type": "application/x-www-form-urlencoded",
+}
 
 
 @pytest.fixture
@@ -84,6 +87,7 @@ def test_token_200(rest_mock: Mocker):
             "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
         },
         status_code=200,
+        request_headers=OAUTH_TEST_HEADERS,
     )
     assert (
         RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).session.headers["Authorization"] == f"Bearer {TEST_TOKEN}"
@@ -95,6 +99,7 @@ def test_token_400(rest_mock: Mocker):
         f"{TEST_URI}v1/oauth/tokens",
         json={"error": "invalid_client", "error_description": "Credentials for key invalid_key do not match"},
         status_code=400,
+        request_headers=OAUTH_TEST_HEADERS,
     )
 
     with pytest.raises(OAuthError) as e:
@@ -108,6 +113,7 @@ def test_token_401(rest_mock: Mocker):
         f"{TEST_URI}v1/oauth/tokens",
         json={"error": "invalid_client", "error_description": "Unknown or invalid client"},
         status_code=401,
+        request_headers=OAUTH_TEST_HEADERS,
     )
 
     with pytest.raises(OAuthError) as e:

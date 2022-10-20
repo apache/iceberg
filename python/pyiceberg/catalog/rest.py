@@ -206,17 +206,17 @@ class RestCatalog(Catalog):
                 elif ssl_client_cert := ssl_client.get(CERT):
                     self.session.cert = ssl_client_cert
 
-        # Set HTTP headers
-        self.session.headers["Content-type"] = "application/json"
-        self.session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
-        self.session.headers["User-Agent"] = f"PyIceberg/{__version__}"
-
         # Set Auth token for subsequent calls in the session
         if token := self.properties.get(TOKEN):
             self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
         elif credential := self.properties.get(CREDENTIAL):
             token = self._fetch_access_token(credential)
             self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
+
+        # Set HTTP headers
+        self.session.headers["Content-type"] = "application/json"
+        self.session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
+        self.session.headers["User-Agent"] = f"PyIceberg/{__version__}"
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
