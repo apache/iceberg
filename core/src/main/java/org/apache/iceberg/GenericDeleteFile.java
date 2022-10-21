@@ -39,6 +39,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       long fileSizeInBytes,
       Metrics metrics,
       int[] equalityFieldIds,
+      int[] partialFieldIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata) {
     super(
@@ -57,6 +58,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         metrics.upperBounds(),
         null,
         equalityFieldIds,
+        partialFieldIds,
         sortOrderId,
         keyMetadata);
   }

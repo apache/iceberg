@@ -38,7 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructProjection;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA =
@@ -107,6 +109,20 @@ public class Deletes {
         };
 
     return remainingRowsFilter.filter(rows);
+  }
+
+  public static StructLikeMap<StructLike> toPartialMap(
+      CloseableIterable<StructLike> eqDeletes,
+      Types.StructType eqType,
+      StructProjection projectRow) {
+    try (CloseableIterable<StructLike> deletes = eqDeletes) {
+      StructLikeMap<StructLike> objectStructLikeMap = StructLikeMap.create(eqType);
+      deletes.forEach(delete -> objectStructLikeMap.put(projectRow.wrap(delete), delete));
+
+      return objectStructLikeMap;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close equality delete source", e);
+    }
   }
 
   public static StructLikeSet toEqualitySet(

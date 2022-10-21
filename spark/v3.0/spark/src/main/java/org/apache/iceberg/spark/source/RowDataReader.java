@@ -190,6 +190,12 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     }
 
     @Override
+    protected InternalRow combineRecord(
+        InternalRow record, StructLike partialRecord, Schema partialSchema) {
+      throw new UnsupportedOperationException("Partial updates are not yet supported.");
+    }
+
+    @Override
     protected InputFile getInputFile(String location) {
       return RowDataReader.this.getInputFile(location);
     }

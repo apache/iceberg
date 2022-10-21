@@ -53,6 +53,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PartialDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -377,6 +378,7 @@ public class Avro {
     private StructLike partition;
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
+    private int[] partialFieldIds = null;
     private SortOrder sortOrder;
 
     private DeleteWriteBuilder(OutputFile file) {
@@ -461,6 +463,11 @@ public class Avro {
       return this;
     }
 
+    public DeleteWriteBuilder partialFieldIds(int... fieldIds) {
+      this.partialFieldIds = fieldIds;
+      return this;
+    }
+
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -501,6 +508,51 @@ public class Avro {
           keyMetadata,
           sortOrder,
           equalityFieldIds);
+    }
+
+    public <T> PartialDeleteWriter<T> buildPartialWriter() throws IOException {
+      Preconditions.checkState(
+          rowSchema != null, "Cannot create equality delete file without a schema");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Cannot create partial file without delete field ids");
+      Preconditions.checkState(
+          partialFieldIds != null, "Cannot create partial file without partial field ids");
+      Preconditions.checkState(
+          createWriterFunc != null, "Cannot create partial file unless createWriterFunc is set");
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating partial writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
+          "Partition must not be null for partitioned writes");
+
+      meta("delete-type", "partial");
+      meta(
+          "delete-field-ids",
+          IntStream.of(equalityFieldIds)
+              .mapToObj(Objects::toString)
+              .collect(Collectors.joining(", ")));
+
+      meta(
+          "partial-field-ids",
+          IntStream.of(partialFieldIds)
+              .mapToObj(Objects::toString)
+              .collect(Collectors.joining(", ")));
+
+      // the appender uses the row schema without extra columns
+      appenderBuilder.schema(rowSchema);
+      appenderBuilder.createWriterFunc(createWriterFunc);
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+
+      return new PartialDeleteWriter<>(
+          appenderBuilder.build(),
+          FileFormat.AVRO,
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder,
+          equalityFieldIds,
+          partialFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {

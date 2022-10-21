@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 
 public class GenericDeleteFilter extends DeleteFilter<Record> {
   private final FileIO io;
@@ -43,6 +47,19 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   @Override
   protected StructLike asStructLike(Record record) {
     return asStructLike.wrap(record);
+  }
+
+  @Override
+  protected Record combineRecord(Record record, StructLike partialRecord, Schema partialSchema) {
+    Map<String, Object> overwriteValues =
+        Maps.newHashMapWithExpectedSize(partialSchema.columns().size());
+
+    List<Types.NestedField> columns = partialSchema.columns();
+    for (int i = 0; i < columns.size(); i++) {
+      overwriteValues.put(columns.get(i).name(), partialRecord.get(i, Object.class));
+    }
+
+    return record.copy(overwriteValues);
   }
 
   @Override

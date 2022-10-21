@@ -20,7 +20,9 @@ package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PartialDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 
@@ -61,6 +63,19 @@ public interface FileAppenderFactory<T> {
    */
   EqualityDeleteWriter<T> newEqDeleteWriter(
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
+
+  /**
+   * Create a new {@link PartialDeleteWriter}.
+   *
+   * @param outputFile an OutputFile used to create an output stream.
+   * @param format a file format
+   * @param partition a tuple of partition values
+   * @return a newly created {@link PartialDeleteWriter} for partial updates.
+   */
+  default PartialDeleteWriter<Record> newPartialWriter(
+      EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
+    throw new UnsupportedOperationException("Not implemented yet.");
+  }
 
   /**
    * Create a new {@link PositionDeleteWriter}.

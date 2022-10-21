@@ -271,7 +271,8 @@ class V2Metadata {
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
-        DataFile.SORT_ORDER_ID);
+        DataFile.SORT_ORDER_ID,
+        DataFile.PARTIAL_IDS);
   }
 
   static class IndexedManifestEntry<F extends ContentFile<F>>
@@ -443,6 +444,8 @@ class V2Metadata {
           return wrapped.equalityFieldIds();
         case 15:
           return wrapped.sortOrderId();
+        case 16:
+          return wrapped.partialFieldIds();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -535,6 +538,11 @@ class V2Metadata {
     @Override
     public List<Integer> equalityFieldIds() {
       return wrapped.equalityFieldIds();
+    }
+
+    @Override
+    public List<Integer> partialFieldIds() {
+      return wrapped.partialFieldIds();
     }
 
     @Override

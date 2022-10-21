@@ -215,6 +215,12 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     }
 
     @Override
+    protected RowData combineRecord(
+        RowData record, StructLike partialRecord, Schema partialSchema) {
+      throw new UnsupportedOperationException("Partial updates are not yet supported.");
+    }
+
+    @Override
     protected InputFile getInputFile(String location) {
       return inputFilesDecryptor.getInputFile(location);
     }

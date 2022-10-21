@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PartialDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -93,6 +94,45 @@ public class FileHelpers {
 
     EqualityDeleteWriter<Record> writer =
         factory.newEqDeleteWriter(encrypt(out), format, partition);
+    try (Closeable toClose = writer) {
+      writer.write(deletes);
+    }
+
+    return writer.toDeleteFile();
+  }
+
+  public static DeleteFile writePartialFile(
+      Table table,
+      OutputFile out,
+      StructLike partition,
+      List<Record> deletes,
+      Schema equalitySchema,
+      Schema partialDataSchema,
+      Schema partialFullSchema)
+      throws IOException {
+    FileFormat format = defaultFormat(table.properties());
+    int[] equalityFieldIds =
+        equalitySchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
+
+    int[] partialFieldIds =
+        partialDataSchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
+
+    int[] partialFullFieldIds =
+        partialFullSchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
+
+    FileAppenderFactory<Record> factory =
+        new GenericAppenderFactory(
+            table.schema(),
+            table.spec(),
+            equalityFieldIds,
+            partialFieldIds,
+            partialFullFieldIds,
+            equalitySchema,
+            null,
+            partialDataSchema,
+            partialFullSchema);
+
+    PartialDeleteWriter<Record> writer = factory.newPartialWriter(encrypt(out), format, partition);
     try (Closeable toClose = writer) {
       writer.write(deletes);
     }

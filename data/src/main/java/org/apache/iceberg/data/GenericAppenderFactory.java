@@ -31,6 +31,7 @@ import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PartialDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -47,8 +48,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Schema schema;
   private final PartitionSpec spec;
   private final int[] equalityFieldIds;
+  private final int[] partialFieldIds;
+  private final int[] partialFullFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
+  private final Schema partialDataSchema;
+  private final Schema partialFullSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
   public GenericAppenderFactory(Schema schema) {
@@ -65,11 +70,37 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
+    this(
+        schema,
+        spec,
+        equalityFieldIds,
+        null,
+        null,
+        eqDeleteRowSchema,
+        posDeleteRowSchema,
+        null,
+        null);
+  }
+
+  public GenericAppenderFactory(
+      Schema schema,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      int[] partialFieldIds,
+      int[] partialFullFieldIds,
+      Schema eqDeleteRowSchema,
+      Schema posDeleteRowSchema,
+      Schema partialDataSchema,
+      Schema partialFullSchema) {
     this.schema = schema;
     this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
+    this.partialFieldIds = partialFieldIds;
+    this.partialFullFieldIds = partialFullFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
+    this.partialDataSchema = partialDataSchema;
+    this.partialFullSchema = partialFullSchema;
   }
 
   public GenericAppenderFactory set(String property, String value) {
@@ -133,6 +164,41 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         spec,
         partition,
         file.keyMetadata());
+  }
+
+  @Override
+  public PartialDeleteWriter<Record> newPartialWriter(
+      EncryptedOutputFile file, FileFormat format, StructLike partition) {
+    Preconditions.checkState(
+        equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality field ids shouldn't be null or empty when creating equality-delete writer");
+    Preconditions.checkNotNull(
+        eqDeleteRowSchema,
+        "Equality delete row schema shouldn't be null when creating equality-delete writer");
+
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    try {
+      switch (format) {
+        case AVRO:
+          return Avro.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(partialFullSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .partialFieldIds(partialFieldIds)
+              .buildPartialWriter();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot write equality-deletes for unsupported file format: " + format);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override

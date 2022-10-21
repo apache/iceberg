@@ -221,12 +221,14 @@ public class SnapshotSummary {
     private int addedPosDeleteFiles = 0;
     private int removedPosDeleteFiles = 0;
     private int addedDeleteFiles = 0;
+    private int addedPartialFiles = 0;
     private int removedDeleteFiles = 0;
     private long addedRecords = 0L;
     private long deletedRecords = 0L;
     private long addedPosDeletes = 0L;
     private long removedPosDeletes = 0L;
     private long addedEqDeletes = 0L;
+    private long addedPartialUpdates = 0L;
     private long removedEqDeletes = 0L;
     private boolean trustSizeAndDeleteCounts = true;
 
@@ -290,6 +292,12 @@ public class SnapshotSummary {
           this.addedEqDeleteFiles += 1;
           this.addedEqDeletes += file.recordCount();
           break;
+        case PARTIAL_UPDATE:
+          this.addedDeleteFiles += 1;
+          this.addedPartialFiles += 1;
+          this.addedPartialUpdates += file.recordCount();
+          break;
+
         default:
           throw new UnsupportedOperationException(
               "Unsupported file content type: " + file.content());

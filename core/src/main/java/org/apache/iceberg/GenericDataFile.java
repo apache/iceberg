@@ -57,6 +57,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         metrics.upperBounds(),
         splitOffsets,
         null,
+        null,
         sortOrderId,
         keyMetadata);
   }

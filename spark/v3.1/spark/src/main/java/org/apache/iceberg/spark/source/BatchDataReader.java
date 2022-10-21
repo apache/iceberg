@@ -155,6 +155,12 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     }
 
     @Override
+    protected InternalRow combineRecord(
+        InternalRow record, StructLike partialRecord, Schema partialSchema) {
+      throw new UnsupportedOperationException("Partial updates are not yet supported.");
+    }
+
+    @Override
     protected InputFile getInputFile(String location) {
       return BatchDataReader.this.getInputFile(location);
     }

@@ -41,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -51,6 +52,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
@@ -66,6 +69,7 @@ public abstract class DeleteFilter<T> {
   private final String filePath;
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
+  private final List<DeleteFile> partialUpdates;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
@@ -74,6 +78,7 @@ public abstract class DeleteFilter<T> {
 
   private PositionDeleteIndex deleteRowPositions = null;
   private List<Predicate<T>> isInDeleteSets = null;
+  private Set<Function<T, T>> partialDataSet = null;
   private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(
@@ -88,6 +93,7 @@ public abstract class DeleteFilter<T> {
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
+    ImmutableList.Builder<DeleteFile> partialBuilder = ImmutableList.builder();
     for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
@@ -98,6 +104,10 @@ public abstract class DeleteFilter<T> {
           LOG.debug("Adding equality delete file {} to filter", delete.path());
           eqDeleteBuilder.add(delete);
           break;
+        case PARTIAL_UPDATE:
+          LOG.debug("Adding partial file {} to filter", delete.path());
+          partialBuilder.add(delete);
+          break;
         default:
           throw new UnsupportedOperationException(
               "Unknown delete file content: " + delete.content());
@@ -106,6 +116,7 @@ public abstract class DeleteFilter<T> {
 
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
+    this.partialUpdates = partialBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
@@ -144,6 +155,8 @@ public abstract class DeleteFilter<T> {
 
   protected abstract StructLike asStructLike(T record);
 
+  protected abstract T combineRecord(T record, StructLike partialRecord, Schema partialSchema);
+
   protected abstract InputFile getInputFile(String location);
 
   protected long pos(T record) {
@@ -151,7 +164,7 @@ public abstract class DeleteFilter<T> {
   }
 
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
-    return applyEqDeletes(applyPosDeletes(records));
+    return applyPartialUpdate(applyEqDeletes(applyPosDeletes(records)));
   }
 
   private List<Predicate<T>> applyEqDeletes() {
@@ -200,6 +213,71 @@ public abstract class DeleteFilter<T> {
     return isInDeleteSets;
   }
 
+  private Set<Function<T, T>> applyPartialMap() {
+    if (partialDataSet != null) {
+      return partialDataSet;
+    }
+
+    partialDataSet = Sets.newHashSet();
+    if (partialUpdates.isEmpty()) {
+      return partialDataSet;
+    }
+
+    Multimap<Pair<Set<Integer>, Set<Integer>>, DeleteFile> filesByPartialIds =
+        Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
+    for (DeleteFile delete : partialUpdates) {
+      Set<Integer> eqIds = Sets.newHashSet(delete.equalityFieldIds());
+      Set<Integer> partialIds = Sets.newHashSet(delete.partialFieldIds());
+      filesByPartialIds.put(Pair.of(eqIds, partialIds), delete);
+    }
+
+    for (Map.Entry<Pair<Set<Integer>, Set<Integer>>, Collection<DeleteFile>> entry :
+        filesByPartialIds.asMap().entrySet()) {
+      Pair<Set<Integer>, Set<Integer>> pairIds = entry.getKey();
+      Iterable<DeleteFile> deletes = entry.getValue();
+      Set<Integer> eqIds = pairIds.first();
+      Set<Integer> partialIds = pairIds.second();
+      Set<Integer> partialUpdateIds = Sets.newHashSet(eqIds);
+      partialUpdateIds.addAll(partialIds);
+
+      Schema partialUpdateSchema = TypeUtil.select(requiredSchema, partialUpdateIds);
+      Schema eqSchema = TypeUtil.select(requiredSchema, eqIds);
+      Schema partialSchema = TypeUtil.select(requiredSchema, partialIds);
+
+      InternalRecordWrapper wrapper = new InternalRecordWrapper(partialUpdateSchema.asStruct());
+      StructProjection projectRow = StructProjection.create(partialUpdateSchema, eqSchema);
+
+      Iterable<CloseableIterable<Record>> deleteRecords =
+          Iterables.transform(deletes, delete -> openDeletes(delete, partialUpdateSchema));
+
+      CloseableIterable<Record> records =
+          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy);
+
+      StructLikeMap<StructLike> deleteSet =
+          Deletes.toPartialMap(
+              CloseableIterable.transform(records, wrapper::copyFor),
+              eqSchema.asStruct(),
+              projectRow);
+
+      StructProjection eqProjectFromRequired = StructProjection.create(requiredSchema, eqSchema);
+      StructProjection partialProject = StructProjection.create(partialUpdateSchema, partialSchema);
+
+      partialDataSet.add(
+          record -> {
+            StructProjection wrap = eqProjectFromRequired.wrap(asStructLike(record));
+            StructLike structLike = deleteSet.get(wrap);
+
+            if (structLike != null) {
+              StructLike partialRecord = partialProject.wrap(structLike);
+              return combineRecord(record, partialRecord, partialSchema);
+            }
+            return null;
+          });
+    }
+
+    return partialDataSet;
+  }
+
   public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
     // Predicate to test whether a row has been deleted by equality deletions.
     Predicate<T> deletedRows = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
@@ -211,6 +289,23 @@ public abstract class DeleteFilter<T> {
     Predicate<T> isEqDeleted = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
 
     return createDeleteIterable(records, isEqDeleted);
+  }
+
+  private CloseableIterable<T> applyPartialUpdate(CloseableIterable<T> records) {
+    Set<Function<T, T>> partialCombines = applyPartialMap();
+
+    return CloseableIterable.transform(
+        records,
+        record -> {
+          T result = record;
+          for (Function<T, T> partialCombine : partialCombines) {
+            T temp = partialCombine.apply(record);
+            if (temp != null) {
+              result = temp;
+            }
+          }
+          return result;
+        });
   }
 
   protected void markRowDeleted(T item) {
