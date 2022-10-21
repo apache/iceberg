@@ -21,7 +21,7 @@ from typing import Any, Dict
 import pytest
 
 from pyiceberg import schema
-from pyiceberg.expressions.base import Accessor
+from pyiceberg.expressions import Accessor
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, build_position_accessors, prune_columns
 from pyiceberg.typedef import EMPTY_DICT
