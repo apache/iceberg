@@ -22,13 +22,18 @@ import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.expressions.Window;
@@ -54,10 +59,13 @@ public class GenerateChangesProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
+        // the snapshot ids input are ignored when the start/end timestamps are provided
         ProcedureParameter.optional("start_snapshot_id_exclusive", DataTypes.LongType),
         ProcedureParameter.optional("end_snapshot_id_inclusive", DataTypes.LongType),
         ProcedureParameter.optional("table_change_view", DataTypes.StringType),
         ProcedureParameter.optional("identifier_columns", DataTypes.StringType),
+        ProcedureParameter.optional("start_timestamp", DataTypes.TimestampType),
+        ProcedureParameter.optional("end_timestamp", DataTypes.TimestampType),
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -104,20 +112,69 @@ public class GenerateChangesProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> changelogRecords(String tableName, InternalRow args) {
-    DataFrameReader reader = spark().read();
+    Long[] snapshotIds = getSnapshotIds(tableName, args);
 
     // we don't have to validate the snapshot ids here because the reader will do it for us.
-    if (!args.isNullAt(1)) {
-      long startSnapshotId = args.getLong(1);
-      reader = reader.option(SparkReadOptions.START_SNAPSHOT_ID, startSnapshotId);
+    DataFrameReader reader = spark().read();
+    if (snapshotIds[0] != null) {
+      reader = reader.option(SparkReadOptions.START_SNAPSHOT_ID, snapshotIds[0]);
     }
 
-    if (!args.isNullAt(2)) {
-      long endSnapshotId = args.getLong(2);
-      reader = reader.option(SparkReadOptions.END_SNAPSHOT_ID, endSnapshotId);
+    if (snapshotIds[1] != null) {
+      reader = reader.option(SparkReadOptions.END_SNAPSHOT_ID, snapshotIds[1]);
     }
 
     return reader.table(tableName + "." + SparkChangelogTable.TABLE_NAME);
+  }
+
+  @NotNull
+  private Long[] getSnapshotIds(String tableName, InternalRow args) {
+    Long[] snapshotIds = new Long[] {null, null};
+
+    Long startTimestamp = args.isNullAt(5) ? null : DateTimeUtil.microsToMillis(args.getLong(5));
+    Long endTimestamp = args.isNullAt(6) ? null : DateTimeUtil.microsToMillis(args.getLong(6));
+
+    if (startTimestamp == null && endTimestamp == null) {
+      snapshotIds[0] = args.isNullAt(1) ? null : args.getLong(1);
+      snapshotIds[1] = args.isNullAt(2) ? null : args.getLong(2);
+    } else {
+      Identifier tableIdent = toIdentifier(tableName, PARAMETERS[0].name());
+      Table table = loadSparkTable(tableIdent).table();
+      Snapshot[] snapshots = snapshotsFromTimestamp(startTimestamp, endTimestamp, table);
+
+      if (snapshots != null) {
+        snapshotIds[0] = snapshots[0].parentId();
+        snapshotIds[1] = snapshots[1].snapshotId();
+      }
+    }
+    return snapshotIds;
+  }
+
+  private Snapshot[] snapshotsFromTimestamp(Long startTimestamp, Long endTimestamp, Table table) {
+    Snapshot[] snapshots = new Snapshot[] {null, null};
+
+    if (startTimestamp != null && endTimestamp != null && startTimestamp > endTimestamp) {
+      throw new IllegalArgumentException(
+          "Start timestamp must be less than or equal to end timestamp");
+    }
+
+    if (startTimestamp == null) {
+      snapshots[0] = SnapshotUtil.oldestAncestor(table);
+    } else {
+      snapshots[0] = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    }
+
+    if (endTimestamp == null) {
+      snapshots[1] = table.currentSnapshot();
+    } else {
+      snapshots[1] = table.snapshot(SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp));
+    }
+
+    if (snapshots[0] == null || snapshots[1] == null) {
+      return null;
+    }
+
+    return snapshots;
   }
 
   @NotNull

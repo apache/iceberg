@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.ChangelogOperation.UPDATE_POSTIMAGE;
 import static org.apache.iceberg.ChangelogOperation.UPDATE_PREIMAGE;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
@@ -93,6 +94,60 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
             row(-2, "b", "INSERT", 2, snap2.snapshotId()),
             row(2, "b", "DELETE", 2, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", viewName));
+  }
+
+  @Test
+  public void testTimestamps() {
+    String beginning = LocalDateTime.now().toString();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+    String afterFirstInsert = LocalDateTime.now().toString();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    String afterInsertOverwrite = LocalDateTime.now().toString();
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.generate_changes(table => '%s', "
+                + "start_timestamp => TIMESTAMP '%s', "
+                + "end_timestamp => TIMESTAMP '%s')",
+            catalogName, tableName, beginning, afterInsertOverwrite);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", "INSERT", 0, snap0.snapshotId()),
+            row(2, "b", "INSERT", 1, snap1.snapshotId()),
+            row(-2, "b", "INSERT", 2, snap2.snapshotId()),
+            row(2, "b", "DELETE", 2, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+
+    // query the timestamps starting from the second insert
+    returns =
+        sql(
+            "CALL %s.system.generate_changes(table => '%s', "
+                + "start_timestamp => TIMESTAMP '%s', "
+                + "end_timestamp => TIMESTAMP '%s')",
+            catalogName, tableName, afterFirstInsert, afterInsertOverwrite);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", "INSERT", 0, snap1.snapshotId()),
+            row(-2, "b", "INSERT", 1, snap2.snapshotId()),
+            row(2, "b", "DELETE", 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+
+    // query without start timestamp
+
   }
 
   @Test
