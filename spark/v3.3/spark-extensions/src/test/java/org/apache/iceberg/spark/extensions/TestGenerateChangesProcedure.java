@@ -97,7 +97,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testTimestamps() {
+  public void testTimestampsBasedQuery() {
     String beginning = LocalDateTime.now().toString();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -145,9 +145,6 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
             row(-2, "b", "INSERT", 1, snap2.snapshotId()),
             row(2, "b", "DELETE", 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
-
-    // query without start timestamp
-
   }
 
   @Test
