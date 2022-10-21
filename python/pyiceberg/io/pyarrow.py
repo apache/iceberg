@@ -23,10 +23,16 @@ with the pyarrow library.
 """
 
 import os
-from functools import lru_cache
-from typing import Callable, Tuple, Union
+from functools import lru_cache, singledispatch
+from typing import (
+    Callable,
+    List,
+    Tuple,
+    Union,
+)
 from urllib.parse import urlparse
 
+import pyarrow as pa
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -41,7 +47,28 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
+    IntegerType,
+    ListType,
+    LongType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StringType,
+    StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+)
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -239,3 +266,106 @@ class PyArrowFileIO(FileIO):
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot delete file, access denied: {location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
+
+
+def schema_to_pyarrow(schema: Schema) -> pa.schema:
+    return visit(schema, _ConvertToArrowSchema())
+
+
+class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
+    def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
+        return pa.schema(list(struct_result))
+
+    def struct(self, _: StructType, field_results: List[pa.DataType]) -> pa.DataType:
+        return pa.struct(field_results)
+
+    def field(self, field: NestedField, field_result: pa.DataType) -> pa.Field:
+        return pa.field(
+            name=field.name,
+            type=field_result,
+            nullable=not field.required,
+            metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
+        )
+
+    def list(self, _: ListType, element_result: pa.DataType) -> pa.DataType:
+        return pa.list_(value_type=element_result)
+
+    def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
+        return pa.map_(key_type=key_result, item_type=value_result)
+
+    def primitive(self, primitive: PrimitiveType) -> pa.DataType:
+        return _iceberg_to_pyarrow_type(primitive)
+
+
+@singledispatch
+def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
+    raise ValueError(f"Unknown type: {primitive}")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(primitive: FixedType) -> pa.DataType:
+    return pa.binary(primitive.length)
+
+
+@_iceberg_to_pyarrow_type.register
+def _(primitive: DecimalType) -> pa.DataType:
+    return pa.decimal128(primitive.precision, primitive.scale)
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: BooleanType) -> pa.DataType:
+    return pa.bool_()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: IntegerType) -> pa.DataType:
+    return pa.int32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: LongType) -> pa.DataType:
+    return pa.int64()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: FloatType) -> pa.DataType:
+    # 32-bit IEEE 754 floating point
+    return pa.float32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: DoubleType) -> pa.DataType:
+    # 64-bit IEEE 754 floating point
+    return pa.float64()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: DateType) -> pa.DataType:
+    # Date encoded as an int
+    return pa.date32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimeType) -> pa.DataType:
+    return pa.time64("us")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimestampType) -> pa.DataType:
+    return pa.timestamp(unit="ms")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimestamptzType) -> pa.DataType:
+    return pa.timestamp(unit="ms", tz="+00:00")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: StringType) -> pa.DataType:
+    return pa.string()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: BinaryType) -> pa.DataType:
+    # Variable length by default
+    return pa.binary()
