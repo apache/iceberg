@@ -153,6 +153,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
+  public void testInitializeWithHiveProperties() {
+    HiveCatalog catalog = new HiveCatalog();
+    Map<String, String> props = Maps.newHashMap();
+    props.put(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname, "alias1");
+    props.put("non.forwarding.signature", "alias2");
+    catalog.initialize("hive", props);
+    Assertions.assertEquals(
+        "alias1", catalog.getConf().get(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname));
+    Assertions.assertNull(catalog.getConf().get("non.forwarding.signature"));
+  }
+
+  @Test
   public void testToStringWithoutSetConf() {
     Assertions.assertDoesNotThrow(
         () -> {
