@@ -34,7 +34,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -66,7 +65,7 @@ public class TestHTTPClient {
   @BeforeClass
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = new HTTPClientFactory().apply(ImmutableMap.of(CatalogProperties.URI, URI));
+    restClient = HTTPClient.builder().uri(URI).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
@@ -182,9 +181,8 @@ public class TestHTTPClient {
         request("/" + path)
             .withMethod(method.name().toUpperCase(Locale.ROOT))
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
-            .withHeader(HTTPClientFactory.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
-            .withHeader(
-                HTTPClientFactory.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
+            .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
+            .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);
