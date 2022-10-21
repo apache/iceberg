@@ -78,3 +78,7 @@ class NoSuchPropertyException(Exception):
 
 class NotInstalledError(Exception):
     """When an optional dependency is not installed"""
+
+
+class SignError(Exception):
+    """Raises when unable to sign a S3 request"""
