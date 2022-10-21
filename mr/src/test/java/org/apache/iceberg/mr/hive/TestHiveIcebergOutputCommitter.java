@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -202,12 +203,11 @@ public class TestHiveIcebergOutputCommitter {
 
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 1);
-    try {
-      writeRecords(table.name(), 1, 0, true, false, conf, failingCommitter);
-      Assert.fail();
-    } catch (RuntimeException e) {
-      Assert.assertTrue(e.getMessage().contains(exceptionMessage));
-    }
+
+    Assertions.assertThatThrownBy(
+            () -> writeRecords(table.name(), 1, 0, true, false, conf, failingCommitter))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(exceptionMessage);
 
     Assert.assertEquals(1, argumentCaptor.getAllValues().size());
     TaskAttemptID capturedId =

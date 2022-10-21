@@ -52,7 +52,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.hamcrest.CoreMatchers;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -1027,16 +1027,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             });
 
     try {
-      mergeFuture.get();
-      Assert.fail("Expected a validation exception");
-    } catch (ExecutionException e) {
-      Throwable sparkException = e.getCause();
-      Assert.assertThat(sparkException, CoreMatchers.instanceOf(SparkException.class));
-      Throwable validationException = sparkException.getCause();
-      Assert.assertThat(validationException, CoreMatchers.instanceOf(ValidationException.class));
-      String errMsg = validationException.getMessage();
-      Assert.assertThat(
-          errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
+      Assertions.assertThatThrownBy(mergeFuture::get)
+          .isInstanceOf(ExecutionException.class)
+          .cause()
+          .isInstanceOf(SparkException.class)
+          .cause()
+          .isInstanceOf(ValidationException.class)
+          .hasMessageContaining("Found conflicting files that can contain");
     } finally {
       appendFuture.cancel(true);
     }

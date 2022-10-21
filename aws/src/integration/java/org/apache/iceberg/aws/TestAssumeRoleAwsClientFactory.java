@@ -25,16 +25,18 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
-import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
@@ -128,20 +130,15 @@ public class TestAssumeRoleAwsClientFactory {
     GlueCatalog glueCatalog = new GlueCatalog();
     assumeRoleProperties.put("warehouse", "s3://path");
     glueCatalog.initialize("test", assumeRoleProperties);
-    try {
-      glueCatalog.createNamespace(
-          Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", "")));
-      Assert.fail("Access to Glue should be denied");
-    } catch (GlueException e) {
-      Assert.assertEquals(AccessDeniedException.class, e.getClass());
-    }
+    Assertions.assertThatThrownBy(
+            () ->
+                glueCatalog.createNamespace(
+                    Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""))))
+        .isInstanceOf(AccessDeniedException.class);
 
     Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
       glueCatalog.createNamespace(namespace);
-    } catch (GlueException e) {
-      LOG.error("fail to create or delete Glue database", e);
-      Assert.fail("create namespace should succeed");
     } finally {
       glueCatalog.dropNamespace(namespace);
     }
@@ -176,16 +173,17 @@ public class TestAssumeRoleAwsClientFactory {
 
     S3FileIO s3FileIO = new S3FileIO();
     s3FileIO.initialize(assumeRoleProperties);
-    InputFile inputFile =
-        s3FileIO.newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file");
-    try {
-      inputFile.exists();
-      Assert.fail("Access to s3 should be denied");
-    } catch (S3Exception e) {
-      Assert.assertEquals("Should see 403 error code", 403, e.statusCode());
-    }
+    Assertions.assertThatThrownBy(
+            () ->
+                s3FileIO
+                    .newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file")
+                    .exists())
+        .isInstanceOf(S3Exception.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3Exception.class))
+        .extracting(SdkServiceException::statusCode)
+        .isEqualTo(403);
 
-    inputFile =
+    InputFile inputFile =
         s3FileIO.newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/allowed/file");
     Assert.assertFalse("should be able to access file", inputFile.exists());
   }
