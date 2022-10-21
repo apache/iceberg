@@ -95,10 +95,14 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
+  private final SparkSession cloneSession;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
+    // Disable Adaptive Query Execution as this may change the output partitioning of our write
+    this.cloneSession = spark.cloneSession();
+    this.cloneSession.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
   }
 
   @Override
@@ -184,14 +188,6 @@ public class RewriteDataFilesSparkAction
     } else {
       return doExecute(ctx, groupStream, commitManager);
     }
-  }
-
-  @Override
-  protected SparkSession spark() {
-    // Disable Adaptive Query Execution as this may change the output partitioning of our write
-    SparkSession spark = super.spark().cloneSession();
-    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    return spark;
   }
 
   Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
@@ -498,15 +494,15 @@ public class RewriteDataFilesSparkAction
   }
 
   private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, spark());
+    return new SparkBinPackStrategy(table, cloneSession);
   }
 
   private SortStrategy sortStrategy() {
-    return new SparkSortStrategy(table, spark());
+    return new SparkSortStrategy(table, cloneSession);
   }
 
   private SortStrategy zOrderStrategy(String... columnNames) {
-    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
+    return new SparkZOrderStrategy(table, cloneSession, Lists.newArrayList(columnNames));
   }
 
   @VisibleForTesting

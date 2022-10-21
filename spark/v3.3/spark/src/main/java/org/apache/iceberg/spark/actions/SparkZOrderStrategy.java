@@ -202,6 +202,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
       tableCache().add(groupID, table());
       manager().stageTasks(table(), groupID, filesToRewrite);
 
+      // spark session from parent
       SparkSession spark = spark();
       // Reset Shuffle Partitions for our sort
       long numOutputFiles =
