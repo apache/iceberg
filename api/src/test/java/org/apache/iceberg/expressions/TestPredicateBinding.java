@@ -46,6 +46,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,7 +55,6 @@ public class TestPredicateBinding {
       Arrays.asList(LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ);
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testMultipleFields() {
     StructType struct =
         StructType.of(
@@ -81,18 +81,12 @@ public class TestPredicateBinding {
     StructType struct = StructType.of(required(13, "x", Types.IntegerType.get()));
 
     UnboundPredicate<Integer> unbound = new UnboundPredicate<>(LT, ref("missing"), 6);
-    try {
-      unbound.bind(struct);
-      Assert.fail("Binding a missing field should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue(
-          "Validation should complain about missing field",
-          e.getMessage().contains("Cannot find field 'missing' in struct:"));
-    }
+    Assertions.assertThatThrownBy(() -> unbound.bind(struct))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testComparisonPredicateBinding() {
     StructType struct = StructType.of(required(14, "x", Types.IntegerType.get()));
 
@@ -113,7 +107,6 @@ public class TestPredicateBinding {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testPredicateBindingForStringPrefixComparisons() {
     StructType struct = StructType.of(required(17, "x", Types.StringType.get()));
 
@@ -132,7 +125,6 @@ public class TestPredicateBinding {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testLiteralConversion() {
     StructType struct = StructType.of(required(15, "d", Types.DecimalType.of(9, 2)));
 
@@ -158,20 +150,13 @@ public class TestPredicateBinding {
     for (Expression.Operation op : COMPARISONS) {
       UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("f"), "12.40");
 
-      try {
-        unbound.bind(struct);
-        Assert.fail("Should not convert string to float");
-      } catch (ValidationException e) {
-        Assert.assertEquals(
-            "Should ",
-            e.getMessage(),
-            "Invalid value for conversion to type float: 12.40 (java.lang.String)");
-      }
+      Assertions.assertThatThrownBy(() -> unbound.bind(struct))
+          .isInstanceOf(ValidationException.class)
+          .hasMessage("Invalid value for conversion to type float: 12.40 (java.lang.String)");
     }
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testLongToIntegerConversion() {
     StructType struct = StructType.of(required(17, "i", Types.IntegerType.get()));
 
@@ -260,7 +245,6 @@ public class TestPredicateBinding {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testDoubleToFloatConversion() {
     StructType struct = StructType.of(required(18, "f", Types.FloatType.get()));
 
@@ -351,7 +335,6 @@ public class TestPredicateBinding {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testIsNull() {
     StructType optional = StructType.of(optional(19, "s", Types.StringType.get()));
 

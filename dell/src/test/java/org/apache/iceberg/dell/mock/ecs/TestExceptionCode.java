@@ -21,7 +21,8 @@ package org.apache.iceberg.dell.mock.ecs;
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.request.PutObjectRequest;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -66,12 +67,17 @@ public class TestExceptionCode {
   }
 
   public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {
-    try {
-      task.run();
-      Assert.fail("Expect s3 exception for " + message);
-    } catch (S3Exception e) {
-      Assert.assertEquals(message + ", http code", httpCode, e.getHttpCode());
-      Assert.assertEquals(message + ", error code", errorCode, e.getErrorCode());
-    }
+    Assertions.assertThatThrownBy(task::run)
+        .isInstanceOf(S3Exception.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3Exception.class))
+        .satisfies(
+            e ->
+                Assertions.assertThat(e.getErrorCode())
+                    .as(message + ", http code")
+                    .isEqualTo(errorCode),
+            e ->
+                Assertions.assertThat(e.getHttpCode())
+                    .as(message + ", error code")
+                    .isEqualTo(httpCode));
   }
 }

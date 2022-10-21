@@ -41,6 +41,7 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.OrcIndex;
 import org.apache.orc.impl.RecordReaderImpl;
 import org.apache.orc.impl.WriterImpl;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -69,12 +70,12 @@ public class TestBloomFilter {
             .set("write.orc.bloom.filter.fpp", "0.04")
             .build()) {
 
-      Class clazzOrcFileAppender = Class.forName("org.apache.iceberg.orc.OrcFileAppender");
+      Class<?> clazzOrcFileAppender = Class.forName("org.apache.iceberg.orc.OrcFileAppender");
       Field writerField = clazzOrcFileAppender.getDeclaredField("writer");
       writerField.setAccessible(true);
       WriterImpl orcWriter = (WriterImpl) writerField.get(writer);
 
-      Class clazzWriterImpl = Class.forName("org.apache.orc.impl.WriterImpl");
+      Class<?> clazzWriterImpl = Class.forName("org.apache.orc.impl.WriterImpl");
       Field bloomFilterColumnsField = clazzWriterImpl.getDeclaredField("bloomFilterColumns");
       Field bloomFilterFppField = clazzWriterImpl.getDeclaredField("bloomFilterFpp");
       bloomFilterColumnsField.setAccessible(true);
@@ -94,7 +95,7 @@ public class TestBloomFilter {
       writer.add(record2);
     }
 
-    Class clazzFileDump = Class.forName("org.apache.orc.tools.FileDump");
+    Class<?> clazzFileDump = Class.forName("org.apache.orc.tools.FileDump");
     Method getFormattedBloomFilters =
         clazzFileDump.getDeclaredMethod(
             "getFormattedBloomFilters",
@@ -125,7 +126,7 @@ public class TestBloomFilter {
                   footer.getColumns(1));
 
       // Validate whether the bloom filters are written ORC files or not
-      Assert.assertTrue(bloomFilterString.contains("Bloom filters for column"));
+      Assertions.assertThat(bloomFilterString).contains("Bloom filters for column");
     }
   }
 
@@ -134,16 +135,15 @@ public class TestBloomFilter {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer =
-        ORC.write(Files.localOutput(testFile))
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .schema(DATA_SCHEMA)
-            .set("write.orc.bloom.filter.columns", "id,name")
-            .set("write.orc.bloom.filter.fpp", "-1")
-            .build()) {
-      Assert.fail("Expected exception");
-    } catch (IllegalArgumentException e) {
-      Assert.assertTrue(e.getMessage().contains("Bloom filter fpp must be > 0.0 and < 1.0"));
-    }
+    Assertions.assertThatThrownBy(
+            () ->
+                ORC.write(Files.localOutput(testFile))
+                    .createWriterFunc(GenericOrcWriter::buildWriter)
+                    .schema(DATA_SCHEMA)
+                    .set("write.orc.bloom.filter.columns", "id,name")
+                    .set("write.orc.bloom.filter.fpp", "-1")
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Bloom filter fpp must be > 0.0 and < 1.0");
   }
 }

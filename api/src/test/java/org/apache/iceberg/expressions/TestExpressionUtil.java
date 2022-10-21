@@ -558,12 +558,8 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(Expression expected, Expression actual) {
-    if (expected instanceof UnboundPredicate) {
-      Assert.assertTrue("Should be an UnboundPredicate", actual instanceof UnboundPredicate);
-      assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
-    } else {
-      Assert.fail("Unknown expected expression: " + expected);
-    }
+    Assertions.assertThat(expected).isInstanceOf(UnboundPredicate.class);
+    assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
   }
 
   private void assertEquals(UnboundPredicate<?> expected, UnboundPredicate<?> actual) {
@@ -573,14 +569,16 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(UnboundTerm<?> expected, UnboundTerm<?> actual) {
+    Assertions.assertThat(expected)
+        .as("Unknown expected term: " + expected)
+        .isOfAnyClassIn(NamedReference.class, UnboundTransform.class);
+
     if (expected instanceof NamedReference) {
       Assert.assertTrue("Should be a NamedReference", actual instanceof NamedReference);
       assertEquals((NamedReference<?>) expected, (NamedReference<?>) actual);
     } else if (expected instanceof UnboundTransform) {
       Assert.assertTrue("Should be an UnboundTransform", actual instanceof UnboundTransform);
       assertEquals((UnboundTransform<?, ?>) expected, (UnboundTransform<?, ?>) actual);
-    } else {
-      Assert.fail("Unknown expected term: " + expected);
     }
   }
 
