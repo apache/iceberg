@@ -232,7 +232,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
       Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, zOrderUDF.interleaveBytes(zvalueArray));
 
-      SQLConf sqlConf = spark().sessionState().conf();
+      SQLConf sqlConf = spark.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, zvalueDF.logicalPlan(), sqlConf);
       Dataset<Row> sortedDf = new Dataset<>(spark, sortPlan, zvalueDF.encoder());
       sortedDf
