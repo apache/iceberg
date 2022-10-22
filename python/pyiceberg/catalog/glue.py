@@ -360,6 +360,17 @@ class GlueCatalog(Catalog):
         ]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
+        """Get properties for a namespace.
+
+        Args:
+            namespace: Namespace identifier
+
+        Returns:
+            Properties: Properties for the given namespace
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
+        """
         database_name, _ = self.identifier_to_tuple(namespace)
         try:
             database_response = self.glue.get_database(Name=database_name)
@@ -380,6 +391,17 @@ class GlueCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
+        """Removes provided property keys and updates properties for a namespace.
+
+        Args:
+            namespace: Namespace identifier
+            removals: Set of property keys that need to be removed. Optional Argument.
+            updates: Properties to be updated for the given namespace.
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist
+            ValueError: If removals and updates have overlapping keys.
+        """
         removed: Set[str] = set()
         updated: Set[str] = set()
 
