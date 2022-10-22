@@ -41,6 +41,8 @@ from pyiceberg.catalog.base import (
     WAREHOUSE,
 )
 from pyiceberg.exceptions import (
+    NamespaceAlreadyExistsError,
+    NamespaceNotEmptyError,
     NoSuchIcebergTableError,
     NoSuchNamespaceError,
     NoSuchPropertyException,
@@ -65,10 +67,17 @@ PROP_GLUE_TABLE_PARAMETERS = "Parameters"
 PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
 PROP_GLUE_TABLE_NAME = "Name"
 
+PROP_GLUE_TABLELIST = "TableList"
+
 PROP_GLUE_DATABASE = "Database"
 PROP_GLUE_DATABASE_LIST = "DatabaseList"
 PROP_GLUE_DATABASE_NAME = "Name"
 PROP_GLUE_DATABASE_LOCATION = "LocationUri"
+PROP_GLUE_DATABASE_DESCRIPTION = "description"
+PROP_GLUE_DATABASE_PARAMETERS = "Parameters"
+
+GLUE_DATABASE_DESCRIPTION_KEY = "comment"
+GLUE_DATABASE_LOCATION_KEY = "location"
 
 
 def _construct_parameters(metadata_location: str) -> Properties:
@@ -86,6 +95,20 @@ def _construct_table_input(table_name: str, metadata_location: str, properties: 
         table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
     return table_input
+
+
+def _construct_database_input(database_name: str, properties: Properties) -> Dict[str, Any]:
+    database_input: Dict[str, Any] = {PROP_GLUE_DATABASE_NAME: database_name}
+    parameters = {}
+    for k, v in properties.items():
+        if k == GLUE_DATABASE_DESCRIPTION_KEY:
+            database_input[PROP_GLUE_DATABASE_DESCRIPTION] = v
+        if k == GLUE_DATABASE_LOCATION_KEY:
+            database_input[PROP_GLUE_DATABASE_LOCATION] = v
+        else:
+            parameters[k] = v
+    database_input[PROP_GLUE_DATABASE_PARAMETERS] = parameters
+    return database_input
 
 
 def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
@@ -216,22 +239,111 @@ class GlueCatalog(Catalog):
         return self._convert_glue_to_iceberg(load_table_response[PROP_GLUE_TABLE])
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
-        raise NotImplementedError("currently unsupported")
+        """Drop a table.
+
+        Args:
+            identifier: Table identifier.
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
+        database_name, table_name = self.identifier_to_tuple(identifier)
+        try:
+            self.glue.delete_table(DatabaseName=database_name, Name=table_name)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchTableError(f"Table does not exists: {database_name}.{table_name}") from e
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
+        """Drop a table and purge all data and metadata files. AWS glue will asynchronously delete resource
+        belongs to the table once the table is deleted
+
+        Args:
+            identifier (str | Identifier): Table identifier.
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist
+        """
         self.drop_table(identifier)
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        raise NotImplementedError("currently unsupported")
+        """Rename a fully classified table name
+
+        Args:
+            from_identifier: Existing table identifier.
+            to_identifier: New table identifier.
+
+        Returns:
+            Table: the updated table instance with its metadata
+
+        Raises:
+            ValueError: When the from table identifier is invalid
+            NoSuchTableError: When a table with the name does not exist
+            NoSuchNamespaceError: When the destination namespace doesn't exists
+        """
+        from_database_name, from_table_name = self.identifier_to_tuple(from_identifier)
+        to_database_name, to_table_name = self.identifier_to_tuple(to_identifier)
+        try:
+            get_table_response = self.glue.get_table(DatabaseName=from_database_name, TableName=from_table_name)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchTableError(f"Table does not exists: {from_database_name}.{from_table_name}") from e
+
+        table_input = get_table_response[PROP_GLUE_TABLE]
+        table_input[PROP_GLUE_TABLE_NAME] = to_table_name
+
+        try:
+            self.glue.create_table(DatabaseName=to_database_name, TableInput=table_input)
+        except self.glue.exceptions.AlreadyExistsException as e:
+            raise TableAlreadyExistsError(f"Table {to_database_name}.{to_table_name} already exists") from e
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchNamespaceError(f"Database {to_database_name} not found") from e
+
+        return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
-        raise NotImplementedError("currently unsupported")
+        """Create a namespace in the catalog.
+
+        Args:
+            namespace: Namespace identifier
+            properties: A string dictionary of properties for the given namespace
+
+        Raises:
+            ValueError: If the identifier is invalid
+            AlreadyExistsError: If a namespace with the given name already exists
+        """
+        database_name, _ = self.identifier_to_tuple(namespace)
+        try:
+            self.glue.create_database(DatabaseInput=_construct_database_input(database_name, properties))
+        except self.glue.exceptions.AlreadyExistsException as e:
+            raise NamespaceAlreadyExistsError(f"Database {database_name} already exists") from e
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        raise NotImplementedError("currently unsupported")
+        """Drop a namespace.
+
+        Args:
+            namespace: Namespace identifier
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
+            NamespaceNotEmptyError: If the namespace is not empty
+        """
+        database_name, _ = self.identifier_to_tuple(namespace)
+        try:
+            table_list = self.list_tables(namespace=database_name)
+        except NoSuchNamespaceError as e:
+            raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
+
+        if len(table_list) > 0:
+            raise NamespaceNotEmptyError(f"Database {database_name} is not empty")
+
+        self.glue.delete_database(Name=database_name)
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        raise NotImplementedError("currently unsupported")
+        database_name, _ = self.identifier_to_tuple(namespace)
+        try:
+            table_list_response = self.glue.get_tables(DatabaseName=database_name)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
+        return [(database_name, table_name) for table_name in table_list_response[PROP_GLUE_TABLELIST]]
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
@@ -248,9 +360,50 @@ class GlueCatalog(Catalog):
         ]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
-        raise NotImplementedError("currently unsupported")
+        database_name, _ = self.identifier_to_tuple(namespace)
+        try:
+            database_response = self.glue.get_database(Name=database_name)
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
+        except self.glue.exceptions.InvalidInputException as e:
+            raise NoSuchNamespaceError(f"Invalid input for namespace {database_name}") from e
+
+        database = database_response[PROP_GLUE_DATABASE]
+        properties = dict(database[PROP_GLUE_DATABASE_PARAMETERS])
+        if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
+            properties[GLUE_DATABASE_LOCATION_KEY] = database_location
+        if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
+            properties[GLUE_DATABASE_DESCRIPTION_KEY] = database_description
+
+        return properties
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        raise NotImplementedError("currently unsupported")
+        removed: Set[str] = set()
+        updated: Set[str] = set()
+
+        if updates and removals:
+            overlap = set(removals) & set(updates.keys())
+            if overlap:
+                raise ValueError(f"Updates and deletes have an overlap: {overlap}")
+        database_name, _ = self.identifier_to_tuple(namespace)
+        current_properties = self.load_namespace_properties(namespace=database_name)
+        new_properties = dict(current_properties)
+
+        if removals:
+            for key in removals:
+                new_properties.pop(key)
+                removed.add(key)
+        if updates:
+            for key, value in updates.items():
+                new_properties[key] = value
+                updated.add(key)
+
+        self.glue.update_database(Name=database_name, DatabaseInput=_construct_database_input(database_name, new_properties))
+
+        expected_to_change = (removals or set()).difference(removed)
+
+        return PropertiesUpdateSummary(
+            removed=list(removed or []), updated=list(updates.keys() if updates else []), missing=list(expected_to_change)
+        )
