@@ -189,7 +189,7 @@ public class SparkScanBuilder
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
 
-    if (snapshotId != null || asOfTimestamp != null || branch != null || tag != null) {
+    if (snapshotId != null || asOfTimestamp != null) {
       Preconditions.checkArgument(
           startSnapshotId == null && endSnapshotId == null,
           "Cannot set %s and %s for incremental scans when either %s or %s is set",

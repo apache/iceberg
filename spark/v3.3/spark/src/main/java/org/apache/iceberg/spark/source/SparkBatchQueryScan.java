@@ -255,11 +255,11 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     } else if (tag != null) {
       Snapshot snapshot = table().snapshot(tag);
       return estimateStatistics(snapshot);
+
     } else {
       Snapshot snapshot = table().currentSnapshot();
       return estimateStatistics(snapshot);
     }
-
   }
 
   @Override
@@ -281,9 +281,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
-        && Objects.equals(asOfTimestamp, that.asOfTimestamp)
-        && Objects.equals(branch, that.branch)
-        && Objects.equals(branch, that.tag);
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp);
+    //        && Objects.equals(branch, that.branch)
+    //        && Objects.equals(tag, that.tag);
   }
 
   @Override

@@ -307,8 +307,8 @@ public class TestSnapshotSelection {
 
     // produce the first snapshot
     List<SimpleRecord> firstBatchRecords =
-            Lists.newArrayList(
-                    new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
     firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
@@ -316,14 +316,14 @@ public class TestSnapshotSelection {
     table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
     Assertions.assertThatThrownBy(
-                    () ->
-                            spark
-                                    .read()
-                                    .format("iceberg")
-                                    .option(SparkReadOptions.BRANCH, "branch")
-                                    .option(SparkReadOptions.TAG, "tag")
-                                    .load(tableLocation))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.BRANCH, "branch")
+                    .option(SparkReadOptions.TAG, "tag")
+                    .load(tableLocation))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
   }
 }
