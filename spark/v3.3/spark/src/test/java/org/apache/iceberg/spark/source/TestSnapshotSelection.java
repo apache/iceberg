@@ -326,4 +326,45 @@ public class TestSnapshotSelection {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot override ref, already set snapshot id=1");
   }
+
+  @Test
+  public void testSnapshotSelectionByTimestampAndBranch() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    long timestamp = System.currentTimeMillis();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.BRANCH, "branch")
+                    .load(tableLocation))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.TAG, "tag")
+                    .load(tableLocation))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+  }
 }
