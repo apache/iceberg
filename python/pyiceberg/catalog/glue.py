@@ -73,7 +73,7 @@ PROP_GLUE_DATABASE = "Database"
 PROP_GLUE_DATABASE_LIST = "DatabaseList"
 PROP_GLUE_DATABASE_NAME = "Name"
 PROP_GLUE_DATABASE_LOCATION = "LocationUri"
-PROP_GLUE_DATABASE_DESCRIPTION = "description"
+PROP_GLUE_DATABASE_DESCRIPTION = "Description"
 PROP_GLUE_DATABASE_PARAMETERS = "Parameters"
 
 GLUE_DATABASE_DESCRIPTION_KEY = "comment"
@@ -283,15 +283,16 @@ class GlueCatalog(Catalog):
         from_database_name, from_table_name = self.identifier_to_tuple(from_identifier)
         to_database_name, to_table_name = self.identifier_to_tuple(to_identifier)
         try:
-            get_table_response = self.glue.get_table(DatabaseName=from_database_name, TableName=from_table_name)
+            get_table_response = self.glue.get_table(DatabaseName=from_database_name, Name=from_table_name)
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {from_database_name}.{from_table_name}") from e
 
         table_input = get_table_response[PROP_GLUE_TABLE]
         table_input[PROP_GLUE_TABLE_NAME] = to_table_name
+        new_input = _construct_table_input(to_table_name, table_input[PROP_GLUE_TABLE_PARAMETERS][METADATA_LOCATION], {})
 
         try:
-            self.glue.create_table(DatabaseName=to_database_name, TableInput=table_input)
+            self.glue.create_table(DatabaseName=to_database_name, TableInput=new_input)
         except self.glue.exceptions.AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {to_database_name}.{to_table_name} already exists") from e
         except self.glue.exceptions.EntityNotFoundException as e:
@@ -310,7 +311,7 @@ class GlueCatalog(Catalog):
             ValueError: If the identifier is invalid
             AlreadyExistsError: If a namespace with the given name already exists
         """
-        database_name, _ = self.identifier_to_tuple(namespace)
+        database_name = self.identifier_to_tuple(namespace)[0]
         try:
             self.glue.create_database(DatabaseInput=_construct_database_input(database_name, properties))
         except self.glue.exceptions.AlreadyExistsException as e:
@@ -326,7 +327,7 @@ class GlueCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
             NamespaceNotEmptyError: If the namespace is not empty
         """
-        database_name, _ = self.identifier_to_tuple(namespace)
+        database_name = self.identifier_to_tuple(namespace)[0]
         try:
             table_list = self.list_tables(namespace=database_name)
         except NoSuchNamespaceError as e:
@@ -338,12 +339,12 @@ class GlueCatalog(Catalog):
         self.glue.delete_database(Name=database_name)
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        database_name, _ = self.identifier_to_tuple(namespace)
+        database_name = self.identifier_to_tuple(namespace)[0]
         try:
             table_list_response = self.glue.get_tables(DatabaseName=database_name)
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
-        return [(database_name, table_name) for table_name in table_list_response[PROP_GLUE_TABLELIST]]
+        return [(database_name, table[PROP_GLUE_TABLE_NAME]) for table in table_list_response[PROP_GLUE_TABLELIST]]
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
@@ -371,7 +372,7 @@ class GlueCatalog(Catalog):
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
         """
-        database_name, _ = self.identifier_to_tuple(namespace)
+        database_name = self.identifier_to_tuple(namespace)[0]
         try:
             database_response = self.glue.get_database(Name=database_name)
         except self.glue.exceptions.EntityNotFoundException as e:
@@ -409,14 +410,15 @@ class GlueCatalog(Catalog):
             overlap = set(removals) & set(updates.keys())
             if overlap:
                 raise ValueError(f"Updates and deletes have an overlap: {overlap}")
-        database_name, _ = self.identifier_to_tuple(namespace)
+        database_name = self.identifier_to_tuple(namespace)[0]
         current_properties = self.load_namespace_properties(namespace=database_name)
         new_properties = dict(current_properties)
 
         if removals:
             for key in removals:
-                new_properties.pop(key)
-                removed.add(key)
+                if key in new_properties:
+                    new_properties.pop(key)
+                    removed.add(key)
         if updates:
             for key, value in updates.items():
                 new_properties[key] = value
