@@ -172,15 +172,15 @@ public class TableTestBase {
   protected final int formatVersion;
 
   @SuppressWarnings("checkstyle:MemberName")
-  protected final Assertions V1Assert;
+  protected final TableAssertions V1Assert;
 
   @SuppressWarnings("checkstyle:MemberName")
-  protected final Assertions V2Assert;
+  protected final TableAssertions V2Assert;
 
   public TableTestBase(int formatVersion) {
     this.formatVersion = formatVersion;
-    this.V1Assert = new Assertions(1, formatVersion);
-    this.V2Assert = new Assertions(2, formatVersion);
+    this.V1Assert = new TableAssertions(1, formatVersion);
+    this.V2Assert = new TableAssertions(2, formatVersion);
   }
 
   @Before
@@ -676,10 +676,10 @@ public class TableTestBase {
   }
 
   /** Used for assertions that only apply if the table version is v2. */
-  protected static class Assertions {
+  protected static class TableAssertions {
     private boolean enabled;
 
-    private Assertions(int validForVersion, int formatVersion) {
+    private TableAssertions(int validForVersion, int formatVersion) {
       this.enabled = validForVersion == formatVersion;
     }
 

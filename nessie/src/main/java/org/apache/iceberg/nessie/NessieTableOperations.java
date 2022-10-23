@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.nessie;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -36,7 +36,6 @@ import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
-import org.projectnessie.model.GenericMetadata;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
@@ -81,8 +80,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private TableMetadata loadTableMetadata(String metadataLocation, Reference reference) {
     // Update the TableMetadata with the Content of NessieTableState.
-    TableMetadata deserialized =
-        NessieUtil.tableMetadataFromIcebergTable(io(), table, metadataLocation);
+    TableMetadata deserialized = TableMetadataParser.read(io(), metadataLocation);
     Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
     newProperties.put(NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
     // To prevent accidental deletion of files that are still referenced by other branches/tags,
@@ -177,7 +175,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       Snapshot snapshot = metadata.currentSnapshot();
       long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
 
-      JsonNode newMetadata = NessieUtil.tableMetadataAsJsonNode(metadata);
       IcebergTable newTable =
           newTableBuilder
               .snapshotId(snapshotId)
@@ -185,8 +182,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
               .specId(metadata.defaultSpecId())
               .sortOrderId(metadata.defaultSortOrderId())
               .metadataLocation(newMetadataLocation)
-              .metadata(
-                  GenericMetadata.of("org.apache:iceberg:" + metadata.formatVersion(), newMetadata))
               .build();
 
       LOG.debug(

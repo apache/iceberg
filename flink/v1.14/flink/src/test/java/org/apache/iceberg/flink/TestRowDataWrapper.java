@@ -28,6 +28,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class TestRowDataWrapper extends RecordWrapperTest {
@@ -48,11 +49,8 @@ public class TestRowDataWrapper extends RecordWrapperTest {
               return;
             }
 
-            if (expected == null || actual == null) {
-              Assert.fail(
-                  String.format(
-                      "The expected value is %s but actual value is %s", expected, actual));
-            }
+            Assertions.assertThat(actual).isNotNull();
+            Assertions.assertThat(expected).isNotNull();
 
             int expectedMilliseconds = (int) ((long) expected / 1000_000);
             int actualMilliseconds = (int) ((long) actual / 1000_000);

@@ -30,6 +30,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -140,7 +141,7 @@ public class TestTransaction extends TableTestBase {
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
 
-    org.assertj.core.api.Assertions.assertThat(table.history()).containsAll(initialHistory);
+    Assertions.assertThat(table.history()).containsAll(initialHistory);
   }
 
   @Test

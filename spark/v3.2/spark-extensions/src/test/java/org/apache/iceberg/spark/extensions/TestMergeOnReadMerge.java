@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
@@ -37,7 +38,9 @@ public class TestMergeOnReadMerge extends TestMerge {
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
-        TableProperties.FORMAT_VERSION, "2",
-        TableProperties.MERGE_MODE, "merge-on-read");
+        TableProperties.FORMAT_VERSION,
+        "2",
+        TableProperties.MERGE_MODE,
+        RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 }
