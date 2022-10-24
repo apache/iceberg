@@ -140,9 +140,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'org.roaringbitmap'
     }
 
-    testImplementation project(':iceberg-parquet')
-    testImplementation "org.apache.parquet:parquet-column"
-
     testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 

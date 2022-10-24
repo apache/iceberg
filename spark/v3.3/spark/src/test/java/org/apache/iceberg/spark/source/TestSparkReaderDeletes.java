@@ -22,13 +22,18 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
@@ -50,11 +55,16 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -62,13 +72,18 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.StructType;
 import org.jetbrains.annotations.NotNull;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -132,6 +147,13 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     metastore = null;
     spark.stop();
     spark = null;
+  }
+
+  @After
+  @Override
+  public void cleanup() throws IOException {
+    super.cleanup();
+    dropTable("test3");
   }
 
   @Override
@@ -506,6 +528,75 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);
     checkDeleteCount(0L);
+  }
+
+  @Test
+  public void testPosDeletesOnParquetFileWithMultipleRowGroups() throws IOException {
+    Assume.assumeTrue(format.equals("parquet"));
+
+    String tblName = "test3";
+    Table tbl = createTable(tblName, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<Path> fileSplits = Lists.newArrayList();
+    StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
+    Configuration conf = new Configuration();
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Path testFilePath = new Path(testFile.getAbsolutePath());
+
+    // Write a Parquet file with more than one row group
+    ParquetFileWriter parquetFileWriter =
+        new ParquetFileWriter(conf, ParquetSchemaUtil.convert(SCHEMA, "test3Schema"), testFilePath);
+    parquetFileWriter.start();
+    for (int i = 0; i < 2; i += 1) {
+      File split = temp.newFile();
+      Assert.assertTrue("Delete should succeed", split.delete());
+      Path splitPath = new Path(split.getAbsolutePath());
+      fileSplits.add(splitPath);
+      try (FileAppender<InternalRow> writer =
+          Parquet.write(Files.localOutput(split))
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkSchema, msgType))
+              .schema(SCHEMA)
+              .overwrite()
+              .build()) {
+        Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 34 * i + 37);
+        writer.addAll(records);
+      }
+      parquetFileWriter.appendFile(
+          org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(splitPath, conf));
+    }
+    parquetFileWriter.end(
+        ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
+            .getFileMetaData()
+            .getKeyValueMetaData());
+
+    // Add the file to the table
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(org.apache.iceberg.hadoop.HadoopInputFile.fromPath(testFilePath, conf))
+            .withFormat("parquet")
+            .withRecordCount(200)
+            .build();
+    tbl.newAppend().appendFile(dataFile).commit();
+
+    // Add positional deletes to the table
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 97L),
+            Pair.of(dataFile.path(), 98L),
+            Pair.of(dataFile.path(), 99L),
+            Pair.of(dataFile.path(), 101L),
+            Pair.of(dataFile.path(), 103L),
+            Pair.of(dataFile.path(), 107L),
+            Pair.of(dataFile.path(), 109L));
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+    tbl.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    Assert.assertEquals(193, rowSet(tblName, tbl, "*").size());
   }
 
   private static final Schema PROJECTION_SCHEMA =
