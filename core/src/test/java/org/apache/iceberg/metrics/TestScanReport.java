@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -88,7 +87,7 @@ public class TestScanReport {
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
             .projection(projection)
-            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanReport.ScanMetrics.noop()))
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
@@ -108,7 +107,7 @@ public class TestScanReport {
 
   @Test
   public void fromScanMetrics() {
-    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+    ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -144,7 +143,7 @@ public class TestScanReport {
 
   @Test
   public void nullScanMetrics() {
-    Assertions.assertThatThrownBy(() -> ScanReport.ScanMetrics.of(null))
+    Assertions.assertThatThrownBy(() -> ScanMetrics.of(null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("metricsContext");
   }

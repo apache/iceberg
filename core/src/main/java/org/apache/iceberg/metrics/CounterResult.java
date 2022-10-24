@@ -18,20 +18,28 @@
  */
 package org.apache.iceberg.metrics;
 
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.immutables.value.Value;
 
-/**
- * A default {@link MetricsReporter} implementation that logs the {@link MetricsReport} to the log
- * file.
- */
-public class LoggingMetricsReporter implements MetricsReporter {
-  private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
+/** A serializable version of a {@link Counter} that carries its result. */
+@Value.Immutable
+public interface CounterResult {
 
-  @Override
-  public void report(MetricsReport report) {
-    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
-    LOG.info("Received metrics report: {}", report);
+  Unit unit();
+
+  long value();
+
+  static CounterResult fromCounter(Counter counter) {
+    Preconditions.checkArgument(null != counter, "Invalid counter: null");
+    if (counter.isNoop()) {
+      return null;
+    }
+
+    return ImmutableCounterResult.builder().unit(counter.unit()).value(counter.value()).build();
+  }
+
+  static CounterResult of(Unit unit, long value) {
+    return ImmutableCounterResult.builder().unit(unit).value(value).build();
   }
 }

@@ -36,7 +36,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -61,7 +61,7 @@ class ManifestGroup {
   private List<String> columns;
   private boolean caseSensitive;
   private ExecutorService executorService;
-  private ScanReport.ScanMetrics scanMetrics;
+  private ScanMetrics scanMetrics;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this(
@@ -85,7 +85,7 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
-    this.scanMetrics = ScanReport.ScanMetrics.noop();
+    this.scanMetrics = ScanMetrics.noop();
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -122,7 +122,7 @@ class ManifestGroup {
     return this;
   }
 
-  ManifestGroup scanMetrics(ScanReport.ScanMetrics metrics) {
+  ManifestGroup scanMetrics(ScanMetrics metrics) {
     this.scanMetrics = metrics;
     return this;
   }
@@ -372,14 +372,14 @@ class ManifestGroup {
     private final DeleteFileIndex deletes;
     private final ResidualEvaluator residuals;
     private final boolean dropStats;
-    private final ScanReport.ScanMetrics scanMetrics;
+    private final ScanMetrics scanMetrics;
 
     TaskContext(
         PartitionSpec spec,
         DeleteFileIndex deletes,
         ResidualEvaluator residuals,
         boolean dropStats,
-        ScanReport.ScanMetrics scanMetrics) {
+        ScanMetrics scanMetrics) {
       this.schemaAsString = SchemaParser.toJson(spec.schema());
       this.specAsString = PartitionSpecParser.toJson(spec);
       this.deletes = deletes;
@@ -408,7 +408,7 @@ class ManifestGroup {
       return !dropStats;
     }
 
-    public ScanReport.ScanMetrics scanMetrics() {
+    public ScanMetrics scanMetrics() {
       return scanMetrics;
     }
   }

@@ -18,20 +18,39 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.immutables.value.Value;
 
-/**
- * A default {@link MetricsReporter} implementation that logs the {@link MetricsReport} to the log
- * file.
- */
-public class LoggingMetricsReporter implements MetricsReporter {
-  private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
+/** A serializable version of a {@link Timer} that carries its result. */
+@Value.Immutable
+public interface TimerResult {
 
-  @Override
-  public void report(MetricsReport report) {
-    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
-    LOG.info("Received metrics report: {}", report);
+  TimeUnit timeUnit();
+
+  Duration totalDuration();
+
+  long count();
+
+  static TimerResult fromTimer(Timer timer) {
+    Preconditions.checkArgument(null != timer, "Invalid timer: null");
+    if (timer.isNoop()) {
+      return null;
+    }
+
+    return ImmutableTimerResult.builder()
+        .timeUnit(timer.unit())
+        .totalDuration(timer.totalDuration())
+        .count(timer.count())
+        .build();
+  }
+
+  static TimerResult of(TimeUnit timeUnit, Duration duration, long count) {
+    return ImmutableTimerResult.builder()
+        .timeUnit(timeUnit)
+        .totalDuration(duration)
+        .count(count)
+        .build();
   }
 }

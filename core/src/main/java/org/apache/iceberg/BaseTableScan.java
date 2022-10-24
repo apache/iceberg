@@ -25,8 +25,9 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,7 +41,7 @@ import org.slf4j.LoggerFactory;
 abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask>
     implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
-  private ScanReport.ScanMetrics scanMetrics;
+  private ScanMetrics scanMetrics;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
@@ -61,9 +62,9 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   protected abstract CloseableIterable<FileScanTask> doPlanFiles();
 
-  protected ScanReport.ScanMetrics scanMetrics() {
+  protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
-      this.scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+      this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     }
 
     return scanMetrics;
