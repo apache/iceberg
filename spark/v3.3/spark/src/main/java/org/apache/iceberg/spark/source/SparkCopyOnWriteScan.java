@@ -34,6 +34,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -102,6 +103,14 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
 
   @Override
   public void filter(Filter[] filters) {
+    Preconditions.checkState(
+        Objects.equals(snapshotId(), currentSnapshotId()),
+        "Runtime file filtering is not possible: the table has been concurrently refreshed. "
+            + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
+            + "If multiple threads modify the table, use independent Spark sessions in each thread.",
+        snapshotId(),
+        currentSnapshotId());
+
     for (Filter filter : filters) {
       // Spark can only pass In filters at the moment
       if (filter instanceof In
@@ -190,5 +199,10 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
     return String.format(
         "IcebergCopyOnWriteScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
+  }
+
+  private Long currentSnapshotId() {
+    Snapshot currentSnapshot = table().currentSnapshot();
+    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
   }
 }

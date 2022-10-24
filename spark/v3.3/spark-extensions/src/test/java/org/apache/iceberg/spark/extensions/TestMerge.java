@@ -50,6 +50,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -1017,11 +1018,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              SparkSession sparkSession = spark.cloneSession();
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+                sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
               }
             });
@@ -1083,11 +1085,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              SparkSession sparkSession = spark.cloneSession();
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+                sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
               }
             });

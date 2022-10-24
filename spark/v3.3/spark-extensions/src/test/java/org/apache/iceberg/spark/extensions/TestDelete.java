@@ -55,6 +55,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -730,13 +731,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
     // for more consistent exception stack
     List<Integer> ids = ImmutableList.of(1, 2);
-    Dataset<Row> inputDF =
+    Dataset<Row> initialDF =
         spark
             .createDataset(ids, Encoders.INT())
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     try {
-      inputDF.coalesce(1).writeTo(tableName).append();
+      initialDF.coalesce(1).writeTo(tableName).append();
     } catch (NoSuchTableException e) {
       throw new RuntimeException(e);
     }
@@ -764,12 +765,19 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              SparkSession sparkSession = spark.cloneSession();
+
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
 
                 try {
+                  Dataset<Row> inputDF =
+                      sparkSession
+                          .createDataset(ids, Encoders.INT())
+                          .withColumnRenamed("value", "id")
+                          .withColumn("dep", lit("hr"));
                   inputDF.coalesce(1).writeTo(tableName).append();
                 } catch (NoSuchTableException e) {
                   throw new RuntimeException(e);
@@ -807,6 +815,20 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
+    // pre-populate the table to force it to use the Spark writers instead of metadata-only delete
+    // for more consistent exception stack
+    List<Integer> ids = ImmutableList.of(1, 2);
+    Dataset<Row> initialDF =
+        spark
+            .createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id")
+            .withColumn("dep", lit("hr"));
+    try {
+      initialDF.coalesce(1).writeTo(tableName).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(e);
+    }
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
@@ -830,9 +852,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
-              List<Integer> ids = ImmutableList.of(1, 2);
+              SparkSession sparkSession = spark.cloneSession();
               Dataset<Row> inputDF =
-                  spark
+                  sparkSession
                       .createDataset(ids, Encoders.INT())
                       .withColumnRenamed("value", "id")
                       .withColumn("dep", lit("hr"));
