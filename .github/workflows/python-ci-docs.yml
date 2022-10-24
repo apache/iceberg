@@ -55,6 +55,7 @@ jobs:
           cp -r /tmp/site/* .
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
+          echo "py.iceberg.apache.org" > CNAME
           git add --all
           git commit -m 'Publish Python docs'
           git push -f origin gh-pages-tmp:gh-pages || true
