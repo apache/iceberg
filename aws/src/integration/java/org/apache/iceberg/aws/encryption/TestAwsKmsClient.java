@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.aws.encryption;
 
-import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -31,7 +31,7 @@ import software.amazon.awssdk.services.kms.model.CreateKeyRequest;
 import software.amazon.awssdk.services.kms.model.CreateKeyResponse;
 import software.amazon.awssdk.services.kms.model.DisableKeyRequest;
 
-@SuppressWarnings({"VisibilityModifier"})
+@SuppressWarnings("VisibilityModifier")
 public class TestAwsKmsClient {
   static Map<String, String> properties;
   static AwsKmsClient awsKmsClient;
@@ -42,7 +42,7 @@ public class TestAwsKmsClient {
   @BeforeClass
   public static void beforeClass() {
     awsKmsClient = new AwsKmsClient();
-    properties = Maps.newHashMap();
+    properties = ImmutableMap.of();
     kms = AwsClientFactories.from(properties).kms();
     awsKmsClient.initialize(kms);
     CreateKeyResponse response = kms.createKey(CreateKeyRequest.builder().build());
