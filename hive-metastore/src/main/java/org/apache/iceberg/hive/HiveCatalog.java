@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.commons.lang3.EnumUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -30,6 +32,7 @@ import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
@@ -62,6 +65,10 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
+
+  public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
+  public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
+  public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -264,7 +271,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         isValidateNamespace(namespace),
         "Cannot support multi part namespace in Hive Metastore: %s",
         namespace);
-
+    Preconditions.checkArgument(
+        meta.get(HMS_DB_OWNER_TYPE) == null || meta.get(HMS_DB_OWNER) != null,
+        "Setting " + HMS_DB_OWNER_TYPE + " without setting " + HMS_DB_OWNER + " is not allowed");
     try {
       clients.run(
           client -> {
@@ -356,6 +365,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
+    Preconditions.checkArgument(
+        (properties.get(HMS_DB_OWNER_TYPE) == null) == (properties.get(HMS_DB_OWNER) == null),
+        "Setting "
+            + HMS_DB_OWNER_TYPE
+            + " and "
+            + HMS_DB_OWNER
+            + " has to be performed together or not at all");
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -371,6 +387,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
+    Preconditions.checkArgument(
+        properties.contains(HMS_DB_OWNER_TYPE) == properties.contains(HMS_DB_OWNER),
+        "Removing "
+            + HMS_DB_OWNER_TYPE
+            + " and "
+            + HMS_DB_OWNER
+            + " has to be performed together or not at all");
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -509,11 +532,26 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     if (database.getDescription() != null) {
       meta.put("comment", database.getDescription());
     }
+    if (database.getOwnerName() != null) {
+      meta.put(HMS_DB_OWNER, database.getOwnerName());
+      if (database.getOwnerType() != null) {
+        meta.put(HMS_DB_OWNER_TYPE, database.getOwnerType().name());
+      }
+    }
 
     return meta;
   }
 
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
+    Preconditions.checkArgument(
+        meta.get(HMS_DB_OWNER_TYPE) == null
+            || EnumUtils.isValidEnum(PrincipalType.class, meta.get(HMS_DB_OWNER_TYPE)),
+        HMS_DB_OWNER_TYPE
+            + " has an invalid value of: "
+            + meta.get(HMS_DB_OWNER_TYPE)
+            + ". Acceptable values are: "
+            + Stream.of(PrincipalType.values()).map(Enum::name).collect(Collectors.joining(", ")));
+
     if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -530,12 +568,22 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             database.setDescription(value);
           } else if (key.equals("location")) {
             database.setLocationUri(value);
+          } else if (key.equals(HMS_DB_OWNER)) {
+            database.setOwnerName(value);
+          } else if (key.equals(HMS_DB_OWNER_TYPE) && value != null) {
+            database.setOwnerType(PrincipalType.valueOf(value));
           } else {
             if (value != null) {
               parameter.put(key, value);
             }
           }
         });
+
+    if (database.getOwnerName() == null) {
+      database.setOwnerName(System.getProperty("user.name"));
+      database.setOwnerType(PrincipalType.USER);
+    }
+
     database.setParameters(parameter);
 
     return database;
