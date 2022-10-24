@@ -57,11 +57,11 @@ public class ExpressionVisitors {
     }
 
     public <T, C> R aggregate(BoundAggregate<T, C> agg) {
-      throw new UnsupportedOperationException("aggregate is not supported");
+      throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
 
     public <T> R aggregate(UnboundAggregate<T> agg) {
-      return null;
+      throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
   }
 

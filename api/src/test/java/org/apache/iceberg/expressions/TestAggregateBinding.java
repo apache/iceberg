@@ -18,14 +18,6 @@
  */
 package org.apache.iceberg.expressions;
 
-import static org.apache.iceberg.expressions.Expression.Operation.COUNT;
-import static org.apache.iceberg.expressions.Expression.Operation.COUNT_STAR;
-import static org.apache.iceberg.expressions.Expression.Operation.MAX;
-import static org.apache.iceberg.expressions.Expression.Operation.MIN;
-import static org.apache.iceberg.expressions.Expressions.max;
-import static org.apache.iceberg.expressions.Expressions.ref;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -36,17 +28,30 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestAggregateBinding {
-  private static final List<Expression.Operation> AGGREGATES = Arrays.asList(COUNT, MAX, MIN);
+  private static final List<Expression.Operation> AGGREGATES =
+      Arrays.asList(Expression.Operation.COUNT, Expression.Operation.MAX, Expression.Operation.MIN);
   private static final StructType struct =
-      StructType.of(required(10, "x", Types.IntegerType.get()));
+      StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testAggregateBinding() {
     for (Expression.Operation op : AGGREGATES) {
-      UnboundAggregate unbound = new UnboundAggregate(op, ref("x"));
+      UnboundAggregate unbound = null;
+      switch (op) {
+        case COUNT:
+          unbound = Expressions.count("x");
+          break;
+        case MAX:
+          unbound = Expressions.max("x");
+          break;
+        case MIN:
+          unbound = Expressions.min("x");
+          break;
+        default:
+          throw new UnsupportedOperationException("Invalid aggregate: " + op);
+      }
 
-      Expression expr = unbound.bind(struct, false);
+      Expression expr = unbound.bind(struct, true);
       BoundAggregate bound = assertAndUnwrapAggregate(expr);
 
       Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
@@ -55,18 +60,18 @@ public class TestAggregateBinding {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testCountStarBinding() {
-    UnboundAggregate unbound = new UnboundAggregate(COUNT_STAR, null);
+    UnboundAggregate unbound = Expressions.countStar();
     Expression expr = unbound.bind(null, false);
     BoundAggregate bound = assertAndUnwrapAggregate(expr);
 
-    Assert.assertEquals("Should not change the comparison operation", COUNT_STAR, bound.op());
+    Assert.assertEquals(
+        "Should not change the comparison operation", Expression.Operation.COUNT_STAR, bound.op());
   }
 
   @Test
   public void testBoundAggregateFails() {
-    UnboundAggregate unbound = new UnboundAggregate(COUNT, ref("x"));
+    Expression unbound = Expressions.count("x");
     Assertions.assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Found already bound aggregate");
@@ -74,16 +79,17 @@ public class TestAggregateBinding {
 
   @Test
   public void testCaseInsensitiveReference() {
-    Expression expr = max("X");
+    Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
     BoundAggregate bound = assertAndUnwrapAggregate(boundExpr);
     Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-    Assert.assertEquals("Should not change the comparison operation", MAX, bound.op());
+    Assert.assertEquals(
+        "Should not change the comparison operation", Expression.Operation.MAX, bound.op());
   }
 
   @Test
   public void testCaseSensitiveReference() {
-    Expression expr = max("X");
+    Expression expr = Expressions.max("X");
     Assertions.assertThatThrownBy(() -> Binder.bind(struct, expr, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'X' in struct");
@@ -91,7 +97,7 @@ public class TestAggregateBinding {
 
   @Test
   public void testMissingField() {
-    UnboundAggregate unbound = new UnboundAggregate(COUNT, ref("missing"));
+    UnboundAggregate unbound = Expressions.count("missing");
     try {
       unbound.bind(struct, false);
       Assert.fail("Binding a missing field should fail");

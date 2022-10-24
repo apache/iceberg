@@ -49,25 +49,9 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
     if (op() == Operation.COUNT_STAR) {
       return new BoundAggregate<>(op(), null);
     } else {
-      Preconditions.checkArgument(term() != null, "aggregate term can't be null");
+      Preconditions.checkArgument(term() != null, "Invalid aggregate term: null");
       BoundTerm<T> bound = term().bind(struct, caseSensitive);
       return new BoundAggregate<>(op(), bound);
-    }
-  }
-
-  @Override
-  public String toString() {
-    switch (op()) {
-      case COUNT:
-        return "count(" + term() + ")";
-      case COUNT_STAR:
-        return "count(*)";
-      case MAX:
-        return "max(" + term() + ")";
-      case MIN:
-        return "min(" + term() + ")";
-      default:
-        return "Aggregate is not supported: operation = " + op();
     }
   }
 }

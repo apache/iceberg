@@ -49,19 +49,18 @@ public class TestSparkAggregates {
 
           Max max = new Max(namedReference);
           Expression expectedMax = Expressions.max(unquoted);
-          Expression acturalMax = SparkAggregates.convert(max);
-          Assert.assertEquals("Max must match", expectedMax.toString(), acturalMax.toString());
+          Expression actualMax = SparkAggregates.convert(max);
+          Assert.assertEquals("Max must match", expectedMax.toString(), actualMax.toString());
 
           Min min = new Min(namedReference);
           Expression expectedMin = Expressions.min(unquoted);
-          Expression acturalMin = SparkAggregates.convert(min);
-          Assert.assertEquals("Min must match", expectedMin.toString(), acturalMin.toString());
+          Expression actualMin = SparkAggregates.convert(min);
+          Assert.assertEquals("Min must match", expectedMin.toString(), actualMin.toString());
 
           Count count = new Count(namedReference, false);
           Expression expectedCount = Expressions.count(unquoted);
-          Expression acturalCount = SparkAggregates.convert(count);
-          Assert.assertEquals(
-              "Count must match", expectedCount.toString(), acturalCount.toString());
+          Expression actualCount = SparkAggregates.convert(count);
+          Assert.assertEquals("Count must match", expectedCount.toString(), actualCount.toString());
 
           Count countDistinct = new Count(namedReference, true);
           Expression convertedCountDistinct = SparkAggregates.convert(countDistinct);
@@ -69,9 +68,9 @@ public class TestSparkAggregates {
 
           CountStar countStar = new CountStar();
           Expression expectedCountStar = Expressions.countStar();
-          Expression acturalCountStar = SparkAggregates.convert(countStar);
+          Expression actualCountStar = SparkAggregates.convert(countStar);
           Assert.assertEquals(
-              "CountStar must match", expectedCountStar.toString(), acturalCountStar.toString());
+              "CountStar must match", expectedCountStar.toString(), actualCountStar.toString());
         });
   }
 }

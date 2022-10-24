@@ -51,6 +51,7 @@ public class SparkAggregates {
             // manifest file doesn't have count distinct so this can't be converted to push down
             return null;
           }
+
           if (countAgg.column() instanceof NamedReference) {
             return Expressions.count(SparkUtil.toColumnName((NamedReference) countAgg.column()));
           } else {

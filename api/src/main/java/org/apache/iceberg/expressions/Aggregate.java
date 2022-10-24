@@ -39,4 +39,20 @@ public abstract class Aggregate<C extends Term> implements Expression {
   public C term() {
     return term;
   }
+
+  @Override
+  public String toString() {
+    switch (op()) {
+      case COUNT:
+        return "count(" + term() + ")";
+      case COUNT_STAR:
+        return "count(*)";
+      case MAX:
+        return "max(" + term() + ")";
+      case MIN:
+        return "min(" + term() + ")";
+      default:
+        throw new UnsupportedOperationException("Invalid aggregate: " + op());
+    }
+  }
 }
