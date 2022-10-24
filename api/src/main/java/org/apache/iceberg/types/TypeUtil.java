@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 public class TypeUtil {
 
@@ -116,6 +117,10 @@ public class TypeUtil {
 
   public static Set<Integer> getProjectedIds(Schema schema) {
     return ImmutableSet.copyOf(getIdsInternal(schema.asStruct(), true));
+  }
+
+  public static List<String> getProjectedFieldNames(Schema schema, Iterable<Integer> projectedIds) {
+    return Streams.stream(projectedIds).map(schema::findColumnName).collect(Collectors.toList());
   }
 
   public static Set<Integer> getProjectedIds(Type type) {

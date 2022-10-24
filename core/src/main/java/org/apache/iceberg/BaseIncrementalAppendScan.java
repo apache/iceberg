@@ -78,6 +78,8 @@ class BaseIncrementalAppendScan
             .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
             .toSet();
 
+    scanMetrics().totalDataManifests().increment((long) manifests.size());
+
     ManifestGroup manifestGroup =
         new ManifestGroup(tableOps().io(), manifests)
             .caseSensitive(isCaseSensitive())
@@ -88,6 +90,7 @@ class BaseIncrementalAppendScan
                     snapshotIds.contains(manifestEntry.snapshotId())
                         && manifestEntry.status() == ManifestEntry.Status.ADDED)
             .specsById(tableOps().current().specsById())
+            .scanMetrics(scanMetrics())
             .ignoreDeleted();
 
     if (context().ignoreResiduals()) {

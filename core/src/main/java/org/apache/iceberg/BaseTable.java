@@ -81,7 +81,8 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public IncrementalChangelogScan newIncrementalChangelogScan() {
-    return new BaseIncrementalChangelogScan(ops, this);
+    return new BaseIncrementalChangelogScan(
+        ops, this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override

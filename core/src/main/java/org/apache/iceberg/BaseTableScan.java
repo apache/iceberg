@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -134,7 +133,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
       List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
       List<String> projectedFieldNames =
-          projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
+          TypeUtil.getProjectedFieldNames(schema(), projectedFieldIds);
 
       Timer.Timed planningDuration = scanMetrics().totalPlanningDuration().start();
 

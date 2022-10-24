@@ -1896,6 +1896,7 @@ components:
       anyOf:
         - $ref: '#/components/schemas/ScanReport'
         - $ref: '#/components/schemas/CommitReport'
+        - $ref: '#/components/schemas/IncrementalScanReport'
       required:
         - report-type
       properties:
@@ -1956,6 +1957,53 @@ components:
           format: int64
         operation:
           type: string
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    IncrementalScanReport:
+      type: object
+      required:
+        - table-name
+        - from-snapshot-id
+        - to-snapshot-id
+        - filter
+        - schema-id
+        - projected-field-ids
+        - projected-field-names
+        - metrics
+      properties:
+        table-name:
+          type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        sequence-number:
+          type: integer
+          format: int64
+        operation:
+          type: string
+        from-snapshot-id:
+          type: integer
+          format: int64
+        to-snapshot-id:
+          type: integer
+          format: int64
+        filter:
+          $ref: '#/components/schemas/Expression'
+        schema-id:
+          type: integer
+        projected-field-ids:
+          type: array
+          items:
+            type: integer
+        projected-field-names:
+          type: array
+          items:
+            type: string
         metrics:
           $ref: '#/components/schemas/Metrics'
         metadata:

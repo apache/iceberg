@@ -23,9 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.IncrementalScanReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -61,9 +63,12 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     ScanReport scanReport = reporter.lastReport();
     assertThat(scanReport).isNotNull();
-
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
     assertThat(result.resultDataFiles().value()).isEqualTo(3);
@@ -90,6 +95,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(scanReport).isNotNull();
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
     assertThat(result.resultDataFiles().value()).isEqualTo(1);
     assertThat(result.resultDeleteFiles().value()).isEqualTo(0);
@@ -107,15 +116,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
   @Test
   public void scanningWithDeletes() throws IOException {
+    String tableName = "scan-planning-with-deletes";
     Table table =
         TestTables.create(
-            tableDir,
-            "scan-planning-with-deletes",
-            SCHEMA,
-            SPEC,
-            SortOrder.unsorted(),
-            formatVersion,
-            reporter);
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
@@ -127,8 +131,12 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     ScanReport scanReport = reporter.lastReport();
     assertThat(scanReport).isNotNull();
-    assertThat(scanReport.tableName()).isEqualTo("scan-planning-with-deletes");
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
     assertThat(result.resultDataFiles().value()).isEqualTo(3);
@@ -167,6 +175,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(scanReport).isNotNull();
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.skippedDataFiles().value()).isEqualTo(1);
     assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
@@ -203,6 +215,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(scanReport).isNotNull();
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(3L);
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
     assertThat(result.resultDataFiles().value()).isEqualTo(1);
@@ -240,10 +256,73 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     ScanReport scanReport = reporter.lastReport();
     assertThat(scanReport).isNotNull();
+    assertThat(scanReport.schemaId()).isEqualTo(0);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.indexedDeleteFiles().value()).isEqualTo(2);
     assertThat(result.equalityDeleteFiles().value()).isEqualTo(1);
     assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
+  }
+
+  @Test
+  public void incrementalAppendScan() throws IOException {
+    testIncrementalScan("incremental-append-scan", Table::newIncrementalAppendScan);
+  }
+
+  @Test
+  public void incrementalChangelogScan() throws IOException {
+    testIncrementalScan("incremental-changelog-scan", Table::newIncrementalChangelogScan);
+  }
+
+  private <
+          S extends IncrementalScan<S, T, G>,
+          T extends ScanTask,
+          G extends ScanTaskGroup<T>,
+          X extends BaseTable>
+      void testIncrementalScan(
+          String tableName, Function<X, IncrementalScan<S, T, G>> tableScanFunction)
+          throws IOException {
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_D).commit();
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    IncrementalScan<S, T, G> tableScan = tableScanFunction.apply((X) table);
+    long fromSnapshotId = 1;
+    long toSnapshotId = table.currentSnapshot().snapshotId();
+
+    try (CloseableIterable<?> scanTask =
+        tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
+      scanTask.forEach(task -> {});
+    }
+
+    IncrementalScanReport scanReport = reporter.lastIncrementalReport();
+    assertThat(scanReport).isNotNull();
+
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.fromSnapshotId()).isEqualTo(fromSnapshotId);
+    assertThat(scanReport.toSnapshotId()).isEqualTo(toSnapshotId);
+    assertThat(scanReport.projectedFieldIds()).containsExactly(1, 2);
+    assertThat(scanReport.projectedFieldNames()).containsExactly("id", "data");
+
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.skippedDataFiles().value()).isEqualTo(1);
+    assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+    assertThat(result.resultDeleteFiles().value()).isEqualTo(0);
+    assertThat(result.scannedDataManifests().value()).isEqualTo(1);
+    assertThat(result.scannedDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.skippedDataManifests().value()).isEqualTo(1);
+    assertThat(result.skippedDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.totalDataManifests().value()).isEqualTo(2);
+    assertThat(result.totalDeleteManifests().value()).isEqualTo(0);
+    assertThat(result.totalFileSizeInBytes().value()).isEqualTo(10L);
+    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(0L);
   }
 
   static class TestMetricsReporter implements MetricsReporter {
@@ -271,6 +350,13 @@ public class TestScanPlanningAndReporting extends TableTestBase {
       }
 
       return (CommitReport) reports.get(reports.size() - 1);
+    }
+
+    public IncrementalScanReport lastIncrementalReport() {
+      if (reports.isEmpty()) {
+        return null;
+      }
+      return (IncrementalScanReport) reports.get(reports.size() - 1);
     }
   }
 }
