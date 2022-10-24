@@ -102,7 +102,7 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
   }
 
   @VisibleForTesting
-  void initialize(KmsClient kms) {
-    this.kms = kms;
+  void initialize(KmsClient client) {
+    this.kms = client;
   }
 }
