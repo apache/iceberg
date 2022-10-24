@@ -19,6 +19,8 @@
 package org.apache.iceberg.aws.encryption;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -54,11 +56,17 @@ public class TestAwsKmsClient {
     String testWrappingKeyId = "testGenerateKey";
     String expectedPlainText = "testPlain";
     String expectedWrappedKey = "testWrappedKey";
+    SdkBytes encodedPlaintext =
+        SdkBytes.fromByteArray(expectedPlainText.getBytes(StandardCharsets.UTF_8));
+    SdkBytes encodedWrappedKey =
+        SdkBytes.fromByteArray(expectedWrappedKey.getBytes(StandardCharsets.UTF_8));
+    String encodedWrappedKeyString =
+        Base64.getEncoder().encodeToString(expectedWrappedKey.getBytes(StandardCharsets.UTF_8));
     Mockito.doReturn(
             GenerateDataKeyResponse.builder()
                 .keyId(testWrappingKeyId)
-                .plaintext(SdkBytes.fromUtf8String(expectedPlainText))
-                .ciphertextBlob(SdkBytes.fromUtf8String(expectedWrappedKey))
+                .plaintext(encodedPlaintext)
+                .ciphertextBlob(encodedWrappedKey)
                 .build())
         .when(kms)
         .generateDataKey(Mockito.any(GenerateDataKeyRequest.class));
@@ -66,11 +74,11 @@ public class TestAwsKmsClient {
         awsKmsClient.generateKey(testWrappingKeyId);
     Assert.assertEquals(
         "The test plaintext key should be testPlain",
-        SdkBytes.fromUtf8String(expectedPlainText),
+        encodedPlaintext,
         SdkBytes.fromByteBuffer(keyGenResult.key()));
     Assert.assertEquals(
         "The test wrapped key should be testWrappedKey",
-        expectedWrappedKey,
+        encodedWrappedKeyString,
         keyGenResult.wrappedKey());
   }
 
@@ -79,17 +87,23 @@ public class TestAwsKmsClient {
     String testWrappingKeyId = "testWrapKey";
     String testPlainText = "testPlain";
     String testWrappedKey = "testWrappedKey";
-    ByteBuffer testKey = SdkBytes.fromUtf8String(testPlainText).asByteBuffer();
+    SdkBytes encodedPlaintext =
+        SdkBytes.fromByteArray(testPlainText.getBytes(StandardCharsets.UTF_8));
+    SdkBytes encodedWrappedKey =
+        SdkBytes.fromByteArray(testWrappedKey.getBytes(StandardCharsets.UTF_8));
+    String encodedWrappedKeyString =
+        Base64.getEncoder().encodeToString(testWrappedKey.getBytes(StandardCharsets.UTF_8));
     Mockito.doReturn(
             EncryptResponse.builder()
                 .keyId(testWrappingKeyId)
-                .ciphertextBlob(SdkBytes.fromUtf8String(testWrappedKey))
+                .ciphertextBlob(encodedWrappedKey)
                 .build())
         .when(kms)
         .encrypt(Mockito.any(EncryptRequest.class));
-    String resultWrappedKey = awsKmsClient.wrapKey(testKey, testWrappingKeyId);
+    String resultWrappedKey =
+        awsKmsClient.wrapKey(encodedPlaintext.asByteBuffer(), testWrappingKeyId);
     Assert.assertEquals(
-        "The wrapped key should be testWrappedKey", testWrappedKey, resultWrappedKey);
+        "The wrapped key should be testWrappedKey", encodedWrappedKeyString, resultWrappedKey);
   }
 
   @Test
@@ -97,16 +111,20 @@ public class TestAwsKmsClient {
     String testWrappingKeyId = "testUnwrapKey";
     String testPlainText = "testPlain";
     String testWrappedKey = "testWrappedKey";
-    SdkBytes rawPlaintextKey = SdkBytes.fromUtf8String(testPlainText);
+    SdkBytes encodedPlaintext =
+        SdkBytes.fromByteArray(testPlainText.getBytes(StandardCharsets.UTF_8));
+    String encodedWrappedKeyString =
+        Base64.getEncoder().encodeToString(testWrappedKey.getBytes(StandardCharsets.UTF_8));
     Mockito.doReturn(
-            DecryptResponse.builder().keyId(testWrappingKeyId).plaintext(rawPlaintextKey).build())
+            DecryptResponse.builder().keyId(testWrappingKeyId).plaintext(encodedPlaintext).build())
         .when(kms)
         .decrypt(Mockito.any(DecryptRequest.class));
 
-    ByteBuffer resultPlaintextKey = awsKmsClient.unwrapKey(testWrappedKey, testWrappingKeyId);
+    ByteBuffer resultPlaintextKey =
+        awsKmsClient.unwrapKey(encodedWrappedKeyString, testWrappingKeyId);
     Assert.assertEquals(
         "The result plaintext should be testPlain",
-        rawPlaintextKey.asByteBuffer(),
+        encodedPlaintext.asByteBuffer(),
         resultPlaintextKey);
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.encryption;
 
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.DecryptRequest;
 import software.amazon.awssdk.services.kms.model.DecryptResponse;
 import software.amazon.awssdk.services.kms.model.EncryptRequest;
@@ -52,7 +54,8 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
       LOG.error("Fail to wrap key {} with wrappingKeyId {}", key, wrappingKeyId, e);
       throw e;
     }
-    String wrappedKey = response.ciphertextBlob().asUtf8String();
+    String wrappedKey = Base64.getEncoder().encodeToString(response.ciphertextBlob().asByteArray());
+    ;
     return wrappedKey;
   }
 
@@ -66,7 +69,12 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
   public KeyGenerationResult generateKey(String wrappingKeyId) {
     GenerateDataKeyResponse response = null;
     try {
-      response = kms.generateDataKey(GenerateDataKeyRequest.builder().keyId(wrappingKeyId).build());
+      response =
+          kms.generateDataKey(
+              GenerateDataKeyRequest.builder()
+                  .keyId(wrappingKeyId)
+                  .keySpec(DataKeySpec.AES_256)
+                  .build());
 
     } catch (Exception e) {
       LOG.error("Fail to generate key with wrappingKeyId {}", wrappingKeyId, e);
@@ -74,18 +82,19 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
     }
 
     ByteBuffer plainTextKey = response.plaintext().asByteBuffer();
-    String wrappedKey = response.ciphertextBlob().asUtf8String();
+    String wrappedKey = Base64.getEncoder().encodeToString(response.ciphertextBlob().asByteArray());
     return new KeyGenerationResult(plainTextKey, wrappedKey);
   }
 
   @Override
   public ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId) {
     DecryptResponse response = null;
+    byte[] wrappedKeyDecoded = Base64.getDecoder().decode(wrappedKey);
     try {
       response =
           kms.decrypt(
               DecryptRequest.builder()
-                  .ciphertextBlob(SdkBytes.fromUtf8String(wrappedKey))
+                  .ciphertextBlob(SdkBytes.fromByteArray(wrappedKeyDecoded))
                   .keyId(wrappingKeyId)
                   .build());
     } catch (Exception e) {
