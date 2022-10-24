@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -722,24 +724,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
 
     createAndInitUnpartitionedTable();
+    createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
-    // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
-    // for more consistent exception stack
-    List<Integer> ids = ImmutableList.of(1, 2);
-    Dataset<Row> inputDF =
-        spark
-            .createDataset(ids, Encoders.INT())
-            .withColumnRenamed("value", "id")
-            .withColumn("dep", lit("hr"));
-    try {
-      inputDF.coalesce(1).writeTo(tableName).append();
-    } catch (NoSuchTableException e) {
-      throw new RuntimeException(e);
-    }
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -755,7 +746,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("DELETE FROM %s WHERE id = 1", tableName);
+
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -764,15 +757,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
 
-                try {
-                  inputDF.coalesce(1).writeTo(tableName).append();
-                } catch (NoSuchTableException e) {
-                  throw new RuntimeException(e);
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -802,10 +802,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
 
     createAndInitUnpartitionedTable();
+    createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -821,7 +824,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("DELETE FROM %s WHERE id = 1", tableName);
+
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -830,22 +835,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
-              List<Integer> ids = ImmutableList.of(1, 2);
-              Dataset<Row> inputDF =
-                  spark
-                      .createDataset(ids, Encoders.INT())
-                      .withColumnRenamed("value", "id")
-                      .withColumn("dep", lit("hr"));
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
 
-                try {
-                  inputDF.coalesce(1).writeTo(tableName).append();
-                } catch (NoSuchTableException e) {
-                  throw new RuntimeException(e);
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
                 }
 
                 barrier.incrementAndGet();

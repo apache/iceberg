@@ -36,13 +36,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
@@ -989,6 +992,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, MERGE_ISOLATION_LEVEL, "serializable");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
@@ -1003,12 +1008,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql(
                     "MERGE INTO %s t USING source s "
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
                     tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -1017,11 +1024,24 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
@@ -1055,6 +1075,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
@@ -1069,12 +1091,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql(
                     "MERGE INTO %s t USING source s "
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
                     tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -1083,11 +1107,24 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
