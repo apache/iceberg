@@ -18,20 +18,21 @@
  */
 package org.apache.iceberg.metrics;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
+import org.immutables.value.Value;
 
-/**
- * A default {@link MetricsReporter} implementation that logs the {@link MetricsReport} to the log
- * file.
- */
-public class LoggingMetricsReporter implements MetricsReporter {
-  private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
+/** A Table Scan report that contains all relevant information from a Table Scan. */
+@Value.Immutable
+public interface ScanReport extends MetricsReport {
 
-  @Override
-  public void report(MetricsReport report) {
-    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
-    LOG.info("Received metrics report: {}", report);
-  }
+  String tableName();
+
+  long snapshotId();
+
+  Expression filter();
+
+  Schema projection();
+
+  ScanMetricsResult scanMetrics();
 }

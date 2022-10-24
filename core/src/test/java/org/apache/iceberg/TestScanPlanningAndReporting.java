@@ -28,8 +28,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 

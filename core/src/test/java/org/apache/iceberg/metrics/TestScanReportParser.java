@@ -22,8 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -70,7 +68,7 @@ public class TestScanReportParser {
 
   @Test
   public void extraFields() {
-    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+    ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -166,7 +164,7 @@ public class TestScanReportParser {
 
   @Test
   public void roundTripSerde() {
-    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+    ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
