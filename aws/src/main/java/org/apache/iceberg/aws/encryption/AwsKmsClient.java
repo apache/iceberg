@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.encryption;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
@@ -37,6 +38,8 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
   private KmsClient kms;
   private static final Logger LOG = LoggerFactory.getLogger(AwsKmsClient.class);
 
+  public AwsKmsClient() {}
+
   @Override
   public String wrapKey(ByteBuffer key, String wrappingKeyId) {
     EncryptResponse response = null;
@@ -46,7 +49,7 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
           kms.encrypt(
               EncryptRequest.builder().keyId(wrappingKeyId).plaintext(plainTextKey).build());
     } catch (Exception e) {
-      LOG.error("Fail to wrap key {} with wrappingKeyId {}", key.toString(), wrappingKeyId, e);
+      LOG.error("Fail to wrap key {} with wrappingKeyId {}", key, wrappingKeyId, e);
       throw e;
     }
     String wrappedKey = response.ciphertextBlob().asUtf8String();
@@ -95,6 +98,11 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    this.kms = AwsClientFactories.from(properties).kms();
+    initialize(AwsClientFactories.from(properties).kms());
+  }
+
+  @VisibleForTesting
+  void initialize(KmsClient kms) {
+    this.kms = kms;
   }
 }
