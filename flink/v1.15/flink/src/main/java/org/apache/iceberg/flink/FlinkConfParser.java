@@ -139,7 +139,6 @@ class FlinkConfParser {
     }
 
     public String parse() {
-      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Function.identity(), defaultValue);
     }
 

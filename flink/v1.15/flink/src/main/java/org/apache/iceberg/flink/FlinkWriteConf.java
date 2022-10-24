@@ -93,6 +93,66 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  public String parquetCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String parquetCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_LEVEL.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT)
+        .parse();
+  }
+
+  public String avroCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.AVRO_COMPRESSION)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String avroCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_LEVEL.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.AVRO_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)
+        .parse();
+  }
+
+  public String orcCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.ORC_COMPRESSION)
+        .defaultValue(TableProperties.ORC_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String orcCompressionStrategy() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_STRATEGY.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_STRATEGY)
+        .tableProperty(TableProperties.ORC_COMPRESSION_STRATEGY)
+        .defaultValue(TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT)
+        .parse();
+  }
+
   public DistributionMode distributionMode() {
     String modeName =
         confParser
