@@ -55,7 +55,6 @@ public class AwsKmsClient implements org.apache.iceberg.encryption.KmsClient {
       throw e;
     }
     String wrappedKey = Base64.getEncoder().encodeToString(response.ciphertextBlob().asByteArray());
-    ;
     return wrappedKey;
   }
 

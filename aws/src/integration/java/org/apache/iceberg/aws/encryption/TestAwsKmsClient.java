@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.aws.encryption;
 
+import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.junit.AfterClass;
@@ -31,6 +31,7 @@ import software.amazon.awssdk.services.kms.model.CreateKeyRequest;
 import software.amazon.awssdk.services.kms.model.CreateKeyResponse;
 import software.amazon.awssdk.services.kms.model.DisableKeyRequest;
 
+@SuppressWarnings({"VisibilityModifier"})
 public class TestAwsKmsClient {
   static Map<String, String> properties;
   static AwsKmsClient awsKmsClient;
@@ -41,7 +42,7 @@ public class TestAwsKmsClient {
   @BeforeClass
   public static void beforeClass() {
     awsKmsClient = new AwsKmsClient();
-    properties = new HashMap<>();
+    properties = Maps.newHashMap();
     kms = AwsClientFactories.from(properties).kms();
     awsKmsClient.initialize(kms);
     CreateKeyResponse response = kms.createKey(CreateKeyRequest.builder().build());
@@ -67,7 +68,7 @@ public class TestAwsKmsClient {
         awsKmsClient.generateKey(wrappingKeyId);
     ByteBuffer plainTextKey = result.key();
     String wrappedKey = awsKmsClient.wrapKey(plainTextKey, wrappingKeyId);
-    Assert.assertNotNull("Should successfully encrypt the plainTextKey", wrappedKey);
+    Assert.assertNotNull("Should successfully wrap the plainTextKey", wrappedKey);
   }
 
   @Test
@@ -76,7 +77,7 @@ public class TestAwsKmsClient {
         awsKmsClient.generateKey(wrappingKeyId);
     String wrappedKey = result.wrappedKey();
     ByteBuffer plainTextKey = awsKmsClient.unwrapKey(wrappedKey, wrappingKeyId);
-    Assert.assertNotNull("Should successfully decrypt the wrappedKey", plainTextKey);
+    Assert.assertNotNull("Should successfully unwrap the wrappedKey", plainTextKey);
     Assert.assertEquals(
         "The resulting plaintext key should be consistent", result.key(), plainTextKey);
   }
