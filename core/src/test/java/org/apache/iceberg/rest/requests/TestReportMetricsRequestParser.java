@@ -19,14 +19,12 @@
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ImmutableScanReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -82,12 +80,12 @@ public class TestReportMetricsRequestParser {
   @Test
   public void roundTripSerde() {
     String tableName = "roundTripTableName";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
-            .projection(projection)
+            .schemaId(4)
+            .addProjectedFieldIds(1, 2, 3)
+            .addProjectedFieldNames("c1", "c2", "c3")
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
             .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
@@ -99,17 +97,9 @@ public class TestReportMetricsRequestParser {
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
             + "  \"filter\" : true,\n"
-            + "  \"projection\" : {\n"
-            + "    \"type\" : \"struct\",\n"
-            + "    \"schema-id\" : 0,\n"
-            + "    \"fields\" : [ {\n"
-            + "      \"id\" : 1,\n"
-            + "      \"name\" : \"c1\",\n"
-            + "      \"required\" : true,\n"
-            + "      \"type\" : \"string\",\n"
-            + "      \"doc\" : \"c1\"\n"
-            + "    } ]\n"
-            + "  },\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ 1, 2, 3 ],\n"
+            + "  \"projected-field-names\" : [ \"c1\", \"c2\", \"c3\" ],\n"
             + "  \"metrics\" : { }\n"
             + "}";
 
@@ -119,8 +109,6 @@ public class TestReportMetricsRequestParser {
     Assertions.assertThat(json).isEqualTo(expectedJson);
 
     Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
-        .usingRecursiveComparison()
-        .ignoringFields("projection")
         .isEqualTo(metricsRequest.report());
   }
 }

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.metrics;
 
-import org.apache.iceberg.Schema;
+import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.immutables.value.Value;
 
@@ -32,7 +32,11 @@ public interface ScanReport extends MetricsReport {
 
   Expression filter();
 
-  Schema projection();
+  int schemaId();
+
+  List<Integer> projectedFieldIds();
+
+  List<String> projectedFieldNames();
 
   ScanMetricsResult scanMetrics();
 }

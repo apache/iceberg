@@ -19,10 +19,10 @@
 package org.apache.iceberg.metrics;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -33,12 +33,12 @@ public class TestScanReport {
     Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ScanReport, some of required attributes are not set [tableName, snapshotId, filter, projection, scanMetrics]");
+            "Cannot build ScanReport, some of required attributes are not set [tableName, snapshotId, filter, schemaId, scanMetrics]");
 
     Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().tableName("x").build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ScanReport, some of required attributes are not set [snapshotId, filter, projection, scanMetrics]");
+            "Cannot build ScanReport, some of required attributes are not set [snapshotId, filter, schemaId, scanMetrics]");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -48,7 +48,7 @@ public class TestScanReport {
                     .build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ScanReport, some of required attributes are not set [snapshotId, projection, scanMetrics]");
+            "Cannot build ScanReport, some of required attributes are not set [snapshotId, schemaId, scanMetrics]");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -59,7 +59,7 @@ public class TestScanReport {
                     .build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot build ScanReport, some of required attributes are not set [projection, scanMetrics]");
+            "Cannot build ScanReport, some of required attributes are not set [schemaId, scanMetrics]");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -67,9 +67,9 @@ public class TestScanReport {
                     .tableName("x")
                     .filter(Expressions.alwaysTrue())
                     .snapshotId(23L)
-                    .projection(
-                        new Schema(
-                            Types.NestedField.required(1, "c1", Types.StringType.get(), "c1")))
+                    .schemaId(4)
+                    .addProjectedFieldIds(1, 2)
+                    .addProjectedFieldNames("c1", "c2")
                     .build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
@@ -79,19 +79,24 @@ public class TestScanReport {
   @Test
   public void fromEmptyScanMetrics() {
     String tableName = "x";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
+    int schemaId = 4;
+    List<Integer> fieldIds = Arrays.asList(1, 2);
+    List<String> fieldNames = Arrays.asList("c1", "c2");
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
-            .projection(projection)
+            .schemaId(schemaId)
+            .projectedFieldIds(fieldIds)
+            .projectedFieldNames(fieldNames)
             .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
-    Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
+    Assertions.assertThat(scanReport.schemaId()).isEqualTo(schemaId);
+    Assertions.assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
+    Assertions.assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
     Assertions.assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration()).isNull();
@@ -116,20 +121,25 @@ public class TestScanReport {
     scanMetrics.totalDataManifests().increment(5L);
 
     String tableName = "x";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
+    int schemaId = 4;
+    List<Integer> fieldIds = Arrays.asList(1, 2);
+    List<String> fieldNames = Arrays.asList("c1", "c2");
 
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
-            .projection(projection)
+            .schemaId(schemaId)
+            .projectedFieldIds(fieldIds)
+            .projectedFieldNames(fieldNames)
             .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
-    Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
+    Assertions.assertThat(scanReport.schemaId()).isEqualTo(schemaId);
+    Assertions.assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
+    Assertions.assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
     Assertions.assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())

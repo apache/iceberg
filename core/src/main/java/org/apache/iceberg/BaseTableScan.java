@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -31,6 +33,8 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -127,6 +131,10 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
+      List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
+      List<String> projectedFieldNames =
+          projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
+
       Timer.Timed planningDuration = scanMetrics().totalPlanningDuration().start();
 
       return CloseableIterable.whenComplete(
@@ -135,7 +143,9 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
             planningDuration.stop();
             ScanReport scanReport =
                 ImmutableScanReport.builder()
-                    .projection(schema())
+                    .schemaId(schema().schemaId())
+                    .projectedFieldIds(projectedFieldIds)
+                    .projectedFieldNames(projectedFieldNames)
                     .tableName(table().name())
                     .snapshotId(snapshot.snapshotId())
                     .filter(ExpressionUtil.sanitize(filter()))
