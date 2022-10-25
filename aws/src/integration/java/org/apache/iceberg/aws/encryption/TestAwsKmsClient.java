@@ -59,7 +59,7 @@ public class TestAwsKmsClient {
     org.apache.iceberg.encryption.KmsClient.KeyGenerationResult result =
         awsKmsClient.generateKey(wrappingKeyId);
     Assert.assertNotNull("Should successfully generate a plainTextKey", result.key());
-    Assert.assertNotNull("Should successfully generate a wrapped key", result.key());
+    Assert.assertNotNull("Should successfully generate a wrapped key", result.wrappedKey());
   }
 
   @Test
