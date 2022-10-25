@@ -393,8 +393,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   @Override
-  public void setRowGroupInfo(
-      PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+  public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
         vectorizedColumnIterator.setRowGroupInfo(
@@ -436,7 +435,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
@@ -502,8 +501,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-      this.rowStart = rowPosition;
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      this.rowStart = source.getRowIndexOffset().orElse(0L);
     }
 
     @Override
@@ -545,7 +544,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
@@ -570,7 +569,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
