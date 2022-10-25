@@ -1,5 +1,5 @@
 versionOverrides:
-  org.apache.iceberg:iceberg-api:apache-iceberg-0.14.0: "0.14.0"
+  org.apache.iceberg:iceberg-api:apache-iceberg-1.0.0: "1.0.0"
 acceptedBreaks:
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
