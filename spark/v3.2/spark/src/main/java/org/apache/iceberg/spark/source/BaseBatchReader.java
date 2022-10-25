@@ -79,13 +79,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
-    // get required schema for filtering out equality-delete rows in case equality-delete uses
-    // columns are
-    // not selected.
-    Schema requiredSchema =
-        deleteFilter != null && deleteFilter.hasEqDeletes()
-            ? deleteFilter.requiredSchema()
-            : expectedSchema();
+    // get required schema if there are deletes
+    Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
 
     return Parquet.read(inputFile)
         .project(requiredSchema)
