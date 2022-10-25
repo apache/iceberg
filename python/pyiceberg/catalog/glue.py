@@ -363,11 +363,15 @@ class GlueCatalog(Catalog):
         # Glue does not support hierarchical namespace, therefore return an empty list
         if namespace:
             return []
+        database_list = []
         databases_response = self.glue.get_databases()
-        return [
-            self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME])
-            for database in databases_response[PROP_GLUE_DATABASE_LIST]
-        ]
+        next_token = databases_response.get(PROP_GLUE_NEXT_TOKEN)
+        database_list += databases_response[PROP_GLUE_DATABASE_LIST]
+        while next_token:
+            databases_response = self.glue.get_databases(NextToken=next_token)
+            next_token = databases_response.get(PROP_GLUE_NEXT_TOKEN)
+            database_list += databases_response[PROP_GLUE_DATABASE_LIST]
+        return [self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME]) for database in database_list]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         """Get properties for a namespace.
