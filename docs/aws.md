@@ -326,7 +326,8 @@ For more details, please refer to [Lock catalog properties](../configuration/#lo
 Iceberg allows users to write data to S3 through `S3FileIO`.
 `GlueCatalog` by default uses this `FileIO`, and other catalogs can load this `FileIO` using the `io-impl` catalog property.
 
-Users can use catalog properties to override the defaults. Please see https://iceberg.apache.org/docs/latest/configuration/#catalog-properties for how to use these catalog properties and configure in different engines.
+Users can use catalog properties to override the defaults. Please refer to [How to configure catalog properties](https://iceberg.apache.org/docs/latest/configuration/#catalog-properties) 
+for details of catalog properties configuration in different engines.
 
 ### Progressive Multipart Upload
 
@@ -438,7 +439,11 @@ This is turned off by default.
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
 
-To write S3 tags, `s3.write.tags` need to be configured. For example, if set `s3.write.tags.my_key1=my_val1` and `s3.write.tags.my_key2=my_val2`, 
+To write S3 tags, `s3.write.tags` need to be configured. For example, if you have the following setting in your Spark config file:
+```shell
+spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1
+spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
+```
 the objects in S3 will be saved with tags: `my_key1=my_val1` and `my_key2=my_val2`. Do note that the specified write tags will be saved only while object creation.
 
 When the catalog property `s3.delete-enabled` is set to `false`, the objects are not hard-deleted from S3.
@@ -447,12 +452,21 @@ The property is set to `true` by default.
 
 With the `s3.delete.tags` config, objects are tagged with the configured key-value pairs before deletion.
 Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.
-
-For example, if set `s3.delete-enabled=false` and `s3.delete.tags.my_key3=my_val3`, the objects in S3 will be saved with tags: `my_key3=my_val3` before deletion.
+For example, if you have the following setting in your Spark config file:
+```shell
+spark.sql.catalog.my_catalog.s3.delete-enabled=false
+spark.sql.catalog.my_catalog.s3.delete.tags.my_key3=my_val3
+```
+the objects in S3 will be saved with tags: `my_key3=my_val3` before deletion.
 Users can also use the catalog property `s3.delete.num-threads` to mention the number of threads to be used for adding delete tags to the S3 objects.
 
 When the catalog property `s3.write.table-tag-enabled` and `s3.write.namespace-tag-enabled` is set to `true` then the objects in S3 will be saved with tags: `iceberg.table=<table-name>` and `iceberg.namespace=<namespace-name>`.
-Users can define access and data retention policy per namespace or table based on these tags.
+Users can define access and data retention policy per namespace or table based on these tags. 
+For example, to write table and namespace name as S3 tags with Spark 3.0, you can add the following setting to your Spark config file:
+```shell
+spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true
+spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
+```
 
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
 
@@ -465,7 +479,12 @@ disaster recovery, etc.
 For using cross-region access points, we need to additionally set `use-arn-region-enabled` catalog property to
 `true` to enable `S3FileIO` to make cross-region calls, it's not required for same / multi-region access points.
 
-For example, if set `s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap`, the objects in S3 on `my-bucket1` bucket will use `arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap`
+For example, if you have the following setting in your Spark config file:
+```shell
+spark.sql.catalog.my_catalog.s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
+spark.sql.catalog.my_catalog.s3.access-points.my-bucket2=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
+```
+the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap`
 access-point for all S3 operations.
 
 For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html).
@@ -476,6 +495,11 @@ For more details on using access-points, please refer [Using access points with 
 
 To use S3 Acceleration, we need to set `s3.acceleration-enabled` catalog property to `true` to enable `S3FileIO` to make accelerated S3 calls.
 
+For example, you can add the following setting to your Spark config file to enable the S3 Acceleration:
+```shell
+spark.sql.catalog.my_catalog.s3.acceleration-enabled=true
+```
+
 For more details on using S3 Acceleration, please refer to [Configuring fast, secure file transfers using Amazon S3 Transfer Acceleration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html).
 
 ### S3 Dual-stack
@@ -485,6 +509,10 @@ When clients make a request to a dual-stack endpoint, the bucket URL resolves to
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
+For example, you can add the following setting to your Spark config file to enable the S3 Dual-stack:
+```shell
+spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
+```
 For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
 
 ## AWS Client Customization
@@ -492,7 +520,8 @@ For more details on using S3 Dual-stack, please refer [Using dual-stack endpoint
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
 Iceberg allows users to plug in their own implementation of `org.apache.iceberg.aws.AwsClientFactory` by setting the `client.factory` catalog property.
 
-Users can use catalog properties to override the defaults. Please see https://iceberg.apache.org/docs/latest/configuration/#catalog-properties for how to use these catalog properties and configure in different engines.
+Users can use catalog properties to override the defaults. Please refer to [How to configure catalog properties](https://iceberg.apache.org/docs/latest/configuration/#catalog-properties) 
+for details of catalog properties configuration in different engines.
 
 ### Cross-Account and Cross-Region Access
 
@@ -512,6 +541,12 @@ This client factory has the following configurable catalog properties:
 | client.assume-role.session-name   | null                                     | An optional [session name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname)  |
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
+For example, you can add the following setting to your Spark config file to use this client factory:
+```shell
+spark.sql.catalog.my_catalog.client.factory=org.apache.iceberg.aws.AssumeRoleAwsClientFactory
+spark.sql.catalog.my_catalog.client.assume-role.arn=arn:aws:iam::123456789:role/myRoleToAssume
+spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
+```
 
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
@@ -527,6 +562,10 @@ Configure the following property to set the type of HTTP client:
 | Property         | Default       | Description                                                                                                |
 |------------------|---------------|------------------------------------------------------------------------------------------------------------|
 | http-client.type | urlconnection | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+For example, you can add the following setting to your Spark config file to use Apache HTTP Client:
+```shell
+spark.sql.catalog.my_catalog.http-client.type=apache
+```
 
 #### URL Connection HTTP Client Configurations
 
