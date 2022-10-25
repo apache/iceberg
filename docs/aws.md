@@ -439,7 +439,7 @@ This is turned off by default.
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
 
-To write S3 tags, `s3.write.tags` need to be configured. For example, if you have the following setting in your Spark config file:
+To write S3 tags, `s3.write.tags` need to be configured. For example, if Spark is configured with the following setting:
 ```shell
 spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1
 spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
@@ -452,7 +452,7 @@ The property is set to `true` by default.
 
 With the `s3.delete.tags` config, objects are tagged with the configured key-value pairs before deletion.
 Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.
-For example, if you have the following setting in your Spark config file:
+For example, if Spark is configured with the following setting:
 ```shell
 spark.sql.catalog.my_catalog.s3.delete-enabled=false
 spark.sql.catalog.my_catalog.s3.delete.tags.my_key3=my_val3
@@ -462,7 +462,7 @@ Users can also use the catalog property `s3.delete.num-threads` to mention the n
 
 When the catalog property `s3.write.table-tag-enabled` and `s3.write.namespace-tag-enabled` is set to `true` then the objects in S3 will be saved with tags: `iceberg.table=<table-name>` and `iceberg.namespace=<namespace-name>`.
 Users can define access and data retention policy per namespace or table based on these tags. 
-For example, to write table and namespace name as S3 tags with Spark 3.0, you can add the following setting to your Spark config file:
+For example, to write table and namespace name as S3 tags with Spark 3.0, you can configure your Spark with the following setting:
 ```shell
 spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true
 spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
@@ -479,7 +479,7 @@ disaster recovery, etc.
 For using cross-region access points, we need to additionally set `use-arn-region-enabled` catalog property to
 `true` to enable `S3FileIO` to make cross-region calls, it's not required for same / multi-region access points.
 
-For example, if you have the following setting in your Spark config file:
+For example, if Spark is configured with the following setting:
 ```shell
 spark.sql.catalog.my_catalog.s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
 spark.sql.catalog.my_catalog.s3.access-points.my-bucket2=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
@@ -495,7 +495,7 @@ For more details on using access-points, please refer [Using access points with 
 
 To use S3 Acceleration, we need to set `s3.acceleration-enabled` catalog property to `true` to enable `S3FileIO` to make accelerated S3 calls.
 
-For example, you can add the following setting to your Spark config file to enable the S3 Acceleration:
+For example, you can configure your Spark with the following setting to enable the S3 Acceleration:
 ```shell
 spark.sql.catalog.my_catalog.s3.acceleration-enabled=true
 ```
@@ -509,7 +509,7 @@ When clients make a request to a dual-stack endpoint, the bucket URL resolves to
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
-For example, you can add the following setting to your Spark config file to enable the S3 Dual-stack:
+For example, you can configure your Spark with the following setting to enable the S3 Dual-stack:
 ```shell
 spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
@@ -541,7 +541,7 @@ This client factory has the following configurable catalog properties:
 | client.assume-role.session-name   | null                                     | An optional [session name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname)  |
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
-For example, you can add the following setting to your Spark config file to use this client factory:
+For example, you can configure your Spark with the following setting to use this client factory:
 ```shell
 spark.sql.catalog.my_catalog.client.factory=org.apache.iceberg.aws.AssumeRoleAwsClientFactory
 spark.sql.catalog.my_catalog.client.assume-role.arn=arn:aws:iam::123456789:role/myRoleToAssume
