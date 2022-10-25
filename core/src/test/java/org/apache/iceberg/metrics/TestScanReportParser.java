@@ -162,14 +162,14 @@ public class TestScanReportParser {
                 ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"schema-id\":23,\"projected-field-ids\": [\"1\"],\"metrics\":{}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse integer from non-int value: \"1\"");
+        .hasMessage("Cannot parse integer from non-int value in projected-field-ids: \"1\"");
 
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"schema-id\":23,\"projected-field-ids\": [1],\"projected-field-names\": [1],\"metrics\":{}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse string from non-text value: 1");
+        .hasMessage("Cannot parse string from non-text value in projected-field-names: 1");
   }
 
   @Test

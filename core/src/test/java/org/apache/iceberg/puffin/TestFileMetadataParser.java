@@ -173,7 +173,7 @@ public class TestFileMetadataParser {
                         + "  } ]\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse integer from non-int value: 2147483648");
+        .hasMessage("Cannot parse integer from non-int value in fields: 2147483648");
   }
 
   private void testJsonSerialization(FileMetadata fileMetadata, String json) {
