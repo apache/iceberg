@@ -18,18 +18,27 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.io.Serializable;
-import org.apache.flink.annotation.Internal;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
-import org.apache.iceberg.io.CloseableIterator;
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-/**
- * Read a {@link FileScanTask} into a {@link CloseableIterator}
- *
- * @param <T> is the output data type returned by this iterator.
- */
-@Internal
-public interface FileScanTaskReader<T> extends Serializable {
-  CloseableIterator<T> open(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
+public enum ScanMode {
+  BATCH,
+  INCREMENTAL_APPEND_SCAN,
+  CHANGELOG_SCAN;
+
+  public static ScanMode checkScanMode(ScanContext context) {
+
+    if (!Strings.isNullOrEmpty(context.scanMode())) {
+      return ScanMode.valueOf(context.scanMode().toUpperCase(Locale.ROOT));
+    }
+
+    if (context.startSnapshotId() != null
+        || context.endSnapshotId() != null
+        || context.startTag() != null
+        || context.endTag() != null) {
+      return ScanMode.INCREMENTAL_APPEND_SCAN;
+    } else {
+      return ScanMode.BATCH;
+    }
+  }
 }

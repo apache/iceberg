@@ -20,28 +20,38 @@ package org.apache.iceberg.flink.source;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.flink.data.StructRowData;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 
 @Internal
-public class DataTaskReader implements FileScanTaskReader<RowData> {
+public class DataTaskReader implements ScanTaskReader<RowData> {
 
   private final Schema readSchema;
+  private ScanTaskGroup<? extends ScanTask> taskGroup;
 
   public DataTaskReader(Schema readSchema) {
     this.readSchema = readSchema;
   }
 
   @Override
-  public CloseableIterator<RowData> open(
-      FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
+  public CloseableIterator<RowData> open(ScanTask scanTask) {
     StructRowData row = new StructRowData(readSchema.asStruct());
     CloseableIterable<RowData> iterable =
-        CloseableIterable.transform(task.asDataTask().rows(), row::setStruct);
+        CloseableIterable.transform(scanTask.asDataTask().rows(), row::setStruct);
     return iterable.iterator();
+  }
+
+  @Override
+  public ScanTaskGroup<? extends ScanTask> taskGroup() {
+    return taskGroup;
+  }
+
+  @Override
+  public void taskGroup(ScanTaskGroup<? extends ScanTask> newTaskGroup) {
+    this.taskGroup = newTaskGroup;
   }
 }

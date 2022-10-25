@@ -139,8 +139,7 @@ public class TestIcebergSourceContinuous {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
 
-    Assert.assertEquals(
-        FlinkSplitPlanner.ScanMode.BATCH, FlinkSplitPlanner.checkScanMode(scanContext));
+    Assert.assertEquals(ScanMode.BATCH, ScanMode.checkScanMode(scanContext));
 
     try (CloseableIterator<Row> iter =
         createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {

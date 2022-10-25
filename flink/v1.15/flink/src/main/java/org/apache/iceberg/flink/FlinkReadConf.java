@@ -190,4 +190,8 @@ public class FlinkReadConf {
         .defaultValue(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue())
         .parse();
   }
+
+  public String scanMode() {
+    return confParser.stringConf().option(FlinkReadOptions.SCAN_MODE.key()).parseOptional();
+  }
 }

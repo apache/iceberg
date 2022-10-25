@@ -33,11 +33,13 @@ public class SplitComparators {
   public static SerializableComparator<IcebergSourceSplit> fileSequenceNumber() {
     return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
       Preconditions.checkArgument(
-          o1.task().files().size() == 1 && o2.task().files().size() == 1,
+          o1.task().filesCount() == 1 && o2.task().filesCount() == 1,
           "Could not compare combined task. Please use 'split-open-file-cost' to prevent combining multiple files to a split");
 
-      Long seq1 = o1.task().files().iterator().next().file().fileSequenceNumber();
-      Long seq2 = o2.task().files().iterator().next().file().fileSequenceNumber();
+      Long seq1 =
+          o1.task().asCombinedScanTask().files().iterator().next().file().fileSequenceNumber();
+      Long seq2 =
+          o2.task().asCombinedScanTask().files().iterator().next().file().fileSequenceNumber();
 
       Preconditions.checkNotNull(
           seq1,

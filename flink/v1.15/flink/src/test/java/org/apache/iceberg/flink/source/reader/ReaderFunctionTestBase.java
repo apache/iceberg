@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.flink.source.split.IcebergSourceCombinedSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -92,7 +93,7 @@ public abstract class ReaderFunctionTestBase<T> {
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
             recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
-    IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask);
+    IcebergSourceSplit split = IcebergSourceCombinedSplit.fromCombinedScanTask(combinedScanTask);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
 

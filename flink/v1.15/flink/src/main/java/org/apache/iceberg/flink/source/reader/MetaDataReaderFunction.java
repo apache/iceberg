@@ -22,40 +22,29 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.DataTaskReader;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Reading metadata tables (like snapshots, manifests, etc.) */
 @Internal
 public class MetaDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final Schema readSchema;
-  private final FileIO io;
-  private final EncryptionManager encryption;
 
-  public MetaDataReaderFunction(
-      ReadableConfig config,
-      Schema tableSchema,
-      Schema projectedSchema,
-      FileIO io,
-      EncryptionManager encryption) {
+  public MetaDataReaderFunction(ReadableConfig config, Schema tableSchema, Schema projectedSchema) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
             config,
             new RowDataRecordFactory(
                 FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));
     this.readSchema = readSchema(tableSchema, projectedSchema);
-    this.io = io;
-    this.encryption = encryption;
   }
 
   @Override
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
-    return new DataIterator<>(new DataTaskReader(readSchema), split.task(), io, encryption);
+    return new DataIterator<>(new DataTaskReader(readSchema), split.task());
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {

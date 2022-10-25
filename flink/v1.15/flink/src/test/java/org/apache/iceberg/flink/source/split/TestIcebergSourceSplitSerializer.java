@@ -21,17 +21,37 @@ package org.apache.iceberg.flink.source.split;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.flink.source.SplitHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestIcebergSourceSplitSerializer {
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private final IcebergSourceSplitSerializer serializer = IcebergSourceSplitSerializer.INSTANCE;
+
+  private boolean isChangelog = false;
+
+  public TestIcebergSourceSplitSerializer(boolean isChangelog) {
+    this.isChangelog = isChangelog;
+  }
+
+  @Parameterized.Parameters(name = "isChangelog={0}")
+  public static Iterable<Object[]> parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (boolean isChangelog : new boolean[] {true, false}) {
+      parameters.add(new Object[] {isChangelog});
+    }
+    return parameters;
+  }
 
   @Test
   public void testLatestVersion() throws Exception {
@@ -42,7 +62,7 @@ public class TestIcebergSourceSplitSerializer {
   private void serializeAndDeserialize(int splitCount, int filesPerSplit) throws Exception {
     final List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(
-            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+            TEMPORARY_FOLDER, splitCount, filesPerSplit, isChangelog);
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
@@ -92,7 +112,7 @@ public class TestIcebergSourceSplitSerializer {
                   if (index.get() % 2 == 0) {
                     result =
                         IcebergSourceSplit.fromCombinedScanTask(
-                            split.task(), index.get(), index.get());
+                            (CombinedScanTask) split.task(), index.get(), index.get());
                   } else {
                     result = split;
                   }

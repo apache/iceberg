@@ -23,9 +23,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -34,6 +37,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
@@ -64,7 +68,31 @@ public class SplitHelpers {
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
-    return createSplitsFromTransientHadoopTable(temporaryFolder, fileCount, filesPerSplit, "1");
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, "1", false);
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param changeLog Change log module
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, boolean changeLog)
+      throws Exception {
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, "1", changeLog);
   }
 
   /**
@@ -85,6 +113,34 @@ public class SplitHelpers {
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String version)
+      throws Exception {
+    return createSplitsFromTransientHadoopTable(
+        temporaryFolder, fileCount, filesPerSplit, version, false);
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param version The table version to create
+   * @param changeLog Change log module
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder,
+      int fileCount,
+      int filesPerSplit,
+      String version,
+      boolean changeLog)
       throws Exception {
     final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
@@ -108,22 +164,39 @@ public class SplitHelpers {
         dataAppender.appendToTable(records);
       }
 
-      final ScanContext scanContext = ScanContext.builder().build();
-      final List<IcebergSourceSplit> splits =
-          FlinkSplitPlanner.planIcebergSourceSplits(
-              table, scanContext, ThreadPools.getWorkerPool());
-      return splits.stream()
-          .flatMap(
-              split -> {
-                List<List<FileScanTask>> filesList =
-                    Lists.partition(Lists.newArrayList(split.task().files()), filesPerSplit);
-                return filesList.stream()
-                    .map(files -> new BaseCombinedScanTask(files))
-                    .map(
-                        combinedScanTask ->
-                            IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
-              })
-          .collect(Collectors.toList());
+      if (changeLog) {
+        final ScanContext scanContext = ScanContext.builder().scanMode("CHANGELOG_SCAN").build();
+        CloseableIterable<ScanTaskGroup<ChangelogScanTask>> changeLogIterable =
+            (CloseableIterable<ScanTaskGroup<ChangelogScanTask>>)
+                FlinkSplitPlanner.planTasks(
+                    table,
+                    scanContext,
+                    ThreadPools.getWorkerPool(),
+                    ScanMode.checkScanMode(scanContext));
+
+        return Lists.newArrayList(
+            CloseableIterable.transform(
+                changeLogIterable, IcebergSourceSplit::fromChangeLogScanTask));
+      } else {
+        final ScanContext scanContext = ScanContext.builder().build();
+        final List<IcebergSourceSplit> splits =
+            FlinkSplitPlanner.planIcebergSourceSplits(
+                table, scanContext, ThreadPools.getWorkerPool());
+        return splits.stream()
+            .flatMap(
+                split -> {
+                  List<List<FileScanTask>> filesList =
+                      Lists.partition(
+                          Lists.newArrayList(((CombinedScanTask) split.task()).files()),
+                          filesPerSplit);
+                  return filesList.stream()
+                      .map(files -> new BaseCombinedScanTask(files))
+                      .map(
+                          combinedScanTask ->
+                              IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
+                })
+            .collect(Collectors.toList());
+      }
     } finally {
       catalog.dropTable(TestFixtures.TABLE_IDENTIFIER);
       catalog.close();

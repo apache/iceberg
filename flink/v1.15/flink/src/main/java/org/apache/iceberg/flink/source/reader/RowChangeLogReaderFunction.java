@@ -26,12 +26,12 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
-import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
+import org.apache.iceberg.flink.source.RowDataFileChangeLogReader;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
+public class RowChangeLogReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final Schema tableSchema;
   private final Schema readSchema;
   private final String nameMapping;
@@ -40,7 +40,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final EncryptionManager encryption;
   private final List<Expression> filters;
 
-  public RowDataReaderFunction(
+  public RowChangeLogReaderFunction(
       ReadableConfig config,
       Schema tableSchema,
       Schema projectedSchema,
@@ -63,22 +63,22 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
     this.filters = filters;
   }
 
+  private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
+    Preconditions.checkNotNull(tableSchema, "Table schema can't be null");
+    return projectedSchema == null ? tableSchema : projectedSchema;
+  }
+
   @Override
-  public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
+  protected DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
     return new DataIterator<>(
-        new RowDataFileScanTaskReader(
+        new RowDataFileChangeLogReader(
             tableSchema,
             readSchema,
-            nameMapping,
             caseSensitive,
+            nameMapping,
             split.task(),
             io,
             encryption,
             filters));
-  }
-
-  private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
-    Preconditions.checkNotNull(tableSchema, "Table schema can't be null");
-    return projectedSchema == null ? tableSchema : projectedSchema;
   }
 }

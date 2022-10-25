@@ -23,10 +23,13 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -34,7 +37,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
@@ -43,10 +45,12 @@ import org.apache.iceberg.util.Tasks;
 public class FlinkSplitPlanner {
   private FlinkSplitPlanner() {}
 
+  @SuppressWarnings("unchecked")
   static FlinkInputSplit[] planInputSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
+    ScanMode scanMode = ScanMode.checkScanMode(context);
     try (CloseableIterable<CombinedScanTask> tasksIterable =
-        planTasks(table, context, workerPool)) {
+        (CloseableIterable<CombinedScanTask>) planTasks(table, context, workerPool, scanMode)) {
       List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
       boolean exposeLocality = context.exposeLocality();
@@ -70,94 +74,119 @@ public class FlinkSplitPlanner {
   }
 
   /** This returns splits for the FLIP-27 source */
+  @SuppressWarnings("unchecked")
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable =
-        planTasks(table, context, workerPool)) {
-      return Lists.newArrayList(
-          CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
+    ScanMode scanMode = ScanMode.checkScanMode(context);
+
+    try (CloseableIterable<? extends ScanTaskGroup<? extends ScanTask>> tasksIterable =
+        planTasks(table, context, workerPool, scanMode)) {
+
+      if (scanMode == ScanMode.CHANGELOG_SCAN) {
+        CloseableIterable<ScanTaskGroup<ChangelogScanTask>> changeLogIterable =
+            (CloseableIterable<ScanTaskGroup<ChangelogScanTask>>) tasksIterable;
+        return Lists.newArrayList(
+            CloseableIterable.transform(
+                changeLogIterable, IcebergSourceSplit::fromChangeLogScanTask));
+      } else {
+        CloseableIterable<CombinedScanTask> combinedIterable =
+            (CloseableIterable<CombinedScanTask>) tasksIterable;
+        return Lists.newArrayList(
+            CloseableIterable.transform(
+                combinedIterable, IcebergSourceSplit::fromCombinedScanTask));
+      }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }
   }
 
-  static CloseableIterable<CombinedScanTask> planTasks(
-      Table table, ScanContext context, ExecutorService workerPool) {
-    ScanMode scanMode = checkScanMode(context);
+  static CloseableIterable<? extends ScanTaskGroup<? extends ScanTask>> planTasks(
+      Table table, ScanContext context, ExecutorService workerPool, ScanMode scanMode) {
     if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {
-      IncrementalAppendScan scan = table.newIncrementalAppendScan();
-      scan = refineScanWithBaseConfigs(scan, context, workerPool);
-
-      if (context.startTag() != null) {
-        Preconditions.checkArgument(
-            table.snapshot(context.startTag()) != null,
-            "Cannot find snapshot with tag %s",
-            context.startTag());
-        scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
-      }
-
-      if (context.startSnapshotId() != null) {
-        Preconditions.checkArgument(
-            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
-        scan = scan.fromSnapshotExclusive(context.startSnapshotId());
-      }
-
-      if (context.endTag() != null) {
-        Preconditions.checkArgument(
-            table.snapshot(context.endTag()) != null,
-            "Cannot find snapshot with tag %s",
-            context.endTag());
-        scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
-      }
-
-      if (context.endSnapshotId() != null) {
-        Preconditions.checkArgument(
-            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
-        scan = scan.toSnapshot(context.endSnapshotId());
-      }
-
-      return scan.planTasks();
+      return planIncrementalTask(table, context, workerPool);
+    } else if (scanMode == ScanMode.CHANGELOG_SCAN) {
+      return planChangelogTask(table, context, workerPool);
     } else {
-      TableScan scan = table.newScan();
-      scan = refineScanWithBaseConfigs(scan, context, workerPool);
-
-      if (context.snapshotId() != null) {
-        scan = scan.useSnapshot(context.snapshotId());
-      } else if (context.tag() != null) {
-        scan = scan.useRef(context.tag());
-      } else if (context.branch() != null) {
-        scan = scan.useRef(context.branch());
-      }
-
-      if (context.asOfTimestamp() != null) {
-        scan = scan.asOfTime(context.asOfTimestamp());
-      }
-
-      return scan.planTasks();
+      return planBatchTask(table, context, workerPool);
     }
   }
 
-  @VisibleForTesting
-  enum ScanMode {
-    BATCH,
-    INCREMENTAL_APPEND_SCAN
+  private static CloseableIterable<CombinedScanTask> planBatchTask(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    TableScan scan = table.newScan();
+    scan = refineScanWithBaseConfigs(scan, context, workerPool);
+
+    if (context.snapshotId() != null) {
+      scan = scan.useSnapshot(context.snapshotId());
+    } else if (context.tag() != null) {
+      scan = scan.useRef(context.tag());
+    } else if (context.branch() != null) {
+      scan = scan.useRef(context.branch());
+    }
+
+    if (context.asOfTimestamp() != null) {
+      scan = scan.asOfTime(context.asOfTimestamp());
+    }
+
+    return scan.planTasks();
   }
 
-  @VisibleForTesting
-  static ScanMode checkScanMode(ScanContext context) {
-    if (context.startSnapshotId() != null
-        || context.endSnapshotId() != null
-        || context.startTag() != null
-        || context.endTag() != null) {
-      return ScanMode.INCREMENTAL_APPEND_SCAN;
-    } else {
-      return ScanMode.BATCH;
+  private static CloseableIterable<ScanTaskGroup<ChangelogScanTask>> planChangelogTask(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    IncrementalChangelogScan scan = table.newIncrementalChangelogScan();
+    scan = refineScanWithBaseConfigs(scan, context, workerPool);
+
+    if (context.startSnapshotId() != null) {
+      scan = scan.fromSnapshotExclusive(context.startSnapshotId());
     }
+
+    if (context.endSnapshotId() != null) {
+      scan = scan.toSnapshot(context.endSnapshotId());
+    }
+
+    return scan.planTasks();
+  }
+
+  private static CloseableIterable<CombinedScanTask> planIncrementalTask(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    IncrementalAppendScan scan = table.newIncrementalAppendScan();
+    scan = refineScanWithBaseConfigs(scan, context, workerPool);
+
+    if (context.startTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.startTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.startTag());
+      scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
+    }
+
+    if (context.startSnapshotId() != null) {
+      Preconditions.checkArgument(
+          context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
+      scan = scan.fromSnapshotExclusive(context.startSnapshotId());
+    }
+
+    if (context.endTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.endTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.endTag());
+      scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
+    }
+
+    if (context.endSnapshotId() != null) {
+      Preconditions.checkArgument(
+          context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
+      scan = scan.toSnapshot(context.endSnapshotId());
+    }
+
+    return scan.planTasks();
   }
 
   /** refine scan with common configs */
-  private static <T extends Scan<T, FileScanTask, CombinedScanTask>> T refineScanWithBaseConfigs(
-      T scan, ScanContext context, ExecutorService workerPool) {
+  private static <
+          T extends Scan<T, ? extends ScanTask, ? extends ScanTaskGroup<? extends ScanTask>>>
+      T refineScanWithBaseConfigs(T scan, ScanContext context, ExecutorService workerPool) {
     T refinedScan =
         scan.caseSensitive(context.caseSensitive()).project(context.project()).planWith(workerPool);
 
