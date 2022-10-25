@@ -78,7 +78,7 @@ PROP_GLUE_DATABASE_PARAMETERS = "Parameters"
 
 PROP_GLUE_NEXT_TOKEN = "NextToken"
 
-GLUE_DATABASE_DESCRIPTION_KEY = "comment"
+GLUE_DESCRIPTION_KEY = "comment"
 GLUE_DATABASE_LOCATION_KEY = "location"
 
 
@@ -93,7 +93,7 @@ def _construct_table_input(table_name: str, metadata_location: str, properties: 
         PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
     }
 
-    if table_description := properties.get(PROP_GLUE_TABLE_DESCRIPTION):
+    if table_description := properties.get(GLUE_DESCRIPTION_KEY):
         table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
     return table_input
@@ -103,7 +103,7 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
     database_input: Dict[str, Any] = {PROP_GLUE_DATABASE_NAME: database_name}
     parameters = {}
     for k, v in properties.items():
-        if k == GLUE_DATABASE_DESCRIPTION_KEY:
+        if k == GLUE_DESCRIPTION_KEY:
             database_input[PROP_GLUE_DATABASE_DESCRIPTION] = v
         if k == GLUE_DATABASE_LOCATION_KEY:
             database_input[PROP_GLUE_DATABASE_LOCATION] = v
@@ -398,7 +398,7 @@ class GlueCatalog(Catalog):
         if database_location := database.get(PROP_GLUE_DATABASE_LOCATION):
             properties[GLUE_DATABASE_LOCATION_KEY] = database_location
         if database_description := database.get(PROP_GLUE_DATABASE_DESCRIPTION):
-            properties[GLUE_DATABASE_DESCRIPTION_KEY] = database_description
+            properties[GLUE_DESCRIPTION_KEY] = database_description
 
         return properties
 
