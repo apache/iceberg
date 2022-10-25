@@ -76,6 +76,8 @@ PROP_GLUE_DATABASE_LOCATION = "LocationUri"
 PROP_GLUE_DATABASE_DESCRIPTION = "Description"
 PROP_GLUE_DATABASE_PARAMETERS = "Parameters"
 
+PROP_GLUE_NEXT_TOKEN = "NextToken"
+
 GLUE_DATABASE_DESCRIPTION_KEY = "comment"
 GLUE_DATABASE_LOCATION_KEY = "location"
 
@@ -340,11 +342,18 @@ class GlueCatalog(Catalog):
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         database_name = self.identifier_to_tuple(namespace)[0]
+        table_list = []
         try:
             table_list_response = self.glue.get_tables(DatabaseName=database_name)
+            next_token = table_list_response.get(PROP_GLUE_NEXT_TOKEN)
+            table_list += table_list_response[PROP_GLUE_TABLELIST]
+            while next_token:
+                table_list_response = self.glue.get_tables(DatabaseName=database_name, NextToken=next_token)
+                next_token = table_list_response.get(PROP_GLUE_NEXT_TOKEN)
+                table_list += table_list_response[PROP_GLUE_TABLELIST]
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
-        return [(database_name, table[PROP_GLUE_TABLE_NAME]) for table in table_list_response[PROP_GLUE_TABLELIST]]
+        return [(database_name, table[PROP_GLUE_TABLE_NAME]) for table in table_list]
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
