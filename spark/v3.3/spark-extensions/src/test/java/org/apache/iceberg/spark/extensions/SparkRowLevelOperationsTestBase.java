@@ -85,7 +85,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hive",
-            "default-namespace", "default"),
+            "default-namespace", "default",
+            "clients", "1"),
         "orc",
         true,
         WRITE_DISTRIBUTION_MODE_NONE
@@ -95,7 +96,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type", "hive",
-            "default-namespace", "default"),
+            "default-namespace", "default",
+            "clients", "1"),
         "parquet",
         true,
         WRITE_DISTRIBUTION_MODE_NONE
