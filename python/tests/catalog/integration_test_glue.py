@@ -15,16 +15,37 @@
 #  specific language governing permissions and limitations
 #  under the License.
 import getpass as gt
+import random
+import string
 
 import pytest
 
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.schema import Schema
-from tests.catalog.test_glue import get_random_database_name, get_random_table_name, get_random_tables
 
 # early develop stage only, change this to a user with aws cli configured locally
 MY_USERNAME = "jonasjiang"
+RANDOM_LENGTH = 20
+
+
+def get_random_table_name():
+    prefix = "my_iceberg_table-"
+    random_tag = "".join(random.choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+def get_random_tables(n):
+    result = set()
+    for _ in range(n):
+        result.add(get_random_table_name())
+    return result
+
+
+def get_random_database_name():
+    prefix = "my_iceberg_database-"
+    random_tag = "".join(random.choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
 
 
 @pytest.mark.skipif(gt.getuser() != MY_USERNAME, reason="currently need aws account, will be unit test later")

@@ -22,7 +22,13 @@ import pytest
 from moto import mock_glue
 
 from pyiceberg.catalog.glue import GlueCatalog
-from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError, TableAlreadyExistsError
+from pyiceberg.exceptions import (
+    NamespaceAlreadyExistsError,
+    NamespaceNotEmptyError,
+    NoSuchNamespaceError,
+    NoSuchTableError,
+    TableAlreadyExistsError,
+)
 
 BUCKET_NAME = "test_bucket"
 RANDOM_LENGTH = 20
@@ -39,9 +45,9 @@ def get_random_table_name():
 
 
 def get_random_tables(n):
-    result = []
+    result = set()
     for _ in range(n):
-        result.append(get_random_table_name())
+        result.add(get_random_table_name())
     return result
 
 
@@ -49,6 +55,13 @@ def get_random_database_name():
     prefix = "my_iceberg_database-"
     random_tag = "".join(random.choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
     return (prefix + random_tag).lower()
+
+
+def get_random_databases(n):
+    result = set()
+    for _ in range(n):
+        result.add(get_random_database_name())
+    return result
 
 
 @pytest.fixture(name="_bucket_initialize")
@@ -210,18 +223,168 @@ def test_list_tables(_bucket_initialize, _patch_aiobotocore, table_schema_nested
     table_list = get_random_tables(LIST_TEST_NUMBER)
     test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
-    for i in range(len(table_list)):
-        test_catalog.create_table((database_name, table_list[i]), table_schema_nested)
+    for table_name in table_list:
+        test_catalog.create_table((database_name, table_name), table_schema_nested)
     loaded_table_list = test_catalog.list_tables(database_name)
-    for i in range(len(table_list)):
-        assert (database_name, table_list[i]) in loaded_table_list
+    for table_name in table_list:
+        assert (database_name, table_name) in loaded_table_list
 
 
 @mock_glue
 def test_unit_list_namespaces(_bucket_initialize, _patch_aiobotocore):
-    database_name = "testDatabase"
+    database_list = get_random_databases(LIST_TEST_NUMBER)
+    test_catalog = GlueCatalog("glue")
+    for database_name in database_list:
+        test_catalog.create_namespace(namespace=database_name)
+    loaded_database_list = test_catalog.list_namespaces()
+    for database_name in database_list:
+        assert (database_name,) in loaded_database_list
+
+
+@mock_glue
+def test_create_namespace_no_properties(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     test_catalog.create_namespace(namespace=database_name)
-    identifiers = test_catalog.list_namespaces()
-    assert len(identifiers) == 1
-    assert identifiers[0] == (database_name,)
+    loaded_database_list = test_catalog.list_namespaces()
+    assert len(loaded_database_list) == 1
+    assert (database_name,) in loaded_database_list
+    properties = test_catalog.load_namespace_properties(database_name)
+    assert properties == {}
+
+
+@mock_glue
+def test_create_namespace_with_comment_and_location(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
+    test_properties = {
+        "comment": "this is a test description",
+        "location": test_location,
+    }
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(namespace=database_name, properties=test_properties)
+    loaded_database_list = test_catalog.list_namespaces()
+    assert len(loaded_database_list) == 1
+    assert (database_name,) in loaded_database_list
+    properties = test_catalog.load_namespace_properties(database_name)
+    assert properties["comment"] == "this is a test description"
+    assert properties["location"] == test_location
+
+
+@mock_glue
+def test_create_duplicated_namespace(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(namespace=database_name)
+    loaded_database_list = test_catalog.list_namespaces()
+    assert len(loaded_database_list) == 1
+    assert (database_name,) in loaded_database_list
+    with pytest.raises(NamespaceAlreadyExistsError):
+        test_catalog.create_namespace(namespace=database_name, properties={"test": "test"})
+
+
+@mock_glue
+def test_drop_namespace(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(namespace=database_name)
+    loaded_database_list = test_catalog.list_namespaces()
+    assert len(loaded_database_list) == 1
+    assert (database_name,) in loaded_database_list
+    test_catalog.drop_namespace(database_name)
+    loaded_database_list = test_catalog.list_namespaces()
+    assert len(loaded_database_list) == 0
+
+
+@mock_glue
+def test_drop_non_empty_namespace(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+    database_name = get_random_database_name()
+    table_name = get_random_table_name()
+    identifier = (database_name, table_name)
+    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog.create_namespace(namespace=database_name)
+    test_catalog.create_table(identifier, table_schema_nested)
+    assert len(test_catalog.list_tables(database_name)) == 1
+    with pytest.raises(NamespaceNotEmptyError):
+        test_catalog.drop_namespace(database_name)
+
+
+@mock_glue
+def test_drop_non_exist_namespace(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_catalog = GlueCatalog("glue")
+    with pytest.raises(NoSuchNamespaceError):
+        test_catalog.drop_namespace(database_name)
+
+
+@mock_glue
+def test_load_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
+    test_properties = {
+        "comment": "this is a test description",
+        "location": test_location,
+        "test_property1": "1",
+        "test_property2": "2",
+        "test_property3": "3",
+    }
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(database_name, test_properties)
+    listed_properties = test_catalog.load_namespace_properties(database_name)
+    for k, v in listed_properties.items():
+        assert k in test_properties
+        assert v == test_properties[k]
+
+
+@mock_glue
+def test_load_non_exist_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_catalog = GlueCatalog("glue")
+    with pytest.raises(NoSuchNamespaceError):
+        test_catalog.load_namespace_properties(database_name)
+
+
+@mock_glue
+def test_update_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_properties = {
+        "comment": "this is a test description",
+        "location": f"s3://{BUCKET_NAME}/{database_name}.db",
+        "test_property1": "1",
+        "test_property2": "2",
+        "test_property3": "3",
+    }
+    removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
+    updates = {"test_property4": "4", "test_property5": "5", "comment": "updated test description"}
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(database_name, test_properties)
+    update_report = test_catalog.update_namespace_properties(database_name, removals, updates)
+    for k in updates.keys():
+        assert k in update_report.updated
+    for k in removals:
+        if k == "should_not_removed":
+            assert k in update_report.missing
+        else:
+            assert k in update_report.removed
+    assert "updated test description" == test_catalog.load_namespace_properties(database_name)["comment"]
+    test_catalog.drop_namespace(database_name)
+
+
+@mock_glue
+def test_update_namespace_properties_overlap_update_removal(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_properties = {
+        "comment": "this is a test description",
+        "location": f"s3://{BUCKET_NAME}/{database_name}.db",
+        "test_property1": "1",
+        "test_property2": "2",
+        "test_property3": "3",
+    }
+    removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
+    updates = {"test_property1": "4", "test_property5": "5", "comment": "updated test description"}
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(database_name, test_properties)
+    with pytest.raises(ValueError):
+        test_catalog.update_namespace_properties(database_name, removals, updates)
+    # should not modify the properties
+    assert test_catalog.load_namespace_properties(database_name) == test_properties

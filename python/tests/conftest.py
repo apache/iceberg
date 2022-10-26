@@ -1227,14 +1227,25 @@ def fixture_aiobotocore():
         aiobotocore.endpoint.convert_to_response_dict = stored_method
 
 
-@pytest.fixture(name="_aws_credentials")
-def fixture_aws_credentials():
-    """Mocked AWS Credentials for moto."""
+def aws_credentials():
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
     os.environ["AWS_SESSION_TOKEN"] = "testing"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+
+@pytest.fixture(name="_aws_credentials")
+def fixture_aws_credentials():
+    """Mocked AWS Credentials for moto."""
+    try:
+        yield aws_credentials()
+    finally:
+        os.environ.pop("AWS_ACCESS_KEY_ID")
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_SECURITY_TOKEN")
+        os.environ.pop("AWS_SESSION_TOKEN")
+        os.environ.pop("AWS_DEFAULT_REGION")
 
 
 @pytest.fixture(name="_s3")
