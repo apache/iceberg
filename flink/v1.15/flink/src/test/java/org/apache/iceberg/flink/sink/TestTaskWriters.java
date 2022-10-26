@@ -234,6 +234,7 @@ public class TestTaskWriters {
             (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
             targetFileSize,
             format,
+            table.properties(),
             null,
             false);
     taskWriterFactory.initialize(1, 1);
