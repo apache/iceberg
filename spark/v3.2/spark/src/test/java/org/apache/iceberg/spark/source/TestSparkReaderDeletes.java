@@ -150,9 +150,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   @After
+  @Override
   public void cleanup() throws IOException {
     super.cleanup();
-    dropTable("test_multiple_row_groups");
+    dropTable("test3");
   }
 
   @Override
@@ -533,55 +534,52 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testPosDeletesOnParquetFileWithMultipleRowGroups() throws IOException {
     Assume.assumeTrue(format.equals("parquet"));
 
-    String tblName = "test_multiple_row_groups";
+    String tblName = "test3";
     Table tbl = createTable(tblName, SCHEMA, PartitionSpec.unpartitioned());
 
     List<Path> fileSplits = Lists.newArrayList();
     StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
     Configuration conf = new Configuration();
-
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
-    ParquetFileWriter parquetFileWriter =
-        new ParquetFileWriter(
-            conf,
-            ParquetSchemaUtil.convert(SCHEMA, "testSchema"),
-            new Path(testFile.getAbsolutePath()));
+    Path testFilePath = new Path(testFile.getAbsolutePath());
 
+    // Write a Parquet file with more than one row group
+    ParquetFileWriter parquetFileWriter =
+        new ParquetFileWriter(conf, ParquetSchemaUtil.convert(SCHEMA, "test3Schema"), testFilePath);
     parquetFileWriter.start();
     for (int i = 0; i < 2; i += 1) {
       File split = temp.newFile();
       Assert.assertTrue("Delete should succeed", split.delete());
-      fileSplits.add(new Path(split.getAbsolutePath()));
+      Path splitPath = new Path(split.getAbsolutePath());
+      fileSplits.add(splitPath);
       try (FileAppender<InternalRow> writer =
           Parquet.write(Files.localOutput(split))
               .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkSchema, msgType))
               .schema(SCHEMA)
               .overwrite()
               .build()) {
-        Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 17 * i + 19981);
+        Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 34 * i + 37);
         writer.addAll(records);
       }
       parquetFileWriter.appendFile(
-          org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(
-              new Path(split.getAbsolutePath()), conf));
+          org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(splitPath, conf));
     }
     parquetFileWriter.end(
         ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
             .getFileMetaData()
             .getKeyValueMetaData());
 
+    // Add the file to the table
     DataFile dataFile =
         DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(
-                org.apache.iceberg.hadoop.HadoopInputFile.fromPath(
-                    new Path(testFile.getAbsolutePath()), conf))
+            .withInputFile(org.apache.iceberg.hadoop.HadoopInputFile.fromPath(testFilePath, conf))
             .withFormat("parquet")
             .withRecordCount(200)
             .build();
-
     tbl.newAppend().appendFile(dataFile).commit();
 
+    // Add positional deletes to the table
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(dataFile.path(), 97L),
@@ -591,10 +589,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             Pair.of(dataFile.path(), 103L),
             Pair.of(dataFile.path(), 107L),
             Pair.of(dataFile.path(), 109L));
-
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
-
     tbl.newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
