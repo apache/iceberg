@@ -34,6 +34,7 @@ import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -141,6 +142,8 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           doPlanFiles(),
           () -> {
             planningDuration.stop();
+            Map<String, String> metadata = Maps.newHashMap(context().options());
+            metadata.putAll(EnvironmentContext.get());
             ScanReport scanReport =
                 ImmutableScanReport.builder()
                     .schemaId(schema().schemaId())
@@ -150,6 +153,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
                     .snapshotId(snapshot.snapshotId())
                     .filter(ExpressionUtil.sanitize(filter()))
                     .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
+                    .metadata(metadata)
                     .build();
             context().metricsReporter().report(scanReport);
           });

@@ -21,6 +21,7 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -337,6 +338,39 @@ public class TestScanReportParser {
             + "  \"projected-field-ids\" : [ ],\n"
             + "  \"projected-field-names\" : [ ],\n"
             + "  \"metrics\" : { }\n"
+            + "}";
+
+    String json = ScanReportParser.toJson(scanReport, true);
+    Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithMetadata() {
+    String tableName = "roundTripTableName";
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .schemaId(4)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
+            .metadata(ImmutableMap.of("k1", "v1", "k2", "v2"))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ ],\n"
+            + "  \"projected-field-names\" : [ ],\n"
+            + "  \"metrics\" : { },\n"
+            + "  \"metadata\" : {\n"
+            + "    \"k1\" : \"v1\",\n"
+            + "    \"k2\" : \"v2\"\n"
+            + "  }\n"
             + "}";
 
     String json = ScanReportParser.toJson(scanReport, true);

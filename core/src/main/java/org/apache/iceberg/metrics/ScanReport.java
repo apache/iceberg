@@ -19,6 +19,7 @@
 package org.apache.iceberg.metrics;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.immutables.value.Value;
 
@@ -39,4 +40,6 @@ public interface ScanReport extends MetricsReport {
   List<String> projectedFieldNames();
 
   ScanMetricsResult scanMetrics();
+
+  Map<String, String> metadata();
 }
