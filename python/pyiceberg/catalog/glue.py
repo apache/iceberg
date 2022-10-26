@@ -300,6 +300,13 @@ class GlueCatalog(Catalog):
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database {to_database_name} not found") from e
 
+        try:
+            self.drop_table(from_identifier)
+        except Exception as e:
+            self.drop_table(to_identifier)
+            raise ValueError(
+                f"Fail to drop old table {from_database_name}.{from_table_name}, roll back to use the old one"
+            ) from e
         return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
