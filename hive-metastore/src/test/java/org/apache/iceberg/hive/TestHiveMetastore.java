@@ -135,6 +135,11 @@ public class TestHiveMetastore {
     start(new HiveConf(new Configuration(), TestHiveMetastore.class), DEFAULT_POOL_SIZE);
   }
 
+  /** Starts a TestHiveMetastore with a custom connection pool size and the default HiveConf. */
+  public void start(int poolSize) {
+    start(new HiveConf(new Configuration(), TestHiveMetastore.class), poolSize);
+  }
+
   /**
    * Starts a TestHiveMetastore with the default connection pool size (5) with the provided
    * HiveConf.
