@@ -446,6 +446,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicInteger numUpdates = new AtomicInteger(0);
+    AtomicInteger numAppends = new AtomicInteger(0);
 
     // update thread
     Future<?> updateFuture =
@@ -457,6 +459,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 }
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
                 barrier.incrementAndGet();
+                numUpdates.incrementAndGet();
+                if (numUpdates.get() > 100) {
+                  throw new RuntimeException(
+                      String.format(
+                          "Executed %d UPDATEs and %d APPENDs",
+                          numUpdates.get(), numAppends.get()));
+                }
               }
             });
 
@@ -471,6 +480,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 }
                 sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
+                numAppends.incrementAndGet();
+                if (numAppends.get() > 100) {
+                  throw new RuntimeException(
+                      String.format(
+                          "Executed %d UPDATEs and %d APPENDs",
+                          numUpdates.get(), numAppends.get()));
+                }
               }
             });
 
