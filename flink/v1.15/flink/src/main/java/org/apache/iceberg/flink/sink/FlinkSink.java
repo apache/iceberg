@@ -597,20 +597,19 @@ public class FlinkSink {
       Table table, FileFormat format, FlinkWriteConf conf) {
     Map<String, String> writeProperties = Maps.newHashMap(table.properties());
 
-    String level;
     switch (format) {
       case PARQUET:
         writeProperties.put(PARQUET_COMPRESSION, conf.parquetCompressionCodec());
-        level = conf.parquetCompressionLevel();
-        if (level != null) {
-          writeProperties.put(PARQUET_COMPRESSION_LEVEL, level);
+        String parquetCompressionLevel = conf.parquetCompressionLevel();
+        if (parquetCompressionLevel != null) {
+          writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
 
         break;
       case AVRO:
         writeProperties.put(AVRO_COMPRESSION, conf.avroCompressionCodec());
-        level = conf.avroCompressionLevel();
-        if (level != null) {
+        String avroCompressionLevel = conf.avroCompressionLevel();
+        if (avroCompressionLevel != null) {
           writeProperties.put(AVRO_COMPRESSION_LEVEL, conf.avroCompressionLevel());
         }
 

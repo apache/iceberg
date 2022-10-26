@@ -110,7 +110,7 @@ public class FlinkWriteConf {
         .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
         .tableProperty(TableProperties.PARQUET_COMPRESSION_LEVEL)
         .defaultValue(TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT)
-        .parse();
+        .parseOptional();
   }
 
   public String avroCompressionCodec() {
@@ -130,7 +130,7 @@ public class FlinkWriteConf {
         .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
         .tableProperty(TableProperties.AVRO_COMPRESSION_LEVEL)
         .defaultValue(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)
-        .parse();
+        .parseOptional();
   }
 
   public String orcCompressionCodec() {
