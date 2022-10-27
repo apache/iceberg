@@ -454,13 +454,18 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
+                  numSleeps++;
+                  if (numSleeps > 1_000) {
+                    throw new RuntimeException("Slept more than 1K times in the update thread");
+                  }
                 }
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
                 barrier.incrementAndGet();
                 numUpdates.incrementAndGet();
-                if (numUpdates.get() > 100) {
+                if (numUpdates.get() > 10) {
                   throw new RuntimeException(
                       String.format(
                           "Executed %d UPDATEs and %d APPENDs",
@@ -475,13 +480,18 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             () -> {
               SparkSession sparkSession = spark.cloneSession();
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
+                  numSleeps++;
+                  if (numSleeps > 1_000) {
+                    throw new RuntimeException("Slept more than 1K times in the append thread");
+                  }
                 }
                 sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
                 numAppends.incrementAndGet();
-                if (numAppends.get() > 100) {
+                if (numAppends.get() > 10) {
                   throw new RuntimeException(
                       String.format(
                           "Executed %d UPDATEs and %d APPENDs",

@@ -45,7 +45,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
   @BeforeClass
   public static void startMetastoreAndSpark() {
     SparkTestBase.metastore = new TestHiveMetastore();
-    metastore.start(10);
+    metastore.start(25);
     SparkTestBase.hiveConf = metastore.hiveConf();
 
     SparkTestBase.spark =
