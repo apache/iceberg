@@ -28,16 +28,16 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestAggregateBinding {
-  private static final List<UnboundAggregate> list =
+  private static final List<UnboundAggregate<Integer>> list =
       ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
   private static final StructType struct =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
   @Test
   public void testAggregateBinding() {
-    for (UnboundAggregate unbound : list) {
+    for (UnboundAggregate<Integer> unbound : list) {
       Expression expr = unbound.bind(struct, true);
-      BoundAggregate bound = assertAndUnwrapAggregate(expr);
+      BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
       Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
       Assert.assertEquals("Should not change the comparison operation", unbound.op(), bound.op());
     }
@@ -45,9 +45,9 @@ public class TestAggregateBinding {
 
   @Test
   public void testCountStarBinding() {
-    UnboundAggregate unbound = Expressions.countStar();
+    UnboundAggregate<?> unbound = Expressions.countStar();
     Expression expr = unbound.bind(null, false);
-    BoundAggregate bound = assertAndUnwrapAggregate(expr);
+    BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
 
     Assert.assertEquals(
         "Should not change the comparison operation", Expression.Operation.COUNT_STAR, bound.op());
@@ -65,7 +65,7 @@ public class TestAggregateBinding {
   public void testCaseInsensitiveReference() {
     Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
-    BoundAggregate bound = assertAndUnwrapAggregate(boundExpr);
+    BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
     Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
     Assert.assertEquals(
         "Should not change the comparison operation", Expression.Operation.MAX, bound.op());
@@ -81,7 +81,7 @@ public class TestAggregateBinding {
 
   @Test
   public void testMissingField() {
-    UnboundAggregate unbound = Expressions.count("missing");
+    UnboundAggregate<?> unbound = Expressions.count("missing");
     Assertions.assertThatThrownBy(() -> unbound.bind(struct, false))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct:");

@@ -309,19 +309,19 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), transform);
   }
 
-  public static UnboundAggregate<String> count(String name) {
+  public static <T> UnboundAggregate<T> count(String name) {
     return new UnboundAggregate<>(Operation.COUNT, ref(name));
   }
 
-  public static UnboundAggregate<String> countStar() {
+  public static <T> UnboundAggregate<T> countStar() {
     return new UnboundAggregate<>(Operation.COUNT_STAR, null);
   }
 
-  public static UnboundAggregate<String> max(String name) {
+  public static <T> UnboundAggregate<T> max(String name) {
     return new UnboundAggregate<>(Operation.MAX, ref(name));
   }
 
-  public static UnboundAggregate<String> min(String name) {
+  public static <T> UnboundAggregate<T> min(String name) {
     return new UnboundAggregate<>(Operation.MIN, ref(name));
   }
 }
