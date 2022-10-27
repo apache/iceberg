@@ -30,7 +30,7 @@ menu:
 It's possible to read an iceberg table either from an hdfs path or from a hive table. It's also possible to use a custom metastore in place of hive. The steps to do that are as follows.
 
 - [Custom TableOperations](#custom-table-operations-implementation)
-- [Custom Catalog](#custom-catalog-implementation)
+- [Custom Catalog](#custom-catalog-implementation-1)
 - [Custom FileIO](#custom-file-io-implementation)
 - [Custom LocationProvider](#custom-location-provider-implementation)
 - [Custom IcebergSource](#custom-icebergsource)
