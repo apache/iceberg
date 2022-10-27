@@ -99,7 +99,7 @@ class DataTableScan(TableScan):
                 self.table.specs()[manifest.partition_spec_id],
                 self.table.schemas()[self.snapshot.schema_id] if self.snapshot.schema_id is not None else self.table.schema(),
                 self.expression,
-            )
+            )(manifest)
         ]
 
         return itertools.chain.from_iterable(
