@@ -81,6 +81,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
+    try {
+      metastore.reset();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Test
