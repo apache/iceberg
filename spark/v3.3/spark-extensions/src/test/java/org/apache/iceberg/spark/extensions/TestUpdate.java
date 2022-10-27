@@ -471,6 +471,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                           "Executed %d UPDATEs and %d APPENDs",
                           numUpdates.get(), numAppends.get()));
                 }
+                Thread.yield();
               }
             });
 
@@ -497,6 +498,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                           "Executed %d UPDATEs and %d APPENDs",
                           numUpdates.get(), numAppends.get()));
                 }
+                Thread.yield();
               }
             });
 

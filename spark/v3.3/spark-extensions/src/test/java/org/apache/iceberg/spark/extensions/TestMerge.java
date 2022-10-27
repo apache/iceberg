@@ -995,14 +995,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicInteger numMerges = new AtomicInteger(0);
+    AtomicInteger numAppends = new AtomicInteger(0);
 
     // merge thread
     Future<?> mergeFuture =
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
+                  numSleeps++;
+                  if (numSleeps > 1_000) {
+                    throw new RuntimeException("Slept more than 1K times in the merge thread");
+                  }
                 }
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1011,6 +1018,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "  UPDATE SET dep = 'x'",
                     tableName);
                 barrier.incrementAndGet();
+                numMerges.incrementAndGet();
+                if (numMerges.get() > 10) {
+                  throw new RuntimeException(
+                      String.format(
+                          "Executed %d MERGEs and %d APPENDs", numMerges.get(), numAppends.get()));
+                }
+                Thread.yield();
               }
             });
 
@@ -1020,11 +1034,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             () -> {
               SparkSession sparkSession = spark.cloneSession();
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
+                  numSleeps++;
+                  if (numSleeps > 1_000) {
+                    throw new RuntimeException("Slept more than 1K times in the append thread");
+                  }
                 }
                 sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
+                numAppends.incrementAndGet();
+                if (numAppends.get() > 10) {
+                  throw new RuntimeException(
+                      String.format(
+                          "Executed %d MERGEs and %d APPENDs", numMerges.get(), numAppends.get()));
+                }
+                Thread.yield();
               }
             });
 
