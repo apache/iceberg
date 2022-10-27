@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import json
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import Any, Iterable
 from uuid import UUID
 
 from rich.console import Console
@@ -27,6 +29,7 @@ from pyiceberg.io import FileIO
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table.scan import FileScanTask
 from pyiceberg.typedef import Identifier, Properties
 
 
@@ -38,7 +41,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def identifiers(self, identifiers: List[Identifier]) -> None:
+    def identifiers(self, identifiers: list[Identifier]) -> None:
         ...
 
     @abstractmethod
@@ -47,6 +50,10 @@ class Output(ABC):
 
     @abstractmethod
     def files(self, table: Table, io: FileIO, history: bool) -> None:
+        ...
+
+    @abstractmethod
+    def scan_plan_files(self, plan_files: Iterable[FileScanTask], snapshot_id: int | None = None) -> None:
         ...
 
     @abstractmethod
@@ -66,7 +73,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def uuid(self, uuid: Optional[UUID]) -> None:
+    def uuid(self, uuid: UUID | None) -> None:
         ...
 
 
@@ -88,7 +95,7 @@ class ConsoleOutput(Output):
         else:
             Console(stderr=True).print(ex)
 
-    def identifiers(self, identifiers: List[Identifier]) -> None:
+    def identifiers(self, identifiers: list[Identifier]) -> None:
         table = self._table
         for identifier in identifiers:
             table.add_row(".".join(identifier))
@@ -146,6 +153,19 @@ class ConsoleOutput(Output):
                     manifest_tree.add(f"Datafile: {manifest_entry.data_file.file_path}")
         Console().print(snapshot_tree)
 
+    def scan_plan_files(self, plan_files: Iterable[FileScanTask], snapshot_id: int | None = None) -> None:
+        snapshot_tree = Tree(f"Snapshot: {snapshot_id}")
+
+        manifest_dict = {}
+        for file in plan_files:
+            if file.manifest.manifest_path not in manifest_dict:
+                manifest_tree = snapshot_tree.add(f"Manifest: {file.manifest.manifest_path}")
+                manifest_dict[file.manifest.manifest_path] = manifest_tree
+
+            manifest_dict[file.manifest.manifest_path].add(f"Data File: {file.data_file.file_path}")
+
+        Console().print(snapshot_tree)
+
     def describe_properties(self, properties: Properties) -> None:
         output_table = self._table
         for k, v in properties.items():
@@ -164,7 +184,7 @@ class ConsoleOutput(Output):
     def spec(self, spec: PartitionSpec) -> None:
         Console().print(str(spec))
 
-    def uuid(self, uuid: Optional[UUID]) -> None:
+    def uuid(self, uuid: UUID | None) -> None:
         Console().print(str(uuid) if uuid else "missing")
 
 
@@ -182,7 +202,7 @@ class JsonOutput(Output):
     def exception(self, ex: Exception) -> None:
         self._out({"type": ex.__class__.__name__, "message": str(ex)})
 
-    def identifiers(self, identifiers: List[Identifier]) -> None:
+    def identifiers(self, identifiers: list[Identifier]) -> None:
         self._out([".".join(identifier) for identifier in identifiers])
 
     def describe_table(self, table: Table) -> None:
@@ -200,8 +220,11 @@ class JsonOutput(Output):
     def files(self, table: Table, io: FileIO, history: bool) -> None:
         pass
 
+    def scan_plan_files(self, plan_files: Iterable[FileScanTask], snapshot_id: int | None = None) -> None:
+        pass
+
     def spec(self, spec: PartitionSpec) -> None:
         print(spec.json())
 
-    def uuid(self, uuid: Optional[UUID]) -> None:
+    def uuid(self, uuid: UUID | None) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})

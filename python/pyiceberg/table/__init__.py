@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-from typing import Dict, List, Optional
+from __future__ import annotations
 
 from pydantic import Field
 
+from pyiceberg.expressions import BooleanExpression
+from pyiceberg.io import FileIO
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.partitioning import PartitionSpec
@@ -42,7 +42,7 @@ class Table(IcebergBaseModel):
         """Return the schema for this table"""
         return next(schema for schema in self.metadata.schemas if schema.schema_id == self.metadata.current_schema_id)
 
-    def schemas(self) -> Dict[int, Schema]:
+    def schemas(self) -> dict[int, Schema]:
         """Return a dict of the schema of this table"""
         return {schema.schema_id: schema for schema in self.metadata.schemas}
 
@@ -50,7 +50,7 @@ class Table(IcebergBaseModel):
         """Return the partition spec of this table"""
         return next(spec for spec in self.metadata.partition_specs if spec.spec_id == self.metadata.default_spec_id)
 
-    def specs(self) -> Dict[int, PartitionSpec]:
+    def specs(self) -> dict[int, PartitionSpec]:
         """Return a dict the partition specs this table"""
         return {spec.spec_id: spec for spec in self.metadata.partition_specs}
 
@@ -60,7 +60,7 @@ class Table(IcebergBaseModel):
             sort_order for sort_order in self.metadata.sort_orders if sort_order.order_id == self.metadata.default_sort_order_id
         )
 
-    def sort_orders(self) -> Dict[int, SortOrder]:
+    def sort_orders(self) -> dict[int, SortOrder]:
         """Return a dict of the sort orders of this table"""
         return {sort_order.order_id: sort_order for sort_order in self.metadata.sort_orders}
 
@@ -68,25 +68,32 @@ class Table(IcebergBaseModel):
         """Return the table's base location."""
         return self.metadata.location
 
-    def current_snapshot(self) -> Optional[Snapshot]:
+    def current_snapshot(self) -> Snapshot | None:
         """Get the current snapshot for this table, or None if there is no current snapshot."""
         if snapshot_id := self.metadata.current_snapshot_id:
             return self.snapshot_by_id(snapshot_id)
         return None
 
-    def snapshot_by_id(self, snapshot_id: int) -> Optional[Snapshot]:
+    def snapshot_by_id(self, snapshot_id: int) -> Snapshot | None:
         """Get the snapshot of this table with the given id, or None if there is no matching snapshot."""
         try:
             return next(snapshot for snapshot in self.metadata.snapshots if snapshot.snapshot_id == snapshot_id)
         except StopIteration:
             return None
 
-    def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
+    def snapshot_by_name(self, name: str) -> Snapshot | None:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
         if ref := self.metadata.refs.get(name):
             return self.snapshot_by_id(ref.snapshot_id)
         return None
 
-    def history(self) -> List[SnapshotLogEntry]:
+    def history(self) -> list[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
+
+    def new_scan(self, io: FileIO, snapshot_id: int | None = None, expression: BooleanExpression | None = None):
+        """Create a new scan for this table."""
+        from pyiceberg.table.scan import DataTableScan
+
+        snapshot = self.snapshot_by_id(snapshot_id) if snapshot_id is not None else None
+        return DataTableScan(io, self, snapshot, expression)

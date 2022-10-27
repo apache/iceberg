@@ -361,3 +361,24 @@ def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
         ctx.exit(1)
     else:
         raise NoSuchPropertyException(f"Property {property_name} does not exist on {identifier}")
+
+
+@run.group()
+def scan():
+    """Create a table scan."""
+
+
+@scan.command("table")
+@click.argument("identifier")
+@click.pass_context
+@catch_exception()
+def scan_table(ctx: Context, identifier: str):
+    """Lists all the data files that will be scanned as part of the table scan plan."""
+    catalog, output = _catalog_and_output(ctx)
+
+    catalog_table = catalog.load_table(identifier)
+    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
+    file_scan_tasks = catalog_table.new_scan(io).plan_files()
+    snapshot = catalog_table.current_snapshot()
+    snapshot_id = snapshot.snapshot_id if snapshot is not None else None
+    output.scan_plan_files(file_scan_tasks, snapshot_id)
