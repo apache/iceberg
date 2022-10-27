@@ -465,7 +465,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
                 barrier.incrementAndGet();
                 numUpdates.incrementAndGet();
-                if (numUpdates.get() > 10) {
+                if (numUpdates.get() >= 2) {
                   throw new RuntimeException(
                       String.format(
                           "Executed %d UPDATEs and %d APPENDs",
@@ -492,7 +492,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
                 barrier.incrementAndGet();
                 numAppends.incrementAndGet();
-                if (numAppends.get() > 10) {
+                if (numAppends.get() >= 2) {
                   throw new RuntimeException(
                       String.format(
                           "Executed %d UPDATEs and %d APPENDs",
@@ -523,6 +523,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+
+    System.out.println("!!! START !!!");
 
     createAndInitTable("id INT, dep STRING");
 
