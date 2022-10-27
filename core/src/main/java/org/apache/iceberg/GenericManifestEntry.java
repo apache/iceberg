@@ -31,6 +31,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
   private Long snapshotId = null;
   private Long dataSequenceNumber = null;
   private Long sequenceNumber = null;
+  private Long fileSequenceNumber = null;
   private F file = null;
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
@@ -47,14 +48,22 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.snapshotId = toCopy.snapshotId;
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.sequenceNumber = toCopy.sequenceNumber;
+    this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.file = toCopy.file().copy(fullCopy);
   }
 
-  ManifestEntry<F> wrapExisting(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
+  ManifestEntry<F> wrapExisting(ManifestEntry<F> entry) {
+    return wrapExisting(
+        entry.snapshotId(), entry.dataSequenceNumber(), entry.fileSequenceNumber(), entry.file());
+  }
+
+  ManifestEntry<F> wrapExisting(
+      Long newSnapshotId, Long newDataSequenceNumber, Long newFileSequenceNumber, F newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = newDataSequenceNumber;
+    this.fileSequenceNumber = newFileSequenceNumber;
     this.file = newFile;
     return this;
   }
@@ -68,15 +77,23 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = newDataSequenceNumber;
+    this.fileSequenceNumber = null;
     this.file = newFile;
     return this;
   }
 
-  ManifestEntry<F> wrapDelete(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
+  ManifestEntry<F> wrapDelete(Long newSnapshotId, ManifestEntry<F> entry) {
+    return wrapDelete(
+        newSnapshotId, entry.dataSequenceNumber(), entry.fileSequenceNumber(), entry.file());
+  }
+
+  ManifestEntry<F> wrapDelete(
+      Long newSnapshotId, Long newDataSequenceNumber, Long newFileSequenceNumber, F newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = null;
+    this.fileSequenceNumber = newFileSequenceNumber;
     this.file = newFile;
     return this;
   }
@@ -105,6 +122,11 @@ class GenericManifestEntry<F extends ContentFile<F>>
     } else {
       return isLive() ? dataSequenceNumber : null;
     }
+  }
+
+  @Override
+  public Long fileSequenceNumber() {
+    return fileSequenceNumber;
   }
 
   /** @return a file */
@@ -141,6 +163,11 @@ class GenericManifestEntry<F extends ContentFile<F>>
   }
 
   @Override
+  public void setFileSequenceNumber(long newFileSequenceNumber) {
+    this.fileSequenceNumber = newFileSequenceNumber;
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
@@ -156,6 +183,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
         this.sequenceNumber = null;
         return;
       case 3:
+        this.fileSequenceNumber = (Long) v;
+        return;
+      case 4:
         this.file = (F) v;
         return;
       default:
@@ -178,6 +208,8 @@ class GenericManifestEntry<F extends ContentFile<F>>
       case 2:
         return dataSequenceNumber;
       case 3:
+        return fileSequenceNumber;
+      case 4:
         return file;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
@@ -196,7 +228,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
 
   @Override
   public int size() {
-    return 4;
+    return 5;
   }
 
   @Override
@@ -205,6 +237,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
         .add("status", status)
         .add("snapshot_id", snapshotId)
         .add("data_sequence_number", dataSequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber)
         .add("file", file)
         .toString();
   }

@@ -119,7 +119,107 @@ public class TestManifestWriter extends TableTestBase {
           "Custom sequence number should be used for all manifest entries",
           1000L,
           (long) entry.sequenceNumber());
+      Assert.assertEquals(
+          "File sequence number must be unassigned",
+          ManifestWriter.UNASSIGNED_SEQ,
+          entry.fileSequenceNumber().longValue());
     }
+  }
+
+  @Test
+  public void testCommitManifestWithExplicitDataSequenceNumber() throws IOException {
+    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+
+    DataFile file1 = newFile(50);
+    DataFile file2 = newFile(50);
+
+    long dataSequenceNumber = 25L;
+
+    ManifestFile manifest =
+        writeManifest(
+            "manifest.avro",
+            manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file1),
+            manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file2));
+
+    Assert.assertEquals(
+        "Manifest should have no sequence number before commit",
+        ManifestWriter.UNASSIGNED_SEQ,
+        manifest.sequenceNumber());
+
+    table.newFastAppend().appendManifest(manifest).commit();
+
+    long commitSnapshotId = table.currentSnapshot().snapshotId();
+
+    ManifestFile committedManifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+
+    Assert.assertEquals(
+        "Committed manifest sequence number must be correct",
+        1L,
+        committedManifest.sequenceNumber());
+
+    Assert.assertEquals(
+        "Committed manifest min sequence number must be correct",
+        dataSequenceNumber,
+        committedManifest.minSequenceNumber());
+
+    validateManifest(
+        committedManifest,
+        dataSeqs(dataSequenceNumber, dataSequenceNumber),
+        fileSeqs(1L, 1L),
+        ids(commitSnapshotId, commitSnapshotId),
+        files(file1, file2),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testCommitManifestWithExistingEntriesWithoutFileSequenceNumber() throws IOException {
+    Assume.assumeTrue("Sequence numbers are valid for format version > 1", formatVersion > 1);
+
+    DataFile file1 = newFile(50);
+    DataFile file2 = newFile(50);
+
+    table.newFastAppend().appendFile(file1).appendFile(file2).commit();
+
+    Snapshot appendSnapshot = table.currentSnapshot();
+    long appendSequenceNumber = appendSnapshot.sequenceNumber();
+    long appendSnapshotId = appendSnapshot.snapshotId();
+
+    ManifestFile originalManifest = appendSnapshot.dataManifests(table.io()).get(0);
+
+    ManifestFile newManifest =
+        writeManifest(
+            "manifest.avro",
+            manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file1),
+            manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file2));
+
+    Assert.assertEquals(
+        "Manifest should have no sequence number before commit",
+        ManifestWriter.UNASSIGNED_SEQ,
+        newManifest.sequenceNumber());
+
+    table.rewriteManifests().deleteManifest(originalManifest).addManifest(newManifest).commit();
+
+    Snapshot rewriteSnapshot = table.currentSnapshot();
+
+    ManifestFile committedManifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+
+    Assert.assertEquals(
+        "Committed manifest sequence number must be correct",
+        rewriteSnapshot.sequenceNumber(),
+        committedManifest.sequenceNumber());
+
+    Assert.assertEquals(
+        "Committed manifest min sequence number must be correct",
+        appendSequenceNumber,
+        committedManifest.minSequenceNumber());
+
+    validateManifest(
+        committedManifest,
+        dataSeqs(appendSequenceNumber, appendSequenceNumber),
+        fileSeqs(null, null),
+        ids(appendSnapshotId, appendSnapshotId),
+        files(file1, file2),
+        statuses(Status.EXISTING, Status.EXISTING));
   }
 
   private DataFile newFile(long recordCount) {

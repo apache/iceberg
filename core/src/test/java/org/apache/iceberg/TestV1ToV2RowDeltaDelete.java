@@ -235,7 +235,8 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
     validateManifest(
         appendSnapshot.dataManifests(table.io()).get(0),
-        seqs(0, 0),
+        dataSeqs(0L, 0L),
+        fileSeqs(0L, 0L),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
@@ -253,14 +254,16 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
     validateManifest(
         deltaSnapshot.dataManifests(table.io()).get(0),
-        seqs(0, 0),
+        dataSeqs(0L, 0L),
+        fileSeqs(0L, 0L),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
 
     validateDeleteManifest(
         deltaSnapshot.deleteManifests(table.io()).get(0),
-        seqs(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
         ids(deltaSnapshot.snapshotId()),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.ADDED));
@@ -272,14 +275,16 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
 
     validateManifest(
         deleteSnapshot.dataManifests(table.io()).get(0),
-        seqs(0, 0),
+        dataSeqs(0L, 0L),
+        fileSeqs(0L, 0L),
         ids(appendSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.DELETED));
 
     validateDeleteManifest(
         deleteSnapshot.deleteManifests(table.io()).get(0),
-        seqs(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
         ids(deltaSnapshot.snapshotId()),
         files(FILE_A_DELETES),
         statuses(ManifestEntry.Status.ADDED));

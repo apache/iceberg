@@ -411,12 +411,13 @@ A manifest file must store the partition spec and other metadata as properties i
 
 The schema of a manifest file is a struct called `manifest_entry` with the following fields:
 
-| v1         | v2         | Field id, name           | Type                                                      | Description                                                                                  |
-| ---------- | ---------- |--------------------------|-----------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| _required_ | _required_ | **`0  status`**          | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
-| _required_ | _optional_ | **`1  snapshot_id`**     | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null.        |
-|            | _optional_ | **`3  sequence_number`** | `long`                                                    | Data sequence number of the file. Inherited when null.                                       |
-| _required_ | _required_ | **`2  data_file`**       | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ...                                                     |
+| v1         | v2         | Field id, name                | Type                                                      | Description |
+| ---------- | ---------- |-------------------------------|-----------------------------------------------------------|-------------|
+| _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
+| _required_ | _optional_ | **`1  snapshot_id`**          | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
+|            | _optional_ | **`3  sequence_number`**      | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
+|            | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
+| _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
 
 `data_file` is a struct with the following fields:
 
@@ -463,8 +464,10 @@ When a file is added to the dataset, its manifest entry should store the snapsho
 
 When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
-Iceberg v2 adds a sequence number to the entry and makes the snapshot id optional. Both fields, `sequence_number` and `snapshot_id`, are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list [2].
-The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. 
+Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
+The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number. 
+The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
 Notes:
 
@@ -475,10 +478,10 @@ Notes:
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
-When adding a new file, its sequence number is set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the manifest list.
-It is also possible to add a new file that logically belongs to an older sequence number. In that case, the sequence number must be provided explicitly and not inherited.
+When adding a new file, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the manifest list.
+It is also possible to add a new file with data that logically belongs to an older sequence number. In that case, the data sequence number must be provided explicitly and not inherited. However, the file sequence number must be always assigned when the snapshot is successfully committed.
 
-When writing an existing file to a new manifest or marking an existing file as deleted, the sequence number must be non-null and set to the original data sequence number of the file that was either inherited or provided at the commit time.
+When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
 
 Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the manifest list must be rewritten.
 
@@ -537,7 +540,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | _required_ | _required_ | **`502 partition_spec_id`**    | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs` |
 |            | _required_ | **`517 content`**              | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests |
 |            | _required_ | **`515 sequence_number`**      | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists |
-|            | _required_ | **`516 min_sequence_number`**  | `long`                                      | The minimum sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists |
+|            | _required_ | **`516 min_sequence_number`**  | `long`                                      | The minimum data sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists |
 | _required_ | _required_ | **`503 added_snapshot_id`**    | `long`                                      | ID of the snapshot where the  manifest file was added |
 | _optional_ | _required_ | **`504 added_files_count`**    | `int`                                       | Number of entries in the manifest that have status `ADDED` (1), when `null` this is assumed to be non-zero |
 | _optional_ | _required_ | **`505 existing_files_count`** | `int`                                       | Number of entries in the manifest that have status `EXISTING` (0), when `null` this is assumed to be non-zero |
@@ -584,16 +587,16 @@ Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
 
 * A _position_ delete file must be applied to a data file when all of the following are true:
-    - The data file's sequence number is _less than or equal to_ the delete file's sequence number
+    - The data file's data sequence number is _less than or equal to_ the delete file's data sequence number
     - The data file's partition (both spec and partition values) is equal to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
-    - The data file's sequence number is _strictly less than_ the delete's sequence number
+    - The data file's data sequence number is _strictly less than_ the delete's data sequence number
     - The data file's partition (both spec and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
 * Equality delete files stored with an unpartitioned spec are applied as global deletes. Otherwise, delete files do not apply to files in other partitions.
-* Position delete files must be applied to data files from the same commit, when the data and delete file sequence numbers are equal. This allows deleting rows that were added in the same commit.
+* Position delete files must be applied to data files from the same commit, when the data and delete file data sequence numbers are equal. This allows deleting rows that were added in the same commit.
 
 
 Notes:
@@ -1196,6 +1199,7 @@ Writing v1 metadata:
 * Manifest list field `min-sequence-number` should not be written
 * Manifest list field `content` must be 0 (data) or omitted
 * Manifest entry field `sequence_number` should not be written
+* Manifest entry field `file_sequence_number` should not be written
 * Data file field `content` must be 0 (data) or omitted
 
 Reading v1 metadata for v2:
@@ -1206,6 +1210,7 @@ Reading v1 metadata for v2:
 * Manifest list field `min-sequence-number` must default to 0
 * Manifest list field `content` must default to 0 (data)
 * Manifest entry field `sequence_number` must default to 0
+* Manifest entry field `file_sequence_number` must default to 0
 * Data file field `content` must default to 0 (data)
 
 Writing v2 metadata:
@@ -1244,6 +1249,7 @@ Writing v2 metadata:
 * Manifest `manifest_entry`:
     * `snapshot_id` is now optional to support inheritance
     * `sequence_number` was added and is optional, to support inheritance
+    * `file_sequence_number` was added and is optional, to support inheritance
 * Manifest `data_file`:
     * `content` was added and is required; 0=data, 1=position deletes, 2=equality deletes; default to 0 when reading v1 manifests
     * `equality_ids` was added, to be used for equality deletes only

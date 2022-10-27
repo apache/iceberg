@@ -306,6 +306,16 @@ class V1Metadata {
     }
 
     @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
+    }
+
+    @Override
     public DataFile file() {
       return wrapped.file();
     }

@@ -114,12 +114,14 @@ public class TestFastAppend extends TableTestBase {
 
     validateManifest(
         snap.allManifests(FILE_IO).get(0),
-        seqs(1, 1),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
         ids(commitId, commitId),
         files(FILE_C, FILE_D));
     validateManifest(
         snap.allManifests(FILE_IO).get(1),
-        seqs(1, 1),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
         ids(commitId, commitId),
         files(FILE_A, FILE_B));
 
