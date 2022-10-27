@@ -77,14 +77,17 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     if (task.file().format() == FileFormat.PARQUET) {
       SparkDeleteFilter deleteFilter = deleteFilter(task);
 
+      // get required schema if there are deletes
+      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema;
+
       Parquet.ReadBuilder builder =
           Parquet.read(location)
-              .project(expectedSchema)
+              .project(requiredSchema)
               .split(task.start(), task.length())
               .createBatchedReaderFunc(
                   fileSchema ->
                       VectorizedSparkParquetReaders.buildReader(
-                          expectedSchema,
+                          requiredSchema,
                           fileSchema, /* setArrowValidityVector */
                           NullCheckingForGet.NULL_CHECKING_ENABLED,
                           idToConstant,
