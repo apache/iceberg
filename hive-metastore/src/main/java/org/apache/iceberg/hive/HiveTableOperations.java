@@ -259,8 +259,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // getting a process-level lock per table to avoid concurrent commit attempts to the same table
     // from the same
     // JVM process, which would result in unnecessary and costly HMS lock acquisition requests
-    // ReentrantLock tableLevelMutex = commitLockCache.get(fullName, t -> new ReentrantLock(true));
-    // tableLevelMutex.lock();
+    ReentrantLock tableLevelMutex = commitLockCache.get(fullName, t -> new ReentrantLock(true));
+    tableLevelMutex.lock();
     HiveLockHeartbeat hiveLockHeartbeat = null;
     try {
       lockId = Optional.of(acquireLock());
@@ -383,7 +383,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         hiveLockHeartbeat.cancel();
       }
 
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, null);
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
 
     LOG.info(
@@ -700,7 +700,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
     } finally {
       unlock(lockId);
-      // tableLevelMutex.unlock();
+      tableLevelMutex.unlock();
     }
   }
 
