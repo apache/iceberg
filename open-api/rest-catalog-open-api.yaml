@@ -1837,6 +1837,46 @@ components:
       type: object
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
+      example:
+        "metrics": {
+          "total-planning-duration": {
+            "count": 1,
+            "time-unit": "nanoseconds",
+            "total-duration": 2644235116
+          },
+          "result-data-files": {
+            "unit": "count",
+            "value": 1,
+          },
+          "result-delete-files": {
+            "unit": "count",
+            "value": 0,
+          },
+          "total-data-manifests": {
+            "unit": "count",
+            "value": 1,
+          },
+          "total-delete-manifests": {
+            "unit": "count",
+            "value": 0,
+          },
+          "scanned-data-manifests": {
+            "unit": "count",
+            "value": 1,
+          },
+          "skipped-data-manifests": {
+            "unit": "count",
+            "value": 0,
+          },
+          "total-file-size-bytes": {
+            "unit": "bytes",
+            "value": 10,
+          },
+          "total-delete-file-size-bytes": {
+            "unit": "bytes",
+            "value": 0,
+          }
+        }
 
     ReportMetricsRequest:
       anyOf:
@@ -1853,7 +1893,9 @@ components:
         - table-name
         - snapshot-id
         - filter
-        - projection
+        - schema-id
+        - projected-field-ids
+        - projected-field-names
         - metrics
       properties:
         table-name:
@@ -1863,50 +1905,18 @@ components:
           format: int64
         filter:
           $ref: '#/components/schemas/Expression'
-        projection:
-          $ref: '#/components/schemas/Schema'
+        schema-id:
+          type: integer
+        projected-field-ids:
+          type: array
+          items:
+            type: integer
+        projected-field-names:
+          type: array
+          items:
+            type: string
         metrics:
           $ref: '#/components/schemas/Metrics'
-          example:
-            "metrics": {
-              "total-planning-duration": {
-                "count": 1,
-                "time-unit": "nanoseconds",
-                "total-duration": 2644235116
-              },
-              "result-data-files": {
-                "unit": "count",
-                "value": 1,
-              },
-              "result-delete-files": {
-                "unit": "count",
-                "value": 0,
-              },
-              "total-data-manifests": {
-                "unit": "count",
-                "value": 1,
-              },
-              "total-delete-manifests": {
-                "unit": "count",
-                "value": 0,
-              },
-              "scanned-data-manifests": {
-                "unit": "count",
-                "value": 1,
-              },
-              "skipped-data-manifests": {
-                "unit": "count",
-                "value": 0,
-              },
-              "total-file-size-bytes": {
-                "unit": "bytes",
-                "value": 10,
-              },
-              "total-delete-file-size-bytes": {
-                "unit": "bytes",
-                "value": 0,
-              }
-            }
 
 
   #############################
