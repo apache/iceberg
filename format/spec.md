@@ -710,15 +710,15 @@ correctly.
 
 Geometry columns within `geometry-columns` table metadata field is a struct with the following fields:
 
-| v1         | v2         | Field name          | Type | Description                                                                                                                     |
-|------------|------------|---------------------|------|---------------------------------------------------------------------------------------------------------------------------------|
-| _required_ | _required_ | **`encoding`**      | `string` | Name of geometry encoding format. Should be `WKB`                                                                               |
-| _optional_ | _optional_ | **`geometry-type`** | `string` | geometry type                                                                                                                   |
-| _optional_ | _optional_ | **`crs`**           | `string` | Geometry coordinate reference system. Should be on the form `epsg:XXXX`                                                         |
-| _optional_ | _optional_ | **`orientation`**   | `string` | Winding order of exterior ring of polygons. If present should be `counterclockwise`; interor rings are wound in opposite order. |
-| _optional_ | _optional_ | **`edges`**         | `string` | Name of coordinate system for edges. Should be `planar` or `spherical`.                                                         |
-| _optional_ | _optional_ | **`bbox`**          | `string` | [RFC 7946](https://www.rfc-editor.org/rfc/rfc7946#section-5)-formatted bounding box for geometries.                             |
-| _optional_ | _optional_ | **`epoch`**         | `string` | Coordinate epoch in case of a dynamic CRS, expressed as a decimal year.                                                         |
+| v1         | v2         | Field name          | Type | Description                                                                                                                                |
+|------------|------------|---------------------|------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | **`encoding`**      | `string` | Name of geometry encoding format. Should be `WKB`                                                                                          |
+| _optional_ | _optional_ | **`geometry-type`** | `string` | geometry type                                                                                                                              |
+| _optional_ | _optional_ | **`crs`**           | `string` | Geometry coordinate reference system. Should be on the form `epsg:XXXX`. `epsg:4326` should be considered default if this field is not set |
+| _optional_ | _optional_ | **`orientation`**   | `string` | Winding order of exterior ring of polygons. If present should be `counterclockwise`; interor rings are wound in opposite order.            |
+| _optional_ | _optional_ | **`edges`**         | `string` | Name of coordinate system for edges. Should be `planar` or `spherical`.                                                                    |
+| _optional_ | _optional_ | **`bbox`**          | `string` | [RFC 7946](https://www.rfc-editor.org/rfc/rfc7946#section-5)-formatted bounding box for geometries.                                        |
+| _optional_ | _optional_ | **`epoch`**         | `string` | Coordinate epoch in case of a dynamic CRS, expressed as a decimal year.                                                                    |
 
 
 #### Commit Conflict Resolution and Retry
