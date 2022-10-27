@@ -55,6 +55,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config("spark.hadoop.iceberg.hive.lock-timeout-ms", "30000")
             .config("spark.sql.shuffle.partitions", "4")
             .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
