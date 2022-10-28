@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String sparkVersion = '3.3.0'
+String sparkVersion = '3.3.1'
 String sparkMajorVersion = '3.3'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
@@ -26,6 +26,16 @@ def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
 ]
+
+configure(sparkProjects) {
+  configurations {
+    all {
+      resolutionStrategy {
+        force 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2'
+      }
+    }
+  }
+}
 
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'scala'
