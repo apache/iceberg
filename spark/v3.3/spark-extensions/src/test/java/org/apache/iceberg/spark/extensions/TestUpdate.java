@@ -92,7 +92,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS updated_id");
     sql("DROP TABLE IF EXISTS updated_dep");
     sql("DROP TABLE IF EXISTS deleted_employee");
-    metastore.reset();
   }
 
   @Test
