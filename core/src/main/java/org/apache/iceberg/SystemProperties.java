@@ -37,7 +37,7 @@ public class SystemProperties {
   /** Whether to use the shared worker pool when planning table scans. */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
 
-  public static final String SCAN_THREAD_POOL_ENABLED_ENV = "ICEBERG_SCAN_PLAN_IN_WORKER_POOL";
+  static final String SCAN_THREAD_POOL_ENABLED_ENV = "ICEBERG_SCAN_PLAN_IN_WORKER_POOL";
 
   /**
    * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
@@ -45,8 +45,7 @@ public class SystemProperties {
    */
   public static final String IO_MANIFEST_CACHE_MAX_FILEIO = "iceberg.io.manifest.cache.fileio-max";
 
-  public static final String IO_MANIFEST_CACHE_MAX_FILEIO_ENV =
-      "ICEBERG_IO_MANIFEST_CACHE_FILEIO_MAX";
+  static final String IO_MANIFEST_CACHE_MAX_FILEIO_ENV = "ICEBERG_IO_MANIFEST_CACHE_FILEIO_MAX";
 
   public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
