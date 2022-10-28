@@ -56,6 +56,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter implements RESTClient {
@@ -207,6 +208,7 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
+  @SuppressWarnings("MethodLength")
   public <T extends RESTResponse> T handleRequest(
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
     switch (route) {
@@ -320,7 +322,11 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_TABLE:
         {
-          CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+          if (PropertyUtil.propertyAsBoolean(vars, "purgeRequested", false)) {
+            CatalogHandlers.purgeTable(catalog, identFromPathVars(vars));
+          } else {
+            CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+          }
           return null;
         }
 
@@ -398,10 +404,11 @@ public class RESTCatalogAdapter implements RESTClient {
   @Override
   public <T extends RESTResponse> T delete(
       String path,
+      Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
+    return execute(HTTPMethod.DELETE, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override

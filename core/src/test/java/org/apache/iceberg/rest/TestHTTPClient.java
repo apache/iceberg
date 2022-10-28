@@ -219,7 +219,7 @@ public class TestHTTPClient {
         restClient.head(path, headers, onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, headers, onError);
+        return restClient.delete(path, Item.class, () -> headers, onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }
