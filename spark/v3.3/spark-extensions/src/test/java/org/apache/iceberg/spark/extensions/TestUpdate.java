@@ -449,20 +449,28 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     AtomicInteger numUpdates = new AtomicInteger(0);
     AtomicInteger numAppends = new AtomicInteger(0);
 
+    List<String> updateThreadLog = Lists.newArrayList();
+    List<String> appendThreadLog = Lists.newArrayList();
+
     // update thread
     Future<?> updateFuture =
         executorService.submit(
             () -> {
+              updateThreadLog.add("UPDATE THREAD STARTED");
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                updateThreadLog.add("ATTEMPTING UPDATE OPERATION #" + numOperations);
                 int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                   numSleeps++;
+                  updateThreadLog.add("SLEPT IN UPDATE THREAD #" + numSleeps);
                   if (numSleeps > 1_000) {
                     throw new RuntimeException("Slept more than 1K times in the update thread");
                   }
                 }
+                updateThreadLog.add("READY TO ISSUE UPDATE");
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
+                updateThreadLog.add("UPDATE IS DONE");
                 barrier.incrementAndGet();
                 numUpdates.incrementAndGet();
                 if (numUpdates.get() >= 2) {
@@ -473,23 +481,30 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 }
                 Thread.yield();
               }
+              updateThreadLog.add("UPDATE THREAD IS DONE");
             });
 
     // append thread
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              appendThreadLog.add("APPEND THREAD STARTED");
               SparkSession sparkSession = spark.cloneSession();
+              appendThreadLog.add("APPEND THREAD CLONED THE SESSION");
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                appendThreadLog.add("ATTEMPTING APPEND OPERATION #" + numOperations);
                 int numSleeps = 0;
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                   numSleeps++;
+                  appendThreadLog.add("SLEPT IN APPEND THREAD #" + numSleeps);
                   if (numSleeps > 1_000) {
                     throw new RuntimeException("Slept more than 1K times in the append thread");
                   }
                 }
+                appendThreadLog.add("READY TO ISSUE APPEND");
                 sparkSession.sql(String.format("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName));
+                appendThreadLog.add("APPEND IS DONE");
                 barrier.incrementAndGet();
                 numAppends.incrementAndGet();
                 if (numAppends.get() >= 2) {
@@ -500,6 +515,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 }
                 Thread.yield();
               }
+              appendThreadLog.add("APPEND THREAD IS DONE");
             });
 
     try {
@@ -515,7 +531,12 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    try {
+      Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    } catch (Exception e) {
+      throw new RuntimeException(
+          String.format("APPEND LOG: %s, UPDATE LOG: %s", appendThreadLog, updateThreadLog), e);
+    }
   }
 
   @Test
