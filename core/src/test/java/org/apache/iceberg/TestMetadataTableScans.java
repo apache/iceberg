@@ -1136,10 +1136,6 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   private void validateIncludesPartitionScan(CloseableIterable<FileScanTask> tasks, int partValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
-            .anyMatch(a -> a.file().partition().get(0, Object.class).equals(partValue)));
     validateIncludesPartitionScan(tasks, 0, partValue);
   }
 
