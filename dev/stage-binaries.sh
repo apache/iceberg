@@ -20,7 +20,7 @@
 
 SCALA_VERSION=2.12
 FLINK_VERSIONS=1.14,1.15,1.16
-SPARK_VERSIONS=2.4,3.0,3.1,3.2,3.3
+SPARK_VERSIONS=2.4,3.1,3.2,3.3
 HIVE_VERSIONS=2,3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS publishApachePublicationToMavenRepository

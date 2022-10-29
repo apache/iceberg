@@ -30,11 +30,11 @@ menu:
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API
 with different levels of support in Spark versions.
 
-As of Spark 3.0, DataFrame reads and writes are supported.
+As of Spark 3.x, DataFrame reads and writes are supported.
 
-| Feature support                                  | Spark 3.0| Spark 2.4  | Notes                                          |
-|--------------------------------------------------|----------|------------|------------------------------------------------|
-| [DataFrame write](#streaming-writes)             | ✔        | ✔          |                                                |
+| Feature support                                  | Spark 3.x | Spark 2.4  | Notes                                          |
+|--------------------------------------------------|-----------|------------|------------------------------------------------|
+| [DataFrame write](#streaming-writes)             | ✔         | ✔          |                                                |
 
 ## Streaming Reads
 

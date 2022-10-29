@@ -164,7 +164,7 @@ Code examples can be found [here](SnapshotFunctionalityTest.java).
 Iceberg provides support to handle schema evolution of your tables over time:
 
 1. Add a new column
-    1. The new column is always added at the end of the table (**NOTE**: This will be fixed with Spark 3.0 which has implemented AFTER and FIRST operations).
+    1. The new column is always added at the end of the table (**NOTE**: This will be fixed with Spark 3.x which has implemented AFTER and FIRST operations).
     1. You are only able to add a column at the end of the schema, not somewhere in the middle. 
     1. Any rows using the earlier schema return a `null` value for this new column. You cannot use an alternative default value.
     1. This column automatically becomes an `optional` column, meaning adding data to this column isn't enforced for each future write. 

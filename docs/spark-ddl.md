@@ -37,7 +37,7 @@ Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3.x or the [Ic
 
 ## `CREATE TABLE`
 
-Spark 3.0 can create tables in any Iceberg catalog with the clause `USING iceberg`:
+Spark 3.x can create tables in any Iceberg catalog with the clause `USING iceberg`:
 
 ```sql
 CREATE TABLE prod.db.sample (

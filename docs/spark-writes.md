@@ -33,16 +33,16 @@ Some plans are only available when using [Iceberg SQL extensions](../spark-confi
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3.0| Spark 2.4  | Notes                                          |
-|--------------------------------------------------|----------|------------|------------------------------------------------|
-| [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
-| [SQL merge into](#merge-into)                    | ✔️        |            | ⚠ Requires Iceberg Spark extensions            |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        |            |                                                |
-| [SQL delete from](#delete-from)                  | ✔️        |            | ⚠ Row-level delete requires Spark extensions   |
-| [SQL update](#update)                            | ✔️        |            | ⚠ Requires Iceberg Spark extensions            |
-| [DataFrame append](#appending-data)              | ✔️        | ✔️          |                                                |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.0                |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                                |
+| Feature support                                  | Spark 3.x | Spark 2.4  | Notes                                        |
+|--------------------------------------------------|-----------|------------|----------------------------------------------|
+| [SQL insert into](#insert-into)                  | ✔️        |            |                                              |
+| [SQL merge into](#merge-into)                    | ✔️        |            | ⚠ Requires Iceberg Spark extensions          |
+| [SQL insert overwrite](#insert-overwrite)        | ✔️        |            |                                              |
+| [SQL delete from](#delete-from)                  | ✔️        |            | ⚠ Row-level delete requires Spark extensions |
+| [SQL update](#update)                            | ✔️        |            | ⚠ Requires Iceberg Spark extensions          |
+| [DataFrame append](#appending-data)              | ✔️        | ✔️          |                                              |
+| [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.x              |
+| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                              |
 
 
 ## Writing with SQL
@@ -108,14 +108,6 @@ Only one record in the source data can update any given row of the target table,
 `INSERT OVERWRITE` can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
 
 The partitions that will be replaced by `INSERT OVERWRITE` depends on Spark's partition overwrite mode and the partitioning of a table. `MERGE INTO` can rewrite only affected data files and has more easily understood behavior, so it is recommended instead of `INSERT OVERWRITE`.
-
-{{< hint danger >}}
-Spark 3.0.0 has a correctness bug that affects dynamic `INSERT OVERWRITE` with hidden partitioning, [SPARK-32168][spark-32168].
-For tables with [hidden partitions](../partitioning/#icebergs-hidden-partitioning), make sure you use Spark 3.0.1.
-{{< /hint >}}
-
-[spark-32168]: https://issues.apache.org/jira/browse/SPARK-32168
-
 
 #### Overwrite behavior
 
