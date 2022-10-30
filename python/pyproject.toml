@@ -55,7 +55,7 @@ pyyaml = "^6.0.0"
 pydantic = "^1.10.2"
 fsspec = "2022.8.2"
 
-zstandard = "^0.18.0"
+zstandard = ">=0.18,<0.20"
 
 pyarrow = { version = ">=9,<11", optional = true }
 
