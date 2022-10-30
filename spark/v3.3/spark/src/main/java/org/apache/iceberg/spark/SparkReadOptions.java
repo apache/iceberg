@@ -35,10 +35,10 @@ public class SparkReadOptions {
   // A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.
   public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
 
-  // branch ref of the table snapshot to read from
+  // Branch to read from
   public static final String BRANCH = "branch";
 
-  // tag ref of the table snapshot to read from
+  // Tag to read from
   public static final String TAG = "tag";
 
   // Overrides the table's read.split.target-size and read.split.metadata-target-size

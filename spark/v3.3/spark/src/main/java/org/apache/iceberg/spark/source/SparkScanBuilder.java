@@ -186,6 +186,12 @@ public class SparkScanBuilder
     String branch = readConf.branch();
     String tag = readConf.tag();
 
+    Preconditions.checkArgument(
+        snapshotId == null || asOfTimestamp == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
+
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
 
