@@ -123,7 +123,7 @@ class GlueCatalog(Catalog):
         self.glue = boto3.client("glue")
 
     def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
-        properties: Properties = glue_table[PROP_GLUE_TABLE_PARAMETERS]
+        properties: Properties = glue_table.get(PROP_GLUE_TABLE_PARAMETERS, {})
 
         if TABLE_TYPE not in properties:
             raise NoSuchPropertyException(
@@ -160,11 +160,11 @@ class GlueCatalog(Catalog):
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"The database: {database_name} does not exist") from e
 
-        if database_location := response.get(PROP_GLUE_DATABASE).get(PROP_GLUE_DATABASE_LOCATION):
+        if database_location := response.get(PROP_GLUE_DATABASE, {}).get(PROP_GLUE_DATABASE_LOCATION):
             return f"{database_location}/{table_name}"
 
-        if WAREHOUSE in self.properties:
-            return f"{self.properties[WAREHOUSE]}/{database_name}.db/{table_name}"
+        if warehouse_path := self.properties.get(WAREHOUSE):
+            return f"{warehouse_path}/{database_name}.db/{table_name}"
 
         raise ValueError("No default path is set, please specify a location when creating a table")
 
@@ -242,7 +242,7 @@ class GlueCatalog(Catalog):
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {database_name}.{table_name}") from e
 
-        return self._convert_glue_to_iceberg(load_table_response[PROP_GLUE_TABLE])
+        return self._convert_glue_to_iceberg(load_table_response.get(PROP_GLUE_TABLE, {}))
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
@@ -359,7 +359,7 @@ class GlueCatalog(Catalog):
                 table_list += table_list_response.get(PROP_GLUE_TABLELIST, [])
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
-        return [(database_name, table[PROP_GLUE_TABLE_NAME]) for table in table_list]
+        return [(database_name, table.get(PROP_GLUE_TABLE_NAME)) for table in table_list]
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
@@ -377,7 +377,7 @@ class GlueCatalog(Catalog):
             databases_response = self.glue.get_databases(NextToken=next_token)
             next_token = databases_response.get(PROP_GLUE_NEXT_TOKEN)
             database_list += databases_response.get(PROP_GLUE_DATABASE_LIST, [])
-        return [self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME]) for database in database_list]
+        return [self.identifier_to_tuple(database.get(PROP_GLUE_DATABASE_NAME)) for database in database_list]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         """Get properties for a namespace.
