@@ -105,7 +105,7 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
     for k, v in properties.items():
         if k == GLUE_DESCRIPTION_KEY:
             database_input[PROP_GLUE_DATABASE_DESCRIPTION] = v
-        if k == GLUE_DATABASE_LOCATION_KEY:
+        elif k == GLUE_DATABASE_LOCATION_KEY:
             database_input[PROP_GLUE_DATABASE_LOCATION] = v
         else:
             parameters[k] = v
@@ -173,6 +173,15 @@ class GlueCatalog(Catalog):
             return self._default_warehouse_location(database_name, table_name)
         return location
 
+    def _create_glue_table(self, identifier: Union[str, Identifier], table_input: Dict[str, Any]) -> None:
+        database_name, table_name = self.identifier_to_tuple(identifier)
+        try:
+            self.glue.create_table(DatabaseName=database_name, TableInput=table_input)
+        except self.glue.exceptions.AlreadyExistsException as e:
+            raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
+        except self.glue.exceptions.EntityNotFoundException as e:
+            raise NoSuchNamespaceError(f"Database {database_name} not found") from e
+
     def create_table(
         self,
         identifier: Union[str, Identifier],
@@ -205,15 +214,10 @@ class GlueCatalog(Catalog):
         )
         io = load_file_io(properties=self.properties, location=metadata_location)
         _write_metadata(metadata, io, metadata_location)
-        try:
-            self.glue.create_table(
-                DatabaseName=database_name, TableInput=_construct_table_input(table_name, metadata_location, properties)
-            )
-        except self.glue.exceptions.AlreadyExistsException as e:
-            raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
-        except self.glue.exceptions.EntityNotFoundException as e:
-            raise NoSuchNamespaceError(f"Database {database_name} not found") from e
 
+        self._create_glue_table(
+            identifier=identifier, table_input=_construct_table_input(table_name, metadata_location, properties)
+        )
         try:
             loaded_table = self.load_table(identifier=(database_name, table_name))
         except self.glue.exceptions.EntityNotFoundException as e:
@@ -293,13 +297,7 @@ class GlueCatalog(Catalog):
         table_input[PROP_GLUE_TABLE_NAME] = to_table_name
         new_input = _construct_table_input(to_table_name, table_input[PROP_GLUE_TABLE_PARAMETERS][METADATA_LOCATION], {})
 
-        try:
-            self.glue.create_table(DatabaseName=to_database_name, TableInput=new_input)
-        except self.glue.exceptions.AlreadyExistsException as e:
-            raise TableAlreadyExistsError(f"Table {to_database_name}.{to_table_name} already exists") from e
-        except self.glue.exceptions.EntityNotFoundException as e:
-            raise NoSuchNamespaceError(f"Database {to_database_name} not found") from e
-
+        self._create_glue_table(identifier=to_identifier, table_input=new_input)
         try:
             self.drop_table(from_identifier)
         except Exception as e:
@@ -354,11 +352,11 @@ class GlueCatalog(Catalog):
         try:
             table_list_response = self.glue.get_tables(DatabaseName=database_name)
             next_token = table_list_response.get(PROP_GLUE_NEXT_TOKEN)
-            table_list += table_list_response[PROP_GLUE_TABLELIST]
+            table_list += table_list_response.get(PROP_GLUE_TABLELIST, [])
             while next_token:
                 table_list_response = self.glue.get_tables(DatabaseName=database_name, NextToken=next_token)
                 next_token = table_list_response.get(PROP_GLUE_NEXT_TOKEN)
-                table_list += table_list_response[PROP_GLUE_TABLELIST]
+                table_list += table_list_response.get(PROP_GLUE_TABLELIST, [])
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
         return [(database_name, table[PROP_GLUE_TABLE_NAME]) for table in table_list]
@@ -374,11 +372,11 @@ class GlueCatalog(Catalog):
         database_list = []
         databases_response = self.glue.get_databases()
         next_token = databases_response.get(PROP_GLUE_NEXT_TOKEN)
-        database_list += databases_response[PROP_GLUE_DATABASE_LIST]
+        database_list += databases_response.get(PROP_GLUE_DATABASE_LIST, [])
         while next_token:
             databases_response = self.glue.get_databases(NextToken=next_token)
             next_token = databases_response.get(PROP_GLUE_NEXT_TOKEN)
-            database_list += databases_response[PROP_GLUE_DATABASE_LIST]
+            database_list += databases_response.get(PROP_GLUE_DATABASE_LIST, [])
         return [self.identifier_to_tuple(database[PROP_GLUE_DATABASE_NAME]) for database in database_list]
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
