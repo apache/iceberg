@@ -34,8 +34,12 @@ from tests.catalog.test_glue import (
     get_random_tables,
 )
 
-RANDOM_LENGTH = 20
+# Make sure the test bucket exists and is in the configured region
 AWS_TEST_BUCKET = "pythongluetest"
+# The number of random characters in generated table/database name
+RANDOM_LENGTH = 20
+# The number of tables/databases used in list_table/namespace test
+LIST_TEST_NUMBER = 2
 
 
 def get_s3_path(bucket_name, database_name=None, table_name=None):
@@ -53,9 +57,8 @@ def fixture_s3_client():
     yield boto3.client("s3")
 
 
-def clean_up():
+def clean_up(test_catalog):
     """Clean all databases and tables created during the integration test"""
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     for database_name in test_catalog.list_namespaces():
         database_name = database_name[0]
         if "my_iceberg_database-" in database_name:
@@ -64,17 +67,17 @@ def clean_up():
             test_catalog.drop_namespace(database_name)
 
 
-@pytest.fixture(name="_setting", scope="module")
-def run_before_and_after_test():
+@pytest.fixture(name="test_catalog", scope="module")
+def fixture_test_catalog():
     """The pre- and post-setting of aws integration test"""
-    yield
-    clean_up()
+    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
+    yield test_catalog
+    clean_up(test_catalog)
 
 
-def test_create_table(_setting, s3, table_schema_nested: Schema):
+def test_create_table(test_catalog, s3, table_schema_nested: Schema):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested, get_s3_path(AWS_TEST_BUCKET, database_name, table_name))
@@ -84,11 +87,21 @@ def test_create_table(_setting, s3, table_schema_nested: Schema):
     s3.head_object(Bucket=AWS_TEST_BUCKET, Key=metadata_location)
 
 
-def test_create_table_with_default_location(_setting, s3, table_schema_nested: Schema):
+def test_create_table_with_invalid_location(test_catalog, table_schema_nested: Schema):
+    table_name = get_random_table_name()
+    identifier = ("myicebergtest", table_name)
+    stored_warehouse = test_catalog.properties["warehouse"]
+    print(stored_warehouse)
+    test_catalog.properties.pop("warehouse")
+    with pytest.raises(ValueError):
+        test_catalog.create_table(identifier, table_schema_nested)
+    test_catalog.properties["warehouse"] = stored_warehouse
+
+
+def test_create_table_with_default_location(test_catalog, s3, table_schema_nested: Schema):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
@@ -97,37 +110,26 @@ def test_create_table_with_default_location(_setting, s3, table_schema_nested: S
     s3.head_object(Bucket=AWS_TEST_BUCKET, Key=metadata_location)
 
 
-def test_create_table_with_invalid_database(_setting, table_schema_nested: Schema):
+def test_create_table_with_invalid_database(test_catalog, table_schema_nested: Schema):
     table_name = get_random_table_name()
     identifier = ("invalid", table_name)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier, table_schema_nested)
 
 
-def test_create_table_with_invalid_location(_setting, table_schema_nested: Schema):
-    table_name = get_random_table_name()
-    identifier = ("myicebergtest", table_name)
-    test_catalog = GlueCatalog("glue")
-    with pytest.raises(ValueError):
-        test_catalog.create_table(identifier, table_schema_nested)
-
-
-def test_create_duplicated_table(_setting, table_schema_nested: Schema):
+def test_create_duplicated_table(test_catalog, table_schema_nested: Schema):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     test_catalog.create_table((database_name, table_name), table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
         test_catalog.create_table((database_name, table_name), table_schema_nested)
 
 
-def test_load_table(_setting, table_schema_nested):
+def test_load_table(test_catalog, table_schema_nested):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     loaded_table = test_catalog.load_table(identifier)
@@ -136,10 +138,9 @@ def test_load_table(_setting, table_schema_nested):
     assert table.metadata == loaded_table.metadata
 
 
-def test_list_tables(_setting, table_schema_nested):
+def test_list_tables(test_catalog, table_schema_nested):
     test_n = 2
     test_tables = get_random_tables(test_n)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     database_name = get_random_database_name()
     test_catalog.create_namespace(database_name)
     for table_name in test_tables:
@@ -150,11 +151,10 @@ def test_list_tables(_setting, table_schema_nested):
         assert (database_name, table_name) in identifier_list
 
 
-def test_rename_table(_setting, table_schema_nested):
+def test_rename_table(test_catalog, table_schema_nested):
     table_name = get_random_table_name()
     new_table_name = f"rename-{table_name}"
     identifier = ("myicebergtest", table_name)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
     new_identifier = ("myicebergtest", new_table_name)
@@ -165,11 +165,10 @@ def test_rename_table(_setting, table_schema_nested):
         test_catalog.load_table(identifier)
 
 
-def test_drop_table(_setting, table_schema_nested):
+def test_drop_table(test_catalog, table_schema_nested):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
@@ -178,29 +177,26 @@ def test_drop_table(_setting, table_schema_nested):
         test_catalog.load_table(identifier)
 
 
-def test_create_namespace(_setting):
+def test_create_namespace(test_catalog):
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     assert (database_name,) in test_catalog.list_namespaces()
 
 
-def test_create_duplicate_namespace(_setting):
+def test_create_duplicate_namespace(test_catalog):
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     with pytest.raises(NamespaceAlreadyExistsError):
         test_catalog.create_namespace(database_name)
 
 
-def test_create_namespace_with_comment_and_location(_setting):
+def test_create_namespace_with_comment_and_location(test_catalog):
     database_name = get_random_database_name()
     test_location = get_s3_path(AWS_TEST_BUCKET, database_name)
     test_properties = {
         "comment": "this is a test description",
         "location": test_location,
     }
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(namespace=database_name, properties=test_properties)
     loaded_database_list = test_catalog.list_namespaces()
     assert (database_name,) in loaded_database_list
@@ -209,10 +205,9 @@ def test_create_namespace_with_comment_and_location(_setting):
     assert properties["location"] == test_location
 
 
-def test_list_namespaces(_setting):
+def test_list_namespaces(test_catalog):
     test_n = 2
     database_list = get_random_databases(test_n)
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     for database_name in database_list:
         test_catalog.create_namespace(database_name)
     db_list = test_catalog.list_namespaces()
@@ -221,10 +216,9 @@ def test_list_namespaces(_setting):
     assert len(test_catalog.list_namespaces(list(database_list)[0])) == 0
 
 
-def test_drop_namespace(_setting, table_schema_nested: Schema):
+def test_drop_namespace(test_catalog, table_schema_nested: Schema):
     table_name = get_random_table_name()
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=get_s3_path(AWS_TEST_BUCKET))
     test_catalog.create_namespace(database_name)
     assert (database_name,) in test_catalog.list_namespaces()
     test_catalog.create_table((database_name, table_name), table_schema_nested)
@@ -235,10 +229,9 @@ def test_drop_namespace(_setting, table_schema_nested: Schema):
     assert (database_name,) not in test_catalog.list_namespaces()
 
 
-def test_load_namespaces_properties(_setting):
+def test_load_namespaces_properties(test_catalog):
     warehouse_location = get_s3_path(AWS_TEST_BUCKET)
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=warehouse_location)
     test_properties = {
         "comment": "this is a test description",
         "location": f"{warehouse_location}/{database_name}.db",
@@ -254,10 +247,9 @@ def test_load_namespaces_properties(_setting):
         assert v == test_properties[k]
 
 
-def test_update_namespace_properties(_setting):
+def test_update_namespace_properties(test_catalog):
     warehouse_location = get_s3_path(AWS_TEST_BUCKET)
     database_name = get_random_database_name()
-    test_catalog = GlueCatalog("glue", warehouse=warehouse_location)
     test_properties = {
         "comment": "this is a test description",
         "location": f"{warehouse_location}/{database_name}.db",
