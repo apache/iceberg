@@ -87,15 +87,15 @@ def test_create_table(test_catalog, s3, table_schema_nested: Schema):
     s3.head_object(Bucket=AWS_TEST_BUCKET, Key=metadata_location)
 
 
-def test_create_table_with_invalid_location(test_catalog, table_schema_nested: Schema):
+def test_create_table_with_invalid_location(table_schema_nested: Schema):
     table_name = get_random_table_name()
-    identifier = ("myicebergtest", table_name)
-    stored_warehouse = test_catalog.properties["warehouse"]
-    # temporarily remove warehouse setting from the catalog
-    test_catalog.properties.pop("warehouse")
+    database_name = get_random_database_name()
+    identifier = (database_name, table_name)
+    test_catalog_no_warehouse = GlueCatalog("glue")
+    test_catalog_no_warehouse.create_namespace(database_name)
     with pytest.raises(ValueError):
-        test_catalog.create_table(identifier, table_schema_nested)
-    test_catalog.properties["warehouse"] = stored_warehouse
+        test_catalog_no_warehouse.create_table(identifier, table_schema_nested)
+    test_catalog_no_warehouse.drop_namespace(database_name)
 
 
 def test_create_table_with_default_location(test_catalog, s3, table_schema_nested: Schema):
@@ -151,16 +151,23 @@ def test_list_tables(test_catalog, table_schema_nested):
         assert (database_name, table_name) in identifier_list
 
 
-def test_rename_table(test_catalog, table_schema_nested):
+def test_rename_table(test_catalog, s3, table_schema_nested):
     table_name = get_random_table_name()
+    database_name = get_random_database_name()
+    new_database_name = get_random_database_name()
+    test_catalog.create_namespace(database_name)
+    test_catalog.create_namespace(new_database_name)
     new_table_name = f"rename-{table_name}"
-    identifier = ("myicebergtest", table_name)
+    identifier = (database_name, table_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
-    new_identifier = ("myicebergtest", new_table_name)
+    new_identifier = (new_database_name, new_table_name)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
     assert new_table.identifier == new_identifier
+    assert new_table.metadata_location == table.metadata_location
+    metadata_location = new_table.metadata_location.split(AWS_TEST_BUCKET)[1][1:]
+    s3.head_object(Bucket=AWS_TEST_BUCKET, Key=metadata_location)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
 

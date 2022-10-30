@@ -305,7 +305,8 @@ class GlueCatalog(Catalog):
         except Exception as e:
             self.drop_table(to_identifier)
             raise ValueError(
-                f"Fail to drop old table {from_database_name}.{from_table_name}, roll back to use the old one"
+                f"Fail to drop old table {from_database_name}.{from_table_name}, "
+                f"after renaming to {to_database_name}.{to_table_name} roll back to use the old one"
             ) from e
         return self.load_table(to_identifier)
 
