@@ -91,7 +91,7 @@ def test_create_table_with_invalid_location(test_catalog, table_schema_nested: S
     table_name = get_random_table_name()
     identifier = ("myicebergtest", table_name)
     stored_warehouse = test_catalog.properties["warehouse"]
-    print(stored_warehouse)
+    # temporarily remove warehouse setting from the catalog
     test_catalog.properties.pop("warehouse")
     with pytest.raises(ValueError):
         test_catalog.create_table(identifier, table_schema_nested)
