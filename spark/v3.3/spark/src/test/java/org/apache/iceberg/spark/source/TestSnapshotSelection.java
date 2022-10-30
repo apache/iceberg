@@ -286,7 +286,7 @@ public class TestSnapshotSelection {
     Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
     secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
-    // verify records in the current snapshot by tag
+    // verify records in the current snapshot by branch
     Dataset<Row> currentSnapshotResult =
         spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
     List<SimpleRecord> currentSnapshotRecords =
@@ -298,7 +298,7 @@ public class TestSnapshotSelection {
   }
 
   @Test
-  public void testSnapshotSelectionByBranchAndTag() throws IOException {
+  public void testSnapshotSelectionByBranchAndTagFails() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -329,7 +329,7 @@ public class TestSnapshotSelection {
   }
 
   @Test
-  public void testSnapshotSelectionByTimestampAndBranch() throws IOException {
+  public void testSnapshotSelectionByTimestampAndBranchOrTagFails() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
     HadoopTables tables = new HadoopTables(CONF);
