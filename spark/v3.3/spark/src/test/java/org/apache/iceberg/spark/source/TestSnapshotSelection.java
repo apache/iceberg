@@ -316,15 +316,15 @@ public class TestSnapshotSelection {
     table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
     Assertions.assertThatThrownBy(
-            () ->
-                spark
-                    .read()
-                    .format("iceberg")
-                    .option(SparkReadOptions.BRANCH, "branch")
-                    .option(SparkReadOptions.TAG, "tag")
-                    .load(tableLocation))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+                    () ->
+                            spark
+                                    .read()
+                                    .format("iceberg")
+                                    .option(SparkReadOptions.TAG, "tag")
+                                    .option(SparkReadOptions.BRANCH, "branch")
+                                    .load(tableLocation).show())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
   }
 
   @Test
@@ -352,9 +352,9 @@ public class TestSnapshotSelection {
                     .format("iceberg")
                     .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
                     .option(SparkReadOptions.BRANCH, "branch")
-                    .load(tableLocation))
+                    .load(tableLocation).show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -363,8 +363,8 @@ public class TestSnapshotSelection {
                     .format("iceberg")
                     .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
                     .option(SparkReadOptions.TAG, "tag")
-                    .load(tableLocation))
+                    .load(tableLocation).show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot override ref, already set snapshot id=1");
+        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
   }
 }

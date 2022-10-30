@@ -184,7 +184,7 @@ public class SparkScanBuilder
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();
-    String tag = readConf.branch();
+    String tag = readConf.tag();
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
@@ -223,9 +223,11 @@ public class SparkScanBuilder
     }
 
     if (branch != null) {
-      scan.useRef(branch);
-    } else if (tag != null) {
-      scan.useRef(tag);
+      scan = scan.useRef(branch);
+    }
+
+    if (tag != null) {
+      scan = scan.useRef(tag);
     }
 
     if (startSnapshotId != null) {
