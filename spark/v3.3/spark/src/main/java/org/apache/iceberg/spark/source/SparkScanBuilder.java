@@ -251,10 +251,15 @@ public class SparkScanBuilder
 
   public Scan buildChangelogScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
-        "Cannot set neither %s nor %s for changelogs",
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
+        "Cannot set neither %s, %s, %s and %s for changelogs",
         SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
