@@ -34,7 +34,10 @@ BUCKET_NAME = "test_bucket"
 RANDOM_LENGTH = 20
 LIST_TEST_NUMBER = 100
 table_metadata_location_regex = re.compile(
-    r"s3://test_bucket/my_iceberg_database-[a-z]{20}.db/my_iceberg_table-[a-z]{20}/metadata/00000-[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}.metadata.json"
+    r"""s3://test_bucket/my_iceberg_database-[a-z]{20}.db/
+    my_iceberg_table-[a-z]{20}/metadata/
+    00000-[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}.metadata.json""",
+    re.X,
 )
 
 
@@ -231,7 +234,7 @@ def test_list_tables(_bucket_initialize, _patch_aiobotocore, table_schema_nested
 
 
 @mock_glue
-def test_unit_list_namespaces(_bucket_initialize, _patch_aiobotocore):
+def test_list_namespaces(_bucket_initialize, _patch_aiobotocore):
     database_list = get_random_databases(LIST_TEST_NUMBER)
     test_catalog = GlueCatalog("glue")
     for database_name in database_list:
