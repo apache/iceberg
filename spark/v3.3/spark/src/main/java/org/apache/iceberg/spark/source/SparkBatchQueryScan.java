@@ -263,6 +263,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -281,9 +282,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
-        && Objects.equals(asOfTimestamp, that.asOfTimestamp);
-    //        && Objects.equals(branch, that.branch)
-    //        && Objects.equals(tag, that.tag);
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp)
+        && Objects.equals(branch, that.branch)
+        && Objects.equals(tag, that.tag);
   }
 
   @Override
