@@ -287,9 +287,11 @@ public class SparkScanBuilder
             && readConf.asOfTimestamp() == null
             && readConf.branch() == null
             && readConf.tag() == null,
-        "Cannot set time travel options %s and %s for row-level command scans",
+        "Cannot set time travel options %s, %s, %s and %s for row-level command scans",
         SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Preconditions.checkArgument(
         readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
