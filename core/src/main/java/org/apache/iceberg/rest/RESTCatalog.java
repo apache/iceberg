@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -46,7 +47,9 @@ public class RESTCatalog
   private final SupportsNamespaces nsDelegate;
 
   public RESTCatalog() {
-    this(SessionCatalog.SessionContext.createEmpty(), new HTTPClientFactory());
+    this(
+        SessionCatalog.SessionContext.createEmpty(),
+        config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {

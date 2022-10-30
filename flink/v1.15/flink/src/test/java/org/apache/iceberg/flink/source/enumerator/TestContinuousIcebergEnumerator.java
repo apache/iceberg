@@ -32,8 +32,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -97,9 +96,8 @@ public class TestContinuousIcebergEnumerator {
     enumeratorContext.triggerAllActions();
 
     Assert.assertTrue(enumerator.snapshotState(1).pendingSplits().isEmpty());
-    MatcherAssert.assertThat(
-        enumeratorContext.getSplitAssignments().get(2).getAssignedSplits(),
-        CoreMatchers.hasItem(splits.get(0)));
+    Assertions.assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
+        .contains(splits.get(0));
   }
 
   @Test
@@ -145,9 +143,8 @@ public class TestContinuousIcebergEnumerator {
     enumerator.handleSourceEvent(2, new SplitRequestEvent());
 
     Assert.assertTrue(enumerator.snapshotState(2).pendingSplits().isEmpty());
-    MatcherAssert.assertThat(
-        enumeratorContext.getSplitAssignments().get(2).getAssignedSplits(),
-        CoreMatchers.hasItem(splits.get(0)));
+    Assertions.assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
+        .contains(splits.get(0));
   }
 
   private static ContinuousIcebergEnumerator createEnumerator(

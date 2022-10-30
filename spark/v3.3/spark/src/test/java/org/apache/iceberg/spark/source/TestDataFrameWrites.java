@@ -63,6 +63,7 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -405,13 +406,11 @@ public class TestDataFrameWrites extends AvroDataTest {
     Snapshot snapshotBeforeFailingWrite = table.currentSnapshot();
     List<Row> resultBeforeFailingWrite = readTable(location.toString());
 
-    try {
-      Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
-      writeDataWithFailOnPartition(records2, schema, location.toString());
-      Assert.fail("The query should fail");
-    } catch (SparkException e) {
-      // no-op
-    }
+    Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
+
+    Assertions.assertThatThrownBy(
+            () -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+        .isInstanceOf(SparkException.class);
 
     table.refresh();
 

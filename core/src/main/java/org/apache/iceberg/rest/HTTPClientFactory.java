@@ -29,7 +29,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Takes in the full configuration for the {@link RESTSessionCatalog}, which should already have
  * called the server's initial configuration route. Using the merged configuration, an instance of
  * {@link RESTClient} is obtained that can be used with the RESTCatalog.
+ *
+ * @deprecated Will be removed in 1.2.0. Use {@link HTTPClient#builder()} directly.
  */
+@Deprecated
 public class HTTPClientFactory implements Function<Map<String, String>, RESTClient> {
 
   @VisibleForTesting static final String CLIENT_VERSION_HEADER = "X-Client-Version";

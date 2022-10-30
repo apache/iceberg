@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -139,12 +140,9 @@ public abstract class TestReadProjection {
     Record projected = writeAndRead("empty_projection", schema, schema.select(), record);
 
     Assert.assertNotNull("Should read a non-null record", projected);
-    try {
-      projected.get(0);
-      Assert.fail("Should not retrieve value with ordinal 0");
-    } catch (ArrayIndexOutOfBoundsException e) {
-      // this is expected because there are no values
-    }
+    // this is expected because there are no values
+    Assertions.assertThatThrownBy(() -> projected.get(0))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test

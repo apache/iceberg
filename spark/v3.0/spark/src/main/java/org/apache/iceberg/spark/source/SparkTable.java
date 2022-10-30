@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -199,7 +200,10 @@ public class SparkTable
   public MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info) {
     String mode = getRowLevelOperationMode(operation);
     ValidationException.check(
-        mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
+        mode.equals(RowLevelOperationMode.COPY_ON_WRITE.modeName()),
+        "Unsupported mode for %s: %s",
+        operation,
+        mode);
     return new SparkMergeBuilder(sparkSession(), icebergTable, operation, info);
   }
 

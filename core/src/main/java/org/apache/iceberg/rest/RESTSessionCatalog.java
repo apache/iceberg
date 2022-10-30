@@ -112,7 +112,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private volatile ScheduledExecutorService refreshExecutor = null;
 
   public RESTSessionCatalog() {
-    this(new HTTPClientFactory());
+    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
   }
 
   RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -304,12 +304,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       MetricsReport report,
       Supplier<Map<String, String>> headers) {
     reporter.report(report);
-    client.post(
-        paths.metrics(tableIdentifier),
-        ReportMetricsRequest.of(report),
-        null,
-        headers,
-        ErrorHandlers.defaultErrorHandler());
+    try {
+      client.post(
+          paths.metrics(tableIdentifier),
+          ReportMetricsRequest.of(report),
+          null,
+          headers,
+          ErrorHandlers.defaultErrorHandler());
+    } catch (Exception e) {
+      LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
+    }
   }
 
   @Override

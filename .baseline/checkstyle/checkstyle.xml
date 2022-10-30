@@ -394,6 +394,11 @@
             <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
             <message key="import.illegal" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanHamcrestUsage"/>
+            <property name="illegalPkgs" value="org.hamcrest"/>
+            <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
+        </module>
         <module name="RegexpSinglelineJava">
             <property name="ignoreComments" value="true"/>
             <property name="format" value="@Json(S|Des)erialize"/>
