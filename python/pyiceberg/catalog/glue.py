@@ -30,15 +30,19 @@ import boto3
 
 from pyiceberg.catalog import (
     ICEBERG,
+    MANIFEST,
+    MANIFEST_LIST,
+    METADATA,
     METADATA_LOCATION,
+    PREVIOUS_METADATA,
     TABLE_TYPE,
     WAREHOUSE,
     Catalog,
     Identifier,
     Properties,
     PropertiesUpdateSummary,
-    _delete_data_files,
-    _delete_files,
+    delete_data_files,
+    delete_files,
 )
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
@@ -59,6 +63,7 @@ from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
 EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE"
+GLUE_CLIENT = "glue"
 
 PROP_GLUE_TABLE = "Table"
 PROP_GLUE_TABLE_TYPE = "TableType"
@@ -120,7 +125,7 @@ def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
 class GlueCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
-        self.glue = boto3.client("glue")
+        self.glue = boto3.client(GLUE_CLIENT)
 
     def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
         properties: Properties = glue_table.get(PROP_GLUE_TABLE_PARAMETERS, {})
@@ -282,11 +287,11 @@ class GlueCatalog(Catalog):
         manifest_paths_to_delete = {manifest.manifest_path for manifest in manifests_to_delete}
         prev_metadata_files = {log.metadata_file for log in metadata.metadata_log}
 
-        _delete_data_files(io, manifests_to_delete)
-        _delete_files(io, manifest_paths_to_delete, "manifest")
-        _delete_files(io, manifest_lists_to_delete, "manifest list")
-        _delete_files(io, prev_metadata_files, "previous metadata")
-        _delete_files(io, {table.metadata_location}, "metadata")
+        delete_data_files(io, manifests_to_delete)
+        delete_files(io, manifest_paths_to_delete, MANIFEST)
+        delete_files(io, manifest_lists_to_delete, MANIFEST_LIST)
+        delete_files(io, prev_metadata_files, PREVIOUS_METADATA)
+        delete_files(io, {table.metadata_location}, METADATA)
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name
