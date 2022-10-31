@@ -429,7 +429,7 @@ to drop the backup after migration finishes.
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to migrate |
-| `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |	
+| `properties`  | ️   | map<string, string> | Properties for the new Iceberg table | 
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 
 
