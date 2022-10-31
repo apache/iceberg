@@ -29,14 +29,14 @@ from typing import (
 import boto3
 
 from pyiceberg.catalog import (
-    Catalog,
-    Identifier,
-    Properties,
-    PropertiesUpdateSummary,
     ICEBERG,
     METADATA_LOCATION,
     TABLE_TYPE,
     WAREHOUSE,
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
 )
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
