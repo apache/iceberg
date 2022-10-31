@@ -37,6 +37,8 @@ from pyiceberg.catalog import (
     Identifier,
     Properties,
     PropertiesUpdateSummary,
+    _delete_data_files,
+    _delete_files,
 )
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
@@ -48,7 +50,6 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.manifest import ManifestFile
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
@@ -114,27 +115,6 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
 
 def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
     ToOutputFile.table_metadata(metadata, io.new_output(metadate_path))
-
-
-def _delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
-    for file in files_to_delete:
-        try:
-            io.delete(file)
-        except OSError as e:
-            raise OSError(f"Failed to delete {file_type} file {file} ") from e
-
-
-def _delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
-    deleted_files: Dict[str, bool] = {}
-    for manifest_file in manifests_to_delete:
-        for entry in manifest_file.fetch_manifest_entry(io):
-            path = entry.data_file.file_path
-            if not deleted_files.get(path, False):
-                try:
-                    io.delete(path)
-                except OSError as e:
-                    raise OSError(f"Failed to delete data file {path}") from e
-                deleted_files[path] = True
 
 
 class GlueCatalog(Catalog):
