@@ -143,7 +143,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     maxContinuousEmptyCommits =
         PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(
-        maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
+        maxContinuousEmptyCommits >= 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must not be negative");
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
@@ -265,7 +265,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
-    if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+    if (totalFiles != 0
+        || (maxContinuousEmptyCommits != 0
+            && continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0)) {
       if (replacePartitions) {
         replacePartitions(pendingResults, summary, newFlinkJobId, checkpointId);
       } else {
