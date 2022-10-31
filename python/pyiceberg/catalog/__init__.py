@@ -49,12 +49,17 @@ _ENV_CONFIG = Config()
 
 TOKEN = "token"
 TYPE = "type"
+ICEBERG = "iceberg"
+TABLE_TYPE = "table_type"
+WAREHOUSE = "warehouse"
+METADATA_LOCATION = "metadata_location"
 URI = "uri"
 
 
 class CatalogType(Enum):
     REST = "rest"
     HIVE = "hive"
+    GLUE = "glue"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -72,9 +77,19 @@ def load_hive(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("Apache Hive support not installed: pip install 'pyiceberg[hive]'") from exc
 
 
+def load_glue(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.glue import GlueCatalog
+
+        return GlueCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
+    CatalogType.GLUE: load_glue,
 }
 
 

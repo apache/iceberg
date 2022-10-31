@@ -33,8 +33,6 @@ from pyiceberg.catalog import (
     Identifier,
     Properties,
     PropertiesUpdateSummary,
-)
-from pyiceberg.catalog.base import (
     ICEBERG,
     METADATA_LOCATION,
     TABLE_TYPE,
