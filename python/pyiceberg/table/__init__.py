@@ -91,7 +91,7 @@ class Table(IcebergBaseModel):
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
 
-    def new_scan(self, io: FileIO, snapshot_id: int | None = None, expression: BooleanExpression | None = None):
+    def new_scan(self, io: FileIO, snapshot_id: int | None = None, expression: BooleanExpression = AlwaysTrue()):
         """Create a new scan for this table."""
         from pyiceberg.table.scan import DataTableScan
 
