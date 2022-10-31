@@ -615,6 +615,6 @@ def manifest_evaluator(
 ) -> Callable[[ManifestFile], bool]:
     partition_type = partition_spec.partition_type(schema)
     partition_schema = Schema(*partition_type.fields)
-    partition_filter = partition_filter if partition_filter is not None else AlwaysTrue()
+    partition_filter = partition_filter or AlwaysTrue()
     evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
     return evaluator.eval
