@@ -27,6 +27,7 @@ from fsspec import AbstractFileSystem
 from requests import HTTPError
 from s3fs import S3FileSystem
 
+from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import FileIO, InputFile, OutputFile
 from pyiceberg.typedef import Properties
@@ -35,16 +36,20 @@ logger = logging.getLogger(__name__)
 
 
 def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSRequest:
+    if TOKEN not in properties:
+        raise SignError("Signer set, but token is not available")
+
     signer_url = properties["uri"].rstrip("/")
-    signer_headers = {"Authorization": f"Bearer {properties['token']}"}
+    signer_headers = {"Authorization": f"Bearer {properties[TOKEN]}"}
     signer_body = {
         "method": request.method,
         "region": request.context["client_region"],
         "uri": request.url,
         "headers": {key: [val] for key, val in request.headers.items()},
     }
+
+    response = requests.post(f"{signer_url}/v1/aws/s3/sign", headers=signer_headers, json=signer_body)
     try:
-        response = requests.post(f"{signer_url}/v1/aws/s3/sign", headers=signer_headers, json=signer_body)
         response.raise_for_status()
         response_json = response.json()
     except HTTPError as e:
