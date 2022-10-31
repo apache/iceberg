@@ -128,7 +128,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("the table has been concurrently refreshed");
+          .hasMessageContaining("the table has been concurrently modified");
     } finally {
       appendFuture.cancel(true);
     }

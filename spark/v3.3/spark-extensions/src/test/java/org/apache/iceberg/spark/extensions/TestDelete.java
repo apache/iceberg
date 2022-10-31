@@ -38,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -737,6 +738,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicReference<Exception> appendExceptionRef = new AtomicReference<>(null);
 
     // delete thread
     Future<?> deleteFuture =
@@ -757,25 +759,30 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
-              // load the table via the validation catalog to use another table instance for inserts
-              Table table = validationCatalog.loadTable(tableIdent);
+              try {
+                // load the table via the validation catalog to use another table instance
+                Table table = validationCatalog.loadTable(tableIdent);
 
-              GenericRecord record = GenericRecord.create(table.schema());
-              record.set(0, 1); // id
-              record.set(1, "hr"); // dep
+                GenericRecord record = GenericRecord.create(table.schema());
+                record.set(0, 1); // id
+                record.set(1, "hr"); // dep
 
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
+                for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                  while (barrier.get() < numOperations * 2) {
+                    sleep(10);
+                  }
+
+                  for (int numAppends = 0; numAppends < 5; numAppends++) {
+                    DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                    table.newFastAppend().appendFile(dataFile).commit();
+                    sleep(10);
+                  }
+
+                  barrier.incrementAndGet();
                 }
-
-                for (int numAppends = 0; numAppends < 5; numAppends++) {
-                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
-                  sleep(10);
-                }
-
-                barrier.incrementAndGet();
+              } catch (Exception e) {
+                appendExceptionRef.set(e);
+                throw e;
               }
             });
 
@@ -791,8 +798,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       appendFuture.cancel(true);
     }
 
-    executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    try {
+      executorService.shutdown();
+      Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    } catch (Throwable t) {
+      Exception appendException = appendExceptionRef.get();
+      if (appendException != null && !(appendException instanceof InterruptedException)) {
+        throw new RuntimeException("Insert thread failed", appendException);
+      } else {
+        throw t;
+      }
+    }
   }
 
   @Test
