@@ -421,17 +421,16 @@ Existing data files are added to the Iceberg table's metadata and can be read us
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
 
-Migrate will create a backup table with name [`table__BACKUP__`]. If you feel confident that the migration succeeded 
-feel free to drop the backup table. You can also explicitly pass  [`drop_backup => true`] to drop the backup table after 
-migration finishes.
+By default, the original table is retained with the name `table_BACKUP_`. You can also explicitly pass  `drop_backup => true` 
+to drop the backup after migration finishes.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description                                                                          |
-|---------------|---------|------|--------------------------------------------------------------------------------------|
-| `table`       | ✔️ | string | Name of the table to migrate                                                         |
-| `properties`  | ️ | map<string, string> | Properties for the new Iceberg table                                                 |
-| `drop_backup` |   | boolean | When true, the backup table is dropped after succesful migration (defaults to false) |
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to migrate |
+| `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |                                               |
+| `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 
 
 #### Output
