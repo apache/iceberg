@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -146,7 +147,24 @@ public class FlinkCatalogFactory implements CatalogFactory {
     }
 
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
-    return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
+    long cacheExpirationIntervalMs =
+        PropertyUtil.propertyAsLong(
+            properties,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+
+    // An expiration interval of 0ms effectively disables caching.
+    // Do not wrap with CachingCatalog.
+    if (cacheExpirationIntervalMs == 0) {
+      cacheEnabled = false;
+    }
+    return new FlinkCatalog(
+        name,
+        defaultDatabase,
+        baseNamespace,
+        catalogLoader,
+        cacheEnabled,
+        cacheExpirationIntervalMs);
   }
 
   private static Configuration mergeHiveConf(
