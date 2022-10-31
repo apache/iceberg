@@ -105,7 +105,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   public void filter(Filter[] filters) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
-        "Runtime file filtering is not possible: the table has been concurrently refreshed. "
+        "Runtime file filtering is not possible: the table has been concurrently modified. "
             + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
             + "If multiple threads modify the table, use independent Spark sessions in each thread.",
         snapshotId(),

@@ -100,7 +100,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
               }
             });
 
-
     // append thread
     Future<?> appendFuture =
         executorService.submit(
