@@ -50,6 +50,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.manifest import ManifestFile
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
@@ -115,6 +116,27 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
 
 def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
     ToOutputFile.table_metadata(metadata, io.new_output(metadate_path))
+
+
+def _delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
+    for file in files_to_delete:
+        try:
+            io.delete(file)
+        except OSError as e:
+            raise OSError(f"Failed to delete {file_type} file {file} ") from e
+
+
+def _delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
+    deleted_files: Dict[str, bool] = {}
+    for manifest_file in manifests_to_delete:
+        for entry in manifest_file.fetch_manifest_entry(io):
+            path = entry.data_file.file_path
+            if not deleted_files.get(path, False):
+                try:
+                    io.delete(path)
+                except OSError as e:
+                    raise OSError(f"Failed to delete data file {path}") from e
+                deleted_files[path] = True
 
 
 class GlueCatalog(Catalog):
@@ -260,8 +282,7 @@ class GlueCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exists: {database_name}.{table_name}") from e
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
-        """Drop a table and purge all data and metadata files. AWS glue will asynchronously delete resource
-        belongs to the table once the table is deleted
+        """Drop a table and purge all data and metadata files.
 
         Args:
             identifier (str | Identifier): Table identifier.
@@ -269,7 +290,25 @@ class GlueCatalog(Catalog):
         Raises:
             NoSuchTableError: If a table with the name does not exist
         """
+        table = self.load_table(identifier)
         self.drop_table(identifier)
+        io = load_file_io(self.properties, table.metadata_location)
+        metadata = table.metadata
+        manifest_lists_to_delete = set()
+        manifests_to_delete = []
+        for snapshot in metadata.snapshots:
+            manifests_to_delete += snapshot.fetch_manifest_list(io)
+            if snapshot.manifest_list is not None:
+                manifest_lists_to_delete.add(snapshot.manifest_list)
+
+        manifest_paths_to_delete = {manifest.manifest_path for manifest in manifests_to_delete}
+        prev_metadata_files = {log.metadata_file for log in metadata.metadata_log}
+
+        _delete_data_files(io, manifests_to_delete)
+        _delete_files(io, manifest_paths_to_delete, "manifest")
+        _delete_files(io, manifest_lists_to_delete, "manifest list")
+        _delete_files(io, prev_metadata_files, "previous metadata")
+        _delete_files(io, {table.metadata_location}, "metadata")
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name

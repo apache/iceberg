@@ -194,11 +194,6 @@ def test_drop_non_exist_table(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_purge_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
-    test_drop_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested)
-
-
-@mock_glue
 def test_rename_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
     database_name = get_random_database_name()
     table_name = get_random_table_name()
