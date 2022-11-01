@@ -436,8 +436,10 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
 
     def eval(self, manifest: ManifestFile) -> bool:
+        print(f"Evaluating ManifestFile = {manifest} with partition_filter={self.partition_filter}")
         if partitions := manifest.partitions:
             self.partition_fields = partitions
+            print(f"self.partition_fields  = {self.partition_fields }")
             return visit(self.partition_filter, self)
 
         # No partition information
@@ -517,7 +519,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.lower_bound is None:
+        if field.lower_bound is None or field.upper_bound is None:
             # values are all null and literal cannot contain null
             return ROWS_CANNOT_MATCH
 
@@ -526,7 +528,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         if lower > literal.value:
             return ROWS_CANNOT_MATCH
 
-        upper = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
         if literal.value > upper:
             return ROWS_CANNOT_MATCH
@@ -616,5 +618,6 @@ def manifest_evaluator(
     partition_type = partition_spec.partition_type(schema)
     partition_schema = Schema(*partition_type.fields)
     partition_filter = partition_filter or AlwaysTrue()
+    print(f"partition_schema= {partition_schema} partition_filter={partition_filter}")
     evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
     return evaluator.eval

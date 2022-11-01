@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from pyiceberg.expressions import BooleanExpression
+from pyiceberg.expressions import AlwaysTrue, BooleanExpression
 from pyiceberg.io import FileIO
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -27,6 +27,8 @@ from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import Identifier
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+
+ALWAYS_TRUE = AlwaysTrue()
 
 
 class Table(IcebergBaseModel):
@@ -91,9 +93,14 @@ class Table(IcebergBaseModel):
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
 
-    def new_scan(self, io: FileIO, snapshot_id: int | None = None, expression: BooleanExpression = AlwaysTrue()):
+    def new_scan(self, io: FileIO, snapshot_id: int | None = None, expression: BooleanExpression = ALWAYS_TRUE):
         """Create a new scan for this table."""
         from pyiceberg.table.scan import DataTableScan
 
-        snapshot = self.snapshot_by_id(snapshot_id) if snapshot_id is not None else None
+        if not (use_snapshot := snapshot_id or self.metadata.current_snapshot_id):
+            raise ValueError("Unable to resolve a snapshot to use for this scan.")
+
+        if not (snapshot := self.snapshot_by_id(use_snapshot)):
+            raise ValueError("Unable to resolve a snapshot to use for this scan.")
+
         return DataTableScan(io, self, snapshot, expression)

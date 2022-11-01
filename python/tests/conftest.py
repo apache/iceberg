@@ -932,8 +932,8 @@ class LocalFileIO(FileIO):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture():
-    return LocalFileIO
+def local_file_io() -> LocalFileIO:
+    return LocalFileIO()
 
 
 @pytest.fixture(scope="session")

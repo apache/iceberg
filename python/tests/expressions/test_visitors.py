@@ -1017,13 +1017,39 @@ def test_manifest_evaluator_equal_no_overlap():
     assert not _create_manifest_evaluator(expr).eval(manifest)
 
 
-def test_manifest_evaluator_equal_overlap():
+def test_manifest_evaluator_equal_overlap_with_lower_bound():
     expr = BoundEqualTo(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
         literal=StringLiteral("a"),
+    )
+
+    manifest = ManifestFile(
+        manifest_path="",
+        manifest_length=0,
+        partition_spec_id=0,
+        partitions=[
+            PartitionFieldSummary(
+                contains_null=False,
+                contains_nan=False,
+                lower_bound=_to_byte_buffer(StringType(), "a"),
+                upper_bound=_to_byte_buffer(StringType(), "b"),
+            )
+        ],
+    )
+
+    assert _create_manifest_evaluator(expr).eval(manifest)
+
+
+def test_manifest_evaluator_equal_overlap_with_upper_bound():
+    expr = BoundEqualTo(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=StringLiteral("b"),
     )
 
     manifest = ManifestFile(

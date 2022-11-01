@@ -20,36 +20,24 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import Iterable
 
+from pydantic import Field
+
 from pyiceberg.expressions import AlwaysTrue, BooleanExpression
 from pyiceberg.expressions.visitors import manifest_evaluator
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import DataFile, ManifestFile
 from pyiceberg.table import PartitionSpec, Snapshot, Table
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
-class FileScanTask(ABC):
+class FileScanTask(IcebergBaseModel):
     """A scan task over a range of bytes in a single data file."""
 
-    manifest: ManifestFile
-    data_file: DataFile
-    residual: BooleanExpression | None
-    spec: PartitionSpec | None
-
-    def __init__(
-        self,
-        manifest: ManifestFile,
-        data_file: DataFile,
-        spec: PartitionSpec | None = None,
-        residual: BooleanExpression | None = None,
-    ):
-        self.manifest = manifest
-        self.data_file = data_file
-        self.spec = spec
-        self.residual = residual
-
-    @property
-    def start(self) -> int:
-        return 0
+    manifest: ManifestFile = Field()
+    data_file: DataFile = Field()
+    _residual: BooleanExpression | None = Field(default=None)
+    spec: PartitionSpec | None = Field(default=None)
+    start: int = Field(default=0)
 
     @property
     def length(self) -> int:
@@ -112,4 +100,4 @@ class DataTableScan(TableScan):
 
         spec = self.table.specs().get(manifest.partition_spec_id)
         # Row level filters to be implemented. Need projections for evaluating residual. Skipping for the time being.
-        return [FileScanTask(manifest, file, spec, residual=None) for file in data_files]
+        return [FileScanTask(manifest=manifest, data_file=file, spec=spec, residual=None) for file in data_files]

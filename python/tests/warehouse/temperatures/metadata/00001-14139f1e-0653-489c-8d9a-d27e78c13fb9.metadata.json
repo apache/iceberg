@@ -1,0 +1,123 @@
+{
+  "format-version" : 1,
+  "table-uuid" : "84cf6afa-e639-49a3-a294-bd124249ff74",
+  "location" : "s3://nflx-secure-dataeng-prod-us-east-1/iceberg/warehouse/dpratap.db/84cf6afa-e639-49a3-a294-bd124249ff74/temperatures",
+  "last-updated-ms" : 1667235732091,
+  "last-column-id" : 11,
+  "schema" : {
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "record_id",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 2,
+      "name" : "month",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 3,
+      "name" : "day",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 4,
+      "name" : "year",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 5,
+      "name" : "average_temperature_fahr",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 6,
+      "name" : "average_temperature_uncertainty_fahr",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 7,
+      "name" : "city",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 8,
+      "name" : "country_id",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 9,
+      "name" : "country",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 10,
+      "name" : "latitude",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 11,
+      "name" : "longitude",
+      "required" : false,
+      "type" : "string"
+    } ]
+  },
+  "partition-spec" : [ {
+    "name" : "country_id",
+    "transform" : "identity",
+    "source-id" : 8,
+    "field-id" : 1000
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ {
+      "name" : "country_id",
+      "transform" : "identity",
+      "source-id" : 8,
+      "field-id" : 1000
+    } ]
+  } ],
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "acls" : "[{\"format_version\":1,\"principals\":[{\"name\":\"107701132489320701359\",\"principal_type\":\"USER\"}],\"resources\":[{\"resource_type\":\"TABLE\",\"uuid\":\"84cf6afa-e639-49a3-a294-bd124249ff74\",\"parent\":{\"resource_type\":\"SCHEMA\",\"name\":\"dpratap\",\"parent\":{\"resource_type\":\"CATALOG\",\"name\":\"prodhive\",\"parent\":null}}}],\"privileges\":[\"ALL\"],\"grantee\":{\"name\":\"107701132489320701359\",\"principal_type\":\"USER\"},\"with_grant\":false},{\"format_version\":1,\"principals\":[{\"name\":\"107701132489320701359\",\"principal_type\":\"USER\"}],\"resources\":[{\"resource_type\":\"TABLE\",\"uuid\":\"84cf6afa-e639-49a3-a294-bd124249ff74\",\"parent\":{\"resource_type\":\"SCHEMA\",\"name\":\"dpratap\",\"parent\":{\"resource_type\":\"CATALOG\",\"name\":\"prodhive\",\"parent\":null}}}],\"privileges\":[\"ALL\"],\"grantee\":{\"name\":\"107701132489320701359\",\"principal_type\":\"USER\"},\"with_grant\":true}]",
+    "field.metadata.json" : "{\"1\":{},\"2\":{},\"3\":{},\"4\":{},\"5\":{},\"6\":{},\"7\":{},\"8\":{},\"9\":{},\"10\":{},\"11\":{}}"
+  },
+  "current-snapshot-id" : 7435037827241122483,
+  "snapshots" : [ {
+    "snapshot-id" : 7435037827241122483,
+    "timestamp-ms" : 1667235732091,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "application_1665167999293_488665",
+      "genie-id" : "4d244d16-593d-11ed-aae3-0a72ef0113a5",
+      "added-data-files" : "13",
+      "added-records" : "6291",
+      "added-files-size" : "101527",
+      "changed-partition-count" : "3",
+      "partition-summaries-included" : "true",
+      "partitions.country_id=NEW" : "added-data-files=2,added-records=1912,added-files-size=23710",
+      "partitions.country_id=" : "added-data-files=6,added-records=66,added-files-size=21288",
+      "partitions.country_id=BRA" : "added-data-files=5,added-records=4313,added-files-size=56529",
+      "total-records" : "6291",
+      "total-data-files" : "13",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "s3://nflx-secure-dataeng-prod-us-east-1/iceberg/warehouse/dpratap.db/84cf6afa-e639-49a3-a294-bd124249ff74/temperatures/metadata/snap-7435037827241122483-1-73825c49-3816-4371-b1ca-e3bf439f2b1d.avro"
+  } ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1667235732091,
+    "snapshot-id" : 7435037827241122483
+  } ],
+  "metadata-log" : [ {
+    "timestamp-ms" : 1667234739888,
+    "metadata-file" : "s3://nflx-secure-dataeng-prod-us-east-1/iceberg/warehouse/dpratap.db/84cf6afa-e639-49a3-a294-bd124249ff74/temperatures/metadata/00000-a6c81ef4-9e33-49ae-960b-371d39054938.metadata.json"
+  } ]
+}
