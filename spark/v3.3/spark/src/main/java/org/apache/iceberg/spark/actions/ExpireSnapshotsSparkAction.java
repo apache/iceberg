@@ -245,7 +245,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable, snapshotIds)
         .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds));
+        .union(manifestListDS(staticTable, snapshotIds))
+        .union(statisticsFileDS(staticTable, snapshotIds));
   }
 
   private Set<Long> findExpiredSnapshotIds(
@@ -282,6 +283,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         summary.positionDeleteFilesCount(),
         summary.equalityDeleteFilesCount(),
         summary.manifestsCount(),
-        summary.manifestListsCount());
+        summary.manifestListsCount(),
+        summary.statisticsFilesCount());
   }
 }

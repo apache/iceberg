@@ -25,6 +25,7 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
   private final long deletedEqDeleteFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
+  private final long deletedStatisticsFilesCount;
 
   public BaseExpireSnapshotsActionResult(
       long deletedDataFilesCount, long deletedManifestsCount, long deletedManifestListsCount) {
@@ -33,6 +34,7 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
     this.deletedEqDeleteFilesCount = 0;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
+    this.deletedStatisticsFilesCount = 0;
   }
 
   public BaseExpireSnapshotsActionResult(
@@ -46,6 +48,22 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
     this.deletedEqDeleteFilesCount = deletedEqDeleteFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
+    this.deletedStatisticsFilesCount = 0;
+  }
+
+  public BaseExpireSnapshotsActionResult(
+      long deletedDataFilesCount,
+      long deletedPosDeleteFilesCount,
+      long deletedEqDeleteFilesCount,
+      long deletedManifestsCount,
+      long deletedManifestListsCount,
+      long deletedStatisticsFilesCount) {
+    this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedPosDeleteFilesCount = deletedPosDeleteFilesCount;
+    this.deletedEqDeleteFilesCount = deletedEqDeleteFilesCount;
+    this.deletedManifestsCount = deletedManifestsCount;
+    this.deletedManifestListsCount = deletedManifestListsCount;
+    this.deletedStatisticsFilesCount = deletedStatisticsFilesCount;
   }
 
   @Override
@@ -71,5 +89,10 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
   @Override
   public long deletedManifestListsCount() {
     return deletedManifestListsCount;
+  }
+
+  @Override
+  public long deletedStatisticsFilesCount() {
+    return deletedStatisticsFilesCount;
   }
 }

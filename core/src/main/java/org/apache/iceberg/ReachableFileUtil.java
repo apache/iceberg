@@ -137,9 +137,23 @@ public class ReachableFileUtil {
    * @return the location of statistics files
    */
   public static List<String> statisticsFilesLocations(Table table) {
+    return statisticsFilesLocations(table, null);
+  }
+
+  /**
+   * Returns locations of statistics files matching the given snapshotIds in a table.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @param snapshotIds ids of snapshots for which statistics files will be returned. When null,
+   *     returns location of all the statistics files in a table.
+   * @return the location of statistics files
+   */
+  public static List<String> statisticsFilesLocations(Table table, Set<Long> snapshotIds) {
     List<String> statisticsFilesLocations = Lists.newArrayList();
     for (StatisticsFile statisticsFile : table.statisticsFiles()) {
-      statisticsFilesLocations.add(statisticsFile.path());
+      if (snapshotIds == null || snapshotIds.contains(statisticsFile.snapshotId())) {
+        statisticsFilesLocations.add(statisticsFile.path());
+      }
     }
 
     return statisticsFilesLocations;

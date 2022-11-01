@@ -80,6 +80,7 @@ abstract class BaseSparkAction<ThisT> {
 
   protected static final String MANIFEST = "Manifest";
   protected static final String MANIFEST_LIST = "Manifest List";
+  protected static final String STATISTICS_FILES = "Statistics Files";
   protected static final String OTHERS = "Others";
 
   protected static final String FILE_PATH = "file_path";
@@ -200,6 +201,12 @@ abstract class BaseSparkAction<ThisT> {
     return toFileInfoDS(manifestLists, MANIFEST_LIST);
   }
 
+  protected Dataset<FileInfo> statisticsFileDS(Table table, Set<Long> snapshotIds) {
+    List<String> statisticsFilesLocations =
+        ReachableFileUtil.statisticsFilesLocations(table, snapshotIds);
+    return toFileInfoDS(statisticsFilesLocations, STATISTICS_FILES);
+  }
+
   protected Dataset<FileInfo> otherMetadataFileDS(Table table) {
     return otherMetadataFileDS(table, false /* include all reachable old metadata locations */);
   }
@@ -297,6 +304,7 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong equalityDeleteFilesCount = new AtomicLong(0L);
     private final AtomicLong manifestsCount = new AtomicLong(0L);
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
+    private final AtomicLong statisticsFilesCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
 
     public void deletedFiles(String type, int numFiles) {
@@ -344,6 +352,10 @@ abstract class BaseSparkAction<ThisT> {
         manifestListsCount.incrementAndGet();
         LOG.debug("Deleted manifest list: {}", path);
 
+      } else if (STATISTICS_FILES.equalsIgnoreCase(type)) {
+        statisticsFilesCount.incrementAndGet();
+        LOG.debug("Deleted statistics file: {}", path);
+
       } else if (OTHERS.equalsIgnoreCase(type)) {
         otherFilesCount.incrementAndGet();
         LOG.debug("Deleted other metadata file: {}", path);
@@ -373,6 +385,10 @@ abstract class BaseSparkAction<ThisT> {
       return manifestListsCount.get();
     }
 
+    public long statisticsFilesCount() {
+      return statisticsFilesCount.get();
+    }
+
     public long otherFilesCount() {
       return otherFilesCount.get();
     }
@@ -383,6 +399,7 @@ abstract class BaseSparkAction<ThisT> {
           + equalityDeleteFilesCount()
           + manifestsCount()
           + manifestListsCount()
+          + statisticsFilesCount()
           + otherFilesCount();
     }
   }
