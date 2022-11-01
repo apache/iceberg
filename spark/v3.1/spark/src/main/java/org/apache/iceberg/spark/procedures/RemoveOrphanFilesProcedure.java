@@ -119,7 +119,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             action.deleteWith(file -> {});
           }
 
-          if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+          if (maxConcurrentDeletes != null) {
             action.executeDeleteWith(removeService(maxConcurrentDeletes));
           }
 
