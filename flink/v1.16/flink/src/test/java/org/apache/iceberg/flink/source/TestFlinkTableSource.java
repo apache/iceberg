@@ -602,53 +602,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
         "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 
-  /**
-   * NaN is not supported by flink now, so we add the test case to assert the parse error, when we
-   * upgrade the flink that supports NaN, we will delele the method, and add some test case to test
-   * NaN.
-   */
   @Test
-  public void testSqlParseError() {
-    String sqlParseErrorEqual =
-        String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorEqual));
-
-    String sqlParseErrorNotEqual =
-        String.format("SELECT * FROM %s WHERE d <> CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorNotEqual));
-
-    String sqlParseErrorGT =
-        String.format("SELECT * FROM %s WHERE d > CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorGT));
-
-    String sqlParseErrorLT =
-        String.format("SELECT * FROM %s WHERE d < CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorLT));
-
-    String sqlParseErrorGTE =
-        String.format("SELECT * FROM %s WHERE d >= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorGTE));
-
-    String sqlParseErrorLTE =
-        String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
-    AssertHelpers.assertThrows(
-        "The NaN is not supported by flink now. ",
-        NumberFormatException.class,
-        () -> sql(sqlParseErrorLTE));
+  public void testSqlParseNaN() {
+    // todo add some test case to test NaN
   }
 }
