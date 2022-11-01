@@ -76,12 +76,21 @@ from tests.io.test_io import LocalInputFile
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
+    # S3 options
     parser.addoption(
         "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
     parser.addoption("--s3.access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
     parser.addoption(
         "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
+    )
+    # ADLFS options
+    parser.addoption(
+        "--adlfs.endpoint", action="store", default="http://127.0.0.1:10000", help="The ADLS endpoint URL for tests marked as adlfs"
+    )
+    parser.addoption("--adlfs.account-name", action="store", default="devstoreaccount1", help="The ADLS account key for tests marked as adlfs")
+    parser.addoption(
+        "--adlfs.account-key", action="store", default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", help="The ADLS secret account key for tests marked as adlfs"
     )
 
 
@@ -1259,3 +1268,22 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
+
+
+@pytest.fixture
+def adlfs_fsspec_fileio(request):
+    from azure.storage.blob import BlobServiceClient
+
+    azurite_url = request.config.getoption("--adlfs.endpoint")
+    azurite_account_name = request.config.getoption("--adlfs.account-name")
+    azurite_account_key = request.config.getoption("--adlfs.account-key")
+    azurite_connection_string = f"DefaultEndpointsProtocol=http;AccountName={azurite_account_name};AccountKey={azurite_account_key};BlobEndpoint={azurite_url}/{azurite_account_name};"
+    properties = {
+        "connection_string": azurite_connection_string,
+        "account_name": azurite_account_name,
+    }
+
+    bbs = BlobServiceClient.from_connection_string(conn_str=azurite_connection_string)
+    bbs.create_container("tests")
+    yield fsspec.FsspecFileIO(properties=properties)
+    bbs.delete_container("tests")

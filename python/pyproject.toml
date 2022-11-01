@@ -73,6 +73,8 @@ thrift = { version = "0.16.0", optional = true }
 s3fs = { version = "2022.10.0", optional = true }
 boto3 = {version = "1.24.59", optional = true}
 
+adlfs = { version = "2022.10.0", optional = true }
+
 [tool.poetry.dev-dependencies]
 pytest = "7.2.0"
 pytest-checkdocs = "2.9.0"
@@ -99,10 +101,12 @@ snappy = ["python-snappy"]
 hive = ["thrift"]
 s3fs = ["s3fs"]
 glue = ["boto3"]
+adlfs = ["adlfs"]
 
 [tool.pytest.ini_options]
 markers = [
-    "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, ----aws-secret-access-key, and --endpoint-url args)"
+    "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint-url args)",
+    "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)"
 ]
 
 [tool.black]
@@ -186,6 +190,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "s3fs.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "adlfs.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

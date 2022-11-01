@@ -1,4 +1,37 @@
 [[package]]
+name = "adal"
+version = "1.2.7"
+description = "Note: This library is already replaced by MSAL Python, available here: https://pypi.org/project/msal/ .ADAL Python remains available here as a legacy. The ADAL for Python library makes it easy for python application to authenticate to Azure Active Directory (AAD) in order to access AAD protected web resources."
+category = "main"
+optional = true
+python-versions = "*"
+
+[package.dependencies]
+cryptography = ">=1.1.0"
+PyJWT = ">=1.0.0,<3"
+python-dateutil = ">=2.1.0,<3"
+requests = ">=2.0.0,<3"
+
+[[package]]
+name = "adlfs"
+version = "2022.10.0"
+description = "Access Azure Datalake Gen1 with fsspec and dask"
+category = "main"
+optional = true
+python-versions = ">=3.8"
+
+[package.dependencies]
+aiohttp = ">=3.7.0"
+azure-core = ">=1.7.0"
+azure-datalake-store = ">=0.0.46,<0.1"
+azure-identity = "*"
+azure-storage-blob = ">=12.12.0"
+fsspec = ">=2021.10.1"
+
+[package.extras]
+docs = ["furo", "myst-parser", "numpydoc", "sphinx"]
+
+[[package]]
 name = "aiobotocore"
 version = "2.4.1"
 description = "Async client for aws services using botocore and aiohttp"
@@ -487,6 +520,19 @@ optional = true
 python-versions = ">=3.8"
 
 [[package]]
+name = "oauthlib"
+version = "3.2.2"
+description = "A generic, spec-compliant, thorough implementation of the OAuth request-signing logic"
+category = "main"
+optional = true
+python-versions = ">=3.6"
+
+[package.extras]
+rsa = ["cryptography (>=3.0.0)"]
+signals = ["blinker (>=1.4.0)"]
+signedtoken = ["cryptography (>=3.0.0)", "pyjwt (>=2.0.0,<3)"]
+
+[[package]]
 name = "packaging"
 version = "22.0"
 description = "Core utilities for Python packages"
@@ -550,6 +596,22 @@ dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
+name = "portalocker"
+version = "2.6.0"
+description = "Wraps the portalocker recipe for easy usage"
+category = "main"
+optional = true
+python-versions = ">=3.5"
+
+[package.dependencies]
+pywin32 = {version = ">=226", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+docs = ["sphinx (>=1.7.1)"]
+redis = ["redis"]
+tests = ["pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-mypy (>=0.8.0)", "pytest-timeout (>=2.1.0)", "redis", "sphinx (>=3.0.3)"]
+
+[[package]]
 name = "pre-commit"
 version = "2.20.0"
 description = "A framework for managing and maintaining multi-language pre-commit hooks."
@@ -609,6 +671,23 @@ python-versions = ">=3.6"
 
 [package.extras]
 plugins = ["importlib-metadata"]
+
+[[package]]
+name = "pyjwt"
+version = "2.6.0"
+description = "JSON Web Token implementation in Python"
+category = "main"
+optional = true
+python-versions = ">=3.7"
+
+[package.dependencies]
+cryptography = {version = ">=3.4.0", optional = true, markers = "extra == \"crypto\""}
+
+[package.extras]
+crypto = ["cryptography (>=3.4.0)"]
+dev = ["coverage[toml] (==5.0.4)", "cryptography (>=3.4.0)", "pre-commit", "pytest (>=6.0.0,<7.0.0)", "sphinx (>=4.5.0,<5.0.0)", "sphinx-rtd-theme", "zope.interface"]
+docs = ["sphinx (>=4.5.0,<5.0.0)", "sphinx-rtd-theme", "zope.interface"]
+tests = ["coverage[toml] (==5.0.4)", "pytest (>=6.0.0,<7.0.0)"]
 
 [[package]]
 name = "pyparsing"
@@ -960,6 +1039,14 @@ python-versions = "^3.8"
 content-hash = "5998c3a4d17fc291d61bead0350b2bb830b112fdafea26f6b2f1e456876733db"
 
 [metadata.files]
+adal = [
+    {file = "adal-1.2.7-py2.py3-none-any.whl", hash = "sha256:2a7451ed7441ddbc57703042204a3e30ef747478eea022c70f789fc7f084bc3d"},
+    {file = "adal-1.2.7.tar.gz", hash = "sha256:d74f45b81317454d96e982fd1c50e6fb5c99ac2223728aea8764433a39f566f1"},
+]
+adlfs = [
+    {file = "adlfs-2022.10.0-py3-none-any.whl", hash = "sha256:dc63b248f109bca2000d306f7a51c33d6859e4692dda7c6198b6300f8e29faaf"},
+    {file = "adlfs-2022.10.0.tar.gz", hash = "sha256:8542f9e6799aeb77adb5cb9854f76b7dce874610dc0f2ff006cce960526ffad6"},
+]
 aiobotocore = [
     {file = "aiobotocore-2.4.1-py3-none-any.whl", hash = "sha256:26e0d55d5901f487c3467616c028abb85036ca33a0f88e279770adae6b865c69"},
     {file = "aiobotocore-2.4.1.tar.gz", hash = "sha256:5c8ee79d1f14273e3f8f3af5c893db889ef163227b178ecacb5aea4547d3b9a7"},
@@ -1507,6 +1594,18 @@ moto = [
     {file = "moto-4.0.11-py3-none-any.whl", hash = "sha256:704d6d38a4e6fe49e1fe9c6b4127ca46c66aac00368149bc1f1d70a0ceff8846"},
     {file = "moto-4.0.11.tar.gz", hash = "sha256:a6388de4a746e0b509286e1d7e70f86900b4f69ec65f6c92c47e570f95d05b14"},
 ]
+msal = [
+    {file = "msal-1.20.0-py2.py3-none-any.whl", hash = "sha256:d2f1c26368ecdc28c8657d457352faa0b81b1845a7b889d8676787721ba86792"},
+    {file = "msal-1.20.0.tar.gz", hash = "sha256:78344cd4c91d6134a593b5e3e45541e666e37b747ff8a6316c3668dd1e6ab6b2"},
+]
+msal-extensions = [
+    {file = "msal-extensions-1.0.0.tar.gz", hash = "sha256:c676aba56b0cce3783de1b5c5ecfe828db998167875126ca4b47dc6436451354"},
+    {file = "msal_extensions-1.0.0-py2.py3-none-any.whl", hash = "sha256:91e3db9620b822d0ed2b4d1850056a0f133cba04455e62f11612e40f5502f2ee"},
+]
+msrest = [
+    {file = "msrest-0.7.1-py3-none-any.whl", hash = "sha256:21120a810e1233e5e6cc7fe40b474eeb4ec6f757a15d7cf86702c369f9567c32"},
+    {file = "msrest-0.7.1.zip", hash = "sha256:6e7661f46f3afd88b75667b7187a92829924446c7ea1d169be8c4bb7eeb788b9"},
+]
 multidict = [
     {file = "multidict-6.0.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:73009ea04205966d47e16d98686ac5c438af23a1bb30b48a2c5da3423ec9ce37"},
     {file = "multidict-6.0.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:8b92a9f3ab904397a33b193000dc4de7318ea175c4c460a1e154c415f9008e3d"},
@@ -1616,6 +1715,10 @@ numpy = [
     {file = "numpy-1.23.5-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f9a909a8bae284d46bbfdefbdd4a262ba19d3bc9921b1e76126b1d21c3c34135"},
     {file = "numpy-1.23.5-pp38-pypy38_pp73-win_amd64.whl", hash = "sha256:01dd17cbb340bf0fc23981e52e1d18a9d4050792e8fb8363cecbf066a84b827d"},
     {file = "numpy-1.23.5.tar.gz", hash = "sha256:1b1766d6f397c18153d40015ddfc79ddb715cabadc04d2d228d4e5a8bc4ded1a"},
+]
+oauthlib = [
+    {file = "oauthlib-3.2.2-py3-none-any.whl", hash = "sha256:8139f29aac13e25d502680e9e19963e83f16838d48a0d71c287fe40e7067fbca"},
+    {file = "oauthlib-3.2.2.tar.gz", hash = "sha256:9859c40929662bec5d64f34d01c99e093149682a3f38915dc0655d5a633dd918"},
 ]
 packaging = [
     {file = "packaging-22.0-py3-none-any.whl", hash = "sha256:957e2148ba0e1a3b282772e791ef1d8083648bc131c8ab0c1feba110ce1146c3"},
