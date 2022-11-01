@@ -112,7 +112,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             action.retainLast(retainLastNum);
           }
 
-          if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+          if (maxConcurrentDeletes != null) {
             action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
           }
 
