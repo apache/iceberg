@@ -118,7 +118,7 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
     return database_input
 
 
-def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str):
+def _write_metadata(metadata: TableMetadata, io: FileIO, metadate_path: str) -> None:
     ToOutputFile.table_metadata(metadata, io.new_output(metadate_path))
 
 
@@ -159,7 +159,7 @@ class GlueCatalog(Catalog):
             metadata_location=metadata_location,
         )
 
-    def _default_warehouse_location(self, database_name: str, table_name: str):
+    def _default_warehouse_location(self, database_name: str, table_name: str) -> str:
         try:
             response = self.glue.get_database(Name=database_name)
         except self.glue.exceptions.EntityNotFoundException as e:
@@ -185,7 +185,7 @@ class GlueCatalog(Catalog):
         except self.glue.exceptions.AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
         except self.glue.exceptions.EntityNotFoundException as e:
-            raise NoSuchNamespaceError(f"Database {database_name} not found") from e
+            raise NoSuchNamespaceError(f"Database {database_name} does not exist") from e
 
     def create_table(
         self,
