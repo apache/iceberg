@@ -264,6 +264,14 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
     deleteFiles(manifestsToDelete, "manifest");
     deleteFiles(manifestListsToDelete, "manifest list");
+
+    if (!beforeExpiration.statisticsFiles().isEmpty()) {
+      Set<String> expiredStatisticsFilesLocations =
+          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
+      LOG.warn(
+          "Statistics files to delete: {}", Joiner.on(", ").join(expiredStatisticsFilesLocations));
+      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
+    }
   }
 
   private Set<String> findFilesToDelete(
