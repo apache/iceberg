@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -84,6 +85,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // merge thread
     Future<?> mergeFuture =
@@ -114,8 +116,12 @@ public class TestCopyOnWriteMerge extends TestMerge {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
+                }
+
+                if (!shouldAppend.get()) {
+                  return;
                 }
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
@@ -135,6 +141,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("the table has been concurrently modified");
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 

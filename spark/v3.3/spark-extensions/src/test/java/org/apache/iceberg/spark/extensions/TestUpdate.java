@@ -39,8 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -448,7 +448,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
-    AtomicReference<Exception> appendExceptionRef = new AtomicReference<>(null);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // update thread
     Future<?> updateFuture =
@@ -469,30 +469,29 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
-              try {
-                // load the table via the validation catalog to use another table instance
-                Table table = validationCatalog.loadTable(tableIdent);
+              // load the table via the validation catalog to use another table instance
+              Table table = validationCatalog.loadTable(tableIdent);
 
-                GenericRecord record = GenericRecord.create(table.schema());
-                record.set(0, 1); // id
-                record.set(1, "hr"); // dep
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
 
-                for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                  while (barrier.get() < numOperations * 2) {
-                    sleep(10);
-                  }
-
-                  for (int numAppends = 0; numAppends < 5; numAppends++) {
-                    DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                    table.newFastAppend().appendFile(dataFile).commit();
-                    sleep(10);
-                  }
-
-                  barrier.incrementAndGet();
+              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
+                  sleep(10);
                 }
-              } catch (Exception e) {
-                appendExceptionRef.set(e);
-                throw e;
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
+                barrier.incrementAndGet();
               }
             });
 
@@ -505,20 +504,12 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
           .isInstanceOf(ValidationException.class)
           .hasMessageContaining("Found conflicting files that can contain");
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 
-    try {
-      executorService.shutdown();
-      Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
-    } catch (Throwable t) {
-      Exception appendException = appendExceptionRef.get();
-      if (appendException != null && !(appendException instanceof InterruptedException)) {
-        throw new RuntimeException("Insert thread failed", appendException);
-      } else {
-        throw t;
-      }
-    }
+    executorService.shutdown();
+    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
   }
 
   @Test
@@ -540,6 +531,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // update thread
     Future<?> updateFuture =
@@ -568,8 +560,12 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
+                }
+
+                if (!shouldAppend.get()) {
+                  return;
                 }
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
@@ -585,6 +581,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     try {
       updateFuture.get();
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 
