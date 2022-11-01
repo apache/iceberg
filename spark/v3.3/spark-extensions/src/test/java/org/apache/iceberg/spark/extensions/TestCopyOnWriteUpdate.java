@@ -18,10 +18,30 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.spark.Spark3Util;
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Test;
 
 public class TestCopyOnWriteUpdate extends TestUpdate {
 
@@ -39,5 +59,85 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+  }
+
+  @Test
+  public synchronized void testUpdateWithConcurrentTableRefresh() throws Exception {
+    // this test can only be run with Hive tables as it requires a reliable lock
+    // also, the table cache must be enabled so that the same table instance can be reused
+    Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
+
+    createAndInitTable("id INT, dep STRING");
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, UPDATE_ISOLATION_LEVEL, "snapshot");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+
+    AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
+
+    // update thread
+    Future<?> updateFuture =
+        executorService.submit(
+            () -> {
+              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                while (barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
+
+                sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
+
+                barrier.incrementAndGet();
+              }
+            });
+
+    // append thread
+    Future<?> appendFuture =
+        executorService.submit(
+            () -> {
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
+              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
+                barrier.incrementAndGet();
+              }
+            });
+
+    try {
+      Assertions.assertThatThrownBy(updateFuture::get)
+          .isInstanceOf(ExecutionException.class)
+          .cause()
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("the table has been concurrently modified");
+    } finally {
+      shouldAppend.set(false);
+      appendFuture.cancel(true);
+    }
+
+    executorService.shutdown();
+    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
   }
 }
