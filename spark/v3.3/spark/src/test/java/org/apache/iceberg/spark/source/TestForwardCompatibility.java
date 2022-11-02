@@ -195,7 +195,7 @@ public class TestForwardCompatibility {
             .build();
 
     OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile);
+    ManifestWriter<DataFile> manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile);
     try {
       manifestWriter.add(file);
     } finally {
