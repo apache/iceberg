@@ -35,8 +35,8 @@ class FileScanTask(IcebergBaseModel):
 
     manifest: ManifestFile = Field()
     data_file: DataFile = Field()
-    _residual: BooleanExpression | None = Field(default=None)
-    spec: PartitionSpec | None = Field(default=None)
+    _residual: BooleanExpression = Field()
+    spec: PartitionSpec = Field()
     start: int = Field(default=0)
 
     @property
