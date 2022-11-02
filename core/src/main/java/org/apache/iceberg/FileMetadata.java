@@ -41,6 +41,7 @@ public class FileMetadata {
     private final int specId;
     private FileContent content = null;
     private int[] equalityFieldIds = null;
+    private int[] partialFieldIds = null;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -113,6 +114,13 @@ public class FileMetadata {
     public Builder ofEqualityDeletes(int... fieldIds) {
       this.content = FileContent.EQUALITY_DELETES;
       this.equalityFieldIds = fieldIds;
+      return this;
+    }
+
+    public Builder ofPartialDeletes(int[] newEqualityFieldIds, int[] newPartialFieldIds) {
+      this.content = FileContent.PARTIAL_UPDATE;
+      this.equalityFieldIds = newEqualityFieldIds;
+      this.partialFieldIds = newPartialFieldIds;
       return this;
     }
 
@@ -222,6 +230,8 @@ public class FileMetadata {
               sortOrderId == null, "Position delete file should not have sort order");
           break;
         case EQUALITY_DELETES:
+
+        case PARTIAL_UPDATE:
           if (sortOrderId == null) {
             sortOrderId = SortOrder.unsorted().orderId();
           }
@@ -246,6 +256,7 @@ public class FileMetadata {
               lowerBounds,
               upperBounds),
           equalityFieldIds,
+          partialFieldIds,
           sortOrderId,
           keyMetadata);
     }

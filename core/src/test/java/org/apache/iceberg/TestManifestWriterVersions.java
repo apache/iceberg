@@ -81,6 +81,7 @@ public class TestManifestWriterVersions {
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] {1};
+  private static final int[] PARTIAL_ID_ARR = new int[] {1};
 
   private static final DeleteFile DELETE_FILE =
       new GenericDeleteFile(
@@ -92,6 +93,7 @@ public class TestManifestWriterVersions {
           22905L,
           METRICS,
           EQUALITY_ID_ARR,
+          PARTIAL_ID_ARR,
           SORT_ORDER_ID,
           null);
 

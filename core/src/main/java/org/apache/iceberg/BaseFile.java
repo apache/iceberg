@@ -75,6 +75,7 @@ abstract class BaseFile<F>
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private int[] partialIds = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -132,6 +133,7 @@ abstract class BaseFile<F>
       Map<Integer, ByteBuffer> upperBounds,
       List<Long> splitOffsets,
       int[] equalityFieldIds,
+      int[] partialIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata) {
     this.partitionSpecId = specId;
@@ -159,6 +161,7 @@ abstract class BaseFile<F>
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
+    this.partialIds = partialIds;
     this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
@@ -208,6 +211,11 @@ abstract class BaseFile<F>
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
     this.sortOrderId = toCopy.sortOrderId;
+
+    this.partialIds =
+        toCopy.partialIds != null
+            ? Arrays.copyOf(toCopy.partialIds, toCopy.partialIds.length)
+            : null;
   }
 
   /** Constructor for Java serialization. */
@@ -294,6 +302,9 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 17:
+        this.partialIds = ArrayUtil.toIntArray((List<Integer>) value);
+        return;
+      case 18:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -349,6 +360,8 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
+        return partialFieldIds();
+      case 18:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -446,6 +459,11 @@ abstract class BaseFile<F>
   }
 
   @Override
+  public List<Integer> partialFieldIds() {
+    return ArrayUtil.toIntList(partialIds);
+  }
+
+  @Override
   public Integer sortOrderId() {
     return sortOrderId;
   }
@@ -478,6 +496,7 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("partial_ids", equalityIds == null ? "null" : partialFieldIds())
         .toString();
   }
 }

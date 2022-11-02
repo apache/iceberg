@@ -22,7 +22,8 @@ package org.apache.iceberg;
 public enum FileContent {
   DATA(0),
   POSITION_DELETES(1),
-  EQUALITY_DELETES(2);
+  EQUALITY_DELETES(2),
+  PARTIAL_UPDATE(3);
 
   private final int id;
 

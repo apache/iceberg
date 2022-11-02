@@ -102,7 +102,14 @@ public interface DataFile extends ContentFile<DataFile> {
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-  // NEXT ID TO ASSIGN: 142
+
+  Types.NestedField PARTIAL_IDS =
+      optional(
+          142,
+          "partial_ids",
+          ListType.ofRequired(143, IntegerType.get()),
+          "partial comparison field IDs");
+  // NEXT ID TO ASSIGN: 144
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -123,7 +130,8 @@ public interface DataFile extends ContentFile<DataFile> {
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS,
-        SORT_ORDER_ID);
+        SORT_ORDER_ID,
+        PARTIAL_IDS);
   }
 
   /** @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES */
@@ -134,6 +142,11 @@ public interface DataFile extends ContentFile<DataFile> {
 
   @Override
   default List<Integer> equalityFieldIds() {
+    return null;
+  }
+
+  @Override
+  default List<Integer> partialFieldIds() {
     return null;
   }
 }
