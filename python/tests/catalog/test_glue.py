@@ -369,6 +369,25 @@ def test_update_namespace_properties(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
+def test_load_empty_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(database_name)
+    listed_properties = test_catalog.load_namespace_properties(database_name)
+    assert listed_properties == {}
+
+
+@mock_glue
+def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    # simulate creating database with default settings through AWS Glue Web Console
+    _glue.create_database(DatabaseInput={"Name": database_name})
+    test_catalog = GlueCatalog("glue")
+    listed_properties = test_catalog.load_namespace_properties(database_name)
+    assert listed_properties == {}
+
+
+@mock_glue
 def test_update_namespace_properties_overlap_update_removal(_bucket_initialize, _patch_aiobotocore):
     database_name = get_random_database_name()
     test_properties = {

@@ -1219,12 +1219,9 @@ def fixture_aiobotocore():
     pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
     """
     stored_method = aiobotocore.endpoint.convert_to_response_dict
-
-    try:
-        yield patch_aiobotocore()
-    finally:
-        # restore the changed method after the fixture is destroyed
-        aiobotocore.endpoint.convert_to_response_dict = stored_method
+    yield patch_aiobotocore()
+    # restore the changed method after the fixture is destroyed
+    aiobotocore.endpoint.convert_to_response_dict = stored_method
 
 
 def aws_credentials():
@@ -1238,14 +1235,12 @@ def aws_credentials():
 @pytest.fixture(name="_aws_credentials")
 def fixture_aws_credentials():
     """Mocked AWS Credentials for moto."""
-    try:
-        yield aws_credentials()
-    finally:
-        os.environ.pop("AWS_ACCESS_KEY_ID")
-        os.environ.pop("AWS_SECRET_ACCESS_KEY")
-        os.environ.pop("AWS_SECURITY_TOKEN")
-        os.environ.pop("AWS_SESSION_TOKEN")
-        os.environ.pop("AWS_DEFAULT_REGION")
+    yield aws_credentials()
+    os.environ.pop("AWS_ACCESS_KEY_ID")
+    os.environ.pop("AWS_SECRET_ACCESS_KEY")
+    os.environ.pop("AWS_SECURITY_TOKEN")
+    os.environ.pop("AWS_SESSION_TOKEN")
+    os.environ.pop("AWS_DEFAULT_REGION")
 
 
 @pytest.fixture(name="_s3")

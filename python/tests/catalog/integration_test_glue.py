@@ -68,6 +68,11 @@ def fixture_s3_client():
     yield boto3.client("s3")
 
 
+@pytest.fixture(name="glue", scope="module")
+def fixture_glue_client():
+    yield boto3.client("glue")
+
+
 def clean_up(test_catalog):
     """Clean all databases and tables created during the integration test"""
     for database_name in test_catalog.list_namespaces():
@@ -262,7 +267,7 @@ def test_drop_namespace(test_catalog, table_schema_nested: Schema):
     assert (database_name,) not in test_catalog.list_namespaces()
 
 
-def test_load_namespaces_properties(test_catalog):
+def test_load_namespace_properties(test_catalog):
     warehouse_location = get_s3_path(get_bucket_name())
     database_name = get_random_database_name()
     test_properties = {
@@ -278,6 +283,21 @@ def test_load_namespaces_properties(test_catalog):
     for k, v in listed_properties.items():
         assert k in test_properties
         assert v == test_properties[k]
+
+
+def test_load_empty_namespace_properties(test_catalog):
+    database_name = get_random_database_name()
+    test_catalog.create_namespace(database_name)
+    listed_properties = test_catalog.load_namespace_properties(database_name)
+    assert listed_properties == {}
+
+
+def test_load_default_namespace_properties(test_catalog, glue):
+    database_name = get_random_database_name()
+    # simulate creating database with default settings through AWS Glue Web Console
+    glue.create_database(DatabaseInput={"Name": database_name})
+    listed_properties = test_catalog.load_namespace_properties(database_name)
+    assert listed_properties == {}
 
 
 def test_update_namespace_properties(test_catalog):
