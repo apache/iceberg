@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
-
 import itertools
 from abc import ABC, abstractmethod
-from typing import Iterable
+from typing import Iterable, List, Optional
 
 from pydantic import Field
 
@@ -28,6 +26,8 @@ from pyiceberg.io import FileIO
 from pyiceberg.manifest import DataFile, ManifestFile
 from pyiceberg.table import PartitionSpec, Snapshot, Table
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+
+ALWAYS_TRUE = AlwaysTrue()
 
 
 class FileScanTask(IcebergBaseModel):
@@ -51,13 +51,11 @@ class TableScan(ABC):
     snapshot: Snapshot
     expression: BooleanExpression
 
-    def __init__(self, table: Table, snapshot: Snapshot | None = None, expression: BooleanExpression | None = None):
+    def __init__(self, table: Table, snapshot: Optional[Snapshot] = None, expression: Optional[BooleanExpression] = ALWAYS_TRUE):
         self.table = table
-        self.expression = AlwaysTrue() if expression is None else expression
-        if snapshot is None:
-            snapshot = table.current_snapshot()
-        if snapshot is not None:
-            self.snapshot = snapshot
+        self.expression = expression or ALWAYS_TRUE
+        if resolved_snapshot := snapshot or table.current_snapshot():
+            self.snapshot = resolved_snapshot
         else:
             raise ValueError("Unable to resolve to a Snapshot to use for the table scan.")
 
@@ -75,7 +73,9 @@ class DataTableScan(TableScan):
 
     io: FileIO
 
-    def __init__(self, io: FileIO, table: Table, snapshot: Snapshot | None = None, expression: BooleanExpression | None = None):
+    def __init__(
+        self, io: FileIO, table: Table, snapshot: Optional[Snapshot] = None, expression: Optional[BooleanExpression] = ALWAYS_TRUE
+    ):
         self.io = io
         super().__init__(table, snapshot, expression)
 
@@ -94,7 +94,7 @@ class DataTableScan(TableScan):
             [self._fetch_file_scan_tasks_for_manifest(manifest) for manifest in matching_manifests]
         )
 
-    def _fetch_file_scan_tasks_for_manifest(self, manifest: ManifestFile) -> list[FileScanTask]:
+    def _fetch_file_scan_tasks_for_manifest(self, manifest: ManifestFile) -> List[FileScanTask]:
         manifest_entries = manifest.fetch_manifest_entry(self.io)
         data_files = [entry.data_file for entry in manifest_entries]
 
