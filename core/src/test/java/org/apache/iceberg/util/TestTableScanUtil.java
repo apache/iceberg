@@ -161,8 +161,7 @@ public class TestTableScanUtil {
   @Test
   public void testTaskGroupPlanningByPartition() {
     // When all files belong to the same partition, we should combine them together as long as the
-    // total file
-    // size is <= split size
+    // total file size is <= split size
     List<FileScanTask> tasks =
         ImmutableList.of(
             taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
