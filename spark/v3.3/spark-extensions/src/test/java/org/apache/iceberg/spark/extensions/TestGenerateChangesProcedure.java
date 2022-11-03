@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.ChangelogOperation.UPDATE_POSTIMAGE;
-import static org.apache.iceberg.ChangelogOperation.UPDATE_PREIMAGE;
+import static org.apache.iceberg.ChangelogOperation.UPDATE_AFTER;
+import static org.apache.iceberg.ChangelogOperation.UPDATE_BEFORE;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -203,8 +203,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, "a", "INSERT", 0, snap1.snapshotId()),
             row(2, "b", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId()),
+            row(2, "b", UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER.name(), 1, snap2.snapshotId()),
             row(3, "c", "INSERT", 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
@@ -233,8 +233,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, "a", "INSERT", 0, snap1.snapshotId()),
             row(2, "b", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId())),
+            row(2, "b", UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER.name(), 1, snap2.snapshotId())),
         // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
         // phase
         sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
@@ -266,8 +266,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, "a", 12, "INSERT", 0, snap1.snapshotId()),
             row(2, "b", 11, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId()),
+            row(2, "b", 11, UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
+            row(2, "d", 11, UPDATE_AFTER.name(), 1, snap2.snapshotId()),
             row(2, "e", 12, "INSERT", 1, snap2.snapshotId()),
             row(3, "c", 13, "INSERT", 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
@@ -301,8 +301,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
             row(1, "a", 12, "INSERT", 0, snap1.snapshotId()),
             row(2, "b", 11, "INSERT", 0, snap1.snapshotId()),
             row(2, "e", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_PREIMAGE.name(), 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_POSTIMAGE.name(), 1, snap2.snapshotId()),
+            row(2, "b", 11, UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
+            row(2, "d", 11, UPDATE_AFTER.name(), 1, snap2.snapshotId()),
             row(3, "c", 13, "INSERT", 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }

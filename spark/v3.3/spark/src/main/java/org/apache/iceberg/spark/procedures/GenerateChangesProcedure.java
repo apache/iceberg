@@ -210,7 +210,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
             .drop(rankCol, countCol)
             .withColumn(
                 MetadataColumns.CHANGE_TYPE.name(),
-                functions.lit(ChangelogOperation.UPDATE_PREIMAGE.name()));
+                functions.lit(ChangelogOperation.UPDATE_BEFORE.name()));
 
     Dataset<Row> postImageDf =
         dfWithUpdate
@@ -219,7 +219,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
             .drop(rankCol, countCol)
             .withColumn(
                 MetadataColumns.CHANGE_TYPE.name(),
-                functions.lit(ChangelogOperation.UPDATE_POSTIMAGE.name()));
+                functions.lit(ChangelogOperation.UPDATE_AFTER.name()));
 
     // remove the carry-over rows
     Dataset<Row> dfWithoutCarryOver = removeCarryOvers(preImageDf.union(postImageDf));
