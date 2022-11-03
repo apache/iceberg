@@ -102,7 +102,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
-        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+        "max_concurrent_deletes should have value > 0, value: %s",
+        maxConcurrentDeletes);
 
     Map<String, String> equalSchemes = Maps.newHashMap();
     if (!args.isNullAt(6)) {

@@ -98,7 +98,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
-        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+        "max_concurrent_deletes should have value > 0, value: %s",
+        maxConcurrentDeletes);
 
     return modifyIcebergTable(
         tableIdent,
