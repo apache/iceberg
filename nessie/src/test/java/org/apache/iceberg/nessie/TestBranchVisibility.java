@@ -500,7 +500,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
                     required(2, "record_count", Types.LongType.get()))
                 .fields());
 
-    TableIdentifier identifier = TableIdentifier.of("db.", "table1");
+    TableIdentifier identifier = TableIdentifier.of("db", "table1");
 
     NessieCatalog nessieCatalog = initCatalog(branch1);
     Table table1 = nessieCatalog.createTable(identifier, schema1);

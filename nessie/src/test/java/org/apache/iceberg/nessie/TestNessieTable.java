@@ -573,7 +573,6 @@ public class TestNessieTable extends BaseTestIceberg {
   @SuppressWarnings(
       "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
   private List<String> metadataFiles(String tablePath) {
-
     return Arrays.stream(
             Objects.requireNonNull(new File((tablePath + "/" + "metadata")).listFiles()))
         .map(File::getAbsolutePath)
