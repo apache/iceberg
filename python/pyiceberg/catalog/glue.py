@@ -223,11 +223,7 @@ class GlueCatalog(Catalog):
         self._create_glue_table(
             identifier=identifier, table_input=_construct_table_input(table_name, metadata_location, properties)
         )
-        try:
-            loaded_table = self.load_table(identifier=(database_name, table_name))
-        except self.glue.exceptions.EntityNotFoundException as e:
-            raise NoSuchTableError(f"Table {database_name}.{table_name} fail to be created") from e
-
+        loaded_table = self.load_table(identifier=(database_name, table_name))
         return loaded_table
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:

@@ -159,6 +159,15 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
 
 
 def delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
+    """Helper to delete files.
+
+    Log warnings if failing to delete any file
+
+    Args:
+        io: The FileIO used to delete the object
+        files_to_delete: A set of file paths to be deleted
+        file_type: The type of the file
+    """
     for file in files_to_delete:
         try:
             io.delete(file)
@@ -167,6 +176,14 @@ def delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
 
 
 def delete_data_files(io: FileIO, manifests_to_delete: list[ManifestFile]) -> None:
+    """Helper to delete data files linked to given manifests.
+
+    Log warnings if failing to delete any file
+
+    Args:
+        io: The FileIO used to delete the object
+        manifests_to_delete: A list of manifest contains paths of data files to be deleted
+    """
     deleted_files: dict[str, bool] = {}
     for manifest_file in manifests_to_delete:
         for entry in manifest_file.fetch_manifest_entry(io):
