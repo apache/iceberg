@@ -32,12 +32,12 @@ To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions. Spark 2.4 does not support SQL DDL.
 
 {{< hint info >}}
-Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3.x or the [Iceberg API](..//java-api-quickstart).
+Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3 or the [Iceberg API](..//java-api-quickstart).
 {{< /hint >}}
 
 ## `CREATE TABLE`
 
-Spark 3.x can create tables in any Iceberg catalog with the clause `USING iceberg`:
+Spark 3 can create tables in any Iceberg catalog with the clause `USING iceberg`:
 
 ```sql
 CREATE TABLE prod.db.sample (
@@ -333,7 +333,7 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z
 
 ## `ALTER TABLE` SQL extensions
 
-These commands are available in Spark 3.x when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
+These commands are available in Spark 3 when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
 
 ### `ALTER TABLE ... ADD PARTITION FIELD`
 

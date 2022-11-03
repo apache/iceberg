@@ -29,11 +29,11 @@ menu:
 
 To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
 
-Some plans are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.x.
+Some plans are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3.x | Spark 2.4  | Notes                                        |
+| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                        |
 |--------------------------------------------------|-----------|------------|----------------------------------------------|
 | [SQL insert into](#insert-into)                  | ✔️        |            |                                              |
 | [SQL merge into](#merge-into)                    | ✔️        |            | ⚠ Requires Iceberg Spark extensions          |
@@ -41,7 +41,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL delete from](#delete-from)                  | ✔️        |            | ⚠ Row-level delete requires Spark extensions |
 | [SQL update](#update)                            | ✔️        |            | ⚠ Requires Iceberg Spark extensions          |
 | [DataFrame append](#appending-data)              | ✔️        | ✔️          |                                              |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.x              |
+| [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3              |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                              |
 
 
