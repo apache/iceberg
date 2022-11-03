@@ -200,7 +200,7 @@ public class TestNessieTable extends BaseTestIceberg {
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
     getTable(KEY); // sanity, check table exists
     // check parameters are in expected state
-    String expected = (temp.toURI() + DB_NAME + "/" + tableName).replace("///", "/");
+    String expected = temp.toUri() + DB_NAME + "/" + tableName;
     Assertions.assertThat(getTableBasePath(tableName)).isEqualTo(expected);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
@@ -567,7 +567,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private String getTableBasePath(String tableName) {
-    return temp.toURI() + DB_NAME + "/" + tableName;
+    return temp.toUri() + DB_NAME + "/" + tableName;
   }
 
   @SuppressWarnings(
