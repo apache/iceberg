@@ -613,6 +613,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 def manifest_evaluator(
     partition_spec: PartitionSpec, schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True
 ) -> Callable[[ManifestFile], bool]:
-    partition_schema = Schema(*partition_spec.partition_type(schema))
+    partition_type = partition_spec.partition_type(schema)
+    partition_schema = Schema(*partition_type.fields)
     evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
     return evaluator.eval
