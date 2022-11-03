@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 _ENV_CONFIG = Config()
 
+TOKEN = "token"
 TYPE = "type"
 URI = "uri"
 

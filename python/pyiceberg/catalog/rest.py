@@ -30,6 +30,7 @@ from requests import HTTPError, Session
 
 from pyiceberg import __version__
 from pyiceberg.catalog import (
+    TOKEN,
     URI,
     Catalog,
     Identifier,
@@ -87,7 +88,6 @@ CLIENT_CREDENTIALS = "client_credentials"
 CREDENTIAL = "credential"
 GRANT_TYPE = "grant_type"
 SCOPE = "scope"
-TOKEN = "token"
 TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
 SEMICOLON = ":"
 KEY = "key"
@@ -206,11 +206,12 @@ class RestCatalog(Catalog):
                 elif ssl_client_cert := ssl_client.get(CERT):
                     self.session.cert = ssl_client_cert
 
+        # If we have credentials, but not a token, we want to fetch a token
+        if TOKEN not in self.properties and CREDENTIAL in self.properties:
+            self.properties[TOKEN] = self._fetch_access_token(self.properties[CREDENTIAL])
+
         # Set Auth token for subsequent calls in the session
         if token := self.properties.get(TOKEN):
-            self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
-        elif credential := self.properties.get(CREDENTIAL):
-            token = self._fetch_access_token(credential)
             self.session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
 
         # Set HTTP headers
