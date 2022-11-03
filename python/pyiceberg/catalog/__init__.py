@@ -21,7 +21,12 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from typing import (
+    Callable,
+    List,
+    Optional,
+    Union,
+)
 
 from pyiceberg.exceptions import NotInstalledError
 from pyiceberg.schema import Schema
@@ -70,7 +75,7 @@ AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
 }
 
 
-def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> CatalogType | None:
+def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional[CatalogType]:
     """Tries to infer the type based on the dict
 
     Args:
@@ -97,7 +102,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> CatalogT
     )
 
 
-def load_catalog(name: str, **properties: str | None) -> Catalog:
+def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
     """Load the catalog based on the properties
 
     Will look up the properties from the config, based on the name
@@ -116,7 +121,7 @@ def load_catalog(name: str, **properties: str | None) -> Catalog:
     env = _ENV_CONFIG.get_catalog_config(name)
     conf = merge_config(env or {}, properties)
 
-    catalog_type: CatalogType | None
+    catalog_type: Optional[CatalogType]
     if provided_catalog_type := conf.get(TYPE):
         catalog_type = CatalogType[provided_catalog_type.upper()]
     else:
@@ -130,9 +135,9 @@ def load_catalog(name: str, **properties: str | None) -> Catalog:
 
 @dataclass
 class PropertiesUpdateSummary:
-    removed: list[str]
-    updated: list[str]
-    missing: list[str]
+    removed: List[str]
+    updated: List[str]
+    missing: List[str]
 
 
 class Catalog(ABC):
@@ -159,9 +164,9 @@ class Catalog(ABC):
     @abstractmethod
     def create_table(
         self,
-        identifier: str | Identifier,
+        identifier: Union[str, Identifier],
         schema: Schema,
-        location: str | None = None,
+        location: Optional[str] = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
@@ -184,7 +189,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def load_table(self, identifier: str | Identifier) -> Table:
+    def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'
@@ -201,7 +206,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def drop_table(self, identifier: str | Identifier) -> None:
+    def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
 
         Args:
@@ -212,7 +217,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def purge_table(self, identifier: str | Identifier) -> None:
+    def purge_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table and purge all data and metadata files.
 
         Args:
@@ -223,7 +228,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def rename_table(self, from_identifier: str | Identifier, to_identifier: str | Identifier) -> Table:
+    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name
 
         Args:
@@ -238,7 +243,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def create_namespace(self, namespace: str | Identifier, properties: Properties = EMPTY_DICT) -> None:
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
         Args:
@@ -250,7 +255,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def drop_namespace(self, namespace: str | Identifier) -> None:
+    def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         """Drop a namespace.
 
         Args:
@@ -262,7 +267,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: str | Identifier) -> list[Identifier]:
+    def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.
@@ -278,7 +283,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_namespaces(self, namespace: str | Identifier = ()) -> list[Identifier]:
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Args:
@@ -292,7 +297,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def load_namespace_properties(self, namespace: str | Identifier) -> Properties:
+    def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         """Get properties for a namespace.
 
         Args:
@@ -307,7 +312,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: set[str] | None = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 
@@ -322,7 +327,7 @@ class Catalog(ABC):
         """
 
     @staticmethod
-    def identifier_to_tuple(identifier: str | Identifier) -> Identifier:
+    def identifier_to_tuple(identifier: Union[str, Identifier]) -> Identifier:
         """Parses an identifier to a tuple.
 
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
@@ -336,7 +341,7 @@ class Catalog(ABC):
         return identifier if isinstance(identifier, tuple) else tuple(str.split(identifier, "."))
 
     @staticmethod
-    def table_name_from(identifier: str | Identifier) -> str:
+    def table_name_from(identifier: Union[str, Identifier]) -> str:
         """Extracts table name from a table identifier
 
         Args:
@@ -348,7 +353,7 @@ class Catalog(ABC):
         return Catalog.identifier_to_tuple(identifier)[-1]
 
     @staticmethod
-    def namespace_from(identifier: str | Identifier) -> Identifier:
+    def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
         """Extracts table namespace from a table identifier
 
         Args:

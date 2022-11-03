@@ -18,7 +18,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import (
+    Any,
+    Dict,
+    List,
+    Tuple,
+    Union,
+)
 
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
@@ -112,7 +118,7 @@ class AvroSchemaConversion:
         """
         return Schema(*[self._convert_field(field) for field in avro_schema["fields"]], schema_id=1)
 
-    def _resolve_union(self, type_union: dict | list | str) -> tuple[str | dict[str, Any], bool]:
+    def _resolve_union(self, type_union: Union[Dict, List, str]) -> Tuple[Union[str, Dict[str, Any]], bool]:
         """
         Converts Unions into their type and resolves if the field is required
 
@@ -135,7 +141,7 @@ class AvroSchemaConversion:
         Raises:
             TypeError: In the case non-optional union types are encountered
         """
-        avro_types: dict | list
+        avro_types: Union[Dict, List]
         if isinstance(type_union, str):
             # It is a primitive and required
             return type_union, True
@@ -161,7 +167,7 @@ class AvroSchemaConversion:
         # Filter the null value and return the type
         return list(filter(lambda t: t != "null", avro_types))[0], False
 
-    def _convert_schema(self, avro_type: str | dict[str, Any]) -> IcebergType:
+    def _convert_schema(self, avro_type: Union[str, Dict[str, Any]]) -> IcebergType:
         """
         Resolves the Avro type
 

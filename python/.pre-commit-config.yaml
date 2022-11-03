@@ -51,7 +51,7 @@ repos:
     rev: v3.0.0
     hooks:
       - id: pyupgrade
-        args: [--py38-plus]
+        args: [ --py38-plus, --keep-runtime-typing ]
   - repo: https://github.com/pycqa/pylint
     rev: v2.15.3
     hooks:

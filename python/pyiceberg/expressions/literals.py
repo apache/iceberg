@@ -25,7 +25,12 @@ import struct
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch, singledispatchmethod
-from typing import Generic, TypeVar
+from typing import (
+    Generic,
+    Optional,
+    TypeVar,
+    Union,
+)
 from uuid import UUID
 
 from pyiceberg.types import (
@@ -217,7 +222,7 @@ class LongLiteral(Literal[int]):
         return self
 
     @to.register(IntegerType)
-    def _(self, type_var: IntegerType) -> AboveMax | BelowMin | Literal[int]:
+    def _(self, _: IntegerType) -> Union[AboveMax, BelowMin, Literal[int]]:
         if IntegerType.max < self.value:
             return AboveMax()
         elif IntegerType.min > self.value:
@@ -305,7 +310,7 @@ class DoubleLiteral(Literal[float]):
         return self
 
     @to.register(FloatType)
-    def _(self, type_var: FloatType) -> AboveMax | BelowMin | Literal[float]:
+    def _(self, _: FloatType) -> Union[AboveMax, BelowMin, Literal[float]]:
         if FloatType.max < self.value:
             return AboveMax()
         elif FloatType.min > self.value:
@@ -369,7 +374,7 @@ class DecimalLiteral(Literal[Decimal]):
         return None
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> Literal[Decimal] | None:
+    def _(self, type_var: DecimalType) -> Optional[Literal[Decimal]]:
         if type_var.scale == abs(self.value.as_tuple().exponent):
             return self
         return None
@@ -388,28 +393,28 @@ class StringLiteral(Literal[str]):
         return self
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> Literal[int] | None:
+    def _(self, type_var: DateType) -> Optional[Literal[int]]:
         try:
             return DateLiteral(date_to_days(self.value))
         except (TypeError, ValueError):
             return None
 
     @to.register(TimeType)
-    def _(self, type_var: TimeType) -> Literal[int] | None:
+    def _(self, type_var: TimeType) -> Optional[Literal[int]]:
         try:
             return TimeLiteral(time_to_micros(self.value))
         except (TypeError, ValueError):
             return None
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> Literal[int] | None:
+    def _(self, type_var: TimestampType) -> Optional[Literal[int]]:
         try:
             return TimestampLiteral(timestamp_to_micros(self.value))
         except (TypeError, ValueError):
             return None
 
     @to.register(TimestamptzType)
-    def _(self, type_var: TimestamptzType) -> Literal[int] | None:
+    def _(self, type_var: TimestamptzType) -> Optional[Literal[int]]:
         try:
             return TimestampLiteral(timestamptz_to_micros(self.value))
         except (TypeError, ValueError):
@@ -420,7 +425,7 @@ class StringLiteral(Literal[str]):
         return UUIDLiteral(UUID(self.value))
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> Literal[Decimal] | None:
+    def _(self, type_var: DecimalType) -> Optional[Literal[Decimal]]:
         dec = Decimal(self.value)
         if type_var.scale == abs(dec.as_tuple().exponent):
             return DecimalLiteral(dec)
@@ -450,7 +455,7 @@ class FixedLiteral(Literal[bytes]):
         return None
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> Literal[bytes] | None:
+    def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
         if len(self.value) == type_var.length:
             return self
         else:
@@ -470,11 +475,11 @@ class BinaryLiteral(Literal[bytes]):
         return None
 
     @to.register(BinaryType)
-    def _(self, type_var: BinaryType) -> Literal[bytes]:
+    def _(self, _: BinaryType) -> Literal[bytes]:
         return self
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> Literal[bytes] | None:
+    def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
         if type_var.length == len(self.value):
             return FixedLiteral(self.value)
         else:
