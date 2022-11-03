@@ -212,11 +212,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     // write properties map
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
     generator.writeNumberField(
         CURRENT_SNAPSHOT_ID,

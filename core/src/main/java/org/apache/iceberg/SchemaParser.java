@@ -75,11 +75,7 @@ public class SchemaParser {
     }
 
     if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
-      generator.writeArrayFieldStart(IDENTIFIER_FIELD_IDS);
-      for (int id : identifierFieldIds) {
-        generator.writeNumber(id);
-      }
-      generator.writeEndArray();
+      JsonUtil.writeIntegerArray(IDENTIFIER_FIELD_IDS, identifierFieldIds, generator);
     }
 
     generator.writeArrayFieldStart(FIELDS);
