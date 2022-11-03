@@ -526,7 +526,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         if lower > literal.value:
             return ROWS_CANNOT_MATCH
 
-        upper = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
         if literal.value > upper:
             return ROWS_CANNOT_MATCH
