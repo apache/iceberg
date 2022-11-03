@@ -124,6 +124,12 @@ Which will warn:
 Call to load_something, deprecated in 0.1.0, will be removed in 0.2.0. Please use load_something_else() instead.
 ```
 
+## Type annotations
+
+For the type annotation we currently rely on the `Typing` package that comes with Python.
+
+Since we're supporting from Python 3.8 onwards, we can't use the [type hints from the standard collections](https://peps.python.org/pep-0585/).
+
 ## Third party libraries
 
 Since we expect PyIceberg to be integrated into the Python ecosystem, we want to be hesitant with the use of third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.

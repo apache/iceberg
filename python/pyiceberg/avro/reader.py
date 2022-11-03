@@ -31,7 +31,14 @@ from dataclasses import field as dataclassfield
 from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
-from typing import Any, Callable
+from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
@@ -98,7 +105,7 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
 
 @dataclass(frozen=True)
 class AvroStruct(StructProtocol):
-    _data: list[Any | StructProtocol] = dataclassfield()
+    _data: List[Union[Any, StructProtocol]] = dataclassfield()
 
     def set(self, pos: int, value: Any) -> None:
         self._data[pos] = value
@@ -242,7 +249,7 @@ class DecimalReader(Reader):
 class OptionReader(Reader):
     option: Reader = dataclassfield()
 
-    def read(self, decoder: BinaryDecoder) -> Any | None:
+    def read(self, decoder: BinaryDecoder) -> Optional[Any]:
         # For the Iceberg spec it is required to set the default value to null
         # From https://iceberg.apache.org/spec/#avro
         # Optional fields must always set the Avro field default value to null.
@@ -263,10 +270,10 @@ class OptionReader(Reader):
 
 @dataclass(frozen=True)
 class StructReader(Reader):
-    fields: tuple[tuple[int | None, Reader], ...] = dataclassfield()
+    fields: Tuple[Tuple[Optional[int], Reader], ...] = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> AvroStruct:
-        result: list[Any | StructProtocol] = [None] * len(self.fields)
+        result: List[Union[Any, StructProtocol]] = [None] * len(self.fields)
         for (pos, field) in self.fields:
             if pos is not None:
                 result[pos] = field.read(decoder)
@@ -332,7 +339,7 @@ class ConstructReader(SchemaVisitor[Reader]):
     def schema(self, schema: Schema, struct_result: Reader) -> Reader:
         return struct_result
 
-    def struct(self, struct: StructType, field_results: list[Reader]) -> Reader:
+    def struct(self, struct: StructType, field_results: List[Reader]) -> Reader:
         return StructReader(tuple(enumerate(field_results)))
 
     def field(self, field: NestedField, field_result: Reader) -> Reader:

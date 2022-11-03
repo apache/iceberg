@@ -25,13 +25,15 @@ converting character sets (https://docs.python.org/3/library/codecs.html).
 """
 from __future__ import annotations
 
+from typing import Dict, Optional, Type
+
 from pyiceberg.avro.codecs.bzip2 import BZip2Codec
 from pyiceberg.avro.codecs.codec import Codec
 from pyiceberg.avro.codecs.deflate import DeflateCodec
 from pyiceberg.avro.codecs.snappy_codec import SnappyCodec
 from pyiceberg.avro.codecs.zstandard_codec import ZStandardCodec
 
-KNOWN_CODECS: dict[str, type[Codec] | None] = {
+KNOWN_CODECS: Dict[str, Optional[Type[Codec]]] = {
     "null": None,
     "bzip2": BZip2Codec,
     "snappy": SnappyCodec,
