@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
@@ -92,8 +93,10 @@ public class StructProjection implements StructLike {
 
   private StructProjection(StructProjection other) {
     this.type = other.type;
-    this.positionMap = other.positionMap;
-    this.nestedProjections = other.nestedProjections;
+    this.positionMap = other.positionMap == null ? null :
+            Arrays.copyOf(other.positionMap, other.positionMap.length);
+    this.nestedProjections = other.nestedProjections == null ? null :
+            Arrays.copyOf(other.nestedProjections, other.nestedProjections.length);
     this.struct = other.struct;
   }
 
