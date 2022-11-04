@@ -43,6 +43,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -220,7 +221,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
-      return String.format("%s/%s", metadataLocation, filename);
+      return String.format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
     } else {
       return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
     }
