@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=eval-used,protected-access
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -52,6 +53,7 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.datetime import (
     date_to_days,
+    date_str_to_days,
     time_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
@@ -65,7 +67,8 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
         (1, IntegerType(), 1392991556),
         (34, IntegerType(), 2017239379),
         (34, LongType(), 2017239379),
-        (date_to_days("2017-11-16"), DateType(), -653330422),
+        (date_to_days(date(2017, 11, 16)), DateType(), -653330422),
+        (date_str_to_days("2017-11-16"), DateType(), -653330422),
         (time_to_micros("22:31:08"), TimeType(), -662762989),
         (
             timestamp_to_micros("2017-11-16T22:31:08"),
