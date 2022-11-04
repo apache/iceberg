@@ -29,12 +29,11 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
@@ -162,18 +161,17 @@ public class TestTableScanUtil {
   public void testTaskGroupPlanningByPartition() {
     // When all files belong to the same partition, we should combine them together as long as the
     // total file size is <= split size
-    List<FileScanTask> tasks =
+    List<PartitionScanTask> tasks =
         ImmutableList.of(
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128));
+            taskWithPartition(SPEC1, PARTITION1, 64),
+            taskWithPartition(SPEC1, PARTITION1, 128),
+            taskWithPartition(SPEC1, PARTITION1, 64),
+            taskWithPartition(SPEC1, PARTITION1, 128));
 
-    StructProjection projection =
-        StructProjection.create(SPEC1.partitionType(), SPEC1.partitionType());
     int count = 0;
-    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
-      Assert.assertEquals(4, task.files().size());
+    for (ScanTaskGroup<PartitionScanTask> task :
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+      Assert.assertEquals(4, task.filesCount());
       Assert.assertEquals(64 + 128 + 64 + 128, task.sizeBytes());
       count += 1;
     }
@@ -183,14 +181,15 @@ public class TestTableScanUtil {
     // separately
     tasks =
         ImmutableList.of(
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 128));
+            taskWithPartition(SPEC1, PARTITION1, 64),
+            taskWithPartition(SPEC1, PARTITION1, 128),
+            taskWithPartition(SPEC1, PARTITION2, 64),
+            taskWithPartition(SPEC1, PARTITION2, 128));
 
     count = 0;
-    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
-      Assert.assertEquals(2, task.files().size());
+    for (ScanTaskGroup<PartitionScanTask> task :
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+      Assert.assertEquals(2, task.filesCount());
       Assert.assertEquals(64 + 128, task.sizeBytes());
       count += 1;
     }
@@ -199,14 +198,15 @@ public class TestTableScanUtil {
     // Similar to the case above, but now files have different partition specs
     tasks =
         ImmutableList.of(
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION1, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 64),
-            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION2, 128));
+            taskWithPartition(SPEC1, PARTITION1, 64),
+            taskWithPartition(SPEC2, PARTITION1, 128),
+            taskWithPartition(SPEC1, PARTITION2, 64),
+            taskWithPartition(SPEC2, PARTITION2, 128));
 
     count = 0;
-    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
-      Assert.assertEquals(2, task.files().size());
+    for (ScanTaskGroup<PartitionScanTask> task :
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+      Assert.assertEquals(2, task.filesCount());
       Assert.assertEquals(64 + 128, task.sizeBytes());
       count += 1;
     }
@@ -216,32 +216,29 @@ public class TestTableScanUtil {
     // is equal to the file size, so each partition will have 2 tasks.
     tasks =
         ImmutableList.of(
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION1, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 128),
-            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION2, 128));
+            taskWithPartition(SPEC1, PARTITION1, 128),
+            taskWithPartition(SPEC2, PARTITION1, 128),
+            taskWithPartition(SPEC1, PARTITION2, 128),
+            taskWithPartition(SPEC2, PARTITION2, 128));
 
     count = 0;
-    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 128, 10, 4, projection)) {
-      Assert.assertEquals(1, task.files().size());
+    for (ScanTaskGroup<PartitionScanTask> task :
+        TableScanUtil.planTaskGroups(tasks, 128, 10, 4, SPEC1.partitionType())) {
+      Assert.assertEquals(1, task.filesCount());
       Assert.assertEquals(128, task.sizeBytes());
       count += 1;
     }
     Assert.assertEquals(4, count);
   }
 
-  private DataFile fileWithPartition(StructLike partition, long length) {
-    DataFile mockFile = Mockito.mock(DataFile.class);
-    Mockito.when(mockFile.partition()).thenReturn(partition);
-    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
-    return mockFile;
-  }
-
-  private FileScanTask taskWithPartition(
-      Schema schema, PartitionSpec partitionSpec, StructLike partition, long length) {
-    DataFile dataFile = fileWithPartition(partition, length);
-    return new MockFileScanTask(
-        dataFile, SchemaParser.toJson(schema), PartitionSpecParser.toJson(partitionSpec));
+  private PartitionScanTask taskWithPartition(
+      PartitionSpec spec, StructLike partition, long sizeBytes) {
+    PartitionScanTask task = Mockito.mock(PartitionScanTask.class);
+    Mockito.when(task.spec()).thenReturn(spec);
+    Mockito.when(task.partition()).thenReturn(partition);
+    Mockito.when(task.sizeBytes()).thenReturn(sizeBytes);
+    Mockito.when(task.filesCount()).thenReturn(1);
+    return task;
   }
 
   private static class TestStructLike implements StructLike {

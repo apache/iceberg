@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseCombinedScanTask;
@@ -28,6 +31,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
+import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -36,7 +40,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -76,57 +79,6 @@ public class TableScanUtil {
         FluentIterable.from(tasks).transformAndConcat(input -> input.split(splitSize));
     // Capture manifests which can be closed after scan planning
     return CloseableIterable.combine(splitTasks, tasks);
-  }
-
-  public static <T extends FileScanTask> Iterable<CombinedScanTask> planTasks(
-      List<T> splitFiles,
-      long splitSize,
-      int lookback,
-      long openFileCost,
-      StructProjection projection) {
-    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
-    Preconditions.checkArgument(
-        lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
-    Preconditions.checkArgument(
-        openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
-
-    // Check the size of delete file as well to avoid unbalanced bin-packing
-    Function<FileScanTask, Long> weightFunc =
-        file ->
-            Math.max(
-                file.length()
-                    + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
-                (1 + file.deletes().size()) * openFileCost);
-
-    ListMultimap<StructLikeWrapper, FileScanTask> groupedFiles =
-        Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
-
-    for (T task : splitFiles) {
-      PartitionSpec spec = task.spec();
-      StructProjection projectedStruct =
-          StructProjection.create(spec.partitionType(), projection.type());
-      Types.StructType projectedPartitionType = projectedStruct.type();
-      StructLikeWrapper wrapper =
-          StructLikeWrapper.forType(projectedPartitionType)
-              .set(projectedStruct.copy().wrap(task.file().partition()));
-      groupedFiles.put(wrapper, task);
-    }
-
-    List<Iterable<BaseCombinedScanTask>> groupedTasks =
-        groupedFiles.asMap().values().stream()
-            .map(
-                t ->
-                    Iterables.transform(
-                        new BinPacking.PackingIterable<>(
-                            CloseableIterable.withNoopClose(t),
-                            splitSize,
-                            lookback,
-                            weightFunc,
-                            true),
-                        BaseCombinedScanTask::new))
-            .collect(Collectors.toList());
-
-    return Iterables.concat(groupedTasks);
   }
 
   public static CloseableIterable<CombinedScanTask> planTasks(
@@ -184,6 +136,66 @@ public class TableScanUtil {
             new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
             splitTasks),
         combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends PartitionScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      Types.StructType projectedPartitionType) {
+
+    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
+    Preconditions.checkArgument(
+        lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
+    Preconditions.checkArgument(
+        openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+
+    List<T> splitTasks = new ArrayList<>();
+    for (T task : tasks) {
+      if (task instanceof SplittableScanTask<?>) {
+        ((SplittableScanTask<? extends T>) task).split(splitSize).forEach(splitTasks::add);
+      } else {
+        splitTasks.add(task);
+      }
+    }
+
+    Function<T, Long> weightFunc =
+        task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
+
+    StructLikeWrapper wrapper = StructLikeWrapper.forType(projectedPartitionType);
+    Map<Integer, StructProjection> projectionsBySpec = Maps.newHashMap();
+
+    // Group tasks by their partition values
+    ListMultimap<StructLikeWrapper, T> groupedTasks =
+        Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+
+    for (T task : splitTasks) {
+      PartitionSpec spec = task.spec();
+      projectionsBySpec.computeIfAbsent(
+          spec.specId(),
+          specId -> StructProjection.create(spec.partitionType(), projectedPartitionType));
+      StructProjection projectedStruct = projectionsBySpec.get(spec.specId());
+      StructLikeWrapper wrapperCopy =
+          wrapper.copyFor(projectedStruct.copy().wrap(task.partition()));
+      groupedTasks.put(wrapperCopy, task);
+    }
+
+    // Now apply task combining within each partition
+    List<List<BaseScanTaskGroup<T>>> nestedTaskGroups =
+        groupedTasks.asMap().values().stream()
+            .map(
+                t -> {
+                  List<BaseScanTaskGroup<T>> taskGroups = new ArrayList<>();
+                  new BinPacking.PackingIterable<>(
+                          CloseableIterable.withNoopClose(t), splitSize, lookback, weightFunc, true)
+                      .forEach(ts -> taskGroups.add(new BaseScanTaskGroup<>(mergeTasks(ts))));
+                  return taskGroups;
+                })
+            .collect(Collectors.toList());
+
+    return nestedTaskGroups.stream().flatMap(Collection::stream).collect(Collectors.toList());
   }
 
   @SuppressWarnings("unchecked")
