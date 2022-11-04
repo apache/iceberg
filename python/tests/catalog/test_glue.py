@@ -25,7 +25,9 @@ from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
+    NoSuchIcebergTableError,
     NoSuchNamespaceError,
+    NoSuchPropertyException,
     NoSuchTableError,
     TableAlreadyExistsError,
 )
@@ -233,6 +235,48 @@ def test_rename_table(_bucket_initialize, _patch_aiobotocore, table_schema_neste
     # old table should be dropped
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
+
+
+@mock_glue
+def test_rename_table_no_params(_glue, _bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    new_database_name = get_random_database_name()
+    table_name = get_random_table_name()
+    new_table_name = get_random_table_name()
+    identifier = (database_name, table_name)
+    new_identifier = (new_database_name, new_table_name)
+    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog.create_namespace(namespace=database_name)
+    test_catalog.create_namespace(namespace=new_database_name)
+    _glue.create_table(
+        DatabaseName=database_name,
+        TableInput={"Name": table_name, "TableType": "EXTERNAL_TABLE", "Parameters": {"table_type": "iceberg"}},
+    )
+    with pytest.raises(NoSuchPropertyException):
+        test_catalog.rename_table(identifier, new_identifier)
+
+
+@mock_glue
+def test_rename_non_iceberg_table(_glue, _bucket_initialize, _patch_aiobotocore):
+    database_name = get_random_database_name()
+    new_database_name = get_random_database_name()
+    table_name = get_random_table_name()
+    new_table_name = get_random_table_name()
+    identifier = (database_name, table_name)
+    new_identifier = (new_database_name, new_table_name)
+    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog.create_namespace(namespace=database_name)
+    test_catalog.create_namespace(namespace=new_database_name)
+    _glue.create_table(
+        DatabaseName=database_name,
+        TableInput={
+            "Name": table_name,
+            "TableType": "EXTERNAL_TABLE",
+            "Parameters": {"table_type": "noniceberg", "metadata_location": "test"},
+        },
+    )
+    with pytest.raises(NoSuchIcebergTableError):
+        test_catalog.rename_table(identifier, new_identifier)
 
 
 @mock_glue

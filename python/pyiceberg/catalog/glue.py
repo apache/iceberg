@@ -73,6 +73,8 @@ PROP_GLUE_TABLE_DESCRIPTION = "description"
 PROP_GLUE_TABLE_PARAMETERS = "Parameters"
 PROP_GLUE_TABLE_DATABASE_NAME = "DatabaseName"
 PROP_GLUE_TABLE_NAME = "Name"
+PROP_GLUE_TABLE_OWNER = "Owner"
+PROP_GLUE_TABLE_STORAGE_DESCRIPTOR = "StorageDescriptor"
 
 PROP_GLUE_TABLELIST = "TableList"
 
@@ -332,11 +334,32 @@ class GlueCatalog(Catalog):
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exists: {from_database_name}.{from_table_name}") from e
 
-        table_input = get_table_response[PROP_GLUE_TABLE]
-        table_input[PROP_GLUE_TABLE_NAME] = to_table_name
-        new_input = _construct_table_input(to_table_name, table_input[PROP_GLUE_TABLE_PARAMETERS][METADATA_LOCATION], {})
+        glue_table = get_table_response[PROP_GLUE_TABLE]
 
-        self._create_glue_table(identifier=to_identifier, table_input=new_input)
+        try:
+            # verify that from_identifier is a valid iceberg table
+            self._convert_glue_to_iceberg(glue_table)
+        except NoSuchPropertyException as e:
+            raise NoSuchPropertyException(
+                f"Failed to rename table {from_database_name}.{from_table_name} since it miss required properties"
+            ) from e
+        except NoSuchIcebergTableError as e:
+            raise NoSuchIcebergTableError(
+                f"Failed to rename table {from_database_name}.{from_table_name} since it is not a valid iceberg table"
+            ) from e
+
+        new_table_input = {PROP_GLUE_TABLE_NAME: to_table_name}
+        # use the same Glue info to create the new table, pointing to the old metadata
+        if table_type := glue_table.get(PROP_GLUE_TABLE_TYPE):
+            new_table_input[PROP_GLUE_TABLE_TYPE] = table_type
+        if table_parameters := glue_table.get(PROP_GLUE_TABLE_PARAMETERS):
+            new_table_input[PROP_GLUE_TABLE_PARAMETERS] = table_parameters
+        if table_owner := glue_table.get(PROP_GLUE_TABLE_OWNER):
+            new_table_input[PROP_GLUE_TABLE_OWNER] = table_owner
+        if table_storage_descriptor := glue_table.get(PROP_GLUE_TABLE_STORAGE_DESCRIPTOR):
+            new_table_input[PROP_GLUE_TABLE_STORAGE_DESCRIPTOR] = table_storage_descriptor
+
+        self._create_glue_table(identifier=to_identifier, table_input=new_table_input)
         try:
             self.drop_table(from_identifier)
         except Exception as e:
