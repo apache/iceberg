@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.apache.iceberg.flink.FlinkCatalogFactory.CACHE_ENABLED;
-
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -63,7 +62,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
       String catalogName, Namespace baseNamespace, FileFormat format, boolean cacheEnabled) {
     super(catalogName, baseNamespace);
     this.format = format;
-    config.put(CACHE_ENABLED, String.valueOf(cacheEnabled));
+    config.put(CatalogProperties.CACHE_ENABLED, String.valueOf(cacheEnabled));
   }
 
   @Override

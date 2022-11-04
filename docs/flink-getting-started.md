@@ -215,7 +215,8 @@ The following properties can be set globally and are not limited to a specific c
 * `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
 * `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
+* `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; value 0 will disable caching, negative values like `-1` will disable expiration. default value is `30000`. (Optional)
 
 ### Hive catalog
 

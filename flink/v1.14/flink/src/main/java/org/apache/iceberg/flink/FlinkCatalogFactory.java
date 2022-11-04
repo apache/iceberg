@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -69,7 +70,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String BASE_NAMESPACE = "base-namespace";
-  public static final String CACHE_ENABLED = "cache-enabled";
 
   public static final String TYPE = "type";
   public static final String PROPERTY_VERSION = "property-version";
@@ -145,8 +145,27 @@ public class FlinkCatalogFactory implements CatalogFactory {
       baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));
     }
 
-    boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
-    return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
+    boolean cacheEnabled = CatalogProperties.CACHE_ENABLED_DEFAULT;
+    if (properties.containsKey(CatalogProperties.CACHE_ENABLED)) {
+      cacheEnabled = Boolean.parseBoolean(properties.get(CatalogProperties.CACHE_ENABLED));
+    }
+
+    long cacheExpirationIntervalMs =
+        PropertyUtil.propertyAsLong(
+            properties,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+    if (cacheExpirationIntervalMs == 0) {
+      cacheEnabled = false;
+    }
+
+    return new FlinkCatalog(
+        name,
+        defaultDatabase,
+        baseNamespace,
+        catalogLoader,
+        cacheEnabled,
+        cacheExpirationIntervalMs);
   }
 
   private static Configuration mergeHiveConf(
