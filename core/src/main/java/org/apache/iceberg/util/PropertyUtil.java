@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
@@ -110,7 +110,7 @@ public class PropertyUtil {
   public static Map<String, String> propertiesWithPrefix(
       Map<String, String> properties, String prefix) {
     if (properties == null || properties.isEmpty()) {
-      return ImmutableMap.of();
+      return Collections.emptyMap();
     }
 
     Preconditions.checkArgument(prefix != null, "Invalid prefix: null");

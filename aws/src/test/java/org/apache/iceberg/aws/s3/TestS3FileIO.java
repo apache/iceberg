@@ -336,6 +336,17 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void testS3FileIOWithEmptyPropsKryoSerialization() throws IOException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties passed as empty immutable map
+    testS3FileIO.initialize(ImmutableMap.of());
+    FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
+
+    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
+  }
+
+  @Test
   public void testS3FileIOJavaSerialization() throws IOException, ClassNotFoundException {
     FileIO testS3FileIO = new S3FileIO();
 
