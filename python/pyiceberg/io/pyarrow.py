@@ -37,6 +37,7 @@ from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    LocalFileSystem,
     S3FileSystem,
 )
 
@@ -197,22 +198,27 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs_and_path: Callable = lru_cache(self._get_fs_and_path)
+        self.get_fs: Callable = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
-    def _get_fs_and_path(self, location: str) -> Tuple[FileSystem, str]:
-        uri = urlparse(location)  # Create a ParseResult from the URI
-        if not uri.scheme:  # If no scheme, assume the path is to a local file
-            return FileSystem.from_uri(os.path.abspath(location))
-        elif uri.scheme in {"s3", "s3a", "s3n"}:
+    @staticmethod
+    def parse_location(location: str) -> Tuple[str, str]:
+        """Returns the path without the scheme"""
+        uri = urlparse(location)
+        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+
+    def _get_fs(self, scheme: str) -> FileSystem:
+        if scheme in {"s3", "s3a", "s3n"}:
             client_kwargs = {
                 "endpoint_override": self.properties.get("s3.endpoint"),
                 "access_key": self.properties.get("s3.access-key-id"),
                 "secret_key": self.properties.get("s3.secret-access-key"),
             }
-            return (S3FileSystem(**client_kwargs), uri.netloc + uri.path)
+            return S3FileSystem(**client_kwargs)
+        elif scheme == "file":
+            return LocalFileSystem()
         else:
-            return FileSystem.from_uri(location)  # Infer the proper filesystem
+            raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
     def new_input(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to read bytes from the file at the given location
@@ -223,7 +229,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        fs, path = self.get_fs_and_path(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path)
 
     def new_output(self, location: str) -> PyArrowFile:
@@ -235,7 +242,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        fs, path = self.get_fs_and_path(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
@@ -251,8 +259,9 @@ class PyArrowFileIO(FileIO):
             PermissionError: If the file at the provided location cannot be accessed due to a permission error such as
                 an AWS error code 15
         """
-        str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        fs, path = self.get_fs_and_path(str_path)
+        str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        scheme, path = self.parse_location(str_location)
+        fs = self._get_fs(scheme)
 
         try:
             fs.delete_file(path)
