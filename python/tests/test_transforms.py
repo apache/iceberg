@@ -147,15 +147,15 @@ def test_string_with_surrogate_pair():
 
 
 @pytest.mark.parametrize(
-    "date,date_transform,expected",
+    "date_val,date_transform,expected",
     [
         (47, YearTransform(), "2017"),
         (575, MonthTransform(), "2017-12"),
         (17501, DayTransform(), "2017-12-01"),
     ],
 )
-def test_date_to_human_string(date, date_transform, expected):
-    assert date_transform.to_human_string(DateType(), date) == expected
+def test_date_to_human_string(date_val, date_transform, expected):
+    assert date_transform.to_human_string(DateType(), date_val) == expected
 
 
 @pytest.mark.parametrize(
