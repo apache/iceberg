@@ -35,21 +35,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestMetadataTableScans extends TableTestBase {
-
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   public TestMetadataTableScans(int formatVersion) {
     super(formatVersion);
@@ -97,20 +88,6 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testManifestsTableWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table manifestsTable = new ManifestsTable(table.ops(), table);
-    TableScan scan = manifestsTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one tasks", 1, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have two files", 2, numFiles);
-    }
-  }
-
-  @Test
   public void testManifestsTableAlwaysIgnoresResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -146,20 +123,6 @@ public class TestMetadataTableScans extends TableTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
-    }
-  }
-
-  @Test
-  public void testDataFilesTableWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-    TableScan scan = dataFilesTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four files", 4, numFiles);
     }
   }
 
@@ -218,20 +181,6 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testManifestEntriesWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table manifestEntriesTable = new ManifestEntriesTable(table.ops(), table);
-    TableScan scan = manifestEntriesTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numEntries =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four entries", 4, numEntries);
-    }
-  }
-
-  @Test
   public void testAllDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -265,20 +214,6 @@ public class TestMetadataTableScans extends TableTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
-    }
-  }
-
-  @Test
-  public void testAllDataFilesTableWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
-    TableScan scan = allDataFilesTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four files", 4, numFiles);
     }
   }
 
@@ -320,20 +255,6 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testAllEntriesTableWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table allEntriesTable = new AllEntriesTable(table.ops(), table);
-    TableScan scan = allEntriesTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numEntries =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four entries", 4, numEntries);
-    }
-  }
-
-  @Test
   public void testAllManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -354,20 +275,6 @@ public class TestMetadataTableScans extends TableTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
-    }
-  }
-
-  @Test
-  public void testAllManifestsTableWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-    Table allManifestsTable = new AllManifestsTable(table.ops(), table);
-    TableScan scan = allManifestsTable.newScan();
-
-    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have three files", 3, numFiles);
     }
   }
 
@@ -410,35 +317,6 @@ public class TestMetadataTableScans extends TableTestBase {
     validateIncludesPartitionScan(tasksNoFilter, 1);
     validateIncludesPartitionScan(tasksNoFilter, 2);
     validateIncludesPartitionScan(tasksNoFilter, 3);
-  }
-
-  @Test
-  public void testPartitionsTableScanWithAddPartitionOnNestedField() throws IOException {
-    createTableAndAddPartitionOnNestedFiled();
-
-    Table partitionsTable = new PartitionsTable(table.ops(), table);
-    Types.StructType idPartition =
-        new Schema(
-                required(
-                    1,
-                    "partition",
-                    Types.StructType.of(
-                        optional(1000, "id", Types.IntegerType.get()),
-                        optional(1001, "nested.id", Types.IntegerType.get()))))
-            .asStruct();
-
-    TableScan scanNoFilter = partitionsTable.newScan().select("partition");
-    Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    try (CloseableIterable<FileScanTask> tasksNoFilter =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter)) {
-      Assert.assertEquals(4, Iterators.size(tasksNoFilter.iterator()));
-      validateIncludesPartitionScan(tasksNoFilter, 0);
-      validateIncludesPartitionScan(tasksNoFilter, 1);
-      validateIncludesPartitionScan(tasksNoFilter, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 3);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 3);
-    }
   }
 
   @Test
@@ -1074,92 +952,5 @@ public class TestMetadataTableScans extends TableTestBase {
         "Expected snapshots do not match",
         expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
         actualManifestListPaths(manifestsTableScan));
-  }
-
-  private Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
-        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
-        .map(t -> t.file().path().toString())
-        .collect(Collectors.toSet());
-  }
-
-  private Set<String> expectedManifestListPaths(Iterable<Snapshot> snapshots, Long... snapshotIds) {
-    Set<Long> snapshotIdSet = Sets.newHashSet(snapshotIds);
-    return StreamSupport.stream(snapshots.spliterator(), false)
-        .filter(s -> snapshotIdSet.contains(s.snapshotId()))
-        .map(Snapshot::manifestListLocation)
-        .collect(Collectors.toSet());
-  }
-
-  private void createTableAndAddPartitionOnNestedFiled() throws IOException {
-    TestTables.clearTables();
-    this.tableDir = temp.newFolder();
-    tableDir.delete();
-
-    Schema schema =
-        new Schema(
-            required(1, "id", Types.IntegerType.get()),
-            required(
-                2,
-                "nested",
-                Types.StructType.of(Types.NestedField.required(3, "id", Types.IntegerType.get()))));
-    this.metadataDir = new File(tableDir, "metadata");
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
-
-    this.table = create(schema, spec);
-    table.newFastAppend().appendFile(newDataFile("id=0")).appendFile(newDataFile("id=1")).commit();
-
-    table.updateSpec().addField("nested.id").commit();
-    table
-        .newFastAppend()
-        .appendFile(newDataFile("id=2/nested.id=2"))
-        .appendFile(newDataFile("id=3/nested.id=3"))
-        .commit();
-  }
-
-  private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
-      throws IOException {
-    try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
-      for (CombinedScanTask combinedScanTask : tasks) {
-        for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          if (ignoreResiduals) {
-            Assert.assertEquals(
-                "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
-          } else {
-            Assert.assertNotEquals(
-                "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
-          }
-        }
-      }
-    }
-  }
-
-  private void validateIncludesPartitionScan(CloseableIterable<FileScanTask> tasks, int partValue) {
-    validateIncludesPartitionScan(tasks, 0, partValue);
-  }
-
-  private void validateIncludesPartitionScan(
-      CloseableIterable<FileScanTask> tasks, int position, int partValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
-            .anyMatch(
-                task -> {
-                  StructLike partition = task.file().partition();
-                  if (position >= partition.size()) {
-                    return false;
-                  }
-
-                  return partition.get(position, Object.class).equals(partValue);
-                }));
-  }
-
-  private boolean manifestHasPartition(ManifestFile mf, int partValue) {
-    int lower =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).lowerBound());
-    int upper =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
-    return (lower <= partValue) && (upper >= partValue);
   }
 }
