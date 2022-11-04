@@ -52,8 +52,8 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.datetime import (
-    date_to_days,
     date_str_to_days,
+    date_to_days,
     time_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
