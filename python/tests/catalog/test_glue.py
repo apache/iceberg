@@ -122,6 +122,26 @@ def test_create_table_with_no_location(_bucket_initialize, _patch_aiobotocore, t
 
 
 @mock_glue
+def test_create_table_with_strips(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+    database_name = get_random_database_name()
+    table_name = get_random_table_name()
+    identifier = (database_name, table_name)
+    test_catalog = GlueCatalog("glue")
+    test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
+    table = test_catalog.create_table(identifier, table_schema_nested)
+    assert table.identifier == identifier
+    assert table_metadata_location_regex.match(table.metadata_location)
+    database_name = get_random_database_name()
+    table_name = get_random_table_name()
+    identifier = (database_name, table_name)
+    test_catalog_strip = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}/")
+    test_catalog_strip.create_namespace(namespace=database_name)
+    table_strip = test_catalog_strip.create_table(identifier, table_schema_nested)
+    assert table_strip.identifier == identifier
+    assert table_metadata_location_regex.match(table_strip.metadata_location)
+
+
+@mock_glue
 def test_create_table_with_no_database(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
     database_name = get_random_database_name()
     table_name = get_random_table_name()
