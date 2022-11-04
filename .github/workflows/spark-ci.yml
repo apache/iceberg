@@ -32,6 +32,7 @@ on:
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.gitignore'
+    - '.asf.yml'
     - 'dev/**'
     - 'mr/**'
     - 'hive3/**'
