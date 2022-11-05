@@ -61,7 +61,11 @@ public class VectorizedSparkOrcReaders {
         BaseOrcColumnVector cv =
             (BaseOrcColumnVector)
                 converter.convert(
-                    new StructColumnVector(batch.size, batch.cols), batch.size, batchOffsetInFile);
+                    new StructColumnVector(batch.size, batch.cols),
+                    batch.size,
+                    batchOffsetInFile,
+                    batch.selectedInUse,
+                    batch.selected);
         ColumnarBatch columnarBatch =
             new ColumnarBatch(
                 IntStream.range(0, expectedSchema.columns().size())
@@ -82,7 +86,9 @@ public class VectorizedSparkOrcReaders {
     ColumnVector convert(
         org.apache.orc.storage.ql.exec.vector.ColumnVector columnVector,
         int batchSize,
-        long batchOffsetInFile);
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected);
   }
 
   private static class ReadBuilder extends OrcSchemaWithTypeVisitor<Converter> {
@@ -154,22 +160,36 @@ public class VectorizedSparkOrcReaders {
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }
-      return (columnVector, batchSize, batchOffsetInFile) ->
+      return (columnVector, batchSize, batchOffsetInFile, isSelectedInUse, selected) ->
           new PrimitiveOrcColumnVector(
-              iPrimitive, batchSize, columnVector, primitiveValueReader, batchOffsetInFile);
+              iPrimitive,
+              batchSize,
+              columnVector,
+              primitiveValueReader,
+              batchOffsetInFile,
+              isSelectedInUse,
+              selected);
     }
   }
 
   private abstract static class BaseOrcColumnVector extends ColumnVector {
     private final org.apache.orc.storage.ql.exec.vector.ColumnVector vector;
     private final int batchSize;
+    private final boolean isSelectedInUse;
+    private final int[] selected;
     private Integer numNulls;
 
     BaseOrcColumnVector(
-        Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector) {
+        Type type,
+        int batchSize,
+        org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
+        boolean isSelectedInUse,
+        int[] selected) {
       super(SparkSchemaUtil.convert(type));
       this.vector = vector;
       this.batchSize = batchSize;
+      this.isSelectedInUse = isSelectedInUse;
+      this.selected = selected;
     }
 
     @Override
@@ -209,7 +229,8 @@ public class VectorizedSparkOrcReaders {
     }
 
     protected int getRowIndex(int rowId) {
-      return vector.isRepeating ? 0 : rowId;
+      int row = isSelectedInUse ? selected[rowId] : rowId;
+      return vector.isRepeating ? 0 : row;
     }
 
     @Override
@@ -293,8 +314,10 @@ public class VectorizedSparkOrcReaders {
         int batchSize,
         org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
         OrcValueReader<?> primitiveValueReader,
-        long batchOffsetInFile) {
-      super(type, batchSize, vector);
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
+      super(type, batchSize, vector, isSelectedInUse, selected);
       this.vector = vector;
       this.primitiveValueReader = primitiveValueReader;
       this.batchOffsetInFile = batchOffsetInFile;
@@ -302,27 +325,27 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public boolean getBoolean(int rowId) {
-      return (Boolean) primitiveValueReader.read(vector, rowId);
+      return (Boolean) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public int getInt(int rowId) {
-      return (Integer) primitiveValueReader.read(vector, rowId);
+      return (Integer) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public long getLong(int rowId) {
-      return (Long) primitiveValueReader.read(vector, rowId);
+      return (Long) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public float getFloat(int rowId) {
-      return (Float) primitiveValueReader.read(vector, rowId);
+      return (Float) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public double getDouble(int rowId) {
-      return (Double) primitiveValueReader.read(vector, rowId);
+      return (Double) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
@@ -330,17 +353,17 @@ public class VectorizedSparkOrcReaders {
       // TODO: Is it okay to assume that (precision,scale) parameters == (precision,scale) of the
       // decimal type
       // and return a Decimal with (precision,scale) of the decimal type?
-      return (Decimal) primitiveValueReader.read(vector, rowId);
+      return (Decimal) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public UTF8String getUTF8String(int rowId) {
-      return (UTF8String) primitiveValueReader.read(vector, rowId);
+      return (UTF8String) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
 
     @Override
     public byte[] getBinary(int rowId) {
-      return (byte[]) primitiveValueReader.read(vector, rowId);
+      return (byte[]) primitiveValueReader.read(vector, getRowIndex(rowId));
     }
   }
 
@@ -357,12 +380,14 @@ public class VectorizedSparkOrcReaders {
     public ColumnVector convert(
         org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
         int batchSize,
-        long batchOffsetInFile) {
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
       ListColumnVector listVector = (ListColumnVector) vector;
       ColumnVector elementVector =
-          elementConverter.convert(listVector.child, batchSize, batchOffsetInFile);
+          elementConverter.convert(listVector.child, batchSize, batchOffsetInFile, false, null);
 
-      return new BaseOrcColumnVector(listType, batchSize, vector) {
+      return new BaseOrcColumnVector(listType, batchSize, vector, isSelectedInUse, selected) {
         @Override
         public ColumnarArray getArray(int rowId) {
           int index = getRowIndex(rowId);
@@ -388,13 +413,16 @@ public class VectorizedSparkOrcReaders {
     public ColumnVector convert(
         org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
         int batchSize,
-        long batchOffsetInFile) {
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
       MapColumnVector mapVector = (MapColumnVector) vector;
-      ColumnVector keyVector = keyConverter.convert(mapVector.keys, batchSize, batchOffsetInFile);
+      ColumnVector keyVector =
+          keyConverter.convert(mapVector.keys, batchSize, batchOffsetInFile, false, null);
       ColumnVector valueVector =
-          valueConverter.convert(mapVector.values, batchSize, batchOffsetInFile);
+          valueConverter.convert(mapVector.values, batchSize, batchOffsetInFile, false, null);
 
-      return new BaseOrcColumnVector(mapType, batchSize, vector) {
+      return new BaseOrcColumnVector(mapType, batchSize, vector, isSelectedInUse, selected) {
         @Override
         public ColumnarMap getMap(int rowId) {
           int index = getRowIndex(rowId);
@@ -426,7 +454,9 @@ public class VectorizedSparkOrcReaders {
     public ColumnVector convert(
         org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
         int batchSize,
-        long batchOffsetInFile) {
+        long batchOffsetInFile,
+        boolean isSelectedInUse,
+        int[] selected) {
       StructColumnVector structVector = (StructColumnVector) vector;
       List<Types.NestedField> fields = structType.fields();
       List<ColumnVector> fieldVectors = Lists.newArrayListWithExpectedSize(fields.size());
@@ -443,12 +473,17 @@ public class VectorizedSparkOrcReaders {
           fieldVectors.add(
               fieldConverters
                   .get(vectorIndex)
-                  .convert(structVector.fields[vectorIndex], batchSize, batchOffsetInFile));
+                  .convert(
+                      structVector.fields[vectorIndex],
+                      batchSize,
+                      batchOffsetInFile,
+                      isSelectedInUse,
+                      selected));
           vectorIndex++;
         }
       }
 
-      return new BaseOrcColumnVector(structType, batchSize, vector) {
+      return new BaseOrcColumnVector(structType, batchSize, vector, isSelectedInUse, selected) {
         @Override
         public ColumnVector getChild(int ordinal) {
           return fieldVectors.get(ordinal);
