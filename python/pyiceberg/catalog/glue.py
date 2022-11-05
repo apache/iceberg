@@ -372,6 +372,8 @@ class GlueCatalog(Catalog):
             new_table_input[PROP_GLUE_TABLE_OWNER] = table_owner
         if table_storage_descriptor := glue_table.get(PROP_GLUE_TABLE_STORAGE_DESCRIPTOR):
             new_table_input[PROP_GLUE_TABLE_STORAGE_DESCRIPTOR] = table_storage_descriptor
+        if table_description := glue_table.get(PROP_GLUE_TABLE_DESCRIPTION):
+            new_table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
 
         self._create_glue_table(identifier=to_identifier, table_input=new_table_input)
         try:
