@@ -23,11 +23,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.stream.Stream;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,10 +70,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = manifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one tasks", 1, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have two files", 2, numFiles);
+      Assertions.assertThat(tasks).hasSize(1);
+      Assertions.assertThat(allRows(tasks)).hasSize(2);
     }
   }
 
@@ -83,10 +81,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = dataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four files", 4, numFiles);
+      Assertions.assertThat(tasks).hasSize(2);
+      Assertions.assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
@@ -96,10 +92,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = manifestEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numEntries =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four entries", 4, numEntries);
+      Assertions.assertThat(tasks).hasSize(2);
+      Assertions.assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
@@ -109,10 +103,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = allDataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four files", 4, numFiles);
+      Assertions.assertThat(tasks).hasSize(2);
+      Assertions.assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
@@ -122,10 +114,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = allEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numEntries =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have four entries", 4, numEntries);
+      Assertions.assertThat(tasks).hasSize(2);
+      Assertions.assertThat(allRows(tasks)).hasSize(4);
     }
   }
 
@@ -135,10 +125,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scan = allManifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have two tasks", 2, Iterables.size(tasks));
-      int numFiles =
-          Streams.stream(tasks).mapToInt(task -> Iterables.size(((DataTask) task).rows())).sum();
-      Assert.assertEquals("should have three files", 3, numFiles);
+      Assertions.assertThat(tasks).hasSize(2);
+      Assertions.assertThat(allRows(tasks)).hasSize(3);
     }
   }
 
@@ -159,7 +147,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
     try (CloseableIterable<FileScanTask> tasksNoFilter =
         PartitionsTable.planFiles((StaticTableScan) scanNoFilter)) {
-      Assert.assertEquals(4, Iterators.size(tasksNoFilter.iterator()));
+      Assertions.assertThat(tasksNoFilter).hasSize(4);
       validateIncludesPartitionScan(tasksNoFilter, 0);
       validateIncludesPartitionScan(tasksNoFilter, 1);
       validateIncludesPartitionScan(tasksNoFilter, 2);
@@ -167,5 +155,9 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
       validateIncludesPartitionScan(tasksNoFilter, 1, 2);
       validateIncludesPartitionScan(tasksNoFilter, 1, 3);
     }
+  }
+
+  private Stream<StructLike> allRows(Iterable<FileScanTask> tasks) {
+    return Streams.stream(tasks).flatMap(task -> Streams.stream(task.asDataTask().rows()));
   }
 }
