@@ -421,12 +421,15 @@ Existing data files are added to the Iceberg table's metadata and can be read us
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
 
+By default, the original table is retained with the name `table_BACKUP_`.
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to migrate |
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
+| `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 
 #### Output
 
