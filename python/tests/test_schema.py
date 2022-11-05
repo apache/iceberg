@@ -22,9 +22,8 @@ import pytest
 
 from pyiceberg import schema
 from pyiceberg.expressions import Accessor
-from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, build_position_accessors, prune_columns
-from pyiceberg.typedef import EMPTY_DICT
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     BooleanType,
     FloatType,
