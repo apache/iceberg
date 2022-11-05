@@ -341,14 +341,14 @@ public class TableTestBase {
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {
-          return entry.wrapAppend(snapshotId, dataSequenceNumber, file);
+          return entry.wrapAppend(snapshotId, dataSequenceNumber, null, file);
         } else {
           return entry.wrapAppend(snapshotId, file);
         }
       case EXISTING:
-        return entry.wrapExisting(snapshotId, dataSequenceNumber, fileSequenceNumber, file);
+        return entry.wrapExisting(snapshotId, dataSequenceNumber, fileSequenceNumber, null, file);
       case DELETED:
-        return entry.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, file);
+        return entry.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, null, file);
       default:
         throw new IllegalArgumentException("Unexpected entry status: " + status);
     }
@@ -617,6 +617,18 @@ public class TableTestBase {
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newDeleteFile(int specId, String partitionPath, Long minSequenceNumber) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .withMinDataSequenceNumber(minSequenceNumber)
         .build();
   }
 

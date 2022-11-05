@@ -439,7 +439,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       if (ignoreEqualityDeletes) {
         ValidationException.check(
             Arrays.stream(deleteFiles)
-                .noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
+                .noneMatch(
+                    deleteFile ->
+                        (deleteFile.content() == FileContent.POSITION_DELETES
+                                && deleteFile.minDataSequenceNumber() == null)
+                            || (deleteFile.content() == FileContent.POSITION_DELETES
+                                && deleteFile.minDataSequenceNumber() != null
+                                && deleteFile.minDataSequenceNumber() <= startingSequenceNumber)),
             "Cannot commit, found new position delete for replaced data file: %s",
             dataFile);
       } else {

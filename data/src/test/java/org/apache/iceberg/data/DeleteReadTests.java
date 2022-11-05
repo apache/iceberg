@@ -22,13 +22,17 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -504,6 +508,51 @@ public abstract class DeleteReadTests {
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
     checkDeleteCount(1L);
+  }
+
+  @Test
+  public void testFilteringWithMinDataSequenceNumber() throws IOException {
+    // make data files with specific names so that pos deletes can match all data files
+    String prefix = UUID.randomUUID().toString();
+    DataFile dataFile1 =
+        FileHelpers.writeDataFile(
+            table, Files.localOutput(temp.newFile(prefix + "-1")), Row.of(0), records);
+    DataFile dataFile2 =
+        FileHelpers.writeDataFile(
+            table, Files.localOutput(temp.newFile(prefix + "-3")), Row.of(0), records);
+    // cleanup the table firstly.
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+    table.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+    DataFile dataFile3 =
+        FileHelpers.writeDataFile(
+            table, Files.localOutput(temp.newFile(prefix + "-2")), Row.of(0), records);
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile3.path(), 0L), // id = 29
+            Pair.of(dataFile3.path(), 3L) // id = 89
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(posDeletes.first())
+            .withMinDataSequenceNumber(DeleteFile.LAZY_MIN_DATA_SEQUENCE_NUMBER)
+            .build();
+
+    table
+        .newRowDelta()
+        .addRows(dataFile3)
+        .addDeletes(deleteFile)
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals(
+        "should have 1 file with pos deletes",
+        1,
+        tasks.stream().filter(scan -> scan.deletes().size() > 0).count());
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {

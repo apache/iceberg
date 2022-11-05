@@ -56,6 +56,7 @@ public class FileMetadata {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
+    private Long minDataSequenceNumber = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -206,6 +207,11 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withMinDataSequenceNumber(Long newMinDataSequenceNumber) {
+      this.minDataSequenceNumber = newMinDataSequenceNumber;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -247,7 +253,8 @@ public class FileMetadata {
               upperBounds),
           equalityFieldIds,
           sortOrderId,
-          keyMetadata);
+          keyMetadata,
+          minDataSequenceNumber);
     }
   }
 }

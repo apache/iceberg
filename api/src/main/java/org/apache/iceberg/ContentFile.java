@@ -142,4 +142,17 @@ public interface ContentFile<F> {
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();
   }
+
+  /** Returns the data sequence number of the snapshot in which the file should be applied. */
+  default Long dataSequenceNumber() {
+    return null;
+  }
+
+  /**
+   * Returns the minimum data sequence number of the data files that the delete file referred. It
+   * returns null if it is a data file.
+   */
+  default Long minDataSequenceNumber() {
+    return null;
+  }
 }

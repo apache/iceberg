@@ -75,6 +75,8 @@ abstract class BaseFile<F>
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private Long dataSequenceNumber = null;
+  private Long minDataSequenceNumber = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -208,6 +210,8 @@ abstract class BaseFile<F>
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
     this.sortOrderId = toCopy.sortOrderId;
+    this.dataSequenceNumber = toCopy.dataSequenceNumber;
+    this.minDataSequenceNumber = toCopy.minDataSequenceNumber;
   }
 
   /** Constructor for Java serialization. */
@@ -220,6 +224,24 @@ abstract class BaseFile<F>
 
   void setSpecId(int specId) {
     this.partitionSpecId = specId;
+  }
+
+  @Override
+  public Long dataSequenceNumber() {
+    return dataSequenceNumber;
+  }
+
+  void setDataSequenceNumber(Long seq) {
+    this.dataSequenceNumber = seq;
+  }
+
+  @Override
+  public Long minDataSequenceNumber() {
+    return minDataSequenceNumber;
+  }
+
+  void setMinDataSequenceNumber(Long seq) {
+    this.minDataSequenceNumber = seq;
   }
 
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
@@ -478,6 +500,10 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
+        .add(
+            "min_data_sequence_number",
+            minDataSequenceNumber == null ? "null" : minDataSequenceNumber)
         .toString();
   }
 }

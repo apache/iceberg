@@ -23,6 +23,12 @@ import java.util.List;
 /** Interface for delete files listed in a table delete manifest. */
 public interface DeleteFile extends ContentFile<DeleteFile> {
   /**
+   * A value that indicates that the data sequence number of referenced data files should be
+   * computed lazily.
+   */
+  Long LAZY_MIN_DATA_SEQUENCE_NUMBER = -2L;
+
+  /**
    * @return List of recommended split locations, if applicable, null otherwise. When available,
    *     this information is used for planning scan tasks whose boundaries are determined by these
    *     offsets. The returned list must be sorted in ascending order.

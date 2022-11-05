@@ -30,6 +30,7 @@ import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -1356,11 +1357,14 @@ public class TestRowDelta extends V2TableTestBase {
     DataFile dataFile1 = newDataFile("data=a");
 
     table.newAppend().appendFile(dataFile1).commit();
+    long sequenceNumber = table.currentSnapshot().sequenceNumber();
+    // get data file 1 from planning so that its sequence number is fetched.
+    DataFile toReplace = table.newScan().planFiles().iterator().next().file();
 
     Snapshot baseSnapshot = table.currentSnapshot();
 
-    // add an position delete file
-    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a");
+    // add a position delete file
+    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a", sequenceNumber);
 
     // mock a DELETE operation with serializable isolation
     RowDelta rowDelta =
@@ -1378,7 +1382,7 @@ public class TestRowDelta extends V2TableTestBase {
         table
             .newRewrite()
             .rewriteFiles(
-                ImmutableSet.of(dataFile1),
+                ImmutableSet.of(toReplace),
                 ImmutableSet.of(dataFile2),
                 baseSnapshot.sequenceNumber())
             .validateFromSnapshot(baseSnapshot.snapshotId());
@@ -1390,6 +1394,131 @@ public class TestRowDelta extends V2TableTestBase {
         ValidationException.class,
         "Cannot commit, found new position delete for replaced data file",
         rewriteFiles::commit);
+  }
+
+  @Test
+  public void testConcurrentCommitRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table
+        .updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+    table.newAppend().appendFile(dataFile1).commit();
+    Snapshot baseSnapshot = table.currentSnapshot();
+    // get data file 1 from planning so that its sequence number is fetched.
+    DataFile toReplace = table.newScan().planFiles().iterator().next().file();
+
+    DataFile dataFile2 = newDataFile("data=a");
+    DeleteFile deleteFile1 =
+        newDeleteFile(table.spec().specId(), "data=a", DeleteFile.LAZY_MIN_DATA_SEQUENCE_NUMBER);
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile1)
+            .addRows(dataFile2)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile3 = newDataFile("data=a");
+    RewriteFiles rewriteFiles =
+        table
+            .newRewrite()
+            .rewriteFiles(
+                ImmutableSet.of(toReplace),
+                ImmutableSet.of(dataFile3),
+                baseSnapshot.sequenceNumber())
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+    rewriteFiles.commit();
+
+    validateTableDeleteFiles(table, deleteFile1);
+    validateTableFiles(table, dataFile2, dataFile3);
+  }
+
+  @Test
+  public void testLazyMinSequenceNumber() {
+    // change the spec to be partitioned by data
+    table
+        .updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=b");
+
+    table.newAppend().appendFile(dataFile1).commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // test lazily min-seq-num
+    DataFile dataFile2 = newDataFile("data=a");
+    DeleteFile deleteFile1 =
+        newDeleteFile(table.spec().specId(), "data=a", DeleteFile.LAZY_MIN_DATA_SEQUENCE_NUMBER);
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addRows(dataFile2)
+            .addDeletes(deleteFile1)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+    rowDelta.commit();
+
+    long expectedSeq = table.currentSnapshot().sequenceNumber();
+    Set<DeleteFile> deletes = Sets.newHashSet();
+    table.newScan().planFiles().forEach(f -> deletes.addAll(f.deletes()));
+
+    Assert.assertTrue(deletes.size() > 0);
+    deletes.forEach(
+        deleteFile -> {
+          Assert.assertNotNull(deleteFile.minDataSequenceNumber());
+          Assert.assertEquals(deleteFile.minDataSequenceNumber().longValue(), expectedSeq);
+        });
+
+    // test specified min-seq-num
+    table.refresh();
+    baseSnapshot = table.currentSnapshot();
+    long expectedSequenceNumber = table.currentSnapshot().sequenceNumber();
+    DeleteFile deleteFile3 = newDeleteFile(table.spec().specId(), "data=a", expectedSequenceNumber);
+
+    rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile3)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+    rowDelta.commit();
+
+    deletes.clear();
+    table
+        .newScan()
+        .planFiles()
+        .forEach(
+            f ->
+                deletes.addAll(
+                    f.deletes().stream()
+                        .filter(d -> d.path().equals(deleteFile3.path()))
+                        .collect(Collectors.toList())));
+
+    Assert.assertTrue(deletes.size() > 0);
+    deletes.forEach(
+        deleteFile -> {
+          Assert.assertNotNull(deleteFile.minDataSequenceNumber());
+          Assert.assertEquals(
+              deleteFile.minDataSequenceNumber().longValue(), expectedSequenceNumber);
+        });
   }
 
   @Test

@@ -311,6 +311,11 @@ class V1Metadata {
     }
 
     @Override
+    public Long minDataSequenceNumber() {
+      return null;
+    }
+
+    @Override
     public void setFileSequenceNumber(long fileSequenceNumber) {
       wrapped.setFileSequenceNumber(fileSequenceNumber);
     }
