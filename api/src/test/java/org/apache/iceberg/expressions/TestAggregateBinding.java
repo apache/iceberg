@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
@@ -28,42 +28,26 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestAggregateBinding {
-  private static final List<Expression.Operation> AGGREGATES =
-      Arrays.asList(Expression.Operation.COUNT, Expression.Operation.MAX, Expression.Operation.MIN);
+  private static final List<UnboundAggregate<Integer>> list =
+      ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
   private static final StructType struct =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
   @Test
   public void testAggregateBinding() {
-    for (Expression.Operation op : AGGREGATES) {
-      UnboundAggregate unbound = null;
-      switch (op) {
-        case COUNT:
-          unbound = Expressions.count("x");
-          break;
-        case MAX:
-          unbound = Expressions.max("x");
-          break;
-        case MIN:
-          unbound = Expressions.min("x");
-          break;
-        default:
-          throw new UnsupportedOperationException("Invalid aggregate: " + op);
-      }
-
+    for (UnboundAggregate<Integer> unbound : list) {
       Expression expr = unbound.bind(struct, true);
-      BoundAggregate bound = assertAndUnwrapAggregate(expr);
-
+      BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
       Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-      Assert.assertEquals("Should not change the comparison operation", op, bound.op());
+      Assert.assertEquals("Should not change the comparison operation", unbound.op(), bound.op());
     }
   }
 
   @Test
   public void testCountStarBinding() {
-    UnboundAggregate unbound = Expressions.countStar();
+    UnboundAggregate<?> unbound = Expressions.countStar();
     Expression expr = unbound.bind(null, false);
-    BoundAggregate bound = assertAndUnwrapAggregate(expr);
+    BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
 
     Assert.assertEquals(
         "Should not change the comparison operation", Expression.Operation.COUNT_STAR, bound.op());
@@ -81,7 +65,7 @@ public class TestAggregateBinding {
   public void testCaseInsensitiveReference() {
     Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
-    BoundAggregate bound = assertAndUnwrapAggregate(boundExpr);
+    BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
     Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
     Assert.assertEquals(
         "Should not change the comparison operation", Expression.Operation.MAX, bound.op());
@@ -97,20 +81,14 @@ public class TestAggregateBinding {
 
   @Test
   public void testMissingField() {
-    UnboundAggregate unbound = Expressions.count("missing");
-    try {
-      unbound.bind(struct, false);
-      Assert.fail("Binding a missing field should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue(
-          "Validation should complain about missing field",
-          e.getMessage().contains("Cannot find field 'missing' in struct:"));
-    }
+    UnboundAggregate<?> unbound = Expressions.count("missing");
+    Assertions.assertThatThrownBy(() -> unbound.bind(struct, false))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
   private static <T, C> BoundAggregate<T, C> assertAndUnwrapAggregate(Expression expr) {
-    Assert.assertTrue(
-        "Expression should be a bound aggregate: " + expr, expr instanceof BoundAggregate);
+    Assertions.assertThat(expr).isInstanceOf(BoundAggregate.class);
     return (BoundAggregate<T, C>) expr;
   }
 }
