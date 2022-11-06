@@ -983,8 +983,8 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
 | **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
-| **`float`**        | `hashDouble(double(v))`         [4]       | `1.0F` ￫ `-142385009`                      |
-| **`double`**       | `hashLong(doubleToLongBits(v))`           | `1.0D` ￫ `-142385009`                      |
+| **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
+| **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
 Notes:
 
@@ -993,8 +993,7 @@ Notes:
 Hash results are not dependent on decimal scale, which is part of the type, not the data value.
 3. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
-4. Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
-
+4. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
 
 ## Appendix C: JSON serialization
 
