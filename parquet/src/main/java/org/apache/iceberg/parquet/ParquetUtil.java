@@ -76,14 +76,18 @@ public class ParquetUtil {
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, Maps.newHashMap());
+      return footerMetrics(
+          reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, Maps.newHashMap());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
   public static Metrics footerMetrics(
-      ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Map<Integer, String> idToColumn) {
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      Map<Integer, String> idToColumn) {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null, idToColumn);
   }
 

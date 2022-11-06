@@ -39,12 +39,14 @@ public class MetricsUtil {
       return Maps.newHashMap();
     }
 
-    return createNanValueCounts(fieldMetrics, metricsConfig, TypeUtil.indexNameById(inputSchema.asStruct()));
+    return createNanValueCounts(
+        fieldMetrics, metricsConfig, TypeUtil.indexNameById(inputSchema.asStruct()));
   }
 
-
   public static Map<Integer, Long> createNanValueCounts(
-      Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Map<Integer, String> idToColumn) {
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      Map<Integer, String> idToColumn) {
     Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
 
     if (fieldMetrics == null || idToColumn == null || idToColumn.isEmpty()) {
@@ -52,7 +54,9 @@ public class MetricsUtil {
     }
 
     return fieldMetrics
-        .filter(metrics -> metricsMode(idToColumn, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(
+            metrics ->
+                metricsMode(idToColumn, metricsConfig, metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
@@ -66,7 +70,8 @@ public class MetricsUtil {
     return metricsConfig.columnMode(columnName);
   }
 
-  public static MetricsModes.MetricsMode metricsMode(Map<Integer, String> idToColumn, MetricsConfig metricsConfig, int fieldId) {
+  public static MetricsModes.MetricsMode metricsMode(
+      Map<Integer, String> idToColumn, MetricsConfig metricsConfig, int fieldId) {
     Preconditions.checkNotNull(idToColumn, "inputSchema is required");
     Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
 

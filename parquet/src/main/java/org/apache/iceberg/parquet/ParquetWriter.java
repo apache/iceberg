@@ -147,7 +147,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig, idToColumn);
+      return ParquetUtil.footerMetrics(
+          writer.getFooter(), model.metrics(), metricsConfig, idToColumn);
     }
     return EMPTY_METRICS;
   }
