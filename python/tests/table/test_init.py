@@ -19,6 +19,12 @@ from typing import Any, Dict
 
 import pytest
 
+from pyiceberg.expressions import (
+    AlwaysTrue,
+    And,
+    EqualTo,
+    In,
+)
 from pyiceberg.schema import Schema
 from pyiceberg.table import PartitionSpec, Table
 from pyiceberg.table.metadata import TableMetadataV2
@@ -179,3 +185,80 @@ def test_history(table):
         SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
         SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
     ]
+
+
+def test_table_scan_select(table: Table):
+    scan = table.scan()
+    assert scan.selected_fields == ("*",)
+    assert scan.select("a", "b").selected_fields == ("a", "b")
+    assert scan.select("a", "c").select("a").selected_fields == ("a",)
+
+
+def test_table_scan_row_filter(table: Table):
+    scan = table.scan()
+    assert scan.row_filter == AlwaysTrue()
+    assert scan.filter_rows(EqualTo("x", 10)).row_filter == EqualTo("x", 10)  # type: ignore
+    assert scan.filter_rows(EqualTo("x", 10)).filter_rows(In("y", (10, 11))).row_filter == And(  # type: ignore
+        EqualTo("x", 10), In("y", (10, 11))  # type: ignore
+    )
+
+
+def test_table_scan_partition_filter(table: Table):
+    scan = table.scan()
+    assert scan.row_filter == AlwaysTrue()
+    assert scan.filter_partitions(EqualTo("x", 10)).partition_filter == EqualTo("x", 10)  # type: ignore
+    assert scan.filter_partitions(EqualTo("x", 10)).filter_partitions(In("y", (10, 11))).partition_filter == And(  # type: ignore
+        EqualTo("x", 10), In("y", (10, 11))  # type: ignore
+    )
+
+
+def test_table_scan_ref(table: Table):
+    scan = table.scan()
+    assert scan.use_ref("test").snapshot_id == 3051729675574597004
+
+
+def test_table_scan_ref_does_not_exists(table: Table):
+    scan = table.scan()
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = scan.use_ref("boom")
+
+    assert "Cannot scan unknown ref=boom" in str(exc_info.value)
+
+
+def test_table_scan_projection_full_schema(table: Table):
+    scan = table.scan()
+    assert scan.select("x", "y", "z").projection() == Schema(
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+        schema_id=1,
+        identifier_field_ids=[1, 2],
+    )
+
+
+def test_table_scan_projection_single_column(table: Table):
+    scan = table.scan()
+    assert scan.select("y").projection() == Schema(
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        schema_id=1,
+        identifier_field_ids=[2],
+    )
+
+
+def test_table_scan_projection_single_column_case_sensitive(table: Table):
+    scan = table.scan()
+    assert scan.with_case_sensitive(False).select("Y").projection() == Schema(
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        schema_id=1,
+        identifier_field_ids=[2],
+    )
+
+
+def test_table_scan_projection_unknown_column(table: Table):
+    scan = table.scan()
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = scan.select("a").projection()
+
+    assert "Could not find column: 'a'" in str(exc_info.value)
