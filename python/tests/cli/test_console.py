@@ -47,7 +47,11 @@ class MockCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        return Table(identifier=identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2))
+        return Table(
+            identifier=Catalog.identifier_to_tuple(identifier),
+            metadata_location="s3://tmp/",
+            metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+        )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)

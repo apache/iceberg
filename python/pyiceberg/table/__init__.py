@@ -14,29 +14,42 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import (
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+)
 
-
-from typing import Dict, List, Optional
-
-from pydantic import Field
-
+from pyiceberg.expressions import AlwaysTrue, And, BooleanExpression
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
-from pyiceberg.typedef import Identifier
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 
 
-class Table(IcebergBaseModel):
-    identifier: Identifier = Field()
-    metadata_location: str = Field()
-    metadata: TableMetadata = Field()
+class Table:
+    identifier: Identifier
+    metadata: TableMetadata
+    metadata_location: Optional[str]
+
+    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: Optional[str]):
+        self.identifier = identifier
+        self.metadata = metadata
+        self.metadata_location = metadata_location
 
     def refresh(self):
         """Refresh the current table metadata"""
         raise NotImplementedError("To be implemented")
+
+    def name(self) -> Identifier:
+        """Return the identifer of this table"""
+        return self.identifier
+
+    def scan(self, **kwargs):
+        return TableScan(**{**kwargs, "table": self})
 
     def schema(self) -> Schema:
         """Return the schema for this table"""
@@ -90,3 +103,90 @@ class Table(IcebergBaseModel):
     def history(self) -> List[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
+
+
+class TableScan:
+    _always_true: ClassVar[BooleanExpression] = AlwaysTrue()
+    table: Table
+    row_filter: BooleanExpression
+    partition_filter: BooleanExpression
+    selected_fields: tuple[str]
+    case_sensitive: bool
+    snapshot_id: Optional[int]
+    options: Properties
+
+    def __init__(
+        self,
+        *,
+        table: Table,
+        row_filter: BooleanExpression = _always_true,
+        partition_filter: BooleanExpression = _always_true,
+        selected_fields: tuple[str] = ("*",),
+        case_sensitive: bool = True,
+        snapshot_id: Optional[int] = None,
+        options: Properties = EMPTY_DICT,
+    ):
+        self.table = table
+        self.row_filter = row_filter
+        self.partition_filter = partition_filter
+        self.selected_fields = selected_fields
+        self.case_sensitive = case_sensitive
+        self.snapshot_id = snapshot_id
+        self.options = options
+
+    def update(self, **overrides):
+        """Creates a copy of this table scan with updated fields."""
+        return TableScan(**{**self.__dict__, **overrides})
+
+    def snapshot(self):
+        if self.snapshot_id:
+            return self.table.snapshot_by_id(self.snapshot_id)
+
+        return self.table.current_snapshot()
+
+    def projection(self):
+        snapshot_schema = self.table.schemas().get(self.snapshot().schema_id) or self.table.schema()
+
+        if "*" in self.selected_fields:
+            return snapshot_schema
+
+        return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
+
+    def use_snapshot(self, snapshot_id: int):
+        if self.snapshot_id:
+            raise ValueError(f"Cannot override snapshot, already set snapshot id={self.snapshot_id}")
+        if self.table.snapshot_by_id(snapshot_id):
+            return self.update(snapshot_id=snapshot_id)
+
+        raise ValueError(f"Cannot scan unknown snapshot id={snapshot_id}")
+
+    def use_ref(self, name: str):
+        if self.snapshot_id:
+            raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
+        if snapshot := self.table.snapshot_by_name(name):
+            return self.update(snapshot_id=snapshot.snapshot_id)
+
+        raise ValueError(f"Cannot scan unknown ref={name}")
+
+    def select(self, *field_names: str) -> "TableScan":
+        if "*" in self.selected_fields:
+            return self.update(selected_fields=field_names)
+        return self.update(selected_fields=tuple(set(self.selected_fields).intersection(field_names)))
+
+    def filter_rows(self, new_row_filter: BooleanExpression) -> "TableScan":
+        return self.update(row_filter=And(self.row_filter, new_row_filter))
+
+    def filter_partitions(self, new_partition_filter: BooleanExpression) -> "TableScan":
+        return self.update(partition_filter=And(self.partition_filter, new_partition_filter))
+
+    def with_case_sensitive(self, case_sensitive: bool = True) -> "TableScan":
+        return self.update(case_sensitive=case_sensitive)
+
+    def set(self, **options: str):
+        return self.update(options={**self.options, **options})
+
+    def plan_files(self):
+        raise NotImplementedError("Not yet implemented")
+
+    def to_arrow(self):
+        raise NotImplementedError("Not yet implemented")

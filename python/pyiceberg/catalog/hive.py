@@ -403,7 +403,7 @@ class HiveCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exist: {from_table_name}") from e
         except InvalidOperationException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {to_database_name}") from e
-        return Table()
+        return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.

@@ -186,7 +186,12 @@ class JsonOutput(Output):
         self._out([".".join(identifier) for identifier in identifiers])
 
     def describe_table(self, table: Table) -> None:
-        print(table.json())
+        print(
+            f"""{
+        "identifier": "{".".join(table.identifier)}",
+        "metadata": {table.metadata.json()},
+        "metadata_location\": "{table.metadata_location}"}"""
+        )
 
     def describe_properties(self, properties: Properties) -> None:
         self._out(properties)
