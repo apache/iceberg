@@ -97,7 +97,7 @@ class Table(IcebergBaseModel):
         """Create a new scan for this table."""
         from pyiceberg.table.scan import DataTableScan
 
-        if not (use_snapshot := snapshot_id or self.metadata.current_snapshot_id):
+        if not snapshot_id and not self.metadata.current_snapshot_id:
             raise ValueError("Unable to resolve a snapshot to use for this scan.")
 
         if not (snapshot := self.snapshot_by_id(use_snapshot)):
