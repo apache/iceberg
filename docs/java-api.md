@@ -252,10 +252,7 @@ Iceberg table support is organized in library modules:
 
 This project Iceberg also has modules for adding Iceberg support to processing engines and associated tooling:
 
-* `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
-* `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)
-* `iceberg-spark-3.1` is an implementation of Spark's Datasource V2 API in 3.1 for Iceberg (use iceberg-spark-runtime-3.1 for a shaded version)
-* `iceberg-spark-3.2` is an implementation of Spark's Datasource V2 API in 3.2 for Iceberg (use iceberg-spark-runtime-3.2 for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
 * `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
 * `iceberg-hive3` is an implementation of Hive 3 specific SerDe's for Timestamp, TimestampWithZone, and Date object inspectors (use iceberg-hive-runtime for a shaded version).
 * `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)

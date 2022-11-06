@@ -283,7 +283,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   @Test
   public void testNullableWithWriteOption() throws IOException {
     Assume.assumeTrue(
-        "Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+        "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
@@ -336,7 +336,7 @@ public class TestDataFrameWrites extends AvroDataTest {
   @Test
   public void testNullableWithSparkSqlOption() throws IOException {
     Assume.assumeTrue(
-        "Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+        "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());

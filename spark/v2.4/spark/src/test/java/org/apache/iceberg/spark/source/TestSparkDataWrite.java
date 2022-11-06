@@ -395,7 +395,7 @@ public class TestSparkDataWrite {
   @Test
   public void testWriteProjection() throws IOException {
     Assume.assumeTrue(
-        "Not supported in Spark 3.0; analysis requires all columns are present",
+        "Not supported in Spark 3; analysis requires all columns are present",
         spark.version().startsWith("2"));
 
     File parent = temp.newFolder(format.toString());
@@ -431,7 +431,7 @@ public class TestSparkDataWrite {
   @Test
   public void testWriteProjectionWithMiddle() throws IOException {
     Assume.assumeTrue(
-        "Not supported in Spark 3.0; analysis requires all columns are present",
+        "Not supported in Spark 3; analysis requires all columns are present",
         spark.version().startsWith("2"));
 
     File parent = temp.newFolder(format.toString());

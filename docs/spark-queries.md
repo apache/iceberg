@@ -31,8 +31,8 @@ To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3.0| Spark 2.4  | Notes                                          |
-|--------------------------------------------------|----------|------------|------------------------------------------------|
+| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                          |
+|--------------------------------------------------|-----------|------------|------------------------------------------------|
 | [`SELECT`](#querying-with-sql)                   | ✔️        |            |                                                |
 | [DataFrame reads](#querying-with-dataframes)     | ✔️        | ✔️          |                                                |
 | [Metadata table `SELECT`](#inspecting-tables)    | ✔️        |            |                                                |
@@ -75,7 +75,7 @@ val df = spark.table("prod.db.table")
 
 ### Catalogs with DataFrameReader
 
-Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3.x and 2.4.
+Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3 and 2.4.
 
 Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
 the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`

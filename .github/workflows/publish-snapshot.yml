@@ -40,5 +40,5 @@ jobs:
           java-version: 8
       - run: |
           ./gradlew printVersion
-          ./gradlew -DflinkVersions=1.14,1.15,1.16 -DsparkVersions=2.4,3.0,3.1,3.2,3.3 -DhiveVersions=2,3 publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
+          ./gradlew -DflinkVersions=1.14,1.15,1.16 -DsparkVersions=2.4,3.1,3.2,3.3 -DhiveVersions=2,3 publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
           ./gradlew -DflinkVersions= -DsparkVersions=3.2,3.3 -DscalaVersion=2.13 -DhiveVersions= publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
