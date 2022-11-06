@@ -100,7 +100,7 @@ class Table(IcebergBaseModel):
         if not snapshot_id and not self.metadata.current_snapshot_id:
             raise ValueError("Unable to resolve a snapshot to use for this scan.")
 
-        if not (snapshot := self.snapshot_by_id(use_snapshot)):
+        if not self.snapshot_by_id(use_snapshot):
             raise ValueError("Unable to resolve a snapshot to use for this scan.")
 
         return DataTableScan(io, self, snapshot, expression)
