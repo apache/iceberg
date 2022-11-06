@@ -51,7 +51,7 @@ class TableScan(ABC):
     snapshot: Snapshot
     expression: BooleanExpression
 
-    def __init__(self, table: Table, snapshot: Optional[Snapshot] = None, expression: Optional[BooleanExpression] = ALWAYS_TRUE):
+    def __init__(self, table: Table, snapshot: Optional[Snapshot] = None, expression: BooleanExpression = ALWAYS_TRUE):
         self.table = table
         self.expression = expression or ALWAYS_TRUE
         if resolved_snapshot := snapshot or table.current_snapshot():
