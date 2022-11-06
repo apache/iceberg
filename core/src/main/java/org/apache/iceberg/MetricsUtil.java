@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
 
 public class MetricsUtil {
 
@@ -34,16 +35,24 @@ public class MetricsUtil {
    */
   public static Map<Integer, Long> createNanValueCounts(
       Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Schema inputSchema) {
-    Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
-
     if (fieldMetrics == null || inputSchema == null) {
       return Maps.newHashMap();
     }
 
+    return createNanValueCounts(fieldMetrics, metricsConfig, TypeUtil.indexNameById(inputSchema.asStruct()));
+  }
+
+
+  public static Map<Integer, Long> createNanValueCounts(
+      Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Map<Integer, String> idToColumn) {
+    Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
+
+    if (fieldMetrics == null || idToColumn == null || idToColumn.isEmpty()) {
+      return Maps.newHashMap();
+    }
+
     return fieldMetrics
-        .filter(
-            metrics ->
-                metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(metrics -> metricsMode(idToColumn, metricsConfig, metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
@@ -55,5 +64,12 @@ public class MetricsUtil {
 
     String columnName = inputSchema.findColumnName(fieldId);
     return metricsConfig.columnMode(columnName);
+  }
+
+  public static MetricsModes.MetricsMode metricsMode(Map<Integer, String> idToColumn, MetricsConfig metricsConfig, int fieldId) {
+    Preconditions.checkNotNull(idToColumn, "inputSchema is required");
+    Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
+
+    return metricsConfig.columnMode(idToColumn.get(fieldId));
   }
 }

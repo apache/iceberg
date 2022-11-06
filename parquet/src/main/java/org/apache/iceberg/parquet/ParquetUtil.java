@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.UnicodeUtil;
@@ -75,15 +76,15 @@ public class ParquetUtil {
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, Maps.newHashMap());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
   public static Metrics footerMetrics(
-      ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig) {
-    return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
+      ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Map<Integer, String> idToColumn) {
+    return footerMetrics(metadata, fieldMetrics, metricsConfig, null, idToColumn);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -91,7 +92,8 @@ public class ParquetUtil {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
-      NameMapping nameMapping) {
+      NameMapping nameMapping,
+      Map<Integer, String> idToColumn) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
 
     long rowCount = 0;
@@ -105,6 +107,10 @@ public class ParquetUtil {
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
+
+    if (idToColumn == null || idToColumn.isEmpty()) {
+      idToColumn = TypeUtil.indexNameById(fileSchema.asStruct());
+    }
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
@@ -123,7 +129,7 @@ public class ParquetUtil {
 
         increment(columnSizes, fieldId, column.getTotalSize());
 
-        MetricsMode metricsMode = MetricsUtil.metricsMode(fileSchema, metricsConfig, fieldId);
+        MetricsMode metricsMode = MetricsUtil.metricsMode(idToColumn, metricsConfig, fieldId);
         if (metricsMode == MetricsModes.None.get()) {
           continue;
         }
@@ -161,7 +167,7 @@ public class ParquetUtil {
       upperBounds.remove(fieldId);
     }
 
-    updateFromFieldMetrics(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
+    updateFromFieldMetrics(fieldMetricsMap, metricsConfig, idToColumn, lowerBounds, upperBounds);
 
     return new Metrics(
         rowCount,
@@ -169,7 +175,7 @@ public class ParquetUtil {
         valueCounts,
         nullValueCounts,
         MetricsUtil.createNanValueCounts(
-            fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
+            fieldMetricsMap.values().stream(), metricsConfig, idToColumn),
         toBufferMap(fileSchema, lowerBounds),
         toBufferMap(fileSchema, upperBounds));
   }
@@ -177,7 +183,7 @@ public class ParquetUtil {
   private static void updateFromFieldMetrics(
       Map<Integer, FieldMetrics<?>> idToFieldMetricsMap,
       MetricsConfig metricsConfig,
-      Schema schema,
+      Map<Integer, String> idToColumn,
       Map<Integer, Literal<?>> lowerBounds,
       Map<Integer, Literal<?>> upperBounds) {
     idToFieldMetricsMap
@@ -186,7 +192,7 @@ public class ParquetUtil {
             entry -> {
               int fieldId = entry.getKey();
               FieldMetrics<?> metrics = entry.getValue();
-              MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+              MetricsMode metricsMode = MetricsUtil.metricsMode(idToColumn, metricsConfig, fieldId);
 
               // only check for MetricsModes.None, since we don't truncate float/double values.
               if (metricsMode != MetricsModes.None.get()) {

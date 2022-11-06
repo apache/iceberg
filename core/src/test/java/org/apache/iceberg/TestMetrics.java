@@ -760,6 +760,29 @@ public abstract class TestMetrics {
     assertBounds(5, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
   }
 
+  @Test
+  public void testMetricsForEscapedColumnNames() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete();
+
+    String colName = "2022";
+    Schema schema = new Schema(required(1, colName, Types.StringType.get()));
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(), 1);
+    table.updateProperties().set("write.metadata.metrics.column.2022", "full").commit();
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+
+    String value = "???? ???? ???? ????";
+    Record record = GenericRecord.create(schema);
+    record.setField(colName, value);
+
+    Metrics metrics = getMetrics(schema, metricsConfig, record);
+
+    CharBuffer expectedBound = CharBuffer.wrap(value);
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, Types.StringType.get(), expectedBound, expectedBound, metrics);
+  }
+
   protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
     assertCounts(fieldId, valueCount, nullValueCount, null, metrics);
   }

@@ -26,6 +26,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
@@ -60,7 +61,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
     // Note: Metrics reported by this method do not contain a full set of available metrics.
     // Specifically, it lacks metrics not included in Parquet file's footer (e.g. NaN count)
-    return ParquetUtil.footerMetrics(footer, Stream.empty(), metricsConfig);
+    return ParquetUtil.footerMetrics(footer, Stream.empty(), metricsConfig, Maps.newHashMap());
   }
 
   @Override
