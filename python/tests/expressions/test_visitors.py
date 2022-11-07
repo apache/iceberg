@@ -34,16 +34,13 @@ from pyiceberg.expressions import (
     BoundIsNull,
     BoundLessThan,
     BoundLessThanOrEqual,
-    BoundLiteralPredicate,
     BoundNotEqualTo,
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
     BoundPredicate,
     BoundReference,
-    BoundSetPredicate,
     BoundTerm,
-    BoundUnaryPredicate,
     EqualTo,
     GreaterThan,
     GreaterThanOrEqual,
@@ -52,7 +49,6 @@ from pyiceberg.expressions import (
     IsNull,
     LessThan,
     LessThanOrEqual,
-    LiteralPredicate,
     Not,
     NotEqualTo,
     NotIn,
@@ -60,9 +56,6 @@ from pyiceberg.expressions import (
     NotNull,
     Or,
     Reference,
-    SetPredicate,
-    UnaryPredicate,
-    UnboundPredicate,
 )
 from pyiceberg.expressions.literals import (
     Literal,
@@ -289,13 +282,14 @@ def test_boolean_expression_visit_raise_not_implemented_error():
 
 
 def test_bind_visitor_already_bound(table_schema_simple: Schema):
-    bound = BoundEqualTo(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
+    bound = BoundEqualTo[Literal[str]](
+        term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+        literal=literal("hello"),
     )
     with pytest.raises(TypeError) as exc_info:
         BindVisitor(visit(bound, visitor=BindVisitor(schema=table_schema_simple)))  # type: ignore
     assert (
-        "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=StringLiteral(hello))"
+        "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=StringLiteral('hello'))"
         == str(exc_info.value)
     )
 
@@ -1391,73 +1385,6 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile):
     assert _ManifestEvalVisitor(schema, NotIn(Reference[str]("no_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
         manifest
     ), "Should read: in on no nulls column"
-
-
-def test_bound_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~BoundPredicate(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            )
-        )
-
-
-def test_bound_unary_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~BoundUnaryPredicate(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            )
-        )
-
-
-def test_bound_set_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~BoundSetPredicate(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={literal("hello"), literal("world")},
-        )
-
-
-def test_bound_literal_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~BoundLiteralPredicate(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literal=literal("world"),
-        )
-
-
-def test_unbound_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~UnboundPredicate(term=Reference("a"))
-
-
-def test_unbound_predicate_bind(table_schema_simple: Schema):
-    with pytest.raises(NotImplementedError):
-        _ = UnboundPredicate(term=Reference("a")).bind(table_schema_simple)
-
-
-def test_unbound_unary_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~UnaryPredicate(term=Reference("a"))
-
-
-def test_unbound_set_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~SetPredicate(term=Reference("a"), literals=(literal("hello"), literal("world")))
-
-
-def test_unbound_literal_predicate_invert():
-    with pytest.raises(NotImplementedError):
-        _ = ~LiteralPredicate(term=Reference("a"), literal=literal("hello"))
 
 
 def test_rewrite_not_equal_to():

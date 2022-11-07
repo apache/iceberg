@@ -439,6 +439,9 @@ class StringLiteral(Literal[str]):
         else:
             return None
 
+    def __repr__(self) -> str:
+        return f"StringLiteral({repr(self.value)})"
+
 
 class UUIDLiteral(Literal[UUID]):
     def __init__(self, value: UUID):
