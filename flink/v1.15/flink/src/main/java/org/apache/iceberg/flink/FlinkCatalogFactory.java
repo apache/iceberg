@@ -145,10 +145,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
       baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));
     }
 
-    boolean cacheEnabled = CatalogProperties.CACHE_ENABLED_DEFAULT;
-    if (properties.containsKey(CatalogProperties.CACHE_ENABLED)) {
-      cacheEnabled = Boolean.parseBoolean(properties.get(CatalogProperties.CACHE_ENABLED));
-    }
+    boolean cacheEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
