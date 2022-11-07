@@ -126,7 +126,7 @@ class FixedType(PrimitiveType):
     """
 
     __root__: str = Field()
-    _length: int = PrivateAttr()
+    _len: int = PrivateAttr()
 
     @staticmethod
     def parse(str_repr: str) -> "FixedType":
@@ -134,14 +134,13 @@ class FixedType(PrimitiveType):
 
     def __init__(self, length: int):
         super().__init__(__root__=f"fixed[{length}]")
-        self._length = length
+        self._len = length
 
-    @property
-    def length(self) -> int:
-        return self._length
+    def __len__(self) -> int:
+        return self._len
 
     def __repr__(self) -> str:
-        return f"FixedType(length={self._length})"
+        return f"FixedType(length={self._len})"
 
 
 class DecimalType(PrimitiveType):

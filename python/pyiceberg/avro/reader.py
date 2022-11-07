@@ -216,13 +216,16 @@ class UUIDReader(Reader):
 
 @dataclass(frozen=True)
 class FixedReader(Reader):
-    length: int = dataclassfield()
+    _len: int = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> bytes:
-        return decoder.read(self.length)
+        return decoder.read(len(self))
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip(self.length)
+        decoder.skip(len(self))
+
+    def __len__(self):
+        return self._len
 
 
 class BinaryReader(Reader):
@@ -364,7 +367,7 @@ def primitive_reader(primitive: PrimitiveType) -> Reader:
 
 @primitive_reader.register
 def _(primitive: FixedType) -> Reader:
-    return FixedReader(primitive.length)
+    return FixedReader(len(primitive))
 
 
 @primitive_reader.register

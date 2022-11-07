@@ -100,7 +100,7 @@ def test_is_primitive(input_type, result):
 
 def test_fixed_type():
     type_var = FixedType(length=5)
-    assert type_var.length == 5
+    assert len(type_var) == 5
     assert str(type_var) == "fixed[5]"
     assert repr(type_var) == "FixedType(length=5)"
     assert str(type_var) == str(eval(repr(type_var)))
@@ -401,7 +401,7 @@ def test_deserialization_fixed():
 
     inner = fixed.__root__
     assert isinstance(inner, FixedType)
-    assert inner.length == 22
+    assert len(inner) == 22
 
 
 def test_str_fixed():

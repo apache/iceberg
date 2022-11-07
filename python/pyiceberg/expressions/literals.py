@@ -463,7 +463,7 @@ class FixedLiteral(Literal[bytes]):
 
     @to.register(FixedType)
     def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
-        if len(self.value) == type_var.length:
+        if len(self.value) == len(type_var):
             return self
         else:
             return None
@@ -487,7 +487,7 @@ class BinaryLiteral(Literal[bytes]):
 
     @to.register(FixedType)
     def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
-        if type_var.length == len(self.value):
+        if len(type_var) == len(self.value):
             return FixedLiteral(self.value)
         else:
             return None
