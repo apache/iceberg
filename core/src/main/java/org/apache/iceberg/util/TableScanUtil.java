@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.util;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -152,7 +151,7 @@ public class TableScanUtil {
     Preconditions.checkArgument(
         openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
 
-    List<T> splitTasks = new ArrayList<>();
+    List<T> splitTasks = Lists.newArrayList();
     for (T task : tasks) {
       if (task instanceof SplittableScanTask<?>) {
         ((SplittableScanTask<? extends T>) task).split(splitSize).forEach(splitTasks::add);
@@ -187,7 +186,7 @@ public class TableScanUtil {
         groupedTasks.asMap().values().stream()
             .map(
                 t -> {
-                  List<BaseScanTaskGroup<T>> taskGroups = new ArrayList<>();
+                  List<BaseScanTaskGroup<T>> taskGroups = Lists.newArrayList();
                   new BinPacking.PackingIterable<>(
                           CloseableIterable.withNoopClose(t), splitSize, lookback, weightFunc, true)
                       .forEach(ts -> taskGroups.add(new BaseScanTaskGroup<>(mergeTasks(ts))));
