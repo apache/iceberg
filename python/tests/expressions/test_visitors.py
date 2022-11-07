@@ -984,6 +984,24 @@ def test_manifest_evaluator_equal_overlap(string_schema: Schema):
     assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
+def test_manifest_evaluator_equal_overlap_with_upper_bound(string_schema: Schema):
+    expr = EqualTo[str](Reference("col_str"), StringLiteral("b"))
+    manifest = ManifestFile(
+        manifest_path="",
+        manifest_length=0,
+        partition_spec_id=0,
+        partitions=[
+            PartitionFieldSummary(
+                contains_null=False,
+                contains_nan=False,
+                lower_bound=_to_byte_buffer(StringType(), "a"),
+                upper_bound=_to_byte_buffer(StringType(), "b"),
+            )
+        ],
+    )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
+
+
 def test_manifest_evaluator_equal_all_null(string_schema: Schema):
     expr = EqualTo[str](Reference("col_str"), StringLiteral("a"))
     manifest = _to_manifest_file(
