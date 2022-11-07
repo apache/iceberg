@@ -116,11 +116,19 @@ This type of representation stores the original view definition in SQL and its S
 | Optional | schema-id | ID of the view's schema when the version was created |
 | Optional | default-catalog | A string specifying the catalog to use when the table or view references in the view definition do not contain an explicit catalog. |
 | Optional | default-namespace | The namespace to use when the table or view references in the view definition do not contain an explicit namespace. Since the namespace may contain multiple parts, it is serialized as a list of strings. |
+| Optional | query-column-names | The output column names of the query when the view was created. The field aliases are not applied. The list should have the same length as the schema's top level fields. See the example below. |
 | Optional | field-aliases | A list of strings of field aliases optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
 | Optional | field-docs | A list of strings of field comments optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
 
 For `CREATE VIEW v (alias_name COMMENT 'docs', alias_name2, ...) AS SELECT col1, col2, ...`,
-the field aliases are 'alias_name', 'alias_name2', and etc., and the field docs are 'docs', null, and etc.
+the field aliases are 'alias_name', 'alias_name2', etc., and the field docs are 'docs', null, etc.
+
+The view schema should have the field aliases applied.
+
+For SELECT star view queries, the schema for the underlying table or view may change after the view has been created.
+Thus, we need to store the column names of the view query, because when using the view, we need to pick the columns
+according to the name and order when the view was created and omit the extra columns we don't require.
+
 
 ## Appendix A: An Example
 
