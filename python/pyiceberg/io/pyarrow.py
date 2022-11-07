@@ -304,7 +304,7 @@ def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
 
 @_iceberg_to_pyarrow_type.register
 def _(primitive: FixedType) -> pa.DataType:
-    return pa.binary(primitive.length)
+    return pa.binary(len(primitive))
 
 
 @_iceberg_to_pyarrow_type.register
