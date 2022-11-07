@@ -41,7 +41,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def identifiers(self, identifiers: list[Identifier]) -> None:
+    def identifiers(self, identifiers: List[Identifier]) -> None:
         ...
 
     @abstractmethod
