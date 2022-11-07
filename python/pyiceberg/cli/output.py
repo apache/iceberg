@@ -73,7 +73,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def uuid(self, uuid: UUID | None) -> None:
+    def uuid(self, uuid: Optional[UUID]) -> None:
         ...
 
 
