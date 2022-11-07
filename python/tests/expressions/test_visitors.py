@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint:disable=redefined-outer-name
 
 from typing import Any, List, Set
 
@@ -44,13 +45,19 @@ from pyiceberg.expressions import (
     BoundTerm,
     BoundUnaryPredicate,
     EqualTo,
+    GreaterThan,
+    GreaterThanOrEqual,
     In,
+    IsNaN,
     IsNull,
+    LessThan,
     LessThanOrEqual,
     LiteralPredicate,
     Not,
     NotEqualTo,
     NotIn,
+    NotNaN,
+    NotNull,
     Or,
     Reference,
     SetPredicate,
@@ -836,15 +843,23 @@ def _create_manifest_evaluator(bound_expr: BoundPredicate) -> _ManifestEvalVisit
     return evaluator
 
 
-def test_manifest_evaluator_less_than_no_overlap():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
+@pytest.fixture
+def string_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="foo", field_type=StringType(), required=False))
 
+
+@pytest.fixture
+def double_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False))
+
+
+@pytest.fixture
+def long_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="foo", field_type=LongType(), required=False))
+
+
+def test_manifest_evaluator_less_than_no_overlap(string_schema: Schema):
+    expr = LessThan[str](Reference("foo"), StringLiteral("c"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -853,19 +868,11 @@ def test_manifest_evaluator_less_than_no_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_overlap():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_overlap(string_schema: Schema):
+    expr = LessThan[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -874,36 +881,19 @@ def test_manifest_evaluator_less_than_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_all_null():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_all_null(string_schema: Schema):
+    expr = LessThan[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_less_than_no_match():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_no_match(string_schema: Schema):
+    expr = LessThan[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -912,19 +902,11 @@ def test_manifest_evaluator_less_than_no_match():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_or_equal_no_overlap():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
-
+def test_manifest_evaluator_less_than_or_equal_no_overlap(string_schema: Schema):
+    expr = LessThanOrEqual[str](Reference("foo"), StringLiteral("c"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -933,19 +915,11 @@ def test_manifest_evaluator_less_than_or_equal_no_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_or_equal_overlap():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_or_equal_overlap(string_schema: Schema):
+    expr = LessThanOrEqual[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -954,36 +928,20 @@ def test_manifest_evaluator_less_than_or_equal_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_or_equal_all_null():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_or_equal_all_null(string_schema: Schema):
+    expr = LessThanOrEqual[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
-
     # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_less_than_or_equal_no_match():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_less_than_or_equal_no_match(string_schema: Schema):
+    expr = LessThanOrEqual[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -992,19 +950,11 @@ def test_manifest_evaluator_less_than_or_equal_no_match():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_equal_no_overlap():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
-
+def test_manifest_evaluator_equal_no_overlap(string_schema: Schema):
+    expr = EqualTo[str](Reference("foo"), StringLiteral("c"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1013,19 +963,11 @@ def test_manifest_evaluator_equal_no_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_equal_overlap():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_equal_overlap(string_schema: Schema):
+    expr = EqualTo[str](Reference("foo"), StringLiteral("a"))
     manifest = ManifestFile(
         manifest_path="",
         manifest_length=0,
@@ -1039,36 +981,19 @@ def test_manifest_evaluator_equal_overlap():
             )
         ],
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_equal_all_null():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_equal_all_null(string_schema: Schema):
+    expr = EqualTo[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_equal_no_match():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_equal_no_match(string_schema: Schema):
+    expr = EqualTo[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1077,19 +1002,11 @@ def test_manifest_evaluator_equal_no_match():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_no_overlap():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_greater_than_no_overlap(string_schema: Schema):
+    expr = GreaterThan[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1098,19 +1015,11 @@ def test_manifest_evaluator_greater_than_no_overlap():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_overlap():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
-
+def test_manifest_evaluator_greater_than_overlap(string_schema: Schema):
+    expr = GreaterThan[str](Reference("foo"), StringLiteral("c"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1119,36 +1028,19 @@ def test_manifest_evaluator_greater_than_overlap():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_all_null():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_greater_than_all_null(string_schema: Schema):
+    expr = GreaterThan[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_greater_than_no_match():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("d"),
-    )
-
+def test_manifest_evaluator_greater_than_no_match(string_schema: Schema):
+    expr = GreaterThan[str](Reference("foo"), StringLiteral("d"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1157,19 +1049,11 @@ def test_manifest_evaluator_greater_than_no_match():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_or_equal_no_overlap():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_greater_than_or_equal_no_overlap(string_schema: Schema):
+    expr = GreaterThanOrEqual[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1178,19 +1062,11 @@ def test_manifest_evaluator_greater_than_or_equal_no_overlap():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_or_equal_overlap():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("b"),
-    )
-
+def test_manifest_evaluator_greater_than_or_equal_overlap(string_schema: Schema):
+    expr = GreaterThanOrEqual[str](Reference("foo"), StringLiteral("b"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1199,36 +1075,19 @@ def test_manifest_evaluator_greater_than_or_equal_overlap():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_or_equal_all_null():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
+def test_manifest_evaluator_greater_than_or_equal_all_null(string_schema: Schema):
+    expr = GreaterThanOrEqual[str](Reference("foo"), StringLiteral("a"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_greater_than_or_equal_no_match():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("d"),
-    )
-
+def test_manifest_evaluator_greater_than_or_equal_no_match(string_schema: Schema):
+    expr = GreaterThanOrEqual[str](Reference("foo"), StringLiteral("d"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1237,33 +1096,22 @@ def test_manifest_evaluator_greater_than_or_equal_no_match():
             upper_bound=_to_byte_buffer(StringType(), "c"),
         )
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_is_nan():
-    expr = BoundIsNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
+def test_manifest_evaluator_is_nan(double_schema: Schema):
+    expr = IsNaN[float](
+        Reference("foo"),
     )
-
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
+    assert _ManifestEvalVisitor(double_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_is_nan_inverse():
-    expr = BoundIsNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
+def test_manifest_evaluator_is_nan_inverse(double_schema: Schema):
+    expr = IsNaN(Reference[float]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1272,18 +1120,11 @@ def test_manifest_evaluator_is_nan_inverse():
             upper_bound=_to_byte_buffer(DoubleType(), 19.25),
         )
     )
+    assert not _ManifestEvalVisitor(double_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_nan():
-    expr = BoundNotNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
+def test_manifest_evaluator_not_nan(double_schema: Schema):
+    expr = NotNaN(Reference[float]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=False,
@@ -1292,33 +1133,19 @@ def test_manifest_evaluator_not_nan():
             upper_bound=_to_byte_buffer(DoubleType(), 19.25),
         )
     )
+    assert _ManifestEvalVisitor(double_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_nan_inverse():
-    expr = BoundNotNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
+def test_manifest_evaluator_not_nan_inverse(double_schema: Schema):
+    expr = NotNaN(Reference[float]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
+    assert not _ManifestEvalVisitor(double_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_is_null():
-    expr = BoundIsNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
+def test_manifest_evaluator_is_null(string_schema: Schema):
+    expr = IsNull(Reference[str]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1327,91 +1154,47 @@ def test_manifest_evaluator_is_null():
             upper_bound=_to_byte_buffer(StringType(), "b"),
         )
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_is_null_inverse():
-    expr = BoundIsNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
+def test_manifest_evaluator_is_null_inverse(string_schema: Schema):
+    expr = IsNull(Reference[str]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
     )
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_null():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
+def test_manifest_evaluator_not_null(string_schema: Schema):
+    expr = NotNull(Reference[str]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
     )
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_null_nan():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
+def test_manifest_evaluator_not_null_nan(double_schema: Schema):
+    expr = NotNull(Reference[float]("foo"))
     manifest = _to_manifest_file(
         PartitionFieldSummary(contains_null=True, contains_nan=False, lower_bound=None, upper_bound=None)
     )
+    assert not _ManifestEvalVisitor(double_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_null_inverse():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
+def test_manifest_evaluator_not_null_inverse(string_schema: Schema):
+    expr = NotNull(Reference[str]("foo"))
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_equal_to():
-    expr = BoundNotEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=literal("this"),
-    )
-
+def test_manifest_evaluator_not_equal_to(string_schema: Schema):
+    expr = NotEqualTo(Reference[str]("foo"), StringLiteral("this"))
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_in():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
+def test_manifest_evaluator_in(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1420,19 +1203,11 @@ def test_manifest_evaluator_in():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
+    assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_not_in():
-    expr = BoundNotIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
+def test_manifest_evaluator_not_in(long_schema: Schema):
+    expr = NotIn(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1441,19 +1216,11 @@ def test_manifest_evaluator_not_in():
             upper_bound=False,
         )
     )
+    assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_in_null():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
+def test_manifest_evaluator_in_null(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1462,19 +1229,11 @@ def test_manifest_evaluator_in_null():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
+    assert not _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_in_inverse():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
+def test_manifest_evaluator_in_inverse(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1483,19 +1242,11 @@ def test_manifest_evaluator_in_inverse():
             upper_bound=_to_byte_buffer(LongType(), 1925),
         )
     )
+    assert not _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_in_overflow():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(IN_PREDICATE_LIMIT + 1)},
-    )
-
+def test_manifest_evaluator_in_overflow(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(IN_PREDICATE_LIMIT + 1)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1504,19 +1255,11 @@ def test_manifest_evaluator_in_overflow():
             upper_bound=_to_byte_buffer(LongType(), 1925),
         )
     )
+    assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_less_than_lower_bound():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(2)},
-    )
-
+def test_manifest_evaluator_less_than_lower_bound(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(2)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1525,19 +1268,11 @@ def test_manifest_evaluator_less_than_lower_bound():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
+    assert not _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_greater_than_upper_bound():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(20, 22)},
-    )
-
+def test_manifest_evaluator_greater_than_upper_bound(long_schema: Schema):
+    expr = In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(20, 22)}))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1546,37 +1281,27 @@ def test_manifest_evaluator_greater_than_upper_bound():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
+    assert not _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
 
-
-def test_manifest_evaluator_true():
+def test_manifest_evaluator_true(string_schema: Schema):
     expr = AlwaysTrue()
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
+    assert _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_false():
+def test_manifest_evaluator_false(string_schema: Schema):
     expr = AlwaysFalse()
 
     manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
 
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(string_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_not():
-    expr = Not(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        )
-    )
-
+def test_manifest_evaluator_not(long_schema: Schema):
+    expr = Not(GreaterThan(Reference[int]("foo"), LongLiteral(4)))
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1585,27 +1310,14 @@ def test_manifest_evaluator_not():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
-    assert not _create_manifest_evaluator(expr).eval(manifest)
+    assert not _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_and():
+def test_manifest_evaluator_and(long_schema: Schema):
     expr = And(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        ),
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        ),
+        In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)})),
+        In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)})),
     )
-
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1614,27 +1326,14 @@ def test_manifest_evaluator_and():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
-    assert _create_manifest_evaluator(expr).eval(manifest)
+    assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
 
-def test_manifest_evaluator_or():
+def test_manifest_evaluator_or(long_schema: Schema):
     expr = Or(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        ),
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        ),
+        In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)})),
+        In(Reference[int]("foo"), tuple({LongLiteral(i) for i in range(22)})),
     )
-
     manifest = _to_manifest_file(
         PartitionFieldSummary(
             contains_null=True,
@@ -1643,8 +1342,7 @@ def test_manifest_evaluator_or():
             upper_bound=_to_byte_buffer(LongType(), 10),
         )
     )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
+    assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
 
 def test_bound_predicate_invert():
