@@ -517,7 +517,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.lower_bound is None:
+        if field.lower_bound is None or field.upper_bound is None:
             # values are all null and literal cannot contain null
             return ROWS_CANNOT_MATCH
 
@@ -526,7 +526,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         if lower > literal.value:
             return ROWS_CANNOT_MATCH
 
-        upper = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
         if literal.value > upper:
             return ROWS_CANNOT_MATCH
