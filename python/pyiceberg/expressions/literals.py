@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch, singledispatchmethod
 from typing import (
@@ -50,6 +51,7 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.datetime import (
+    date_str_to_days,
     date_to_days,
     micros_to_days,
     time_to_micros,
@@ -162,6 +164,11 @@ def _(value: bytearray) -> Literal[bytes]:
 @literal.register(Decimal)
 def _(value: Decimal) -> Literal[Decimal]:
     return DecimalLiteral(value)
+
+
+@literal.register(date)
+def _(value: date) -> Literal[int]:
+    return DateLiteral(date_to_days(value))
 
 
 class AboveMax(Singleton):
@@ -395,7 +402,7 @@ class StringLiteral(Literal[str]):
     @to.register(DateType)
     def _(self, type_var: DateType) -> Optional[Literal[int]]:
         try:
-            return DateLiteral(date_to_days(self.value))
+            return DateLiteral(date_str_to_days(self.value))
         except (TypeError, ValueError):
             return None
 

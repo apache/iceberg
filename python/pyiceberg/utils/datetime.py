@@ -47,9 +47,14 @@ def micros_to_time(micros: int) -> time:
     return time(hour=hours, minute=minutes, second=seconds, microsecond=microseconds)
 
 
-def date_to_days(date_str: str) -> int:
+def date_str_to_days(date_str: str) -> int:
     """Converts an ISO-8601 formatted date to days from 1970-01-01"""
     return (date.fromisoformat(date_str) - EPOCH_DATE).days
+
+
+def date_to_days(date_val: date) -> int:
+    """Converts a Python date object to days from 1970-01-01"""
+    return (date_val - EPOCH_DATE).days
 
 
 def days_to_date(days: int) -> date:

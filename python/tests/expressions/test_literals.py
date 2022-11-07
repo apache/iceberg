@@ -339,6 +339,17 @@ def test_string_to_decimal_literal():
 # MISC
 
 
+def test_python_date_conversion():
+    one_day_str = "2022-03-28"
+    one_day_date = datetime.date(2022, 3, 28)
+
+    from_str_lit = literal(one_day_str).to(DateType())
+    from_date_lit = literal(one_day_date)
+
+    assert isinstance(from_date_lit, DateLiteral)
+    assert from_str_lit == from_date_lit
+
+
 @pytest.mark.parametrize(
     "lit, primitive_type",
     [
@@ -348,6 +359,7 @@ def test_string_to_decimal_literal():
         (literal(34.11), FloatType()),
         (literal(3.5028235e38), DoubleType()),
         (literal(Decimal(34.55).quantize(Decimal("0.01"))), DecimalType(9, 2)),
+        (literal(datetime.date(2017, 8, 18)), DateType()),
         (literal("2017-08-18"), DateType()),
         (literal("14:21:01.919"), TimeType()),
         (literal("2017-08-18T14:21:01.919"), TimestampType()),
