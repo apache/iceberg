@@ -76,8 +76,7 @@ public class ParquetUtil {
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(
-          reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, Maps.newHashMap());
+      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping, null);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
@@ -87,8 +86,8 @@ public class ParquetUtil {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
-      Map<Integer, String> idToColumn) {
-    return footerMetrics(metadata, fieldMetrics, metricsConfig, null, idToColumn);
+      Schema schema) {
+    return footerMetrics(metadata, fieldMetrics, metricsConfig, null, schema);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -97,7 +96,7 @@ public class ParquetUtil {
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
       NameMapping nameMapping,
-      Map<Integer, String> idToColumn) {
+      Schema schema) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
 
     long rowCount = 0;
@@ -112,9 +111,10 @@ public class ParquetUtil {
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
-    if (idToColumn == null || idToColumn.isEmpty()) {
-      idToColumn = TypeUtil.indexNameById(fileSchema.asStruct());
-    }
+    Map<Integer, String> idToColumn =
+        schema != null
+            ? TypeUtil.indexNameById(schema.asStruct())
+            : TypeUtil.indexNameById(fileSchema.asStruct());
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
