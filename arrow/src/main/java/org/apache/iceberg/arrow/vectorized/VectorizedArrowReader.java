@@ -210,6 +210,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    if (vec != null) {
+      vec.close();
+    }
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {

@@ -68,6 +68,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -78,6 +79,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -332,6 +334,21 @@ public class ArrowReaderTest {
     // Call hasNext() 2 extra times.
     readAndCheckHasNextIsIdempotent(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
+  }
+
+  @Test
+  public void testInterleavingPlainAndDictionaryPages() throws Exception {
+    writeTableWithInterleavingPlainAndDictionaryPages();
+    Table table = tables.load(tableLocation);
+    TableScan scan = table.newScan();
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(scan, NUM_ROWS_PER_MONTH, true)) {
+      for (ColumnarBatch batch : itr) {
+        rowIndex += batch.numRows();
+      }
+    }
+    assertEquals(rowIndex, rowsWritten.size());
   }
 
   /**
@@ -697,6 +714,33 @@ public class ArrowReaderTest {
     writeTable(false);
   }
 
+  private void writeTableWithInterleavingPlainAndDictionaryPages() throws Exception {
+    rowsWritten = Lists.newArrayList();
+    tables = new HadoopTables();
+    tableLocation = temp.newFolder("test").toString();
+
+    Schema schema = new Schema(Types.NestedField.required(1, "string", Types.StringType.get()));
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int k = 0; k < 100000; k++) {
+      GenericRecord record = GenericRecord.create(schema);
+      if ((k / 20000) % 2 == 0) {
+        record.setField("string", String.format("item-%08d", k));
+      } else {
+        record.set(0, String.format("item-%08d", 0));
+      }
+      records.add(record);
+    }
+
+    Table table = tables.create(schema, tableLocation);
+    OverwriteFiles overwrite = table.newOverwrite();
+    overwrite.addFile(
+        writeParquetFile(
+            table,
+            records,
+            ImmutableMap.of(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "10000")));
+    overwrite.commit();
+  }
+
   private void writeTable(boolean constantRecords) throws Exception {
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
@@ -893,13 +937,15 @@ public class ArrowReaderTest {
     return records;
   }
 
-  private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
+  private DataFile writeParquetFile(
+      Table table, List<GenericRecord> records, Map<String, String> properties) throws IOException {
     rowsWritten.addAll(records);
     File parquetFile = temp.newFile();
     assertTrue(parquetFile.delete());
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(table.schema())
+            .setAll(properties)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .build();
     try {
@@ -917,6 +963,10 @@ public class ArrowReaderTest {
         .withMetrics(appender.metrics())
         .withFormat(FileFormat.PARQUET)
         .build();
+  }
+
+  private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
+    return writeParquetFile(table, records, Maps.newHashMap());
   }
 
   private static long timestampToMicros(LocalDateTime value) {

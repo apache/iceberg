@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
@@ -37,6 +38,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -375,16 +377,25 @@ public class ArrowReader extends CloseableGroup {
      */
     private static ArrowBatchReader buildReader(
         Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
-      return (ArrowBatchReader)
-          TypeWithSchemaVisitor.visit(
-              expectedSchema.asStruct(),
-              fileSchema,
-              new VectorizedReaderBuilder(
-                  expectedSchema,
-                  fileSchema,
-                  setArrowValidityVector,
-                  ImmutableMap.of(),
-                  ArrowBatchReader::new));
+      BufferAllocator rootAllocator =
+          ArrowAllocation.rootAllocator().newChildAllocator("ArrowBatchReader", 0, Long.MAX_VALUE);
+      try {
+        // We'll transfer the ownership of rootAllocator to the ArrowBatchReader object.
+        return (ArrowBatchReader)
+            TypeWithSchemaVisitor.visit(
+                expectedSchema.asStruct(),
+                fileSchema,
+                new VectorizedReaderBuilder(
+                    expectedSchema,
+                    fileSchema,
+                    setArrowValidityVector,
+                    ImmutableMap.of(),
+                    rootAllocator,
+                    readers -> new ArrowBatchReader(readers, rootAllocator)));
+      } catch (Throwable t) {
+        rootAllocator.close();
+        throw t;
+      }
     }
   }
 }

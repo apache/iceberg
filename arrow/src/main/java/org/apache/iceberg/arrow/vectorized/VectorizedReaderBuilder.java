@@ -25,7 +25,6 @@ import java.util.stream.IntStream;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -41,7 +40,7 @@ import org.apache.parquet.schema.Type;
 public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
   private final MessageType parquetSchema;
   private final Schema icebergSchema;
-  private final BufferAllocator rootAllocator;
+  private final BufferAllocator bufferAllocator;
   private final Map<Integer, ?> idToConstant;
   private final boolean setArrowValidityVector;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
@@ -51,12 +50,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       MessageType parquetSchema,
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant,
+      BufferAllocator bufferAllocator,
       Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
-    this.rootAllocator =
-        ArrowAllocation.rootAllocator()
-            .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+    this.bufferAllocator = bufferAllocator;
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
@@ -134,6 +132,6 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       return null;
     }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(desc, icebergField, bufferAllocator, setArrowValidityVector);
   }
 }
