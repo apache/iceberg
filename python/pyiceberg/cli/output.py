@@ -53,7 +53,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def scan_plan_files(self, plan_files: Iterable[FileScanTask], snapshot_id: int | None = None) -> None:
+    def scan_plan_files(self, plan_files: Iterable[FileScanTask], snapshot_id: Optional[int] = None) -> None:
         ...
 
     @abstractmethod
