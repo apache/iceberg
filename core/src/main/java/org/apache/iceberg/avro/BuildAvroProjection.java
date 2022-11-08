@@ -95,7 +95,8 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         hasChange = true;
       }
 
-      Schema.Field avroField = updateMap.get(AvroSchemaUtil.makeCompatibleName(field.name()));
+      String fieldName = AvroSchemaUtil.makeCompatibleName(field.name());
+      Schema.Field avroField = updateMap.get(fieldName);
 
       if (avroField != null) {
         updatedFields.add(avroField);
@@ -109,11 +110,14 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField =
             new Schema.Field(
-                field.name() + "_r" + field.fieldId(),
+                fieldName + "_r" + field.fieldId(),
                 AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())),
                 null,
                 JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
+        if (!field.name().equals(fieldName)) {
+          newField.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, field.name());
+        }
         updatedFields.add(newField);
         hasChange = true;
       }
