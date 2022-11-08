@@ -1361,11 +1361,572 @@ def test_manifest_evaluator_or(long_schema: Schema):
     assert _ManifestEvalVisitor(long_schema, expr).eval(manifest)
 
 
+INT_MIN_VALUE = 30
+INT_MAX_VALUE = 79
+
+INT_MIN = _to_byte_buffer(IntegerType(), INT_MIN_VALUE)
+INT_MAX = _to_byte_buffer(IntegerType(), INT_MAX_VALUE)
+
+STRING_MIN = _to_byte_buffer(StringType(), "a")
+STRING_MAX = _to_byte_buffer(StringType(), "z")
+
+
+@pytest.fixture
+def schema() -> Schema:
+    return Schema(
+        NestedField(1, "id", IntegerType(), required=True),
+        NestedField(2, "all_nulls_missing_nan", StringType(), required=False),
+        NestedField(3, "some_nulls", StringType(), required=False),
+        NestedField(4, "no_nulls", StringType(), required=False),
+        NestedField(5, "float", FloatType(), required=False),
+        NestedField(6, "all_nulls_double", DoubleType(), required=False),
+        NestedField(7, "all_nulls_no_nans", FloatType(), required=False),
+        NestedField(8, "all_nans", DoubleType(), required=False),
+        NestedField(9, "both_nan_and_null", FloatType(), required=False),
+        NestedField(10, "no_nan_or_null", DoubleType(), required=False),
+        NestedField(11, "all_nulls_missing_nan_float", FloatType(), required=False),
+        NestedField(12, "all_same_value_or_null", StringType(), required=False),
+        NestedField(13, "no_nulls_same_value_a", StringType(), required=False),
+    )
+
+
+@pytest.fixture
+def manifest_no_stats() -> ManifestFile:
+    return _to_manifest_file()
+
+
+@pytest.fixture
+def manifest() -> ManifestFile:
+    return _to_manifest_file(
+        # id
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=None,
+            lower_bound=INT_MIN,
+            upper_bound=INT_MAX,
+        ),
+        # all_nulls_missing_nan
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # some_nulls
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MAX,
+        ),
+        # no_nulls
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MAX,
+        ),
+        # float
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=_to_byte_buffer(FloatType(), 0.0),
+            upper_bound=_to_byte_buffer(FloatType(), 20.0),
+        ),
+        # all_nulls_double
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        # all_nulls_no_nans
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=False,
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # all_nans
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=True,
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # both_nan_and_null
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=True,
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # no_nan_or_null
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(FloatType(), 0.0),
+            upper_bound=_to_byte_buffer(FloatType(), 20.0),
+        ),
+        # all_nulls_missing_nan_float
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        # all_same_value_or_null
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MIN,
+        ),
+        # no_nulls_same_value_a
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MIN,
+        ),
+    )
+
+
+def test_all_nulls(schema: Schema, manifest: ManifestFile) -> None:
+    assert not _ManifestEvalVisitor(schema, NotNull(Reference("all_nulls_missing_nan"))).eval(
+        manifest
+    ), "Should skip: all nulls column with non-floating type contains all null"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("all_nulls_missing_nan_float"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("some_nulls"))).eval(
+        manifest
+    ), "Should read: column with some nulls contains a non-null value"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("no_nulls"))).eval(
+        manifest
+    ), "Should read: non-null column contains a non-null value"
+
+
+def test_no_nulls(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("all_nulls_missing_nan"))).eval(
+        manifest
+    ), "Should read: at least one null value in all null column"
+
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("some_nulls"))).eval(
+        manifest
+    ), "Should read: column with some nulls contains a null value"
+
+    assert not _ManifestEvalVisitor(schema, IsNull(Reference("no_nulls"))).eval(
+        manifest
+    ), "Should skip: non-null column contains no null values"
+
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null column contains no null values"
+
+
+def test_is_nan(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("float"))).eval(
+        manifest
+    ), "Should read: no information on if there are nan value in float column"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_double"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_missing_nan_float"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert not _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_no_nans"))).eval(
+        manifest
+    ), "Should skip: no nan column doesn't contain nan value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nans"))).eval(
+        manifest
+    ), "Should read: all_nans column contains nan value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null column contains nan value"
+
+    assert not _ManifestEvalVisitor(schema, IsNaN(Reference("no_nan_or_null"))).eval(
+        manifest
+    ), "Should skip: no_nan_or_null column doesn't contain nan value"
+
+
+def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("float"))).eval(
+        manifest
+    ), "Should read: no information on if there are nan value in float column"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("all_nulls_double"))).eval(
+        manifest
+    ), "Should read: all null column contains non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("all_nulls_no_nans"))).eval(
+        manifest
+    ), "Should read: no_nans column contains non nan value"
+
+    assert not _ManifestEvalVisitor(schema, NotNaN(Reference("all_nans"))).eval(
+        manifest
+    ), "Should skip: all nans column doesn't contain non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null nans column contains non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("no_nan_or_null"))).eval(
+        manifest
+    ), "Should read: no_nan_or_null column contains non nan value"
+
+
+def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
+    expressions: List[BooleanExpression] = [
+        LessThan(Reference[int]("id"), LongLiteral(5)),
+        LessThanOrEqual(Reference[int]("id"), LongLiteral(30)),
+        EqualTo(Reference[int]("id"), LongLiteral(70)),
+        GreaterThan(Reference[int]("id"), LongLiteral(78)),
+        GreaterThanOrEqual(Reference[int]("id"), LongLiteral(90)),
+        NotEqualTo(Reference[int]("id"), LongLiteral(101)),
+        IsNull(Reference[int]("id")),
+        NotNull(Reference[int]("id")),
+        IsNaN(Reference[float]("float")),
+        NotNaN(Reference[float]("float")),
+    ]
+
+    for expr in expressions:
+        assert _ManifestEvalVisitor(schema, expr).eval(manifest_no_stats), f"Should read when missing stats for expr: {expr}"
+
+
+def test_not(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should read: not(false)"
+
+    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should skip: not(true)"
+
+
+def test_and(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema,
+        And(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 30)),
+        ),
+    ).eval(manifest), "Should skip: and(false, true)"
+
+    assert not _ManifestEvalVisitor(
+        schema,
+        And(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)),
+        ),
+    ).eval(manifest), "Should skip: and(false, false)"
+
+    assert _ManifestEvalVisitor(
+        schema,
+        And(
+            GreaterThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE)),
+        ),
+    ).eval(manifest), "Should read: and(true, true)"
+
+
+def test_or(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema,
+        Or(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)),
+        ),
+    ).eval(manifest), "Should skip: or(false, false)"
+
+    assert _ManifestEvalVisitor(
+        schema,
+        Or(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 19)),
+        ),
+    ).eval(manifest), "Should read: or(false, true)"
+
+
+def test_integer_lt(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (5 < 30)"
+
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (30 is not < 30)"
+
+    assert _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE + 1))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (5 < 30)"
+
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (29 < 30)"
+
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: many possible ids"
+
+
+def test_integer_gt(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (85 < 79)"
+
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (79 is not > 79)"
+
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 1))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_gt_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (85 < 79)"
+
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (80 > 79)"
+
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id below lower bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should not read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should not read: id above upper bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id above upper bound"
+
+
+def test_integer_not_eq(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+
+def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1)))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE)))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4)))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE)))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6)))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+
+def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE - 25))), case_sensitive=False
+    ).eval(manifest), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE - 1))), case_sensitive=False
+    ).eval(manifest), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE))), case_sensitive=False
+    ).eval(manifest), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE - 4))), case_sensitive=False
+    ).eval(manifest), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE))), case_sensitive=False
+    ).eval(manifest), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE + 1))), case_sensitive=False
+    ).eval(manifest), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE + 6))), case_sensitive=False
+    ).eval(manifest), "Should read: id above upper bound"
+
+
+def test_integer_in(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 25), LongLiteral(INT_MIN_VALUE - 24)))
+    ).eval(manifest), "Should not read: id below lower bound (5 < 30, 6 < 30)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 2), LongLiteral(INT_MIN_VALUE - 1)))
+    ).eval(manifest), "Should not read: id below lower bound (28 < 30, 29 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 1), LongLiteral(INT_MIN_VALUE)))
+    ).eval(manifest), "Should read: id equal to lower bound (30 == 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE - 4), LongLiteral(INT_MAX_VALUE - 3)))
+    ).eval(manifest), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE), LongLiteral(INT_MAX_VALUE + 1)))
+    ).eval(manifest), "Should read: id equal to upper bound (79 == 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 1), LongLiteral(INT_MAX_VALUE + 2)))
+    ).eval(manifest), "Should not read: id above upper bound (80 > 79, 81 > 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 6), LongLiteral(INT_MAX_VALUE + 7)))
+    ).eval(manifest), "Should not read: id above upper bound (85 > 79, 86 > 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[str]("all_nulls_missing_nan"), (StringLiteral("abc"), StringLiteral("def")))
+    ).eval(manifest), "Should skip: in on all nulls column"
+
+    assert _ManifestEvalVisitor(schema, In(Reference[str]("some_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on some nulls column"
+
+    assert _ManifestEvalVisitor(schema, In(Reference[str]("no_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on no nulls column"
+
+
+def test_integer_not_in(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 25), LongLiteral(INT_MIN_VALUE - 24)))
+    ).eval(manifest), "Should read: id below lower bound (5 < 30, 6 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 2), LongLiteral(INT_MIN_VALUE - 1)))
+    ).eval(manifest), "Should read: id below lower bound (28 < 30, 29 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 1), LongLiteral(INT_MIN_VALUE)))
+    ).eval(manifest), "Should read: id equal to lower bound (30 == 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE - 4), LongLiteral(INT_MAX_VALUE - 3)))
+    ).eval(manifest), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE), LongLiteral(INT_MAX_VALUE + 1)))
+    ).eval(manifest), "Should read: id equal to upper bound (79 == 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 1), LongLiteral(INT_MAX_VALUE + 2)))
+    ).eval(manifest), "Should read: id above upper bound (80 > 79, 81 > 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 6), LongLiteral(INT_MAX_VALUE + 7)))
+    ).eval(manifest), "Should read: id above upper bound (85 > 79, 86 > 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[str]("all_nulls_missing_nan"), (StringLiteral("abc"), StringLiteral("def")))
+    ).eval(manifest), "Should read: notIn on no nulls column"
+
+    assert _ManifestEvalVisitor(schema, NotIn(Reference[str]("some_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on some nulls column"
+
+    assert _ManifestEvalVisitor(schema, NotIn(Reference[str]("no_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on no nulls column"
+
+
 def test_bound_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~BoundPredicate(
             term=BoundReference(
-                field=NestedField(field_id=1, name="col_long", field_type=StringType(), required=False),
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             )
         )
@@ -1375,7 +1936,7 @@ def test_bound_unary_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~BoundUnaryPredicate(
             term=BoundReference(
-                field=NestedField(field_id=1, name="col_long", field_type=StringType(), required=False),
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             )
         )
@@ -1385,7 +1946,7 @@ def test_bound_set_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~BoundSetPredicate(
             term=BoundReference(
-                field=NestedField(field_id=1, name="col_long", field_type=StringType(), required=False),
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             ),
             literals={literal("hello"), literal("world")},
@@ -1396,7 +1957,7 @@ def test_bound_literal_predicate_invert():
     with pytest.raises(NotImplementedError):
         _ = ~BoundLiteralPredicate(
             term=BoundReference(
-                field=NestedField(field_id=1, name="col_long", field_type=StringType(), required=False),
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             ),
             literal=literal("world"),
