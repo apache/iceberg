@@ -903,3 +903,15 @@ def test_non_primitive_from_byte_buffer():
         _ = _from_byte_buffer(ListType(element_id=1, element_type=StringType()), b"\0x00")
 
     assert str(exc_info.value) == "Expected a PrimitiveType, got: <class 'pyiceberg.types.ListType'>"
+
+
+def test_string_argument_unbound_unary():
+    assert IsNull("a") == IsNull(Reference("a"))
+
+
+def test_string_argument_unbound_literal():
+    assert EqualTo("a", StringLiteral("b")) == EqualTo(Reference("a"), StringLiteral("b"))
+
+
+def test_string_argument_unbound_set():
+    assert In("a", StringLiteral("b"), StringLiteral("c")) == In(Reference("a"), StringLiteral("b"), StringLiteral("c"))

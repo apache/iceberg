@@ -49,6 +49,10 @@ def _to_literal(lit: Optional[Union[T, Literal[T]]]) -> Optional[Literal[T]]:
         return None
 
 
+def _to_unbound_term(term: Union[str, UnboundTerm[T]]) -> UnboundTerm[T]:
+    return Reference(term) if isinstance(term, str) else term
+
+
 def _combine_into_set(values: Tuple[Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]], ...]) -> Set[Literal[T]]:
     result_set: Set[Literal[T]] = set()
     for val in values:
@@ -308,8 +312,8 @@ class UnboundPredicate(Generic[T], Unbound[BooleanExpression], BooleanExpression
 
 
 class UnaryPredicate(UnboundPredicate[T], ABC):
-    def __init__(self, term: UnboundTerm[T]):
-        self.term = term
+    def __init__(self, term: Union[str, UnboundTerm[T]]):
+        self.term = _to_unbound_term(term)
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -485,7 +489,7 @@ class In(SetPredicate[T]):
 
     def __new__(
         cls,
-        term: UnboundTerm[T],
+        term: Union[str, UnboundTerm[T]],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
         **kwargs,  # pylint: disable=W0221
     ):
@@ -497,7 +501,7 @@ class In(SetPredicate[T]):
             return EqualTo(term, next(iter(literals_set)))
         else:
             obj = super().__new__(cls)
-            obj.term = term
+            obj.term = _to_unbound_term(term)
             obj.literals = literals_set
             return obj
 
@@ -510,7 +514,7 @@ class NotIn(SetPredicate[T], ABC):
 
     def __new__(
         cls,
-        term: UnboundTerm[T],
+        term: Union[str, UnboundTerm[T]],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
         **kwargs,  # pylint: disable=W0221
     ):
@@ -522,7 +526,7 @@ class NotIn(SetPredicate[T], ABC):
             return NotEqualTo(term, next(iter(literals_set)))
         else:
             obj = super().__new__(cls)
-            obj.term = term
+            obj.term = _to_unbound_term(term)
             obj.literals = literals_set
             return obj
 
@@ -538,8 +542,8 @@ class NotIn(SetPredicate[T], ABC):
 class LiteralPredicate(UnboundPredicate[T], ABC):
     literal: Literal[T]
 
-    def __init__(self, term: UnboundTerm, literal: Union[T, Literal[T]]):  # pylint: disable=W0621
-        self.term = term
+    def __init__(self, term: Union[str, UnboundTerm], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
+        self.term = _to_unbound_term(term)
         self.literal = _to_literal(literal)  # type: ignore
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
