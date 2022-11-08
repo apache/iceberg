@@ -229,6 +229,13 @@ public class CatalogHandlers {
     }
   }
 
+  public static void purgeTable(Catalog catalog, TableIdentifier ident) {
+    boolean dropped = catalog.dropTable(ident, true);
+    if (!dropped) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+  }
+
   public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
     Table table = catalog.loadTable(ident);
 

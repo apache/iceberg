@@ -223,8 +223,20 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public boolean purgeTable(SessionContext context, TableIdentifier ident) {
-    throw new UnsupportedOperationException("Purge is not supported");
+  public boolean purgeTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
+    try {
+      client.delete(
+          paths.table(identifier),
+          ImmutableMap.of("purgeRequested", "true"),
+          null,
+          headers(context),
+          ErrorHandlers.tableErrorHandler());
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
   }
 
   @Override

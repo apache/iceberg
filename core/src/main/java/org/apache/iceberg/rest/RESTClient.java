@@ -37,14 +37,24 @@ public interface RESTClient extends Closeable {
 
   default <T extends RESTResponse> T delete(
       String path,
+      Map<String, String> queryParams,
       Class<T> responseType,
       Supplier<Map<String, String>> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return delete(path, responseType, headers.get(), errorHandler);
+    return delete(path, queryParams, responseType, headers.get(), errorHandler);
+  }
+
+  default <T extends RESTResponse> T delete(
+      String path,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return delete(path, ImmutableMap.of(), responseType, headers.get(), errorHandler);
   }
 
   <T extends RESTResponse> T delete(
       String path,
+      Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
