@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.util;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
@@ -39,10 +39,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.types.Types;
 
 public class TableScanUtil {
@@ -130,11 +128,7 @@ public class TableScanUtil {
     Function<T, Long> weightFunc =
         task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
 
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
-            splitTasks),
-        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+    return toTaskGroupIterable(splitTasks, splitSize, lookback, weightFunc);
   }
 
   @SuppressWarnings("unchecked")
@@ -163,38 +157,38 @@ public class TableScanUtil {
     Function<T, Long> weightFunc =
         task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
 
-    StructLikeWrapper wrapper = StructLikeWrapper.forType(projectedPartitionType);
     Map<Integer, StructProjection> projectionsBySpec = Maps.newHashMap();
 
     // Group tasks by their partition values
-    ListMultimap<StructLikeWrapper, T> groupedTasks =
-        Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+    StructLikeMap<List<T>> groupedTasks = StructLikeMap.create(projectedPartitionType);
 
     for (T task : splitTasks) {
       PartitionSpec spec = task.spec();
       projectionsBySpec.computeIfAbsent(
           spec.specId(),
           specId -> StructProjection.create(spec.partitionType(), projectedPartitionType));
-      StructProjection projectedStruct = projectionsBySpec.get(spec.specId());
-      StructLikeWrapper wrapperCopy =
-          wrapper.copyFor(projectedStruct.copy().wrap(task.partition()));
-      groupedTasks.put(wrapperCopy, task);
+      StructProjection projectedStruct = projectionsBySpec.get(spec.specId()).copy();
+      groupedTasks
+          .computeIfAbsent(projectedStruct.copy().wrap(task.partition()), k -> Lists.newArrayList())
+          .add(task);
     }
 
     // Now apply task combining within each partition
-    List<List<BaseScanTaskGroup<T>>> nestedTaskGroups =
-        groupedTasks.asMap().values().stream()
-            .map(
-                t -> {
-                  List<BaseScanTaskGroup<T>> taskGroups = Lists.newArrayList();
-                  new BinPacking.PackingIterable<>(
-                          CloseableIterable.withNoopClose(t), splitSize, lookback, weightFunc, true)
-                      .forEach(ts -> taskGroups.add(new BaseScanTaskGroup<>(mergeTasks(ts))));
-                  return taskGroups;
-                })
-            .collect(Collectors.toList());
+    return groupedTasks.values().stream()
+        .flatMap(
+            ts ->
+                StreamSupport.stream(
+                    toTaskGroupIterable(ts, splitSize, lookback, weightFunc).spliterator(), false))
+        .collect(Collectors.toList());
+  }
 
-    return nestedTaskGroups.stream().flatMap(Collection::stream).collect(Collectors.toList());
+  private static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> toTaskGroupIterable(
+      Iterable<T> tasks, long splitSize, int lookback, Function<T, Long> weightFunc) {
+    return CloseableIterable.transform(
+        CloseableIterable.combine(
+            new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
+            CloseableIterable.withNoopClose(tasks)),
+        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
   }
 
   @SuppressWarnings("unchecked")

@@ -21,8 +21,7 @@ package org.apache.iceberg;
 import java.util.List;
 
 /** A scan task over a range of bytes in a single data file. */
-public interface FileScanTask
-    extends PartitionScanTask, ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
+public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
   /**
    * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
    *

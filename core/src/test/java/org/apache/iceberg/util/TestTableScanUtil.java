@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -229,6 +230,18 @@ public class TestTableScanUtil {
       count += 1;
     }
     Assert.assertEquals(4, count);
+
+    // The following should throw exception since `SPEC2` is not an intersection of partition specs
+    // across all tasks.
+    List<PartitionScanTask> tasks2 =
+        ImmutableList.of(
+            taskWithPartition(SPEC1, PARTITION1, 128), taskWithPartition(SPEC2, PARTITION2, 128));
+
+    AssertHelpers.assertThrows(
+        "Should throw exception",
+        IllegalArgumentException.class,
+        "Cannot find field",
+        () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()));
   }
 
   private PartitionScanTask taskWithPartition(
