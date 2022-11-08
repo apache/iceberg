@@ -27,22 +27,22 @@ import org.junit.Test;
 public class TestSourceUtil {
   @Test
   public void testInferedParallelism() throws IOException {
+    Configuration configuration = new Configuration();
     // Empty table, infer parallelism should be at least 1
-    int parallelism = SourceUtil.inferParallelism(new Configuration(), -1L, () -> 0);
+    int parallelism = SourceUtil.inferParallelism(configuration, -1L, () -> 0);
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
 
     // 2 splits (max infer is the default value 100 , max > splits num), the parallelism is splits
     // num : 2
-    parallelism = SourceUtil.inferParallelism(new Configuration(), -1L, () -> 2);
+    parallelism = SourceUtil.inferParallelism(configuration, -1L, () -> 2);
     Assert.assertEquals("Should produce the expected parallelism.", 2, parallelism);
 
     // 2 splits and limit is 1 , max infer parallelism is default 100，
     // which is greater than splits num and limit, the parallelism is the limit value : 1
-    parallelism = SourceUtil.inferParallelism(new Configuration(), 1, () -> 2);
+    parallelism = SourceUtil.inferParallelism(configuration, 1, () -> 2);
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
 
     // 2 splits and max infer parallelism is 1 (max < splits num), the parallelism is  1
-    Configuration configuration = new Configuration();
     configuration.setInteger(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
     parallelism = SourceUtil.inferParallelism(configuration, -1L, () -> 2);
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
