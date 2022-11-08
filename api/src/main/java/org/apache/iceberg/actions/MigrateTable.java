@@ -46,7 +46,9 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
    *
    * @return this for method chaining
    */
-  MigrateTable dropBackup();
+  default MigrateTable dropBackup() {
+    throw new UnsupportedOperationException("Dropping a backup is not supported");
+  }
 
   /** The action result that contains a summary of the execution. */
   interface Result {

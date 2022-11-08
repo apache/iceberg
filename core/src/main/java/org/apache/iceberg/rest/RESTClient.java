@@ -54,10 +54,22 @@ public interface RESTClient extends Closeable {
 
   <T extends RESTResponse> T delete(
       String path,
-      Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
+
+  default <T extends RESTResponse> T delete(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    if (null != queryParams && !queryParams.isEmpty()) {
+      throw new UnsupportedOperationException("Query params are not supported");
+    }
+
+    return delete(path, responseType, headers, errorHandler);
+  }
 
   default <T extends RESTResponse> T get(
       String path,
