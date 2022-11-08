@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
@@ -59,6 +60,23 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   private static final List<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
+  protected static final List<String> DELETE_SCAN_COLUMNS =
+      ImmutableList.of(
+          "snapshot_id",
+          "content",
+          "file_path",
+          "file_ordinal",
+          "file_format",
+          "block_size_in_bytes",
+          "file_size_in_bytes",
+          "record_count",
+          "partition",
+          "key_metadata",
+          "split_offsets");
+
+  protected static final List<String> DELETE_SCAN_WITH_STATS_COLUMNS =
+      ImmutableList.<String>builder().addAll(DELETE_SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
+
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
@@ -84,7 +102,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return null;
   }
 
-  protected Table table() {
+  public Table table() {
     return table;
   }
 
@@ -94,6 +112,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected TableScanContext context() {
     return context;
+  }
+
+  protected Map<String, String> options() {
+    return context().options();
   }
 
   protected List<String> scanColumns() {

@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -26,6 +27,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -95,5 +98,10 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
 
                   return partition.get(position, Object.class).equals(partValue);
                 }));
+  }
+
+  protected Map<Integer, ?> constantsMap(
+      PositionDeletesScanTask task, Types.StructType partitionType) {
+    return PartitionUtil.constantsMap(task, partitionType, (type, constant) -> constant);
   }
 }
