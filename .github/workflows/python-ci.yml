@@ -43,9 +43,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install poetry
+      run: pip install poetry
     - uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
+        cache: poetry
+        cache-dependency-path: |
+          ./python/poetry.lock
     - name: Install
       working-directory: ./python
       run: make install
