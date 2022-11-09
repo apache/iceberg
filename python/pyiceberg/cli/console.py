@@ -142,7 +142,7 @@ def files(ctx: Context, identifier: str, history: bool):
     catalog, output = _catalog_and_output(ctx)
 
     catalog_table = catalog.load_table(identifier)
-    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
+    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties, **catalog_table.config})
     output.files(catalog_table, io, history)
 
 

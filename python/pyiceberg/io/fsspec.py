@@ -71,6 +71,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),
         "aws_secret_access_key": properties.get("s3.secret-access-key"),
+        "aws_session_token": properties.get("s3.session-token"),
     }
     config_kwargs = {}
     register_events: Dict[str, Callable] = {}
