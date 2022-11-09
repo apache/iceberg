@@ -27,6 +27,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch, singledispatchmethod
 from typing import (
+    Any,
     Generic,
     Optional,
     TypeVar,
@@ -108,7 +109,7 @@ class Literal(Generic[T], ABC):
 
 
 @singledispatch
-def literal(value) -> Literal:
+def literal(value: Any) -> Literal[Any]:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
     using dynamic overloading

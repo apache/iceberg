@@ -97,7 +97,7 @@ class BoundTerm(Term[T], Bound, ABC):
     """Represents a bound term"""
 
     @abstractmethod
-    def ref(self) -> BoundReference[T]:
+    def ref(self) -> BoundReference:
         """Returns the bound reference"""
 
     @abstractmethod
@@ -105,7 +105,7 @@ class BoundTerm(Term[T], Bound, ABC):
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol"""
 
 
-class BoundReference(BoundTerm[T]):
+class BoundReference(BoundTerm[Any]):
     """A reference bound to a field in a schema
 
     Args:
@@ -120,7 +120,7 @@ class BoundReference(BoundTerm[T]):
         self.field = field
         self.accessor = accessor
 
-    def eval(self, struct: StructProtocol) -> T:
+    def eval(self, struct: StructProtocol) -> Any:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
 
         Args:
@@ -136,7 +136,7 @@ class BoundReference(BoundTerm[T]):
     def __repr__(self) -> str:
         return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
 
-    def ref(self) -> BoundReference[T]:
+    def ref(self) -> BoundReference:
         return self
 
 
@@ -144,7 +144,7 @@ class UnboundTerm(Term[T], Unbound[BoundTerm[T]], ABC):
     """Represents an unbound term."""
 
 
-class Reference(UnboundTerm[T]):
+class Reference(UnboundTerm[Any]):
     """A reference not yet bound to a field in a schema
 
     Args:
@@ -165,7 +165,7 @@ class Reference(UnboundTerm[T]):
     def __eq__(self, other):
         return self.name == other.name if isinstance(other, Reference) else False
 
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[T]:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference:
         """Bind the reference to an Iceberg schema
 
         Args:

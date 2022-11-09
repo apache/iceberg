@@ -287,7 +287,7 @@ def test_bind_visitor_already_bound(table_schema_simple: Schema):
         literal=literal("hello"),
     )
     with pytest.raises(TypeError) as exc_info:
-        BindVisitor(visit(bound, visitor=BindVisitor(schema=table_schema_simple)))  # type: ignore
+        visit(bound, visitor=BindVisitor(schema=table_schema_simple))
     assert (
         "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=StringLiteral('hello'))"
         == str(exc_info.value)
@@ -337,14 +337,15 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                 In(Reference("bar"), (literal(1), literal(2), literal(3))),
             ),
             And(
-                BoundIn[str](
+                BoundIn(
                     BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {StringLiteral("foo"), StringLiteral("bar")},
+                    literal("foo"),
+                    literal("bar"),
                 ),
-                BoundIn[int](
+                BoundIn(
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
@@ -374,7 +375,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         ),
                         {StringLiteral("bar"), StringLiteral("baz")},
                     ),
-                    BoundEqualTo[int](
+                    BoundEqualTo(
                         BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),
@@ -415,7 +416,7 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                     ),
                     {StringLiteral("foo"), StringLiteral("bar")},
                 ),
-                BoundIn[int](
+                BoundIn(
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
@@ -438,14 +439,14 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
             ),
             Or(
                 Or(
-                    BoundIn[str](
+                    BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
                         {StringLiteral("bar"), StringLiteral("baz")},
                     ),
-                    BoundIn[str](
+                    BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
@@ -453,7 +454,7 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                         {StringLiteral("bar")},
                     ),
                 ),
-                BoundIn[str](
+                BoundIn(
                     BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
@@ -496,8 +497,8 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
     [
         (
             In(Reference("foo"), (literal("foo"), literal("bar"))),
-            BoundIn[str](
-                BoundReference[str](
+            BoundIn(
+                BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
@@ -506,8 +507,8 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
         ),
         (
             In(Reference("foo"), (literal("bar"), literal("baz"))),
-            BoundIn[str](
-                BoundReference[str](
+            BoundIn(
+                BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
@@ -520,7 +521,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                 (literal("bar"),),
             ),
             BoundEqualTo(
-                BoundReference[str](
+                BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
@@ -541,8 +542,8 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
         (
             Not(In(Reference("foo"), (literal("foo"), literal("bar")))),
             Not(
-                BoundIn[str](
-                    BoundReference[str](
+                BoundIn(
+                    BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
@@ -559,14 +560,14 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
             ),
             Not(
                 Or(
-                    BoundIn[str](
+                    BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
                         {StringLiteral("foo"), StringLiteral("bar")},
                     ),
-                    BoundIn[str](
+                    BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
@@ -587,14 +588,14 @@ def test_not_expression_binding(unbound_not_expression, expected_bound_expressio
 def test_bound_boolean_expression_visitor_and_in():
     """Test visiting an And and In expression with a bound boolean expression visitor"""
     bound_expression = And(
-        BoundIn[str](
+        BoundIn(
             term=BoundReference(
                 field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             ),
             literals=(StringLiteral("foo"), StringLiteral("bar")),
         ),
-        BoundIn[str](
+        BoundIn(
             term=BoundReference(
                 field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                 accessor=Accessor(position=1, inner=None),
@@ -611,8 +612,8 @@ def test_bound_boolean_expression_visitor_or():
     """Test visiting an Or expression with a bound boolean expression visitor"""
     bound_expression = Or(
         Not(
-            BoundIn[str](
-                BoundReference[str](
+            BoundIn(
+                BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
@@ -620,8 +621,8 @@ def test_bound_boolean_expression_visitor_or():
             )
         ),
         Not(
-            BoundIn[str](
-                BoundReference[str](
+            BoundIn(
+                BoundReference(
                     field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                     accessor=Accessor(position=1, inner=None),
                 ),
@@ -635,7 +636,7 @@ def test_bound_boolean_expression_visitor_or():
 
 
 def test_bound_boolean_expression_visitor_equal():
-    bound_expression = BoundEqualTo[str](
+    bound_expression = BoundEqualTo(
         term=BoundReference(
             field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
             accessor=Accessor(position=1, inner=None),
@@ -648,7 +649,7 @@ def test_bound_boolean_expression_visitor_equal():
 
 
 def test_bound_boolean_expression_visitor_not_equal():
-    bound_expression = BoundNotEqualTo[str](
+    bound_expression = BoundNotEqualTo(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -675,7 +676,7 @@ def test_bound_boolean_expression_visitor_always_false():
 
 
 def test_bound_boolean_expression_visitor_in():
-    bound_expression = BoundIn[str](
+    bound_expression = BoundIn(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -688,7 +689,7 @@ def test_bound_boolean_expression_visitor_in():
 
 
 def test_bound_boolean_expression_visitor_not_in():
-    bound_expression = BoundNotIn[str](
+    bound_expression = BoundNotIn(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -701,7 +702,7 @@ def test_bound_boolean_expression_visitor_not_in():
 
 
 def test_bound_boolean_expression_visitor_is_nan():
-    bound_expression = BoundIsNaN[str](
+    bound_expression = BoundIsNaN(
         term=BoundReference(
             field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -713,7 +714,7 @@ def test_bound_boolean_expression_visitor_is_nan():
 
 
 def test_bound_boolean_expression_visitor_not_nan():
-    bound_expression = BoundNotNaN[str](
+    bound_expression = BoundNotNaN(
         term=BoundReference(
             field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -725,7 +726,7 @@ def test_bound_boolean_expression_visitor_not_nan():
 
 
 def test_bound_boolean_expression_visitor_is_null():
-    bound_expression = BoundIsNull[str](
+    bound_expression = BoundIsNull(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -737,7 +738,7 @@ def test_bound_boolean_expression_visitor_is_null():
 
 
 def test_bound_boolean_expression_visitor_not_null():
-    bound_expression = BoundNotNull[str](
+    bound_expression = BoundNotNull(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -749,7 +750,7 @@ def test_bound_boolean_expression_visitor_not_null():
 
 
 def test_bound_boolean_expression_visitor_greater_than():
-    bound_expression = BoundGreaterThan[str](
+    bound_expression = BoundGreaterThan(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -762,7 +763,7 @@ def test_bound_boolean_expression_visitor_greater_than():
 
 
 def test_bound_boolean_expression_visitor_greater_than_or_equal():
-    bound_expression = BoundGreaterThanOrEqual[str](
+    bound_expression = BoundGreaterThanOrEqual(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -775,7 +776,7 @@ def test_bound_boolean_expression_visitor_greater_than_or_equal():
 
 
 def test_bound_boolean_expression_visitor_less_than():
-    bound_expression = BoundLessThan[str](
+    bound_expression = BoundLessThan(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -788,7 +789,7 @@ def test_bound_boolean_expression_visitor_less_than():
 
 
 def test_bound_boolean_expression_visitor_less_than_or_equal():
-    bound_expression = BoundLessThanOrEqual[str](
+    bound_expression = BoundLessThanOrEqual(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
@@ -801,7 +802,7 @@ def test_bound_boolean_expression_visitor_less_than_or_equal():
 
 
 def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
-    bound_expression = LessThanOrEqual[str](
+    bound_expression = LessThanOrEqual(
         term=Reference("foo"),
         literal=StringLiteral("foo"),
     )

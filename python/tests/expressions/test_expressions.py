@@ -178,25 +178,25 @@ def test_notnan_bind_nonfloat():
 
 
 def test_ref_binding_case_sensitive(table_schema_simple: Schema):
-    ref = Reference[str]("foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    ref = Reference("foo")
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=True) == bound
 
 
 def test_ref_binding_case_sensitive_failure(table_schema_simple: Schema):
-    ref = Reference[str]("Foo")
+    ref = Reference("Foo")
     with pytest.raises(ValueError):
         ref.bind(table_schema_simple, case_sensitive=True)
 
 
 def test_ref_binding_case_insensitive(table_schema_simple: Schema):
-    ref = Reference[str]("Foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    ref = Reference("Foo")
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=False) == bound
 
 
 def test_ref_binding_case_insensitive_failure(table_schema_simple: Schema):
-    ref = Reference[str]("Foot")
+    ref = Reference("Foot")
     with pytest.raises(ValueError):
         ref.bind(table_schema_simple, case_sensitive=False)
 
@@ -206,21 +206,21 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn[str](BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysTrue()
 
 
 def test_bind_not_in_equal_term(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {literal("hello")}
     )
     assert (
-        BoundNotEqualTo[str](
+        BoundNotEqualTo(
             term=BoundReference(
                 field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
@@ -288,7 +288,7 @@ def test_not_in_equal():
 
 
 def test_bind_in(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -296,7 +296,7 @@ def test_bind_in(table_schema_simple: Schema):
 
 
 def test_bind_in_invert(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -307,7 +307,7 @@ def test_bind_in_invert(table_schema_simple: Schema):
 
 
 def test_bind_not_in_invert(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -318,7 +318,7 @@ def test_bind_not_in_invert(table_schema_simple: Schema):
 
 
 def test_bind_dedup(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -326,18 +326,18 @@ def test_bind_dedup(table_schema_simple: Schema):
 
 
 def test_bind_dedup_to_eq(table_schema_simple: Schema):
-    bound = BoundEqualTo[str](
+    bound = BoundEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert In(Reference("foo"), (literal("hello"), literal("hello"))).bind(table_schema_simple) == bound
 
 
 def test_bound_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundEqualTo[str](
+    bound = BoundEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert ~bound == BoundNotEqualTo(
-        term=BoundReference[str](
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -346,11 +346,11 @@ def test_bound_equal_to_invert(table_schema_simple: Schema):
 
 
 def test_bound_not_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundNotEqualTo[str](
+    bound = BoundNotEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert ~bound == BoundEqualTo(
-        term=BoundReference[str](
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -359,11 +359,11 @@ def test_bound_not_equal_to_invert(table_schema_simple: Schema):
 
 
 def test_bound_greater_than_or_equal_invert(table_schema_simple: Schema):
-    bound = BoundGreaterThanOrEqual[str](
+    bound = BoundGreaterThanOrEqual(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert ~bound == BoundLessThan(
-        term=BoundReference[str](
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -372,11 +372,11 @@ def test_bound_greater_than_or_equal_invert(table_schema_simple: Schema):
 
 
 def test_bound_greater_than_invert(table_schema_simple: Schema):
-    bound = BoundGreaterThan[str](
+    bound = BoundGreaterThan(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert ~bound == BoundLessThanOrEqual(
-        term=BoundReference[str](
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -385,11 +385,11 @@ def test_bound_greater_than_invert(table_schema_simple: Schema):
 
 
 def test_bound_less_than_invert(table_schema_simple: Schema):
-    bound = BoundLessThan[str](
+    bound = BoundLessThan(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
-    assert ~bound == BoundGreaterThanOrEqual[str](
-        term=BoundReference[str](
+    assert ~bound == BoundGreaterThanOrEqual(
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -398,11 +398,11 @@ def test_bound_less_than_invert(table_schema_simple: Schema):
 
 
 def test_bound_less_than_or_equal_invert(table_schema_simple: Schema):
-    bound = BoundLessThanOrEqual[str](
+    bound = BoundLessThanOrEqual(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), literal("hello")
     )
     assert ~bound == BoundGreaterThan(
-        term=BoundReference[str](
+        term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
@@ -465,12 +465,12 @@ def test_less_than_or_equal_invert():
     "pred",
     [
         NotIn(Reference("foo"), (literal("hello"), literal("world"))),
-        NotEqualTo(Reference("foo"), literal("hello")),  # type: ignore
-        EqualTo(Reference("foo"), literal("hello")),  # type: ignore
-        GreaterThan(Reference("foo"), literal("hello")),  # type: ignore
-        LessThan(Reference("foo"), literal("hello")),  # type: ignore
-        GreaterThanOrEqual(Reference("foo"), literal("hello")),  # type: ignore
-        LessThanOrEqual(Reference("foo"), literal("hello")),  # type: ignore
+        NotEqualTo(Reference("foo"), literal("hello")),
+        EqualTo(Reference("foo"), literal("hello")),
+        GreaterThan(Reference("foo"), literal("hello")),
+        LessThan(Reference("foo"), literal("hello")),
+        GreaterThanOrEqual(Reference("foo"), literal("hello")),
+        LessThanOrEqual(Reference("foo"), literal("hello")),
     ],
 )
 def test_bind(pred, table_schema_simple: Schema):
@@ -484,12 +484,12 @@ def test_bind(pred, table_schema_simple: Schema):
     [
         In(Reference("Bar"), (literal(5), literal(2))),
         NotIn(Reference("Bar"), (literal(5), literal(2))),
-        NotEqualTo(Reference("Bar"), literal(5)),  # type: ignore
-        EqualTo(Reference("Bar"), literal(5)),  # type: ignore
-        GreaterThan(Reference("Bar"), literal(5)),  # type: ignore
-        LessThan(Reference("Bar"), literal(5)),  # type: ignore
-        GreaterThanOrEqual(Reference("Bar"), literal(5)),  # type: ignore
-        LessThanOrEqual(Reference("Bar"), literal(5)),  # type: ignore
+        NotEqualTo(Reference("Bar"), literal(5)),
+        EqualTo(Reference("Bar"), literal(5)),
+        GreaterThan(Reference("Bar"), literal(5)),
+        LessThan(Reference("Bar"), literal(5)),
+        GreaterThanOrEqual(Reference("Bar"), literal(5)),
+        LessThanOrEqual(Reference("Bar"), literal(5)),
     ],
 )
 def test_bind_case_insensitive(pred, table_schema_simple: Schema):
@@ -553,9 +553,9 @@ def test_eq(exp, testexpra, testexprb):
             NotIn(Reference("foo"), (literal("hello"), literal("world"))),
             In(Reference("foo"), (literal("hello"), literal("world"))),
         ),
-        (GreaterThan(Reference("foo"), literal(5)), LessThanOrEqual(Reference("foo"), literal(5))),  # type: ignore
-        (LessThan(Reference("foo"), literal(5)), GreaterThanOrEqual(Reference("foo"), literal(5))),  # type: ignore
-        (EqualTo(Reference("foo"), literal(5)), NotEqualTo(Reference("foo"), literal(5))),  # type: ignore
+        (GreaterThan(Reference("foo"), literal(5)), LessThanOrEqual(Reference("foo"), literal(5))),
+        (LessThan(Reference("foo"), literal(5)), GreaterThanOrEqual(Reference("foo"), literal(5))),
+        (EqualTo(Reference("foo"), literal(5)), NotEqualTo(Reference("foo"), literal(5))),
         (
             ExpressionA(),
             ExpressionB(),
@@ -658,7 +658,7 @@ def term(field: NestedField, accessor: Accessor) -> BoundReference:
 
 
 def test_bound_reference(field: NestedField, accessor: Accessor) -> None:
-    bound_ref = BoundReference[str](field=field, accessor=accessor)
+    bound_ref = BoundReference(field=field, accessor=accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert repr(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert bound_ref == eval(repr(bound_ref))
@@ -666,15 +666,15 @@ def test_bound_reference(field: NestedField, accessor: Accessor) -> None:
 
 def test_reference() -> None:
     abc = "abc"
-    ref = Reference[str](abc)
+    ref = Reference(abc)
     assert str(ref) == "Reference(name='abc')"
     assert repr(ref) == "Reference(name='abc')"
     assert ref == eval(repr(ref))
 
 
 def test_and() -> None:
-    null = IsNull(Reference[str]("a"))
-    nan = IsNaN(Reference[str]("b"))
+    null = IsNull(Reference("a"))
+    nan = IsNaN(Reference("b"))
     and_ = And(null, nan)
     assert str(and_) == f"And(left={str(null)}, right={str(nan)})"
     assert repr(and_) == f"And(left={repr(null)}, right={repr(nan)})"
@@ -682,8 +682,8 @@ def test_and() -> None:
 
 
 def test_or() -> None:
-    null = IsNull(Reference[str]("a"))
-    nan = IsNaN(Reference[str]("b"))
+    null = IsNull(Reference("a"))
+    nan = IsNaN(Reference("b"))
     or_ = Or(null, nan)
     assert str(or_) == f"Or(left={str(null)}, right={str(nan)})"
     assert repr(or_) == f"Or(left={repr(null)}, right={repr(nan)})"
@@ -691,7 +691,7 @@ def test_or() -> None:
 
 
 def test_not() -> None:
-    null = IsNull(Reference[str]("a"))
+    null = IsNull(Reference("a"))
     or_ = Not(null)
     assert str(or_) == f"Not(child={str(null)})"
     assert repr(or_) == f"Not(child={repr(null)})"
@@ -734,7 +734,7 @@ def test_bound_is_not_null(term: BoundReference) -> None:
 
 
 def test_is_null() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     is_null = IsNull(ref)
     assert str(is_null) == f"IsNull(term={str(ref)})"
     assert repr(is_null) == f"IsNull(term={repr(ref)})"
@@ -742,7 +742,7 @@ def test_is_null() -> None:
 
 
 def test_not_null() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     non_null = NotNull(ref)
     assert str(non_null) == f"NotNull(term={str(ref)})"
     assert repr(non_null) == f"NotNull(term={repr(ref)})"
@@ -751,7 +751,7 @@ def test_not_null() -> None:
 
 def test_bound_is_nan(accessor: Accessor) -> None:
     # We need a FloatType here
-    term = BoundReference[float](
+    term = BoundReference(
         field=NestedField(field_id=1, name="foo", field_type=FloatType(), required=False),
         accessor=accessor,
     )
@@ -763,7 +763,7 @@ def test_bound_is_nan(accessor: Accessor) -> None:
 
 def test_bound_is_not_nan(accessor: Accessor) -> None:
     # We need a FloatType here
-    term = BoundReference[float](
+    term = BoundReference(
         field=NestedField(field_id=1, name="foo", field_type=FloatType(), required=False),
         accessor=accessor,
     )
@@ -774,7 +774,7 @@ def test_bound_is_not_nan(accessor: Accessor) -> None:
 
 
 def test_is_nan() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     is_nan = IsNaN(ref)
     assert str(is_nan) == f"IsNaN(term={str(ref)})"
     assert repr(is_nan) == f"IsNaN(term={repr(ref)})"
@@ -782,7 +782,7 @@ def test_is_nan() -> None:
 
 
 def test_not_nan() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     not_nan = NotNaN(ref)
     assert str(not_nan) == f"NotNaN(term={str(ref)})"
     assert repr(not_nan) == f"NotNaN(term={repr(ref)})"
@@ -804,7 +804,7 @@ def test_bound_not_in(term: BoundReference) -> None:
 
 
 def test_in() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     unbound_in = In(ref, "a", "b", "c")
     assert str(unbound_in) == f"In({str(ref)}, {{a, b, c}})"
     assert repr(unbound_in) == f"In({repr(ref)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
@@ -812,7 +812,7 @@ def test_in() -> None:
 
 
 def test_not_in() -> None:
-    ref = Reference[str]("a")
+    ref = Reference("a")
     not_in = NotIn(ref, "a", "b", "c")
     assert str(not_in) == f"NotIn({str(ref)}, {{a, b, c}})"
     assert repr(not_in) == f"NotIn({repr(ref)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
@@ -862,42 +862,42 @@ def test_bound_less_than_or_equal(term: BoundReference) -> None:
 
 
 def test_equal_to() -> None:
-    equal_to = EqualTo(Reference("a"), "a")  # type: ignore
+    equal_to = EqualTo(Reference("a"), "a")
     assert str(equal_to) == "EqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(equal_to) == "EqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert equal_to == eval(repr(equal_to))
 
 
 def test_not_equal_to() -> None:
-    not_equal_to = NotEqualTo(Reference("a"), "a")  # type: ignore
+    not_equal_to = NotEqualTo(Reference("a"), "a")
     assert str(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert not_equal_to == eval(repr(not_equal_to))
 
 
 def test_greater_than_or_equal_to() -> None:
-    greater_than_or_equal_to = GreaterThanOrEqual(Reference("a"), "a")  # type: ignore
+    greater_than_or_equal_to = GreaterThanOrEqual(Reference("a"), "a")
     assert str(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert greater_than_or_equal_to == eval(repr(greater_than_or_equal_to))
 
 
 def test_greater_than() -> None:
-    greater_than = GreaterThan(Reference("a"), "a")  # type: ignore
+    greater_than = GreaterThan(Reference("a"), "a")
     assert str(greater_than) == "GreaterThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(greater_than) == "GreaterThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert greater_than == eval(repr(greater_than))
 
 
 def test_less_than() -> None:
-    less_than = LessThan(Reference("a"), "a")  # type: ignore
+    less_than = LessThan(Reference("a"), "a")
     assert str(less_than) == "LessThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(less_than) == "LessThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert less_than == eval(repr(less_than))
 
 
 def test_less_than_or_equal() -> None:
-    less_than_or_equal = LessThanOrEqual(Reference("a"), "a")  # type: ignore
+    less_than_or_equal = LessThanOrEqual(Reference("a"), "a")
     assert str(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert less_than_or_equal == eval(repr(less_than_or_equal))
@@ -917,9 +917,9 @@ def test_bound_reference_eval(table_schema_simple: Schema, foo_struct: FooStruct
     field2 = table_schema_simple.find_field(2)
     field3 = table_schema_simple.find_field(3)
 
-    bound_ref1 = BoundReference[str](field=field1, accessor=position1_accessor)
-    bound_ref2 = BoundReference[int](field=field2, accessor=position2_accessor)
-    bound_ref3 = BoundReference[bool](field=field3, accessor=position3_accessor)
+    bound_ref1 = BoundReference(field=field1, accessor=position1_accessor)
+    bound_ref2 = BoundReference(field=field2, accessor=position2_accessor)
+    bound_ref3 = BoundReference(field=field3, accessor=position3_accessor)
 
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
