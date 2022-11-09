@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint:disable=redefined-outer-name
 
 from typing import Any, List, Set
 
@@ -44,13 +45,19 @@ from pyiceberg.expressions import (
     BoundTerm,
     BoundUnaryPredicate,
     EqualTo,
+    GreaterThan,
+    GreaterThanOrEqual,
     In,
+    IsNaN,
     IsNull,
+    LessThan,
     LessThanOrEqual,
     LiteralPredicate,
     Not,
     NotEqualTo,
     NotIn,
+    NotNaN,
+    NotNull,
     Or,
     Reference,
     SetPredicate,
@@ -64,7 +71,6 @@ from pyiceberg.expressions.literals import (
     literal,
 )
 from pyiceberg.expressions.visitors import (
-    IN_PREDICATE_LIMIT,
     BindVisitor,
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
@@ -80,7 +86,6 @@ from pyiceberg.types import (
     FloatType,
     IcebergType,
     IntegerType,
-    LongType,
     NestedField,
     PrimitiveType,
     StringType,
@@ -827,824 +832,565 @@ def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     )
 
 
-def _create_manifest_evaluator(bound_expr: BoundPredicate) -> _ManifestEvalVisitor:
-    """For testing. Creates a bogus evaluator, and then replaces the expression"""
-    evaluator = _ManifestEvalVisitor(
-        Schema(NestedField(1, "id", LongType())), EqualTo(term=Reference("id"), literal=literal("foo"))
+INT_MIN_VALUE = 30
+INT_MAX_VALUE = 79
+
+INT_MIN = _to_byte_buffer(IntegerType(), INT_MIN_VALUE)
+INT_MAX = _to_byte_buffer(IntegerType(), INT_MAX_VALUE)
+
+STRING_MIN = _to_byte_buffer(StringType(), "a")
+STRING_MAX = _to_byte_buffer(StringType(), "z")
+
+
+@pytest.fixture
+def schema() -> Schema:
+    return Schema(
+        NestedField(1, "id", IntegerType(), required=True),
+        NestedField(2, "all_nulls_missing_nan", StringType(), required=False),
+        NestedField(3, "some_nulls", StringType(), required=False),
+        NestedField(4, "no_nulls", StringType(), required=False),
+        NestedField(5, "float", FloatType(), required=False),
+        NestedField(6, "all_nulls_double", DoubleType(), required=False),
+        NestedField(7, "all_nulls_no_nans", FloatType(), required=False),
+        NestedField(8, "all_nans", DoubleType(), required=False),
+        NestedField(9, "both_nan_and_null", FloatType(), required=False),
+        NestedField(10, "no_nan_or_null", DoubleType(), required=False),
+        NestedField(11, "all_nulls_missing_nan_float", FloatType(), required=False),
+        NestedField(12, "all_same_value_or_null", StringType(), required=False),
+        NestedField(13, "no_nulls_same_value_a", StringType(), required=False),
     )
-    evaluator.partition_filter = bound_expr
-    return evaluator
 
 
-def test_manifest_evaluator_less_than_no_overlap():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
+@pytest.fixture
+def manifest_no_stats() -> ManifestFile:
+    return _to_manifest_file()
 
-    manifest = _to_manifest_file(
+
+@pytest.fixture
+def manifest() -> ManifestFile:
+    return _to_manifest_file(
+        # id
         PartitionFieldSummary(
             contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_overlap():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            contains_nan=None,
+            lower_bound=INT_MIN,
+            upper_bound=INT_MAX,
         ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
+        # all_nulls_missing_nan
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # some_nulls
+        PartitionFieldSummary(
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MAX,
+        ),
+        # no_nulls
         PartitionFieldSummary(
             contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_all_null():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MAX,
         ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_no_match():
-    expr = BoundLessThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
+        # float
         PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_or_equal_no_overlap():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            contains_null=True,
+            contains_nan=None,
+            lower_bound=_to_byte_buffer(FloatType(), 0.0),
+            upper_bound=_to_byte_buffer(FloatType(), 20.0),
         ),
-        literal=StringLiteral("c"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_or_equal_overlap():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_or_equal_all_null():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_or_equal_no_match():
-    expr = BoundLessThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_equal_no_overlap():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_equal_overlap():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = ManifestFile(
-        manifest_path="",
-        manifest_length=0,
-        partition_spec_id=0,
-        partitions=[
-            PartitionFieldSummary(
-                contains_null=False,
-                contains_nan=False,
-                lower_bound=_to_byte_buffer(StringType(), "a"),
-                upper_bound=_to_byte_buffer(StringType(), "b"),
-            )
-        ],
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_equal_all_null():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_equal_no_match():
-    expr = BoundEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_no_overlap():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_overlap():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("c"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_all_null():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_no_match():
-    expr = BoundGreaterThan(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("d"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_or_equal_no_overlap():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_or_equal_overlap():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("b"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_or_equal_all_null():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("a"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    # All null
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_or_equal_no_match():
-    expr = BoundGreaterThanOrEqual(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=StringLiteral("d"),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "b"),
-            upper_bound=_to_byte_buffer(StringType(), "c"),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_is_nan():
-    expr = BoundIsNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_is_nan_inverse():
-    expr = BoundIsNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
-    manifest = _to_manifest_file(
+        # all_nulls_double
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        # all_nulls_no_nans
         PartitionFieldSummary(
             contains_null=True,
             contains_nan=False,
-            lower_bound=_to_byte_buffer(DoubleType(), 18.15),
-            upper_bound=_to_byte_buffer(DoubleType(), 19.25),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_nan():
-    expr = BoundNotNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
-    manifest = _to_manifest_file(
+            lower_bound=None,
+            upper_bound=None,
+        ),
+        # all_nans
         PartitionFieldSummary(
             contains_null=False,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(DoubleType(), 18.15),
-            upper_bound=_to_byte_buffer(DoubleType(), 19.25),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_nan_inverse():
-    expr = BoundNotNaN(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        )
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_is_null():
-    expr = BoundIsNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=False,
-            lower_bound=_to_byte_buffer(StringType(), "a"),
-            upper_bound=_to_byte_buffer(StringType(), "b"),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_is_null_inverse():
-    expr = BoundIsNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=True, lower_bound=None, upper_bound=None)
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_null():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=False, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_null_nan():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(contains_null=True, contains_nan=False, lower_bound=None, upper_bound=None)
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_null_inverse():
-    expr = BoundNotNull(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-    )
-
-    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_equal_to():
-    expr = BoundNotEqualTo(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literal=literal("this"),
-    )
-
-    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_in():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
             contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not_in():
-    expr = BoundNotIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            lower_bound=None,
+            upper_bound=None,
         ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=False,
-            upper_bound=False,
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_in_null():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
-    manifest = _to_manifest_file(
+        # both_nan_and_null
         PartitionFieldSummary(
             contains_null=True,
             contains_nan=True,
             lower_bound=None,
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_in_inverse():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            upper_bound=None,
         ),
-        literals={LongLiteral(i) for i in range(22)},
-    )
-
-    manifest = _to_manifest_file(
+        # no_nan_or_null
+        PartitionFieldSummary(
+            contains_null=False,
+            contains_nan=False,
+            lower_bound=_to_byte_buffer(FloatType(), 0.0),
+            upper_bound=_to_byte_buffer(FloatType(), 20.0),
+        ),
+        # all_nulls_missing_nan_float
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        # all_same_value_or_null
         PartitionFieldSummary(
             contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 1815),
-            upper_bound=_to_byte_buffer(LongType(), 1925),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_in_overflow():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MIN,
         ),
-        literals={LongLiteral(i) for i in range(IN_PREDICATE_LIMIT + 1)},
-    )
-
-    manifest = _to_manifest_file(
+        # no_nulls_same_value_a
         PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 1815),
-            upper_bound=_to_byte_buffer(LongType(), 1925),
-        )
-    )
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_less_than_lower_bound():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(2)},
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_greater_than_upper_bound():
-    expr = BoundIn(
-        term=BoundReference(
-            field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-            accessor=Accessor(position=0, inner=None),
-        ),
-        literals={LongLiteral(i) for i in range(20, 22)},
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_true():
-    expr = AlwaysTrue()
-
-    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
-
-    assert _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_false():
-    expr = AlwaysFalse()
-
-    manifest = _to_manifest_file(PartitionFieldSummary(contains_null=True, contains_nan=True, lower_bound=None, upper_bound=None))
-
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_not():
-    expr = Not(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        )
-    )
-
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-    assert not _create_manifest_evaluator(expr).eval(manifest)
-
-
-def test_manifest_evaluator_and():
-    expr = And(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
-        ),
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
+            contains_null=False,
+            contains_nan=None,
+            lower_bound=STRING_MIN,
+            upper_bound=STRING_MIN,
         ),
     )
 
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
-    assert _create_manifest_evaluator(expr).eval(manifest)
+
+def test_all_nulls(schema: Schema, manifest: ManifestFile) -> None:
+    assert not _ManifestEvalVisitor(schema, NotNull(Reference("all_nulls_missing_nan"))).eval(
+        manifest
+    ), "Should skip: all nulls column with non-floating type contains all null"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("all_nulls_missing_nan_float"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("some_nulls"))).eval(
+        manifest
+    ), "Should read: column with some nulls contains a non-null value"
+
+    assert _ManifestEvalVisitor(schema, NotNull(Reference("no_nulls"))).eval(
+        manifest
+    ), "Should read: non-null column contains a non-null value"
 
 
-def test_manifest_evaluator_or():
-    expr = Or(
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
+def test_no_nulls(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("all_nulls_missing_nan"))).eval(
+        manifest
+    ), "Should read: at least one null value in all null column"
+
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("some_nulls"))).eval(
+        manifest
+    ), "Should read: column with some nulls contains a null value"
+
+    assert not _ManifestEvalVisitor(schema, IsNull(Reference("no_nulls"))).eval(
+        manifest
+    ), "Should skip: non-null column contains no null values"
+
+    assert _ManifestEvalVisitor(schema, IsNull(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null column contains no null values"
+
+
+def test_is_nan(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("float"))).eval(
+        manifest
+    ), "Should read: no information on if there are nan value in float column"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_double"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_missing_nan_float"))).eval(
+        manifest
+    ), "Should read: no NaN information may indicate presence of NaN value"
+
+    assert not _ManifestEvalVisitor(schema, IsNaN(Reference("all_nulls_no_nans"))).eval(
+        manifest
+    ), "Should skip: no nan column doesn't contain nan value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("all_nans"))).eval(
+        manifest
+    ), "Should read: all_nans column contains nan value"
+
+    assert _ManifestEvalVisitor(schema, IsNaN(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null column contains nan value"
+
+    assert not _ManifestEvalVisitor(schema, IsNaN(Reference("no_nan_or_null"))).eval(
+        manifest
+    ), "Should skip: no_nan_or_null column doesn't contain nan value"
+
+
+def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("float"))).eval(
+        manifest
+    ), "Should read: no information on if there are nan value in float column"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("all_nulls_double"))).eval(
+        manifest
+    ), "Should read: all null column contains non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("all_nulls_no_nans"))).eval(
+        manifest
+    ), "Should read: no_nans column contains non nan value"
+
+    assert not _ManifestEvalVisitor(schema, NotNaN(Reference("all_nans"))).eval(
+        manifest
+    ), "Should skip: all nans column doesn't contain non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("both_nan_and_null"))).eval(
+        manifest
+    ), "Should read: both_nan_and_null nans column contains non nan value"
+
+    assert _ManifestEvalVisitor(schema, NotNaN(Reference("no_nan_or_null"))).eval(
+        manifest
+    ), "Should read: no_nan_or_null column contains non nan value"
+
+
+def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
+    expressions: List[BooleanExpression] = [
+        LessThan(Reference[int]("id"), LongLiteral(5)),
+        LessThanOrEqual(Reference[int]("id"), LongLiteral(30)),
+        EqualTo(Reference[int]("id"), LongLiteral(70)),
+        GreaterThan(Reference[int]("id"), LongLiteral(78)),
+        GreaterThanOrEqual(Reference[int]("id"), LongLiteral(90)),
+        NotEqualTo(Reference[int]("id"), LongLiteral(101)),
+        IsNull(Reference[int]("id")),
+        NotNull(Reference[int]("id")),
+        IsNaN(Reference[float]("float")),
+        NotNaN(Reference[float]("float")),
+    ]
+
+    for expr in expressions:
+        assert _ManifestEvalVisitor(schema, expr).eval(manifest_no_stats), f"Should read when missing stats for expr: {expr}"
+
+
+def test_not(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should read: not(false)"
+
+    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should skip: not(true)"
+
+
+def test_and(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema,
+        And(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 30)),
         ),
-        BoundIn(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=LongType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literals={LongLiteral(i) for i in range(22)},
+    ).eval(manifest), "Should skip: and(false, true)"
+
+    assert not _ManifestEvalVisitor(
+        schema,
+        And(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)),
         ),
-    )
+    ).eval(manifest), "Should skip: and(false, false)"
 
-    manifest = _to_manifest_file(
-        PartitionFieldSummary(
-            contains_null=True,
-            contains_nan=True,
-            lower_bound=_to_byte_buffer(LongType(), 5),
-            upper_bound=_to_byte_buffer(LongType(), 10),
-        )
-    )
+    assert _ManifestEvalVisitor(
+        schema,
+        And(
+            GreaterThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE)),
+        ),
+    ).eval(manifest), "Should read: and(true, true)"
 
-    assert _create_manifest_evaluator(expr).eval(manifest)
+
+def test_or(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema,
+        Or(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)),
+        ),
+    ).eval(manifest), "Should skip: or(false, false)"
+
+    assert _ManifestEvalVisitor(
+        schema,
+        Or(
+            LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)),
+            GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 19)),
+        ),
+    ).eval(manifest), "Should read: or(false, true)"
+
+
+def test_integer_lt(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (5 < 30)"
+
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (30 is not < 30)"
+
+    assert _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MIN_VALUE + 1))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, LessThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (5 < 30)"
+
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should not read: id range below lower bound (29 < 30)"
+
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: many possible ids"
+
+
+def test_integer_gt(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (85 < 79)"
+
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (79 is not > 79)"
+
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 1))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_gt_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (85 < 79)"
+
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should not read: id range above upper bound (80 > 79)"
+
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: one possible id"
+
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: may possible ids"
+
+
+def test_integer_eq(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should not read: id below lower bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should not read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should not read: id above upper bound"
+
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should not read: id above upper bound"
+
+
+def test_integer_not_eq(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+
+def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 25)))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE - 1)))).eval(
+        manifest
+    ), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MIN_VALUE)))).eval(
+        manifest
+    ), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE - 4)))).eval(
+        manifest
+    ), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE)))).eval(
+        manifest
+    ), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 1)))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference[int]("id"), LongLiteral(INT_MAX_VALUE + 6)))).eval(
+        manifest
+    ), "Should read: id above upper bound"
+
+
+def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE - 25))), case_sensitive=False
+    ).eval(manifest), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE - 1))), case_sensitive=False
+    ).eval(manifest), "Should read: id below lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MIN_VALUE))), case_sensitive=False
+    ).eval(manifest), "Should read: id equal to lower bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE - 4))), case_sensitive=False
+    ).eval(manifest), "Should read: id between lower and upper bounds"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE))), case_sensitive=False
+    ).eval(manifest), "Should read: id equal to upper bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE + 1))), case_sensitive=False
+    ).eval(manifest), "Should read: id above upper bound"
+
+    assert _ManifestEvalVisitor(
+        schema, Not(EqualTo(Reference[int]("ID"), LongLiteral(INT_MAX_VALUE + 6))), case_sensitive=False
+    ).eval(manifest), "Should read: id above upper bound"
+
+
+def test_integer_in(schema: Schema, manifest: ManifestFile):
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 25), LongLiteral(INT_MIN_VALUE - 24)))
+    ).eval(manifest), "Should not read: id below lower bound (5 < 30, 6 < 30)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 2), LongLiteral(INT_MIN_VALUE - 1)))
+    ).eval(manifest), "Should not read: id below lower bound (28 < 30, 29 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 1), LongLiteral(INT_MIN_VALUE)))
+    ).eval(manifest), "Should read: id equal to lower bound (30 == 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE - 4), LongLiteral(INT_MAX_VALUE - 3)))
+    ).eval(manifest), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE), LongLiteral(INT_MAX_VALUE + 1)))
+    ).eval(manifest), "Should read: id equal to upper bound (79 == 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 1), LongLiteral(INT_MAX_VALUE + 2)))
+    ).eval(manifest), "Should not read: id above upper bound (80 > 79, 81 > 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 6), LongLiteral(INT_MAX_VALUE + 7)))
+    ).eval(manifest), "Should not read: id above upper bound (85 > 79, 86 > 79)"
+
+    assert not _ManifestEvalVisitor(
+        schema, In(Reference[str]("all_nulls_missing_nan"), (StringLiteral("abc"), StringLiteral("def")))
+    ).eval(manifest), "Should skip: in on all nulls column"
+
+    assert _ManifestEvalVisitor(schema, In(Reference[str]("some_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on some nulls column"
+
+    assert _ManifestEvalVisitor(schema, In(Reference[str]("no_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on no nulls column"
+
+
+def test_integer_not_in(schema: Schema, manifest: ManifestFile):
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 25), LongLiteral(INT_MIN_VALUE - 24)))
+    ).eval(manifest), "Should read: id below lower bound (5 < 30, 6 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 2), LongLiteral(INT_MIN_VALUE - 1)))
+    ).eval(manifest), "Should read: id below lower bound (28 < 30, 29 < 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MIN_VALUE - 1), LongLiteral(INT_MIN_VALUE)))
+    ).eval(manifest), "Should read: id equal to lower bound (30 == 30)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE - 4), LongLiteral(INT_MAX_VALUE - 3)))
+    ).eval(manifest), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE), LongLiteral(INT_MAX_VALUE + 1)))
+    ).eval(manifest), "Should read: id equal to upper bound (79 == 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 1), LongLiteral(INT_MAX_VALUE + 2)))
+    ).eval(manifest), "Should read: id above upper bound (80 > 79, 81 > 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[int]("id"), (LongLiteral(INT_MAX_VALUE + 6), LongLiteral(INT_MAX_VALUE + 7)))
+    ).eval(manifest), "Should read: id above upper bound (85 > 79, 86 > 79)"
+
+    assert _ManifestEvalVisitor(
+        schema, NotIn(Reference[str]("all_nulls_missing_nan"), (StringLiteral("abc"), StringLiteral("def")))
+    ).eval(manifest), "Should read: notIn on no nulls column"
+
+    assert _ManifestEvalVisitor(schema, NotIn(Reference[str]("some_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on some nulls column"
+
+    assert _ManifestEvalVisitor(schema, NotIn(Reference[str]("no_nulls"), (StringLiteral("abc"), StringLiteral("def")))).eval(
+        manifest
+    ), "Should read: in on no nulls column"
 
 
 def test_bound_predicate_invert():
