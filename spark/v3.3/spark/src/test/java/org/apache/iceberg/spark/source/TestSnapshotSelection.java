@@ -226,4 +226,148 @@ public class TestSnapshotSelection {
         .hasMessageContaining("Cannot specify both snapshot-id")
         .hasMessageContaining("and as-of-timestamp");
   }
+
+  @Test
+  public void testSnapshotSelectionByTag() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    // produce the second snapshot
+    List<SimpleRecord> secondBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+    Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
+    secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    // verify records in the current snapshot by tag
+    Dataset<Row> currentSnapshotResult =
+        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+    List<SimpleRecord> currentSnapshotRecords =
+        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+  }
+
+  @Test
+  public void testSnapshotSelectionByBranch() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+
+    // produce the second snapshot
+    List<SimpleRecord> secondBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+    Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
+    secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    // verify records in the current snapshot by branch
+    Dataset<Row> currentSnapshotResult =
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> currentSnapshotRecords =
+        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+  }
+
+  @Test
+  public void testSnapshotSelectionByBranchAndTagFails() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.TAG, "tag")
+                    .option(SparkReadOptions.BRANCH, "branch")
+                    .load(tableLocation)
+                    .show())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+  }
+
+  @Test
+  public void testSnapshotSelectionByTimestampAndBranchOrTagFails() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    long timestamp = System.currentTimeMillis();
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.BRANCH, "branch")
+                    .load(tableLocation)
+                    .show())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.TAG, "tag")
+                    .load(tableLocation)
+                    .show())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+  }
 }
