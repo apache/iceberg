@@ -14,25 +14,45 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-from typing import Dict, List, Optional
+from functools import cached_property
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
 from pydantic import Field
 
+from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
-from pyiceberg.typedef import Identifier
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 
 
-class Table(IcebergBaseModel):
+class Table:
     identifier: Identifier = Field()
-    metadata_location: str = Field()
     metadata: TableMetadata = Field()
+    metadata_location: str = Field()
+    catalog_properties: Properties
+    config: Properties
+
+    def __init__(
+        self,
+        identifier: Identifier,
+        metadata: TableMetadata,
+        metadata_location: str,
+        catalog_properties: Properties = EMPTY_DICT,
+        config: Properties = EMPTY_DICT,
+    ):
+        self.identifier = identifier
+        self.metadata = metadata
+        self.metadata_location = metadata_location
+        self.catalog_properties = catalog_properties
+        self.config = config
 
     def refresh(self):
         """Refresh the current table metadata"""
@@ -90,3 +110,16 @@ class Table(IcebergBaseModel):
     def history(self) -> List[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
+
+    @cached_property
+    def io(self) -> FileIO:
+        return load_file_io({**self.catalog_properties, **self.metadata.properties, **self.config})
+
+    def __eq__(self, other: Any) -> bool:
+        return (
+            self.identifier == other.identifier
+            and self.metadata == other.metadata
+            and self.metadata_location == other.metadata_location
+            if isinstance(other, Table)
+            else False
+        )
