@@ -79,75 +79,95 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testRewriteLargeManifestsWithDateOrTimestampPartitionedTables() {
-    String[] scenarios = new String[] {"true", "false"};
-    String[] partitionColTypes = new String[] {"DATE", "TIMESTAMP"};
-    for (String scenario : scenarios) {
-      for (String partitionColType : partitionColTypes) {
-        withSQLConf(
-            ImmutableMap.of("spark.sql.datetime.java8API.enabled", scenario),
-            () -> {
-              String createIceberg =
-                  "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts %s) USING iceberg PARTITIONED BY (ts)";
-              sql(createIceberg, tableName, partitionColType);
-              try {
-                spark
-                    .createDataFrame(
-                        ImmutableList.of(
-                            RowFactory.create(
-                                1,
-                                "John Doe",
-                                "hr",
-                                partitionColumn(partitionColType, "2021-01-01")),
-                            RowFactory.create(
-                                2,
-                                "Jane Doe",
-                                "hr",
-                                partitionColumn(partitionColType, "2021-01-02")),
-                            RowFactory.create(
-                                3,
-                                "Matt Doe",
-                                "hr",
-                                partitionColumn(partitionColType, "2021-01-03")),
-                            RowFactory.create(
-                                4,
-                                "Will Doe",
-                                "facilities",
-                                partitionColumn(partitionColType, "2021-01-04"))),
-                        spark.table(tableName).schema())
-                    .writeTo(tableName)
-                    .append();
-              } catch (NoSuchTableException e) {
-                // not possible as we already created the table above.
-                throw new RuntimeException(e);
-              }
+  public void testRewriteLargeManifestsOnDatePartitionedTableWithJava8APIEnabled() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
+        () -> {
+          sql(
+              "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts DATE) USING iceberg PARTITIONED BY (ts)",
+              tableName);
+          try {
+            spark
+                .createDataFrame(
+                    ImmutableList.of(
+                        RowFactory.create(1, "John Doe", "hr", Date.valueOf("2021-01-01")),
+                        RowFactory.create(2, "Jane Doe", "hr", Date.valueOf("2021-01-02")),
+                        RowFactory.create(3, "Matt Doe", "hr", Date.valueOf("2021-01-03")),
+                        RowFactory.create(4, "Will Doe", "facilities", Date.valueOf("2021-01-04"))),
+                    spark.table(tableName).schema())
+                .writeTo(tableName)
+                .append();
+          } catch (NoSuchTableException e) {
+            // not possible as we already created the table above.
+            throw new RuntimeException(e);
+          }
 
-              Table table = validationCatalog.loadTable(tableIdent);
+          Table table = validationCatalog.loadTable(tableIdent);
 
-              Assert.assertEquals(
-                  "Must have 1 manifest",
-                  1,
-                  table.currentSnapshot().allManifests(table.io()).size());
+          Assert.assertEquals(
+              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
 
-              sql(
-                  "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
-                  tableName);
+          sql(
+              "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+              tableName);
 
-              List<Object[]> output =
-                  sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
-              assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+          List<Object[]> output =
+              sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+          assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
 
-              table.refresh();
+          table.refresh();
 
-              Assert.assertEquals(
-                  "Must have 4 manifests",
-                  4,
-                  table.currentSnapshot().allManifests(table.io()).size());
+          Assert.assertEquals(
+              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+        });
+  }
 
-              sql("DROP TABLE IF EXISTS %s", tableName);
-            });
-      }
-    }
+  @Test
+  public void testRewriteLargeManifestsOnTimestampPartitionedTableWithJava8APIEnabled() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
+        () -> {
+          sql(
+              "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts TIMESTAMP) USING iceberg PARTITIONED BY (ts)",
+              tableName);
+          try {
+            spark
+                .createDataFrame(
+                    ImmutableList.of(
+                        RowFactory.create(
+                            1, "John Doe", "hr", Timestamp.valueOf("2021-01-01 00:00:00")),
+                        RowFactory.create(
+                            2, "Jane Doe", "hr", Timestamp.valueOf("2021-01-02 00:00:00")),
+                        RowFactory.create(
+                            3, "Matt Doe", "hr", Timestamp.valueOf("2021-01-03 00:00:00")),
+                        RowFactory.create(
+                            4, "Will Doe", "facilities", Timestamp.valueOf("2021-01-04 00:00:00"))),
+                    spark.table(tableName).schema())
+                .writeTo(tableName)
+                .append();
+          } catch (NoSuchTableException e) {
+            // not possible as we already created the table above.
+            throw new RuntimeException(e);
+          }
+
+          Table table = validationCatalog.loadTable(tableIdent);
+
+          Assert.assertEquals(
+              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+          sql(
+              "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+              tableName);
+
+          List<Object[]> output =
+              sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+          assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+
+          table.refresh();
+
+          Assert.assertEquals(
+              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+        });
   }
 
   @Test
@@ -296,11 +316,5 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, Timestamp.valueOf("2022-01-01 10:00:00"), Date.valueOf("2022-01-01"))),
         sql("SELECT * FROM %s WHERE ts < current_timestamp()", tableName));
-  }
-
-  private Object partitionColumn(String partitionColType, String value) {
-    return "DATE".equals(partitionColType)
-        ? Date.valueOf(value)
-        : Timestamp.valueOf(value + " 00:00:00");
   }
 }
