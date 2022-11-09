@@ -333,6 +333,12 @@ class DateLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> TimeLiteral:
+        return TimeLiteral(self.value + 1)
+
+    def decrement(self) -> TimeLiteral:
+        return TimeLiteral(self.value - 1)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert DateLiteral into {type_var}")
@@ -346,6 +352,12 @@ class TimeLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> TimeLiteral:
+        return TimeLiteral(self.value + 1)
+
+    def decrement(self) -> TimeLiteral:
+        return TimeLiteral(self.value - 1)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert TimeLiteral into {type_var}")
@@ -358,6 +370,12 @@ class TimeLiteral(Literal[int]):
 class TimestampLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
+
+    def increment(self) -> TimeLiteral:
+        return TimeLiteral(self.value + 1)
+
+    def decrement(self) -> TimeLiteral:
+        return TimeLiteral(self.value - 1)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:

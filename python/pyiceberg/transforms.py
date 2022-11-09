@@ -53,7 +53,14 @@ from pyiceberg.expressions import (
     Reference,
     UnboundPredicate,
 )
-from pyiceberg.expressions.literals import DecimalLiteral, LongLiteral, _transform_literal
+from pyiceberg.expressions.literals import (
+    DateLiteral,
+    DecimalLiteral,
+    LongLiteral,
+    TimeLiteral,
+    TimestampLiteral,
+    _transform_literal,
+)
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -292,16 +299,20 @@ class TimeTransform(Transform[S, int], Singleton):
     def result_type(self, source: IcebergType) -> IntegerType:
         return IntegerType()
 
+    @abstractmethod
+    def transform(self, source: IcebergType) -> Callable[[Optional[Any]], Optional[int]]:
+        ...
+
     def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
-        func = self.transform(pred.term.ref().field.field_type)
+        transformer = self.transform(pred.term.ref().field.field_type)
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
         elif isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundLiteralPredicate):
-            return pred.as_unbound(Reference(name), _transform_literal(func, pred.literal))
+            return _truncate_number(name, pred, transformer)
         elif isinstance(pred, BoundIn):  # NotIn can't be projected
-            return pred.as_unbound(Reference(name), {_transform_literal(func, literal) for literal in pred.literals})
+            return _transform_set(name, pred, transformer)
         else:
             return None
 
@@ -518,6 +529,18 @@ class IdentityTransform(Transform[S, S]):
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
+
+    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+        if isinstance(pred.term, BoundTransform):
+            return _project_transform_predicate(self, name, pred)
+        elif isinstance(pred, BoundUnaryPredicate):
+            return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundEqualTo):
+            return pred.as_unbound(Reference(name), pred.literal)
+        elif isinstance(pred, (BoundIn, BoundNotIn)):
+            return pred.as_unbound(Reference(name), pred.literals)
+        else:
+            raise ValueError(f"Could not project: {self}")
 
     @property
     def preserves_order(self) -> bool:
@@ -746,8 +769,8 @@ def _truncate_number(
 ) -> Optional[UnboundPredicate]:
     boundary = pred.literal
 
-    if not isinstance(boundary, (LongLiteral, DecimalLiteral)):
-        raise ValueError("Expected a numeric literal")
+    if not isinstance(boundary, (LongLiteral, DecimalLiteral, DateLiteral, TimeLiteral, TimestampLiteral)):
+        raise ValueError(f"Expected a numeric literal, got: {type(boundary)}")
 
     if isinstance(pred, BoundLessThan):
         return LessThanOrEqual(Reference(name), _transform_literal(func, boundary.decrement()))

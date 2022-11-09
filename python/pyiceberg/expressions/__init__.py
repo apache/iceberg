@@ -309,8 +309,8 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
             return self.term == other.term
         return False
 
-    @abstractmethod
     @property
+    @abstractmethod
     def as_unbound(self) -> Type[UnboundPredicate]:
         ...
 
@@ -352,8 +352,8 @@ class BoundUnaryPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
-    @abstractmethod
     @property
+    @abstractmethod
     def as_unbound(self) -> Type[UnaryPredicate]:
         ...
 
@@ -499,8 +499,8 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
 
-    @abstractmethod
     @property
+    @abstractmethod
     def as_unbound(self) -> Type[SetPredicate]:
         ...
 
@@ -632,8 +632,8 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
-    @abstractmethod
     @property
+    @abstractmethod
     def as_unbound(self) -> Type[LiteralPredicate]:
         ...
 
