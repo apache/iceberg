@@ -282,7 +282,7 @@ def test_boolean_expression_visit_raise_not_implemented_error():
 
 
 def test_bind_visitor_already_bound(table_schema_simple: Schema):
-    bound = BoundEqualTo[Literal[str]](
+    bound = BoundEqualTo[str](
         term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         literal=literal("hello"),
     )

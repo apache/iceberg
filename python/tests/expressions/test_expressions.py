@@ -239,16 +239,44 @@ def test_in_set():
     assert In(Reference("foo"), {"a", "bc", "def"}).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
 
 
-def test_in_sets():
-    assert In(Reference("foo"), {"a"}, {"bc", "def"}).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
+def test_in_tuple():
+    assert In(Reference("foo"), ("a", "bc", "def")).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
+
+
+def test_in_list():
+    assert In(Reference("foo"), ["a", "bc", "def"]).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
+
+
+def test_single_string():
+    assert In(Reference("foo"), "a").literal == StringLiteral("a")
+    assert In(Reference("foo"), {"a"}).literal == StringLiteral("a")
 
 
 def test_in_positional_args():
     assert In(Reference("foo"), "a", "bc", "def").literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
 
 
+def test_in_sets():
+    with pytest.raises(TypeError) as exc_info:
+        assert In(Reference("foo"), {"a"}, {"bc", "def"}).literals == {
+            StringLiteral("a"),
+            StringLiteral("bc"),
+            StringLiteral("def"),
+        }
+    assert str(exc_info.value) == "Invalid literal value: {'a'}"
+
+
 def test_in_string_and_set():
-    assert In(Reference("foo"), "a", {"bc", "def"}).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
+    with pytest.raises(TypeError) as exc_info:
+        assert In(Reference("foo"), "a", {"bc", "def"}).literals == {
+            StringLiteral("a"),
+            StringLiteral("bc"),
+            StringLiteral("def"),
+        }
+    # Invalid literal value: {'bc', 'def'}
+    # or
+    # Invalid literal value: {'def', 'bc'}
+    assert str(exc_info.value).startswith("Invalid literal value:")
 
 
 def test_not_in_empty():

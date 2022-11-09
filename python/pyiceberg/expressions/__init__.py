@@ -43,6 +43,7 @@ B = TypeVar("B")
 
 def _to_literal(lit: Optional[Union[T, Literal[T]]]) -> Optional[Literal[T]]:
     # This should not be optional, to be fixed in a separate PR
+    # https://github.com/apache/iceberg/pull/6140
     if lit:
         return lit if isinstance(lit, Literal) else literal(lit)
     else:
@@ -54,13 +55,18 @@ def _to_unbound_term(term: Union[str, UnboundTerm[T]]) -> UnboundTerm[T]:
 
 
 def _combine_into_set(values: Tuple[Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]], ...]) -> Set[Literal[T]]:
-    result_set: Set[Literal[T]] = set()
-    for val in values:
+    if len(values) == 1:
+        # If it is a single value, we expect a iterable (set, tuple, list, etc)
+        # Type ignores can go once _to_literal has been fixed
+        val = next(iter(values))
         if isinstance(val, Iterable) and not isinstance(val, str):
-            result_set.update(_to_literal(lit) for lit in val)  # type: ignore
+            return {_to_literal(lit) for lit in val}  # type: ignore
         else:
-            result_set.add(_to_literal(val))  # type: ignore
-    return result_set
+            return {_to_literal(val)}  # type: ignore
+    elif len(values) > 1:
+        return {_to_literal(lit) for lit in values}  # type: ignore
+    else:
+        return set()
 
 
 class BooleanExpression(ABC):
@@ -409,11 +415,11 @@ class SetPredicate(UnboundPredicate[T], ABC):
         return self.as_bound(bound_term, {lit.to(bound_term.ref().field.field_type) for lit in self.literals})
 
     def __str__(self):
-        # Sor make it deterministic
+        # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
-        # To make it deterministic
+        # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
@@ -424,11 +430,11 @@ class BoundSetPredicate(BoundPredicate[T], ABC):
     literals: set[Literal[T]]
 
     def __str__(self):
-        # Sor make it deterministic
+        # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({str(self.term)}, {{{', '.join(sorted([str(literal) for literal in self.literals]))}}})"
 
     def __repr__(self) -> str:
-        # To make it deterministic
+        # Sort to make it deterministic
         return f"{str(self.__class__.__name__)}({repr(self.term)}, {{{', '.join(sorted([repr(literal) for literal in self.literals]))}}})"
 
     def __eq__(self, other: Any) -> bool:
@@ -440,7 +446,7 @@ class BoundIn(BoundSetPredicate[T]):
         cls,
         term: BoundTerm[T],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,  # pylint: disable=W0221
+        **kwargs,
     ):
         literals_set = _combine_into_set(kwargs.get("literals", literals))
         count = len(literals_set)
@@ -466,7 +472,7 @@ class BoundNotIn(BoundSetPredicate[T]):
         cls,
         term: BoundTerm[T],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,  # pylint: disable=W0221
+        **kwargs,
     ):
         literals_set = _combine_into_set(kwargs.get("literals", literals))
         count = len(literals_set)
@@ -491,7 +497,7 @@ class In(SetPredicate[T]):
         cls,
         term: Union[str, UnboundTerm[T]],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,  # pylint: disable=W0221
+        **kwargs,
     ):
         literals_set = _combine_into_set(kwargs.get("literals", literals))
         count = len(literals_set)
@@ -516,7 +522,7 @@ class NotIn(SetPredicate[T], ABC):
         cls,
         term: Union[str, UnboundTerm[T]],
         *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,  # pylint: disable=W0221
+        **kwargs,
     ):
         literals_set = _combine_into_set(kwargs.get("literals", literals))
         count = len(literals_set)
