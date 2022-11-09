@@ -144,10 +144,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         config =
             fetchConfig(
                 initClient,
-                RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())));
+                RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())),
+                props);
       } else {
         authResponse = null;
-        config = fetchConfig(initClient, initHeaders);
+        config = fetchConfig(initClient, initHeaders, props);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close HTTP client", e);
@@ -745,10 +746,20 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return newSession(tableConf, tableConf, parent);
   }
 
-  private static ConfigResponse fetchConfig(RESTClient client, Map<String, String> headers) {
+  private static ConfigResponse fetchConfig(
+      RESTClient client, Map<String, String> headers, Map<String, String> properties) {
+    // send the client's warehouse location to the service to keep in sync
+    // this is needed for cases where the warehouse is configured client side, but may be used on the server side,
+    // like the Hive Metastore, where both client and service hive-site.xml may have a warehouse location.
+    ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
+    if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
+      queryParams.put(CatalogProperties.WAREHOUSE_LOCATION, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    }
+
     ConfigResponse configResponse =
         client.get(
             ResourcePaths.config(),
+            queryParams.build(),
             ConfigResponse.class,
             headers,
             ErrorHandlers.defaultErrorHandler());
