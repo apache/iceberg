@@ -104,8 +104,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.manifest.target-size-bytes  | 8388608 (8 MB)   | Target size when merging manifest files                       |
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
-| history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep while expiring snapshots    |
-| history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep while expiring snapshots |
+| history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep on the table's main branch while expiring snapshots    |
+| history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep on the table's main branch while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
 ### Reserved table properties
