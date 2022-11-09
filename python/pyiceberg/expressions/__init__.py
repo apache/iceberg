@@ -548,7 +548,7 @@ class NotIn(SetPredicate[T], ABC):
 class LiteralPredicate(UnboundPredicate[T], ABC):
     literal: Literal[T]
 
-    def __init__(self, term: Union[str, UnboundTerm], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
+    def __init__(self, term: Union[str, UnboundTerm[T]], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
         self.term = _to_unbound_term(term)
         self.literal = _to_literal(literal)  # type: ignore
 

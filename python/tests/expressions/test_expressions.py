@@ -465,12 +465,12 @@ def test_less_than_or_equal_invert():
     "pred",
     [
         NotIn(Reference("foo"), (literal("hello"), literal("world"))),
-        NotEqualTo(Reference("foo"), literal("hello")),
-        EqualTo(Reference("foo"), literal("hello")),
-        GreaterThan(Reference("foo"), literal("hello")),
-        LessThan(Reference("foo"), literal("hello")),
-        GreaterThanOrEqual(Reference("foo"), literal("hello")),
-        LessThanOrEqual(Reference("foo"), literal("hello")),
+        NotEqualTo(Reference("foo"), literal("hello")),  # type: ignore
+        EqualTo(Reference("foo"), literal("hello")),  # type: ignore
+        GreaterThan(Reference("foo"), literal("hello")),  # type: ignore
+        LessThan(Reference("foo"), literal("hello")),  # type: ignore
+        GreaterThanOrEqual(Reference("foo"), literal("hello")),  # type: ignore
+        LessThanOrEqual(Reference("foo"), literal("hello")),  # type: ignore
     ],
 )
 def test_bind(pred, table_schema_simple: Schema):
@@ -484,12 +484,12 @@ def test_bind(pred, table_schema_simple: Schema):
     [
         In(Reference("Bar"), (literal(5), literal(2))),
         NotIn(Reference("Bar"), (literal(5), literal(2))),
-        NotEqualTo(Reference("Bar"), literal(5)),
-        EqualTo(Reference("Bar"), literal(5)),
-        GreaterThan(Reference("Bar"), literal(5)),
-        LessThan(Reference("Bar"), literal(5)),
-        GreaterThanOrEqual(Reference("Bar"), literal(5)),
-        LessThanOrEqual(Reference("Bar"), literal(5)),
+        NotEqualTo(Reference("Bar"), literal(5)),  # type: ignore
+        EqualTo(Reference("Bar"), literal(5)),  # type: ignore
+        GreaterThan(Reference("Bar"), literal(5)),  # type: ignore
+        LessThan(Reference("Bar"), literal(5)),  # type: ignore
+        GreaterThanOrEqual(Reference("Bar"), literal(5)),  # type: ignore
+        LessThanOrEqual(Reference("Bar"), literal(5)),  # type: ignore
     ],
 )
 def test_bind_case_insensitive(pred, table_schema_simple: Schema):
@@ -553,9 +553,9 @@ def test_eq(exp, testexpra, testexprb):
             NotIn(Reference("foo"), (literal("hello"), literal("world"))),
             In(Reference("foo"), (literal("hello"), literal("world"))),
         ),
-        (GreaterThan(Reference("foo"), literal(5)), LessThanOrEqual(Reference("foo"), literal(5))),
-        (LessThan(Reference("foo"), literal(5)), GreaterThanOrEqual(Reference("foo"), literal(5))),
-        (EqualTo(Reference("foo"), literal(5)), NotEqualTo(Reference("foo"), literal(5))),
+        (GreaterThan(Reference("foo"), literal(5)), LessThanOrEqual(Reference("foo"), literal(5))),  # type: ignore
+        (LessThan(Reference("foo"), literal(5)), GreaterThanOrEqual(Reference("foo"), literal(5))),  # type: ignore
+        (EqualTo(Reference("foo"), literal(5)), NotEqualTo(Reference("foo"), literal(5))),  # type: ignore
         (
             ExpressionA(),
             ExpressionB(),
@@ -862,42 +862,42 @@ def test_bound_less_than_or_equal(term: BoundReference) -> None:
 
 
 def test_equal_to() -> None:
-    equal_to = EqualTo(Reference("a"), "a")
+    equal_to = EqualTo(Reference("a"), "a")  # type: ignore
     assert str(equal_to) == "EqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(equal_to) == "EqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert equal_to == eval(repr(equal_to))
 
 
 def test_not_equal_to() -> None:
-    not_equal_to = NotEqualTo(Reference("a"), "a")
+    not_equal_to = NotEqualTo(Reference("a"), "a")  # type: ignore
     assert str(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(not_equal_to) == "NotEqualTo(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert not_equal_to == eval(repr(not_equal_to))
 
 
 def test_greater_than_or_equal_to() -> None:
-    greater_than_or_equal_to = GreaterThanOrEqual(Reference("a"), "a")
+    greater_than_or_equal_to = GreaterThanOrEqual(Reference("a"), "a")  # type: ignore
     assert str(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(greater_than_or_equal_to) == "GreaterThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert greater_than_or_equal_to == eval(repr(greater_than_or_equal_to))
 
 
 def test_greater_than() -> None:
-    greater_than = GreaterThan(Reference("a"), "a")
+    greater_than = GreaterThan(Reference("a"), "a")  # type: ignore
     assert str(greater_than) == "GreaterThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(greater_than) == "GreaterThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert greater_than == eval(repr(greater_than))
 
 
 def test_less_than() -> None:
-    less_than = LessThan(Reference("a"), "a")
+    less_than = LessThan(Reference("a"), "a")  # type: ignore
     assert str(less_than) == "LessThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(less_than) == "LessThan(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert less_than == eval(repr(less_than))
 
 
 def test_less_than_or_equal() -> None:
-    less_than_or_equal = LessThanOrEqual(Reference("a"), "a")
+    less_than_or_equal = LessThanOrEqual(Reference("a"), "a")  # type: ignore
     assert str(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert repr(less_than_or_equal) == "LessThanOrEqual(term=Reference(name='a'), literal=StringLiteral('a'))"
     assert less_than_or_equal == eval(repr(less_than_or_equal))
