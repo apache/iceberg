@@ -272,8 +272,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
-    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats(columns)))
-        .iterator();
+    boolean dropStats = dropStats(columns);
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
   private static Schema projection(
