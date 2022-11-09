@@ -765,7 +765,7 @@ M = TypeVar("M")
 
 
 def _truncate_number(
-    name: str, pred: BoundLiteralPredicate, func: Callable[[Optional[M]], Optional[M]]
+    name: str, pred: BoundLiteralPredicate, transform: Callable[[Optional[M]], Optional[M]]
 ) -> Optional[UnboundPredicate]:
     boundary = pred.literal
 
@@ -773,15 +773,15 @@ def _truncate_number(
         raise ValueError(f"Expected a numeric literal, got: {type(boundary)}")
 
     if isinstance(pred, BoundLessThan):
-        return LessThanOrEqual(Reference(name), _transform_literal(func, boundary.decrement()))
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary.decrement()))
     elif isinstance(pred, BoundLessThanOrEqual):
-        return LessThanOrEqual(Reference(name), _transform_literal(func, boundary))
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     elif isinstance(pred, BoundGreaterThan):
-        return GreaterThanOrEqual(Reference(name), _transform_literal(func, boundary.increment()))
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary.increment()))
     elif isinstance(pred, BoundGreaterThanOrEqual):
-        return GreaterThanOrEqual(Reference(name), _transform_literal(func, boundary))
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     elif isinstance(pred, BoundEqualTo):
-        return EqualTo(Reference(name), _transform_literal(func, boundary))
+        return EqualTo(Reference(name), _transform_literal(transform, boundary))
     else:
         return None
 

@@ -23,6 +23,10 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
+<<<<<<< HEAD
+=======
+from datetime import date, datetime
+>>>>>>> e3c82ef77 (Fix the transformers)
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
 from typing import Any, Generic, Type
@@ -56,6 +60,11 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.datetime import (
     date_str_to_days,
+<<<<<<< HEAD
+=======
+    date_to_days,
+    datetime_to_micros,
+>>>>>>> e3c82ef77 (Fix the transformers)
     micros_to_days,
     time_to_micros,
     timestamp_to_micros,
@@ -169,9 +178,21 @@ class FloatBelowMin(Literal[float], Singleton):
         return "FloatBelowMin"
 
 
+<<<<<<< HEAD
 class IntAboveMax(Literal[int]):
     def __init__(self):
         super().__init__(IntegerType.max, int)
+=======
+@literal.register(datetime)
+def _(value: datetime) -> TimestampLiteral:
+    return TimestampLiteral(datetime_to_micros(value))
+
+
+class AboveMax(Singleton):
+    @property
+    def value(self):
+        raise ValueError("AboveMax has no value")
+>>>>>>> e3c82ef77 (Fix the transformers)
 
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of IntAboveMax")
