@@ -749,11 +749,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private static ConfigResponse fetchConfig(
       RESTClient client, Map<String, String> headers, Map<String, String> properties) {
     // send the client's warehouse location to the service to keep in sync
-    // this is needed for cases where the warehouse is configured client side, but may be used on the server side,
-    // like the Hive Metastore, where both client and service hive-site.xml may have a warehouse location.
+    // this is needed for cases where the warehouse is configured client side, but may be used on
+    // the server side,
+    // like the Hive Metastore, where both client and service hive-site.xml may have a warehouse
+    // location.
     ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-      queryParams.put(CatalogProperties.WAREHOUSE_LOCATION, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+      queryParams.put(
+          CatalogProperties.WAREHOUSE_LOCATION,
+          properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
     ConfigResponse configResponse =
