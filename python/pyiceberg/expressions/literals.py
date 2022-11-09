@@ -26,6 +26,14 @@ from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
 from typing import Any, Generic, Type
+from functools import singledispatch, singledispatchmethod
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    TypeVar,
+    Union,
+)
 from uuid import UUID
 
 from pyiceberg.typedef import L
@@ -210,6 +218,12 @@ class LongLiteral(Literal[int]):
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert LongLiteral into {type_var}")
 
+    def increment(self) -> LongLiteral:
+        return LongLiteral(self.value + 1)
+
+    def decrement(self) -> LongLiteral:
+        return LongLiteral(self.value - 1)
+
     @to.register(LongType)
     def _(self, _: LongType) -> Literal[int]:
         return self
@@ -362,6 +376,12 @@ class DecimalLiteral(Literal[Decimal]):
     def __init__(self, value: Decimal):
         super().__init__(value, Decimal)
 
+    def increment(self) -> DecimalLiteral:
+        return DecimalLiteral(self.value + 1)
+
+    def decrement(self) -> DecimalLiteral:
+        return DecimalLiteral(self.value - 1)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert DecimalLiteral into {type_var}")
@@ -500,3 +520,8 @@ class BinaryLiteral(Literal[bytes]):
             raise TypeError(
                 f"Cannot convert BinaryLiteral into {type_var}, different length: {len(type_var)} <> {len(self.value)}"
             )
+
+
+def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
+    """Small helper to upwrap the value from the literal, and wrap it again"""
+    return literal(func(lit.value))

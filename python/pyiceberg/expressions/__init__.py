@@ -25,6 +25,9 @@ from typing import (
     Iterable,
     Set,
     Type,
+    Tuple,
+    Type,
+    TypeVar,
     Union,
 )
 
@@ -306,6 +309,11 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
             return self.term == other.term
         return False
 
+    @abstractmethod
+    @property
+    def as_unbound(self) -> Type[UnboundPredicate]:
+        ...
+
 
 class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
     term: UnboundTerm
@@ -344,6 +352,11 @@ class BoundUnaryPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
 
+    @abstractmethod
+    @property
+    def as_unbound(self) -> Type[UnaryPredicate]:
+        ...
+
 
 class BoundIsNull(BoundUnaryPredicate[L]):
     def __new__(cls, term: BoundTerm[L]):  # pylint: disable=W0221
@@ -354,6 +367,10 @@ class BoundIsNull(BoundUnaryPredicate[L]):
     def __invert__(self) -> BoundNotNull[L]:
         return BoundNotNull(self.term)
 
+    @property
+    def as_unbound(self) -> Type[IsNull]:
+        return IsNull
+
 
 class BoundNotNull(BoundUnaryPredicate[L]):
     def __new__(cls, term: BoundTerm[L]):  # pylint: disable=W0221
@@ -363,6 +380,10 @@ class BoundNotNull(BoundUnaryPredicate[L]):
 
     def __invert__(self) -> BoundIsNull:
         return BoundIsNull(self.term)
+
+    @property
+    def as_unbound(self) -> Type[NotNull]:
+        return NotNull
 
 
 class IsNull(UnaryPredicate):
@@ -393,6 +414,10 @@ class BoundIsNaN(BoundUnaryPredicate[L]):
     def __invert__(self) -> BoundNotNaN[L]:
         return BoundNotNaN(self.term)
 
+    @property
+    def as_unbound(self) -> Type[IsNaN]:
+        return IsNaN
+
 
 class BoundNotNaN(BoundUnaryPredicate[L]):
     def __new__(cls, term: BoundTerm[L]):  # pylint: disable=W0221
@@ -403,6 +428,10 @@ class BoundNotNaN(BoundUnaryPredicate[L]):
 
     def __invert__(self) -> BoundIsNaN[L]:
         return BoundIsNaN(self.term)
+
+    @property
+    def as_unbound(self) -> Type[NotNaN]:
+        return NotNaN
 
 
 class IsNaN(UnaryPredicate):
@@ -470,6 +499,11 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
 
+    @abstractmethod
+    @property
+    def as_unbound(self) -> Type[SetPredicate]:
+        ...
+
 
 class BoundIn(BoundSetPredicate[L]):
     def __new__(cls, term: BoundTerm[L], literals: Set[Literal[L]]):  # pylint: disable=W0221
@@ -486,6 +520,10 @@ class BoundIn(BoundSetPredicate[L]):
 
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundIn) else False
+
+    @property
+    def as_unbound(self) -> Type[In]:
+        return In
 
 
 class BoundNotIn(BoundSetPredicate[L]):
@@ -504,6 +542,10 @@ class BoundNotIn(BoundSetPredicate[L]):
 
     def __invert__(self) -> BoundIn[L]:
         return BoundIn(self.term, self.literals)
+
+    @property
+    def as_unbound(self) -> Type[NotIn]:
+        return NotIn
 
 
 class In(SetPredicate[L]):
@@ -590,35 +632,64 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
+    @abstractmethod
+    @property
+    def as_unbound(self) -> Type[LiteralPredicate]:
+        ...
+
 
 class BoundEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundNotEqualTo[L]:
         return BoundNotEqualTo[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[EqualTo]:
+        return EqualTo
 
 
 class BoundNotEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundEqualTo[L]:
         return BoundEqualTo[L](self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[NotEqualTo]:
+        return NotEqualTo
+
 
 class BoundGreaterThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThan[L]:
         return BoundLessThan[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[GreaterThanOrEqual]:
+        return GreaterThanOrEqual
 
 
 class BoundGreaterThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThanOrEqual[L]:
         return BoundLessThanOrEqual(self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[GreaterThan]:
+        return GreaterThan
+
 
 class BoundLessThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThanOrEqual[L]:
         return BoundGreaterThanOrEqual[L](self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[LessThan]:
+        return LessThan
+
 
 class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThan[L]:
         return BoundGreaterThan[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[LessThanOrEqual]:
+        return LessThanOrEqual
 
 
 class EqualTo(LiteralPredicate[L]):
