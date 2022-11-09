@@ -251,6 +251,11 @@ public class JsonUtil {
         .build();
   }
 
+  public static List<Long> getLongList(String property, JsonNode node) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing list: %s", property);
+    return ImmutableList.<Long>builder().addAll(new JsonLongArrayIterator(property, node)).build();
+  }
+
   public static Set<Long> getLongSetOrNull(String property, JsonNode node) {
     if (!node.hasNonNull(property)) {
       return null;
@@ -373,5 +378,41 @@ public class JsonUtil {
           property,
           element);
     }
+  }
+
+  public static void writeIntegerArray(String property, Iterable<Integer> items, JsonGenerator gen)
+      throws IOException {
+    gen.writeArrayFieldStart(property);
+    for (Integer item : items) {
+      gen.writeNumber(item);
+    }
+    gen.writeEndArray();
+  }
+
+  public static void writeLongArray(String property, Iterable<Long> items, JsonGenerator gen)
+      throws IOException {
+    gen.writeArrayFieldStart(property);
+    for (Long item : items) {
+      gen.writeNumber(item);
+    }
+    gen.writeEndArray();
+  }
+
+  public static void writeStringArray(String property, Iterable<String> items, JsonGenerator gen)
+      throws IOException {
+    gen.writeArrayFieldStart(property);
+    for (String item : items) {
+      gen.writeString(item);
+    }
+    gen.writeEndArray();
+  }
+
+  public static void writeStringMap(String property, Map<String, String> map, JsonGenerator gen)
+      throws IOException {
+    gen.writeObjectFieldStart(property);
+    for (Map.Entry<String, String> pair : map.entrySet()) {
+      gen.writeStringField(pair.getKey(), pair.getValue());
+    }
+    gen.writeEndObject();
   }
 }

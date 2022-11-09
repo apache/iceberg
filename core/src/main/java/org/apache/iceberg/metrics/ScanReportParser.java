@@ -74,17 +74,8 @@ public class ScanReportParser {
 
     gen.writeNumberField(SCHEMA_ID, scanReport.schemaId());
 
-    gen.writeArrayFieldStart(PROJECTED_FIELD_IDS);
-    for (Integer fieldId : scanReport.projectedFieldIds()) {
-      gen.writeNumber(fieldId);
-    }
-    gen.writeEndArray();
-
-    gen.writeArrayFieldStart(PROJECTED_FIELD_NAMES);
-    for (String fieldName : scanReport.projectedFieldNames()) {
-      gen.writeString(fieldName);
-    }
-    gen.writeEndArray();
+    JsonUtil.writeIntegerArray(PROJECTED_FIELD_IDS, scanReport.projectedFieldIds(), gen);
+    JsonUtil.writeStringArray(PROJECTED_FIELD_NAMES, scanReport.projectedFieldNames(), gen);
 
     gen.writeFieldName(METRICS);
     ScanMetricsResultParser.toJson(scanReport.scanMetrics(), gen);

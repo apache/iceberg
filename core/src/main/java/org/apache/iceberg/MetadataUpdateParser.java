@@ -342,11 +342,7 @@ public class MetadataUpdateParser {
   // handles one value.
   private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshot update, JsonGenerator gen)
       throws IOException {
-    gen.writeArrayFieldStart(SNAPSHOT_IDS);
-    for (long snapshotId : ImmutableSet.of(update.snapshotId())) {
-      gen.writeNumber(snapshotId);
-    }
-    gen.writeEndArray();
+    JsonUtil.writeLongArray(SNAPSHOT_IDS, ImmutableSet.of(update.snapshotId()), gen);
   }
 
   private static void writeSetSnapshotRef(MetadataUpdate.SetSnapshotRef update, JsonGenerator gen)

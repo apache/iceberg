@@ -59,11 +59,7 @@ public class FileIOParser {
     generator.writeStartObject();
 
     generator.writeStringField(FILE_IO_IMPL, impl);
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> pair : properties.entrySet()) {
-      generator.writeStringField(pair.getKey(), pair.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, properties, generator);
 
     generator.writeEndObject();
   }
