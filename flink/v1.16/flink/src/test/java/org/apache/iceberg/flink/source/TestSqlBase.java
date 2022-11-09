@@ -34,6 +34,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.TableLoader;
@@ -136,13 +137,18 @@ public abstract class TestSqlBase {
     // test table api
     tableConf.setBoolean(
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(), true);
-    FlinkSource.Builder builder = FlinkSource.forRowData().tableLoader(tableLoader).table(table);
+    FlinkSource.forRowData().tableLoader(tableLoader).table(table);
 
     // When running with CI or local, `localityEnabled` will be false even if this configuration is
     // enabled
+    Map<String, String> readOptions = Maps.newHashMap();
+    readOptions.put(
+        FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(),
+        Boolean.toString(true));
+    FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, tableConf);
     Assert.assertFalse(
         "Expose split locality info should be false.",
-        SourceUtil.isLocalityEnabled(table, tableConf, true));
+        SourceUtil.isLocalityEnabled(table, flinkReadConf));
 
     results = run(Maps.newHashMap(), "where dt='2020-03-20'", "*");
     org.apache.iceberg.flink.TestHelpers.assertRecords(

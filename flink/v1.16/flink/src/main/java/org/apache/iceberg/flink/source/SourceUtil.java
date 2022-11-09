@@ -23,24 +23,38 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadConf;
+import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class SourceUtil {
   private SourceUtil() {}
 
-  static boolean isLocalityEnabled(
-      Table table, ReadableConfig readableConfig, Boolean exposeLocality) {
-    Boolean localityEnabled =
-        exposeLocality != null
-            ? exposeLocality
-            : readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO);
+  static boolean isLocalityEnabled(Table table, FlinkReadConf flinkReadConf) {
+    Boolean localityEnabled = flinkReadConf.exposeLocality();
 
     if (localityEnabled != null && !localityEnabled) {
       return false;
     }
 
     return Util.mayHaveBlockLocations(table.io(), table.location());
+  }
+
+  static SplitAssignerFactory createAssignerFactory(
+      ReadableConfig readableConfig, Boolean exposeLocality) {
+    SplitAssignerType assignerType =
+        readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
+    if (assignerType != null) {
+      return assignerType.factory();
+    }
+
+    if (exposeLocality) {
+      return SplitAssignerType.LOCALITY.factory();
+    }
+
+    return SplitAssignerType.SIMPLE.factory();
   }
 
   /**

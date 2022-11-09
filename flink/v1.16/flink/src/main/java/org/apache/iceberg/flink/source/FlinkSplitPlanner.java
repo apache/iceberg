@@ -74,6 +74,16 @@ public class FlinkSplitPlanner {
       Table table, ScanContext context, ExecutorService workerPool) {
     try (CloseableIterable<CombinedScanTask> tasksIterable =
         planTasks(table, context, workerPool)) {
+
+      if (context.exposeLocality()) {
+        return Lists.newArrayList(
+            CloseableIterable.transform(
+                tasksIterable,
+                task ->
+                    IcebergSourceSplit.fromCombinedScanTask(
+                        task, Util.blockLocations(table.io(), task))));
+      }
+
       return Lists.newArrayList(
           CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
     } catch (IOException e) {

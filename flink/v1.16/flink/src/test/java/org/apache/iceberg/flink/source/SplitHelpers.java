@@ -121,7 +121,7 @@ public class SplitHelpers {
                     .map(files -> new BaseCombinedScanTask(files))
                     .map(
                         combinedScanTask ->
-                            IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
+                            IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, hostnames));
               })
           .collect(Collectors.toList());
     } finally {

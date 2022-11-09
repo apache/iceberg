@@ -45,7 +45,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -129,12 +128,9 @@ public class IcebergTableSource
   }
 
   private DataStreamSource<RowData> createFLIP27Stream(StreamExecutionEnvironment env) {
-    SplitAssignerType assignerType =
-        readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
     IcebergSource<RowData> source =
         IcebergSource.forRowData()
             .tableLoader(loader)
-            .assignerFactory(assignerType.factory())
             .properties(properties)
             .project(getProjectedSchema())
             .limit(limit)

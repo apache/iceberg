@@ -81,6 +81,10 @@ class FlinkConfParser {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Boolean::parseBoolean, defaultValue);
     }
+
+    public Boolean parseOptional() {
+      return parse(Boolean::parseBoolean, null);
+    }
   }
 
   class IntConfParser extends ConfParser<IntConfParser, Integer> {

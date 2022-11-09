@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -28,11 +30,16 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Internal
 public class IcebergSourceReader<T>
     extends SingleThreadMultiplexSourceReaderBase<
         RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceReader.class);
+
+  private String hostname;
 
   public IcebergSourceReader(
       IcebergSourceReaderMetrics metrics,
@@ -50,6 +57,12 @@ public class IcebergSourceReader<T>
   public void start() {
     // We request a split only if we did not get splits during the checkpoint restore.
     // Otherwise, reader restarts will keep requesting more and more splits.
+    try {
+      hostname = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      LOG.warn("Can not get hostname.", e);
+    }
+
     if (getNumberOfCurrentlyAssignedSplits() == 0) {
       requestSplit(Collections.emptyList());
     }
@@ -71,6 +84,6 @@ public class IcebergSourceReader<T>
   }
 
   private void requestSplit(Collection<String> finishedSplitIds) {
-    context.sendSourceEventToCoordinator(new SplitRequestEvent(finishedSplitIds));
+    context.sendSourceEventToCoordinator(new SplitRequestEvent(finishedSplitIds, hostname));
   }
 }
