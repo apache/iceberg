@@ -345,6 +345,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
         FlinkSchemaUtil.convert(table.schema()),
         128 * 1024 * 1024,
         format,
+        table.properties(),
         equalityFieldIds,
         false);
   }
