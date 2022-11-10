@@ -77,7 +77,13 @@ public class RowDataRewriter {
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory =
         new RowDataTaskWriterFactory(
-            SerializableTable.copyOf(table), flinkSchema, Long.MAX_VALUE, format, null, false);
+            SerializableTable.copyOf(table),
+            flinkSchema,
+            Long.MAX_VALUE,
+            format,
+            table.properties(),
+            null,
+            false);
   }
 
   public List<DataFile> rewriteDataForTasks(
