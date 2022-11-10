@@ -52,6 +52,12 @@ project(':nessie').name = 'iceberg-nessie'
 project(':gcp').name = 'iceberg-gcp'
 project(':dell').name = 'iceberg-dell'
 
+if (null != System.getProperty("allVersions")) {
+  System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
+  System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
+  System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
+}
+
 List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
 String flinkVersionsString = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")
 List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
