@@ -38,6 +38,7 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
     TableAlreadyExistsError,
 )
+from pyiceberg.io import load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
@@ -81,6 +82,7 @@ class InMemoryCatalog(Catalog):
                 identifier=identifier,
                 metadata=EXAMPLE_TABLE_METADATA_V1,
                 metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
+                io=load_file_io(),
             )
             self.__tables[identifier] = table
             return table
@@ -115,7 +117,10 @@ class InMemoryCatalog(Catalog):
             self.__namespaces[to_namespace] = {}
 
         self.__tables[to_identifier] = Table(
-            identifier=to_identifier, metadata=table.metadata, metadata_location=table.metadata_location
+            identifier=to_identifier,
+            metadata=table.metadata,
+            metadata_location=table.metadata_location,
+            io=load_file_io(),
         )
         return self.__tables[to_identifier]
 

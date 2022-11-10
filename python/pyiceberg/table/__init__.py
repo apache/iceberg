@@ -16,7 +16,6 @@
 # under the License.
 from __future__ import annotations
 
-from functools import cached_property
 from typing import (
     Any,
     Dict,
@@ -28,7 +27,7 @@ from typing import (
 from pydantic import Field
 
 from pyiceberg.expressions import AlwaysTrue, And, BooleanExpression
-from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.io import FileIO
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.partitioning import PartitionSpec
@@ -41,22 +40,13 @@ class Table:
     identifier: Identifier = Field()
     metadata: TableMetadata = Field()
     metadata_location: str = Field()
-    catalog_properties: Properties
-    config: Properties
+    io: FileIO
 
-    def __init__(
-        self,
-        identifier: Identifier,
-        metadata: TableMetadata,
-        metadata_location: str,
-        catalog_properties: Properties = EMPTY_DICT,
-        config: Properties = EMPTY_DICT,
-    ):
+    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO):
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
-        self.catalog_properties = catalog_properties
-        self.config = config
+        self.io = io
 
     def refresh(self):
         """Refresh the current table metadata"""
@@ -137,10 +127,6 @@ class Table:
     def history(self) -> List[SnapshotLogEntry]:
         """Get the snapshot history of this table."""
         return self.metadata.snapshot_log
-
-    @cached_property
-    def io(self) -> FileIO:
-        return load_file_io({**self.catalog_properties, **self.metadata.properties, **self.config})
 
     def __eq__(self, other: Any) -> bool:
         return (

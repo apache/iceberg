@@ -29,6 +29,7 @@ from typing import (
 )
 
 from pyiceberg.exceptions import NotInstalledError
+from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -161,6 +162,9 @@ class Catalog(ABC):
     def __init__(self, name: str, **properties: str):
         self.name = name
         self.properties = properties
+
+    def _load_file_io(self, properties: Properties = EMPTY_DICT) -> FileIO:
+        return load_file_io({**self.properties, **properties})
 
     @abstractmethod
     def create_table(
