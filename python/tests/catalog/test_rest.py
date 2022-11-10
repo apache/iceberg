@@ -30,6 +30,7 @@ from pyiceberg.exceptions import (
     OAuthError,
     TableAlreadyExistsError,
 )
+from pyiceberg.io import load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
@@ -439,7 +440,7 @@ def test_load_table_200(rest_mock: Mocker):
             ),
             partition_spec=[],
         ),
-        config={"client.factory": "io.tabular.iceberg.catalog.TabularAwsClientFactory", "region": "us-west-2"},
+        io=load_file_io(),
     )
     assert actual == expected
 
@@ -594,6 +595,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
             ),
             partition_spec=[],
         ),
+        io=load_file_io(),
     )
 
 

@@ -28,6 +28,7 @@ from click.testing import CliRunner
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
+from pyiceberg.io import load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
@@ -51,6 +52,7 @@ class MockCatalog(Catalog):
             identifier=Catalog.identifier_to_tuple(identifier),
             metadata_location="s3://tmp/",
             metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+            io=load_file_io(),
         )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
@@ -60,6 +62,7 @@ class MockCatalog(Catalog):
                 identifier=tuple_identifier,
                 metadata_location="s3://tmp/",
                 metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+                io=load_file_io(),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {'.'.join(tuple_identifier)}")
@@ -78,7 +81,10 @@ class MockCatalog(Catalog):
         tuple_identifier = Catalog.identifier_to_tuple(from_identifier)
         if tuple_identifier == ("default", "foo"):
             return Table(
-                identifier=tuple_identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+                identifier=tuple_identifier,
+                metadata_location="s3://tmp/",
+                metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+                io=load_file_io(),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {from_identifier}")

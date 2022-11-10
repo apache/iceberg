@@ -25,6 +25,7 @@ from pyiceberg.expressions import (
     EqualTo,
     In,
 )
+from pyiceberg.io import load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table import PartitionSpec, Table
 from pyiceberg.table.metadata import TableMetadataV2
@@ -52,6 +53,7 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
         identifier=("database", "table"),
         metadata=table_metadata,
         metadata_location=f"{table_metadata.location}/uuid.metadata.json",
+        io=load_file_io(),
     )
 
 
