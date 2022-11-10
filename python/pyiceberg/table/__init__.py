@@ -14,16 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from functools import cached_property
 from typing import (
     Any,
     Dict,
     List,
     Optional,
+    Tuple,
 )
 
 from pydantic import Field
 
+from pyiceberg.expressions import AlwaysTrue, And, BooleanExpression
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -57,6 +61,29 @@ class Table:
     def refresh(self):
         """Refresh the current table metadata"""
         raise NotImplementedError("To be implemented")
+
+    def name(self) -> Identifier:
+        """Return the identifier of this table"""
+        return self.identifier
+
+    def scan(
+        self,
+        row_filter: Optional[BooleanExpression] = None,
+        partition_filter: Optional[BooleanExpression] = None,
+        selected_fields: Tuple[str] = ("*",),
+        case_sensitive: bool = True,
+        snapshot_id: Optional[int] = None,
+        options: Properties = EMPTY_DICT,
+    ) -> TableScan:
+        return TableScan(
+            table=self,
+            row_filter=row_filter or AlwaysTrue(),
+            partition_filter=partition_filter or AlwaysTrue(),
+            selected_fields=selected_fields,
+            case_sensitive=case_sensitive,
+            snapshot_id=snapshot_id,
+            options=options,
+        )
 
     def schema(self) -> Schema:
         """Return the schema for this table"""
@@ -123,3 +150,79 @@ class Table:
             if isinstance(other, Table)
             else False
         )
+
+
+class TableScan:
+    table: Table
+    row_filter: BooleanExpression
+    partition_filter: BooleanExpression
+    selected_fields: Tuple[str]
+    case_sensitive: bool
+    snapshot_id: Optional[int]
+    options: Properties
+
+    def __init__(
+        self,
+        table: Table,
+        row_filter: Optional[BooleanExpression] = None,
+        partition_filter: Optional[BooleanExpression] = None,
+        selected_fields: Tuple[str] = ("*",),
+        case_sensitive: bool = True,
+        snapshot_id: Optional[int] = None,
+        options: Properties = EMPTY_DICT,
+    ):
+        self.table = table
+        self.row_filter = row_filter or AlwaysTrue()
+        self.partition_filter = partition_filter or AlwaysTrue()
+        self.selected_fields = selected_fields
+        self.case_sensitive = case_sensitive
+        self.snapshot_id = snapshot_id
+        self.options = options
+
+    def snapshot(self) -> Optional[Snapshot]:
+        if self.snapshot_id:
+            return self.table.snapshot_by_id(self.snapshot_id)
+        return self.table.current_snapshot()
+
+    def projection(self) -> Schema:
+        snapshot_schema = self.table.schema()
+        if snapshot := self.snapshot():
+            if snapshot_schema_id := snapshot.schema_id:
+                snapshot_schema = self.table.schemas()[snapshot_schema_id]
+
+        if "*" in self.selected_fields:
+            return snapshot_schema
+
+        return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
+
+    def plan_files(self):
+        raise NotImplementedError("Not yet implemented")
+
+    def to_arrow(self):
+        raise NotImplementedError("Not yet implemented")
+
+    def update(self, **overrides) -> TableScan:
+        """Creates a copy of this table scan with updated fields."""
+        return TableScan(**{**self.__dict__, **overrides})
+
+    def use_ref(self, name: str):
+        if self.snapshot_id:
+            raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
+        if snapshot := self.table.snapshot_by_name(name):
+            return self.update(snapshot_id=snapshot.snapshot_id)
+
+        raise ValueError(f"Cannot scan unknown ref={name}")
+
+    def select(self, *field_names: str) -> TableScan:
+        if "*" in self.selected_fields:
+            return self.update(selected_fields=field_names)
+        return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
+
+    def filter_rows(self, new_row_filter: BooleanExpression) -> TableScan:
+        return self.update(row_filter=And(self.row_filter, new_row_filter))
+
+    def filter_partitions(self, new_partition_filter: BooleanExpression) -> TableScan:
+        return self.update(partition_filter=And(self.partition_filter, new_partition_filter))
+
+    def with_case_sensitive(self, case_sensitive: bool = True) -> TableScan:
+        return self.update(case_sensitive=case_sensitive)
