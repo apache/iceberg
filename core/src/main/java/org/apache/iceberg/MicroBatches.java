@@ -120,7 +120,7 @@ public class MicroBatches {
 
       return generateMicroBatch(
           MicroBatchesUtil.skippedManifestIndexesFromSnapshot(
-              snapshot, startFileIndex, scanAllFiles),
+              io, snapshot, startFileIndex, scanAllFiles),
           startFileIndex,
           endFileIndex,
           targetSizeInBytes,

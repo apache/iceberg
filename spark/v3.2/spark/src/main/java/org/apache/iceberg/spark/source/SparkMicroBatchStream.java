@@ -350,7 +350,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       // generate manifest index for the curSnapshot
       List<Pair<ManifestFile, Integer>> indexedManifests =
           MicroBatchesUtil.skippedManifestIndexesFromSnapshot(
-              curSnapshot, startPosOfSnapOffset, scanAllFiles);
+              table.io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
       // this is under assumption we will be able to add at-least 1 file in the new offset
       for (int idx = 0; idx < indexedManifests.size() && isOk; idx++) {
         // be rest assured curPos >= startFileIndex
@@ -410,7 +410,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
     // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
     // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1 ? Iterables.size(snapshot.addedFiles()) : addedFilesCount;
+    return addedFilesCount == -1
+        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        : addedFilesCount;
   }
 
   @Override

@@ -32,13 +32,13 @@ public class MicroBatchesUtil {
   private MicroBatchesUtil() {}
 
   public static List<Pair<ManifestFile, Integer>> skippedManifestIndexesFromSnapshot(
-      Snapshot snapshot, long startFileIndex, boolean scanAllFiles) {
+      FileIO io, Snapshot snapshot, long startFileIndex, boolean scanAllFiles) {
     //  Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller
     // than 0");
     List<ManifestFile> manifests =
         scanAllFiles
-            ? snapshot.dataManifests()
-            : snapshot.dataManifests().stream()
+            ? snapshot.dataManifests(io)
+            : snapshot.dataManifests(io).stream()
                 .filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
                 .collect(Collectors.toList());
 

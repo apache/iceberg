@@ -212,7 +212,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
               .specsById(table.specs())
               .generate(
                   currentOffset.position(),
-                  Iterables.size(currentSnapshot.addedFiles()),
+                  Iterables.size(currentSnapshot.addedDataFiles(table.io())),
                   Long.MAX_VALUE,
                   currentOffset.shouldScanAllFiles());
 
