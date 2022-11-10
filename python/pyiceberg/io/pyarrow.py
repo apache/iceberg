@@ -213,6 +213,7 @@ class PyArrowFileIO(FileIO):
                 "endpoint_override": self.properties.get("s3.endpoint"),
                 "access_key": self.properties.get("s3.access-key-id"),
                 "secret_key": self.properties.get("s3.secret-access-key"),
+                "session_token": self.properties.get("s3.session-token"),
             }
             return S3FileSystem(**client_kwargs)
         elif scheme == "file":

@@ -24,7 +24,6 @@ from click import Context
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
-from pyiceberg.io import load_file_io
 
 
 def catch_exception():
@@ -142,8 +141,7 @@ def files(ctx: Context, identifier: str, history: bool):
     catalog, output = _catalog_and_output(ctx)
 
     catalog_table = catalog.load_table(identifier)
-    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
-    output.files(catalog_table, io, history)
+    output.files(catalog_table, history)
 
 
 @run.command()

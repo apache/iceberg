@@ -47,7 +47,11 @@ class MockCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        return Table(identifier=identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2))
+        return Table(
+            identifier=Catalog.identifier_to_tuple(identifier),
+            metadata_location="s3://tmp/",
+            metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+        )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
@@ -838,6 +842,5 @@ def test_json_properties_remove_table_property_does_not_exists(_):
 def test_json_properties_remove_table_does_not_exist(_):
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.doesnotexist", "location"])
-    print(result)
     assert result.exit_code == 1
     assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""
