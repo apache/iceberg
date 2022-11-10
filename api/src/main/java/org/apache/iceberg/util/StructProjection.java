@@ -90,11 +90,11 @@ public class StructProjection implements StructLike {
   private final StructProjection[] nestedProjections;
   private StructLike struct;
 
-  private StructProjection(StructProjection other) {
-    this.type = other.type;
-    this.positionMap = other.positionMap;
-    this.nestedProjections = other.nestedProjections;
-    this.struct = other.struct;
+  private StructProjection(
+      StructType type, int[] positionMap, StructProjection[] nestedProjections) {
+    this.type = type;
+    this.positionMap = positionMap;
+    this.nestedProjections = nestedProjections;
   }
 
   private StructProjection(StructType structType, StructType projection) {
@@ -178,8 +178,9 @@ public class StructProjection implements StructLike {
     return this;
   }
 
-  public StructProjection copy() {
-    return new StructProjection(this);
+  public StructProjection copyFor(StructLike newStruct) {
+    return new StructProjection(this.type, this.positionMap, this.nestedProjections)
+        .wrap(newStruct);
   }
 
   @Override

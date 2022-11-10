@@ -48,9 +48,4 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
   default FileScanTask asFileScanTask() {
     return this;
   }
-
-  @Override
-  default StructLike partition() {
-    return file().partition();
-  }
 }
