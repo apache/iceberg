@@ -21,7 +21,7 @@ disableSidebar: true
  - limitations under the License.
  -->
 
-# AES GCM Stream (AGS) file format extension
+# AES GCM Stream file format extension
 
 ## Background and Motivation
 
@@ -35,25 +35,26 @@ This document specifies details of a simple file format extension that adds encr
 
 * Metadata encryption: enable encryption of manifests, manifest lists, snapshots and stats.
 * Avro data encryption: enable encryption of data files in tables that use the Avro format.
+* Support read splitting: enable seekable decrypting streams that can be used with splittable formats like Avro.
 * Tamper proofing of Iceberg data and metadata files.
 
 ## Overview
 
-The output stream, produced by a metadata or data writer, is split into equal-size blocks (plus residue). Each block is enciphered (encrypted/signed) with a given encryption key, and stored in a file in the AGS format. Upon reading, the stored cipherblocks are verified for integrity; then decrypted and passed to metadata or data readers.
+The output stream, produced by a metadata or data writer, is split into equal-size blocks (plus last block that can be shorter). Each block is enciphered (encrypted/signed) with a given encryption key, and stored in a file in the AES GCM Stream format. Upon reading, the stored cipherblocks are verified for integrity; then decrypted and passed to metadata or data readers.
 
 ## Encryption algorithm
 
-AGS uses the standard AEG GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
+AES GCM Stream uses the standard AEG GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
 
-AES GCM is an authenticated encryption. Besides data confidentiality (encryption), it supports two levels of integrity verification (authentication): of the data (default), and of the data combined with an optional AAD (“additional authenticated data”). An AAD is a free text to be authenticated, together with the data. The structure of AGS AADs is described below.
+AES GCM is an authenticated encryption. Besides data confidentiality (encryption), it supports two levels of integrity verification (authentication): of the data (default), and of the data combined with an optional AAD (“additional authenticated data”). An AAD is a free text to be authenticated, together with the data. The structure of AES GCM Stream AADs is described below.
 
-AES GCM requires a unique vector to be provided for each encrypted block. In this document, the unique input to GCM encryption is called nonce (“number used once”). AGS encryption uses the RBG-based (random bit generator) nonce construction as defined in the section 8.2.2 of the NIST SP 800-38D document. For each encrypted block, AGS generates a unique nonce with a length of 12 bytes (96 bits).
+AES GCM requires a unique vector to be provided for each encrypted block. In this document, the unique input to GCM encryption is called nonce (“number used once”). AES GCM Stream encryption uses the RBG-based (random bit generator) nonce construction as defined in the section 8.2.2 of the NIST SP 800-38D document. For each encrypted block, AES GCM Stream generates a unique nonce with a length of 12 bytes (96 bits).
 
 ## Format specification
 
 ### File structure
 
-The AGS-encrypted files have the following structure
+The AES GCM Stream files have the following structure
 
 ```
 Magic BlockLength CipherBlock₁ CipherBlock₂ ... CipherBlockₙ
@@ -75,13 +76,13 @@ Cipher blocks have the following structure
 where
 
 - `nonce` is the AES GCM nonce, with a length of 12 bytes.
-- `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block keeps the data residue, with a length <= `BlockLength`.
+- `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
 - `tag` is the AES GCM tag, with a length of 16 bytes.
 
-AGS encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher must be implemented by a cryptographic provider according to the NIST SP 800-38D specification. In AGS, an input to the GCM cipher is an AES encryption key, a nonce, a plaintext and an AAD (described below). The output is a ciphertext with the length equal to that of plaintext, and a 16-byte authentication tag used to verify the ciphertext and AAD integrity.
+AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher must be implemented by a cryptographic provider according to the NIST SP 800-38D specification. In AES GCM Stream, an input to the GCM cipher is an AES encryption key, a nonce, a plaintext and an AAD (described below). The output is a ciphertext with the length equal to that of plaintext, and a 16-byte authentication tag used to verify the ciphertext and AAD integrity.
 
 ### Additional Authenticated Data
 
-The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AGS leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AGS can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
+The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AES GCM Stream leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AES GCM Stream can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
 
-AGS constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
+AES GCM Stream constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
