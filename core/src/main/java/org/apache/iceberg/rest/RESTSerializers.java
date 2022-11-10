@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
 import org.apache.iceberg.MetadataUpdate;
@@ -87,7 +88,41 @@ public class RESTSerializers {
     mapper.registerModule(module);
   }
 
-  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+  // https://github.com/FasterXML/jackson-databind/commit/da339636d6a1db6fd618f1e59816fab3bb6d38d4
+  // added JacksonException to the throws declaration of JsonDeserializer#deserialize*(...)
+  // The purpose of this class is so that we don't propagate this API-breaking throws-change to any
+  // Iceberg clients
+  public abstract static class IcebergJsonDeserializer<T> extends JsonDeserializer<T> {
+    @Override
+    public abstract T deserialize(JsonParser parser, DeserializationContext ctxt)
+        throws IOException;
+
+    @Override
+    public T deserialize(JsonParser parser, DeserializationContext ctxt, T intoValue)
+        throws IOException {
+      return super.deserialize(parser, ctxt, intoValue);
+    }
+
+    @Override
+    public Object deserializeWithType(
+        JsonParser parser, DeserializationContext ctxt, TypeDeserializer typeDeserializer)
+        throws IOException {
+      return super.deserializeWithType(parser, ctxt, typeDeserializer);
+    }
+
+    @Override
+    public Object deserializeWithType(
+        JsonParser parser,
+        DeserializationContext ctxt,
+        TypeDeserializer typeDeserializer,
+        T intoValue)
+        throws IOException {
+      return super.deserializeWithType(parser, ctxt, typeDeserializer, intoValue);
+    }
+  }
+
+  public static class UpdateRequirementDeserializer
+      extends IcebergJsonDeserializer<UpdateRequirement> {
     @Override
     public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
         throws IOException {
@@ -105,7 +140,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata> {
+  public static class TableMetadataDeserializer extends IcebergJsonDeserializer<TableMetadata> {
     @Override
     public TableMetadata deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -122,7 +157,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {
+  public static class MetadataUpdateDeserializer extends IcebergJsonDeserializer<MetadataUpdate> {
     @Override
     public MetadataUpdate deserialize(JsonParser p, DeserializationContext ctxt)
         throws IOException {
@@ -139,7 +174,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
+  public static class ErrorResponseDeserializer extends IcebergJsonDeserializer<ErrorResponse> {
     @Override
     public ErrorResponse deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -157,7 +192,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
+  public static class NamespaceDeserializer extends IcebergJsonDeserializer<Namespace> {
     @Override
     public Namespace deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
       String[] levels = JsonUtil.getStringArray(p.getCodec().readTree(p));
@@ -174,7 +209,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class TableIdentifierDeserializer extends JsonDeserializer<TableIdentifier> {
+  public static class TableIdentifierDeserializer extends IcebergJsonDeserializer<TableIdentifier> {
     @Override
     public TableIdentifier deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -192,7 +227,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class SchemaDeserializer extends JsonDeserializer<Schema> {
+  public static class SchemaDeserializer extends IcebergJsonDeserializer<Schema> {
     @Override
     public Schema deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
@@ -218,7 +253,7 @@ public class RESTSerializers {
   }
 
   public static class UnboundPartitionSpecDeserializer
-      extends JsonDeserializer<UnboundPartitionSpec> {
+      extends IcebergJsonDeserializer<UnboundPartitionSpec> {
     @Override
     public UnboundPartitionSpec deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -236,7 +271,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder> {
+  public static class UnboundSortOrderDeserializer
+      extends IcebergJsonDeserializer<UnboundSortOrder> {
     @Override
     public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -254,7 +290,8 @@ public class RESTSerializers {
     }
   }
 
-  public static class OAuthTokenResponseDeserializer extends JsonDeserializer<OAuthTokenResponse> {
+  public static class OAuthTokenResponseDeserializer
+      extends IcebergJsonDeserializer<OAuthTokenResponse> {
     @Override
     public OAuthTokenResponse deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
@@ -273,7 +310,7 @@ public class RESTSerializers {
   }
 
   public static class ReportMetricsRequestDeserializer<T extends ReportMetricsRequest>
-      extends JsonDeserializer<T> {
+      extends IcebergJsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
