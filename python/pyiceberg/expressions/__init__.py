@@ -24,9 +24,7 @@ from typing import (
     ClassVar,
     Generic,
     Iterable,
-    Optional,
     Set,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -41,32 +39,16 @@ T = TypeVar("T")
 B = TypeVar("B")
 
 
-def _to_literal(lit: Optional[Union[T, Literal[T]]]) -> Optional[Literal[T]]:
-    # This should not be optional, to be fixed in a separate PR
-    # https://github.com/apache/iceberg/pull/6140
-    if lit:
-        return lit if isinstance(lit, Literal) else literal(lit)
-    else:
-        return None
+def _to_literal(lit: Union[T, Literal[T]]) -> Literal[T]:
+    return lit if isinstance(lit, Literal) else literal(lit)
 
 
 def _to_unbound_term(term: Union[str, UnboundTerm[T]]) -> UnboundTerm[T]:
     return Reference(term) if isinstance(term, str) else term
 
 
-def _combine_into_set(values: Tuple[Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]], ...]) -> Set[Literal[T]]:
-    if len(values) == 1:
-        # If it is a single value, we expect a iterable (set, tuple, list, etc)
-        # Type ignores can go once _to_literal has been fixed
-        val = next(iter(values))
-        if isinstance(val, Iterable) and not isinstance(val, str):
-            return {_to_literal(lit) for lit in val}  # type: ignore
-        else:
-            return {_to_literal(val)}  # type: ignore
-    elif len(values) > 1:
-        return {_to_literal(lit) for lit in values}  # type: ignore
-    else:
-        return set()
+def _convert_into_set(values: Union[Iterable[T], Iterable[Literal[T]]]) -> Set[Literal[T]]:
+    return {_to_literal(val) for val in values}
 
 
 class BooleanExpression(ABC):
@@ -442,13 +424,8 @@ class BoundSetPredicate(BoundPredicate[T], ABC):
 
 
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(
-        cls,
-        term: BoundTerm[T],
-        *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,
-    ):
-        literals_set = _combine_into_set(kwargs.get("literals", literals))
+    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[T], Iterable[Literal[T]]]):
+        literals_set = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -471,10 +448,9 @@ class BoundNotIn(BoundSetPredicate[T]):
     def __new__(
         cls,
         term: BoundTerm[T],
-        *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,
+        literals: Union[Iterable[T], Iterable[Literal[T]]],
     ):
-        literals_set = _combine_into_set(kwargs.get("literals", literals))
+        literals_set = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()
@@ -493,13 +469,8 @@ class BoundNotIn(BoundSetPredicate[T]):
 class In(SetPredicate[T]):
     as_bound = BoundIn
 
-    def __new__(
-        cls,
-        term: Union[str, UnboundTerm[T]],
-        *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,
-    ):
-        literals_set = _combine_into_set(kwargs.get("literals", literals))
+    def __new__(cls, term: Union[str, UnboundTerm[T]], literals: Union[Iterable[T], Iterable[Literal[T]]]):
+        literals_set = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -518,13 +489,8 @@ class In(SetPredicate[T]):
 class NotIn(SetPredicate[T], ABC):
     as_bound = BoundNotIn
 
-    def __new__(
-        cls,
-        term: Union[str, UnboundTerm[T]],
-        *literals: Union[T, Literal[T], Iterable[T], Iterable[Literal[T]]],
-        **kwargs,
-    ):
-        literals_set = _combine_into_set(kwargs.get("literals", literals))
+    def __new__(cls, term: Union[str, UnboundTerm[T]], literals: Union[Iterable[T], Iterable[Literal[T]]]):
+        literals_set = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()
@@ -550,7 +516,7 @@ class LiteralPredicate(UnboundPredicate[T], ABC):
 
     def __init__(self, term: Union[str, UnboundTerm[T]], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
         self.term = _to_unbound_term(term)
-        self.literal = _to_literal(literal)  # type: ignore
+        self.literal = _to_literal(literal)  # pylint: disable=W0621
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -570,7 +536,7 @@ class BoundLiteralPredicate(BoundPredicate[T], ABC):
 
     def __init__(self, term: BoundTerm[T], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
         self.term = term
-        self.literal = _to_literal(literal)  # type: ignore
+        self.literal = _to_literal(literal)  # pylint: disable=W0621
 
     def __eq__(self, other):
         if isinstance(other, BoundLiteralPredicate):

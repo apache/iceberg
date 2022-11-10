@@ -247,38 +247,6 @@ def test_in_list():
     assert In(Reference("foo"), ["a", "bc", "def"]).literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
 
 
-def test_single_string():
-    assert In(Reference("foo"), "a").literal == StringLiteral("a")
-    assert In(Reference("foo"), {"a"}).literal == StringLiteral("a")
-
-
-def test_in_positional_args():
-    assert In(Reference("foo"), "a", "bc", "def").literals == {StringLiteral("a"), StringLiteral("bc"), StringLiteral("def")}
-
-
-def test_in_sets():
-    with pytest.raises(TypeError) as exc_info:
-        assert In(Reference("foo"), {"a"}, {"bc", "def"}).literals == {
-            StringLiteral("a"),
-            StringLiteral("bc"),
-            StringLiteral("def"),
-        }
-    assert str(exc_info.value) == "Invalid literal value: {'a'}"
-
-
-def test_in_string_and_set():
-    with pytest.raises(TypeError) as exc_info:
-        assert In(Reference("foo"), "a", {"bc", "def"}).literals == {
-            StringLiteral("a"),
-            StringLiteral("bc"),
-            StringLiteral("def"),
-        }
-    # Invalid literal value: {'bc', 'def'}
-    # or
-    # Invalid literal value: {'def', 'bc'}
-    assert str(exc_info.value).startswith("Invalid literal value:")
-
-
 def test_not_in_empty():
     assert NotIn(Reference("foo"), ()) == AlwaysTrue()
 
@@ -790,14 +758,14 @@ def test_not_nan() -> None:
 
 
 def test_bound_in(term: BoundReference) -> None:
-    bound_in = BoundIn(term, "a", "b", "c")
+    bound_in = BoundIn(term, {"a", "b", "c"})
     assert str(bound_in) == f"BoundIn({str(term)}, {{a, b, c}})"
     assert repr(bound_in) == f"BoundIn({repr(term)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
     assert bound_in == eval(repr(bound_in))
 
 
 def test_bound_not_in(term: BoundReference) -> None:
-    bound_not_in = BoundNotIn(term, "a", "b", "c")
+    bound_not_in = BoundNotIn(term, {"a", "b", "c"})
     assert str(bound_not_in) == f"BoundNotIn({str(term)}, {{a, b, c}})"
     assert repr(bound_not_in) == f"BoundNotIn({repr(term)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
     assert bound_not_in == eval(repr(bound_not_in))
@@ -805,7 +773,7 @@ def test_bound_not_in(term: BoundReference) -> None:
 
 def test_in() -> None:
     ref = Reference("a")
-    unbound_in = In(ref, "a", "b", "c")
+    unbound_in = In(ref, {"a", "b", "c"})
     assert str(unbound_in) == f"In({str(ref)}, {{a, b, c}})"
     assert repr(unbound_in) == f"In({repr(ref)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
     assert unbound_in == eval(repr(unbound_in))
@@ -813,7 +781,7 @@ def test_in() -> None:
 
 def test_not_in() -> None:
     ref = Reference("a")
-    not_in = NotIn(ref, "a", "b", "c")
+    not_in = NotIn(ref, {"a", "b", "c"})
     assert str(not_in) == f"NotIn({str(ref)}, {{a, b, c}})"
     assert repr(not_in) == f"NotIn({repr(ref)}, {{StringLiteral('a'), StringLiteral('b'), StringLiteral('c')}})"
     assert not_in == eval(repr(not_in))
@@ -942,4 +910,4 @@ def test_string_argument_unbound_literal():
 
 
 def test_string_argument_unbound_set():
-    assert In("a", StringLiteral("b"), StringLiteral("c")) == In(Reference("a"), StringLiteral("b"), StringLiteral("c"))
+    assert In("a", {StringLiteral("b"), StringLiteral("c")}) == In(Reference("a"), {StringLiteral("b"), StringLiteral("c")})

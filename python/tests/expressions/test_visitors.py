@@ -341,8 +341,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    literal("foo"),
-                    literal("bar"),
+                    {literal("foo"), literal("bar")},
                 ),
                 BoundIn(
                     BoundReference(
