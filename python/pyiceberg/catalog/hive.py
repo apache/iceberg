@@ -153,7 +153,7 @@ PROP_PREVIOUS_METADATA_LOCATION = "previous_metadata_location"
 def _construct_parameters(metadata_location: str, previous_metadata_location: Optional[str] = None) -> Dict[str, Any]:
     properties = {PROP_EXTERNAL: "TRUE", PROP_TABLE_TYPE: "ICEBERG", PROP_METADATA_LOCATION: metadata_location}
     if previous_metadata_location:
-        properties[previous_metadata_location] = previous_metadata_location
+        properties[PROP_PREVIOUS_METADATA_LOCATION] = previous_metadata_location
 
     return properties
 
