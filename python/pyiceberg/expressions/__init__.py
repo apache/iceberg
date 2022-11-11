@@ -39,7 +39,7 @@ T = TypeVar("T")
 B = TypeVar("B")
 
 
-def _to_literal(lit: Union[T, Literal[T]]) -> Literal[T]:
+def _to_literal(lit: Union[Any, Literal[T]]) -> Literal[T]:
     return lit if isinstance(lit, Literal) else literal(lit)
 
 
@@ -47,7 +47,7 @@ def _to_unbound_term(term: Union[str, UnboundTerm[T]]) -> UnboundTerm[T]:
     return Reference(term) if isinstance(term, str) else term
 
 
-def _convert_into_set(values: Union[Iterable[T], Iterable[Literal[T]]]) -> Set[Literal[T]]:
+def _convert_into_set(values: Union[Iterable[Any], Iterable[Literal[T]]]) -> Set[Literal[T]]:
     return {_to_literal(val) for val in values}
 
 
@@ -79,7 +79,7 @@ class BoundTerm(Term[T], Bound, ABC):
     """Represents a bound term"""
 
     @abstractmethod
-    def ref(self) -> BoundReference:
+    def ref(self) -> BoundReference[T]:
         """Returns the bound reference"""
 
     @abstractmethod
@@ -87,7 +87,7 @@ class BoundTerm(Term[T], Bound, ABC):
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol"""
 
 
-class BoundReference(BoundTerm[Any]):
+class BoundReference(BoundTerm[T]):
     """A reference bound to a field in a schema
 
     Args:
@@ -424,8 +424,8 @@ class BoundSetPredicate(BoundPredicate[T], ABC):
 
 
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[T], Iterable[Literal[T]]]):
-        literals_set = _convert_into_set(literals)
+    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[Any], Iterable[Literal[T]]]):
+        literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -448,9 +448,9 @@ class BoundNotIn(BoundSetPredicate[T]):
     def __new__(
         cls,
         term: BoundTerm[T],
-        literals: Union[Iterable[T], Iterable[Literal[T]]],
+        literals: Union[Iterable[Any], Iterable[Literal[T]]],
     ):
-        literals_set = _convert_into_set(literals)
+        literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()
@@ -470,7 +470,7 @@ class In(SetPredicate[T]):
     as_bound = BoundIn
 
     def __new__(cls, term: Union[str, UnboundTerm[T]], literals: Union[Iterable[T], Iterable[Literal[T]]]):
-        literals_set = _convert_into_set(literals)
+        literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -490,7 +490,7 @@ class NotIn(SetPredicate[T], ABC):
     as_bound = BoundNotIn
 
     def __new__(cls, term: Union[str, UnboundTerm[T]], literals: Union[Iterable[T], Iterable[Literal[T]]]):
-        literals_set = _convert_into_set(literals)
+        literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()

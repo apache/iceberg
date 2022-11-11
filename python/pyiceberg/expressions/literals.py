@@ -30,6 +30,7 @@ from typing import (
     Any,
     Generic,
     Optional,
+    Type,
     TypeVar,
     Union,
 )
@@ -67,14 +68,14 @@ T = TypeVar("T")
 class Literal(Generic[T], ABC):
     """Literal which has a value and can be converted between types"""
 
-    def __init__(self, value: T, value_type: type):
+    def __init__(self, value: T, value_type: Type[T]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
         self._value = value
 
     @property
     def value(self) -> T:
-        return self._value  # type: ignore
+        return self._value
 
     @abstractmethod
     def to(self, type_var) -> Literal:
@@ -109,7 +110,7 @@ class Literal(Generic[T], ABC):
 
 
 @singledispatch
-def literal(value: Any) -> Literal[Any]:
+def literal(value: Any) -> Literal:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
     using dynamic overloading
