@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.hive;
 
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,11 +33,30 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     String metastoreUri = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
     HiveClientPool clientPool1 = clientPool.clientPool();
-    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri) == clientPool1);
+    Assert.assertTrue(
+        CachedClientPool.clientPoolCache().getIfPresent(new CachedClientPool.Key(metastoreUri))
+            == clientPool1);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
-    Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
+    Assert.assertNull(
+        CachedClientPool.clientPoolCache().getIfPresent(new CachedClientPool.Key(metastoreUri)));
+  }
+
+  @Test
+  public void testMultipleUGI() throws Exception {
+    CachedClientPool cachedPool = new CachedClientPool(hiveConf, Collections.emptyMap());
+    UserGroupInformation current = UserGroupInformation.getCurrentUser();
+    UserGroupInformation foo = UserGroupInformation.createProxyUser("foo", current);
+    UserGroupInformation bar = UserGroupInformation.createProxyUser("bar", current);
+    HiveClientPool hiveClientPool1 =
+        foo.doAs((PrivilegedAction<? extends HiveClientPool>) cachedPool::clientPool);
+    HiveClientPool hiveClientPool2 =
+        bar.doAs((PrivilegedAction<? extends HiveClientPool>) cachedPool::clientPool);
+    Assert.assertNotSame(
+        "Different users are not supposed to share the HMS client pool",
+        hiveClientPool1,
+        hiveClientPool2);
   }
 }

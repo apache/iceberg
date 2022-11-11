@@ -20,11 +20,15 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -33,7 +37,7 @@ import org.apache.thrift.TException;
 
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
 
-  private static Cache<String, HiveClientPool> clientPoolCache;
+  private static Cache<Key, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
   private final String metastoreUri;
@@ -58,7 +62,8 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(metastoreUri, k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPoolCache.get(
+        new Key(metastoreUri), k -> new HiveClientPool(clientPoolSize, conf));
   }
 
   private synchronized void init() {
@@ -72,7 +77,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   }
 
   @VisibleForTesting
-  static Cache<String, HiveClientPool> clientPoolCache() {
+  static Cache<Key, HiveClientPool> clientPoolCache() {
     return clientPoolCache;
   }
 
@@ -86,5 +91,51 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   public <R> R run(Action<R, IMetaStoreClient, TException> action, boolean retry)
       throws TException, InterruptedException {
     return clientPool().run(action, retry);
+  }
+
+  @VisibleForTesting
+  static class Key {
+    private final String metastoreUri;
+    private final UserGroupInformation ugi;
+
+    Key(String metastoreUri) {
+      this.metastoreUri = metastoreUri;
+      try {
+        this.ugi = UserGroupInformation.getCurrentUser();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to get current user", e);
+      }
+    }
+
+    String getMetastoreUri() {
+      return metastoreUri;
+    }
+
+    UserGroupInformation getUgi() {
+      return ugi;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(metastoreUri, ugi.hashCode());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj == null) {
+        return false;
+      }
+      if (obj instanceof Key) {
+        Key otherKey = (Key) obj;
+        return Objects.equals(this.metastoreUri, otherKey.metastoreUri)
+            && Objects.equals(this.ugi, otherKey.ugi);
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return String.format("MetastoreURI: %s, UGI: %s", metastoreUri, ugi);
+    }
   }
 }
