@@ -21,7 +21,6 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.BaseCombinedScanTask;
@@ -40,6 +39,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -175,9 +175,16 @@ public class TableScanUtil {
     }
 
     // Now apply task combining within each partition
-    return tasksByPartition.values().stream()
-        .flatMap(ts -> toTaskGroupStream(ts, splitSize, lookback, weightFunc))
-        .collect(Collectors.toList());
+    return FluentIterable.from(tasksByPartition.values())
+        .transformAndConcat(ts -> toTaskGroupIterable(ts, splitSize, lookback, weightFunc))
+        .toList();
+  }
+
+  private static <T extends ScanTask> Iterable<ScanTaskGroup<T>> toTaskGroupIterable(
+      Iterable<T> tasks, long splitSize, int lookback, Function<T, Long> weightFunc) {
+    return Iterables.transform(
+        new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
+        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
   }
 
   private static <T extends ScanTask> Stream<ScanTaskGroup<T>> toTaskGroupStream(
