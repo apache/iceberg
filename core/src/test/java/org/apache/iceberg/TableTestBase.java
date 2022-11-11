@@ -98,6 +98,13 @@ public class TableTestBase {
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  static final DataFile FILE_B2 =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-b-2.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
   static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
