@@ -60,11 +60,13 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
   @Before
   public void before() {
+    pushCatalog();
     sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
   }
 
   @After
   public void clean() {
+    popCatalog();
     sql("DROP CATALOG IF EXISTS %s", catalogName);
   }
 

@@ -78,6 +78,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
 
   private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir)
       throws IOException {
+    pushCatalog();
     sql(
         "CREATE CATALOG test_catalog WITH %s",
         FlinkCatalogTestBase.toWithClause(catalogProperties));
@@ -100,6 +101,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
 
     sql("DROP TABLE test_table");
     sql("DROP DATABASE test_db");
+    popCatalog();
     sql("DROP CATALOG test_catalog");
   }
 }
