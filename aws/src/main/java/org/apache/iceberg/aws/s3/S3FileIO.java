@@ -319,6 +319,33 @@ public class S3FileIO
     deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
+  public void updateFileTag(String path, Set<Tag> oldTags, Set<Tag> newTags) throws S3Exception {
+    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+    String bucket = location.bucket();
+    String objectKey = location.key();
+    GetObjectTaggingRequest getObjectTaggingRequest =
+        GetObjectTaggingRequest.builder().bucket(bucket).key(objectKey).build();
+    GetObjectTaggingResponse getObjectTaggingResponse =
+        client().getObjectTagging(getObjectTaggingRequest);
+    // Get existing tags, if any
+    Set<Tag> tags = Sets.newHashSet();
+    if (getObjectTaggingResponse.hasTagSet()) {
+      tags.addAll(getObjectTaggingResponse.tagSet());
+    }
+
+    // remove old tags
+    tags.removeAll(oldTags);
+    // add new tags
+    tags.addAll(newTags);
+    PutObjectTaggingRequest putObjectTaggingRequest =
+        PutObjectTaggingRequest.builder()
+            .bucket(bucket)
+            .key(objectKey)
+            .tagging(Tagging.builder().tagSet(tags).build())
+            .build();
+    client().putObjectTagging(putObjectTaggingRequest);
+  }
+
   private S3Client client() {
     if (client == null) {
       synchronized (this) {

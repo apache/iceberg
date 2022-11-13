@@ -589,4 +589,42 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
     Assert.assertEquals(namespace, tagMap.get(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
   }
+
+  @Test
+  public void testTableLevelS3TagsAfterRename() {
+    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            "true",
+            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            "true");
+    glueCatalog.initialize(
+        catalogName, testBucketPath, new AwsProperties(properties), glue, null, fileIO);
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    String newNamespace = createNamespace();
+    String newTableName = tableName + "_2";
+    glueCatalog.renameTable(
+        TableIdentifier.of(namespace, tableName), TableIdentifier.of(newNamespace, newTableName));
+
+    // Get metadata object tag from S3
+    GetTableResponse response =
+        glue.getTable(
+            GetTableRequest.builder().databaseName(newNamespace).name(newTableName).build());
+    String metaLocation =
+        response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    String key = metaLocation.split(testBucketName, -1)[1].substring(1);
+    List<Tag> tags =
+        s3.getObjectTagging(
+                GetObjectTaggingRequest.builder().bucket(testBucketName).key(key).build())
+            .tagSet();
+    Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(Tag::key, Tag::value));
+    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertEquals(newTableName, tagMap.get(AwsProperties.S3_TAG_ICEBERG_TABLE));
+    Assert.assertTrue(tagMap.containsKey(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
+    Assert.assertEquals(newNamespace, tagMap.get(AwsProperties.S3_TAG_ICEBERG_NAMESPACE));
+  }
 }

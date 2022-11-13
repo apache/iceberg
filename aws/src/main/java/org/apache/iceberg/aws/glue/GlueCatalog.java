@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -30,12 +33,17 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LockManager;
+import org.apache.iceberg.ManifestContent;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -47,15 +55,22 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -77,6 +92,7 @@ import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 public class GlueCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Configuration> {
@@ -425,6 +441,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
       throw e;
     }
 
+    updateTableTag(from, to);
+
     LOG.info("Successfully renamed table from {} to {}", from, to);
   }
 
@@ -623,5 +641,155 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  private void updateTableTag(TableIdentifier from, TableIdentifier to) {
+    // should update tag when the rename process is successful
+    TableOperations ops = newTableOps(to);
+    TableMetadata lastMetadata = null;
+    try {
+      lastMetadata = ops.current();
+    } catch (NotFoundException e) {
+      LOG.warn(
+          "Failed to load table metadata for table: {}, continuing rename without re-tag", to, e);
+    }
+    Set<Tag> oldTags = Sets.newHashSet();
+    Set<Tag> newTags = Sets.newHashSet();
+    boolean skipNameValidation = awsProperties.glueCatalogSkipNameValidation();
+    if (awsProperties.s3WriteTableTagEnabled()) {
+      oldTags.add(
+          Tag.builder()
+              .key(AwsProperties.S3_TAG_ICEBERG_TABLE)
+              .value(IcebergToGlueConverter.getTableName(from, skipNameValidation))
+              .build());
+      newTags.add(
+          Tag.builder()
+              .key(AwsProperties.S3_TAG_ICEBERG_TABLE)
+              .value(IcebergToGlueConverter.getTableName(to, skipNameValidation))
+              .build());
+    }
+
+    if (awsProperties.s3WriteNamespaceTagEnabled()) {
+      oldTags.add(
+          Tag.builder()
+              .key(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)
+              .value(IcebergToGlueConverter.getDatabaseName(from, skipNameValidation))
+              .build());
+      newTags.add(
+          Tag.builder()
+              .key(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)
+              .value(IcebergToGlueConverter.getDatabaseName(to, skipNameValidation))
+              .build());
+    }
+
+    if (lastMetadata != null && ops.io() instanceof S3FileIO) {
+      updateTableTag((S3FileIO) ops.io(), lastMetadata, oldTags, newTags);
+    }
+  }
+
+  private void updateTableTag(
+      S3FileIO io, TableMetadata metadata, Set<Tag> oldTags, Set<Tag> newTags) {
+    Set<String> manifestListsToUpdate = Sets.newHashSet();
+    Set<ManifestFile> manifestsToUpdate = Sets.newHashSet();
+    for (Snapshot snapshot : metadata.snapshots()) {
+      // add all manifests to the delete set because both data and delete files should be removed
+      Iterables.addAll(manifestsToUpdate, snapshot.allManifests(io));
+      // add the manifest list to the delete set, if present
+      if (snapshot.manifestListLocation() != null) {
+        manifestListsToUpdate.add(snapshot.manifestListLocation());
+      }
+    }
+
+    LOG.info("Manifests to update: {}", Joiner.on(", ").join(manifestsToUpdate));
+
+    boolean gcEnabled =
+        PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
+
+    if (gcEnabled) {
+      // update data files only if we are sure this won't corrupt other tables
+      updateFilesTag(io, manifestsToUpdate, oldTags, newTags);
+    }
+
+    updateFilesTag(
+        io,
+        Iterables.transform(manifestsToUpdate, ManifestFile::path),
+        "manifest",
+        true,
+        oldTags,
+        newTags);
+    updateFilesTag(io, manifestListsToUpdate, "manifest list", true, oldTags, newTags);
+    updateFilesTag(
+        io,
+        Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
+        "previous metadata",
+        true,
+        oldTags,
+        newTags);
+    updateFileTag(io, metadata.metadataFileLocation(), "metadata", oldTags, newTags);
+  }
+
+  private void updateFilesTag(
+      S3FileIO io, Set<ManifestFile> allManifests, Set<Tag> oldTags, Set<Tag> newTags) {
+    Map<String, Boolean> updatedFiles =
+        new MapMaker().concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE).weakKeys().makeMap();
+
+    Tasks.foreach(allManifests)
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure(
+            (item, exc) ->
+                LOG.warn("Failed to get updated files: this may cause orphaned data files", exc))
+        .run(
+            manifest -> {
+              if (manifest.content() == ManifestContent.DATA) {
+                List<String> pathsToUpdated = Lists.newArrayList();
+                CloseableIterable<String> filePaths = ManifestFiles.readPaths(manifest, io);
+                for (String rawFilePath : filePaths) {
+                  // intern the file path because the weak key map uses identity (==) instead of
+                  // equals
+                  String path = rawFilePath.intern();
+                  Boolean alreadyUpdated = updatedFiles.putIfAbsent(path, true);
+                  if (alreadyUpdated == null || !alreadyUpdated) {
+                    pathsToUpdated.add(path);
+                  }
+                }
+                updateFilesTag(io, pathsToUpdated, "data", false, oldTags, newTags);
+              }
+              // TODO: handle delete manifests
+            });
+  }
+
+  private void updateFilesTag(
+      S3FileIO io,
+      Iterable<String> files,
+      String type,
+      boolean concurrent,
+      Set<Tag> oldTags,
+      Set<Tag> newTags) {
+    if (concurrent) {
+      updateFilesTag(io, files, type, oldTags, newTags);
+    } else {
+      files.forEach(file -> updateFileTag(io, file, type, oldTags, newTags));
+    }
+  }
+
+  private void updateFilesTag(
+      S3FileIO io, Iterable<String> files, String type, Set<Tag> oldTags, Set<Tag> newTags) {
+    Tasks.foreach(files)
+        .executeWith(ThreadPools.getWorkerPool())
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to update tags for {} file {}", type, file, exc))
+        .run(file -> io.updateFileTag(file, oldTags, newTags));
+  }
+
+  private void updateFileTag(
+      S3FileIO io, String file, String type, Set<Tag> oldTags, Set<Tag> newTags) {
+    try {
+      io.updateFileTag(file, oldTags, newTags);
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to update tags for {} file {}", type, file, e);
+    }
   }
 }
