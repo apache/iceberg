@@ -276,14 +276,14 @@ def test_boolean_expression_visit_raise_not_implemented_error():
 
 
 def test_bind_visitor_already_bound(table_schema_simple: Schema):
-    bound = BoundEqualTo(  # type: ignore
+    bound = BoundEqualTo[str](
         term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         literal=literal("hello"),
     )
     with pytest.raises(TypeError) as exc_info:
         visit(bound, visitor=BindVisitor(schema=table_schema_simple))
     assert (
-        "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=StringLiteral('hello'))"
+        "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=literal('hello'))"
         == str(exc_info.value)
     )
 
@@ -368,7 +368,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         ),
                         {literal("bar"), literal("baz")},
                     ),
-                    BoundEqualTo(  # type: ignore
+                    BoundEqualTo(
                         BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),
@@ -376,7 +376,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         literal(1),
                     ),
                 ),
-                BoundEqualTo(  # type: ignore
+                BoundEqualTo(
                     BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
@@ -513,7 +513,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                 Reference("foo"),
                 (literal("bar"),),
             ),
-            BoundEqualTo(  # type: ignore
+            BoundEqualTo(
                 BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),

@@ -68,6 +68,8 @@ T = TypeVar("T")
 class Literal(Generic[T], ABC):
     """Literal which has a value and can be converted between types"""
 
+    _value: T
+
     def __init__(self, value: T, value_type: Type[T]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
@@ -110,7 +112,7 @@ class Literal(Generic[T], ABC):
 
 
 @singledispatch
-def literal(value: Any) -> Literal:
+def literal(value: Any) -> Literal[T]:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
     using dynamic overloading
@@ -442,7 +444,7 @@ class StringLiteral(Literal[str]):
             return None
 
     def __repr__(self) -> str:
-        return f"StringLiteral({repr(self.value)})"
+        return f"literal({repr(self.value)})"
 
 
 class UUIDLiteral(Literal[UUID]):

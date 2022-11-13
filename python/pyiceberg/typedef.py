@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+from decimal import Decimal
 from typing import (
     Any,
     Dict,
     Tuple,
+    TypeVar,
     Union,
 )
+from uuid import UUID
 
 
 class FrozenDict(Dict[Any, Any]):
@@ -36,3 +38,7 @@ EMPTY_DICT = FrozenDict()
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]
 RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]  # type: ignore
+
+LITERAL_TYPES = Union[str, int, bool, float, bytes, Decimal, UUID]
+
+T = TypeVar("T", bound=LITERAL_TYPES)
