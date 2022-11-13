@@ -756,7 +756,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
                 }
                 updateFilesTag(io, pathsToUpdated, "data", false, oldTags, newTags);
               }
-              // TODO: handle delete manifests
             });
   }
 
