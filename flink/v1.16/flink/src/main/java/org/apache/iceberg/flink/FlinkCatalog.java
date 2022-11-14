@@ -53,6 +53,7 @@ import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -113,6 +114,9 @@ public class FlinkCatalog extends AbstractCatalog {
     asNamespaceCatalog =
         originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
     closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
+
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "flink");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, "1.16");
   }
 
   @Override
