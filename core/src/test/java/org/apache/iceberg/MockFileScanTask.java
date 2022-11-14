@@ -39,6 +39,11 @@ public class MockFileScanTask extends BaseFileScanTask {
     this.length = file.fileSizeInBytes();
   }
 
+  public MockFileScanTask(DataFile file, String schemaString, String specString) {
+    super(file, null, schemaString, specString, null);
+    this.length = file.fileSizeInBytes();
+  }
+
   public static MockFileScanTask mockTask(long length, int sortOrderId) {
     DataFile mockFile = Mockito.mock(DataFile.class);
     Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
