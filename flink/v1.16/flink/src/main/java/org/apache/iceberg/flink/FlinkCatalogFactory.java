@@ -153,10 +153,11 @@ public class FlinkCatalogFactory implements CatalogFactory {
         PropertyUtil.propertyAsLong(
             properties,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
-            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
-    if (cacheExpirationIntervalMs == 0) {
-      cacheEnabled = false;
-    }
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
+    Preconditions.checkArgument(
+        cacheExpirationIntervalMs != 0,
+        "%s is not allowed to be 0.",
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
     return new FlinkCatalog(
         name,
