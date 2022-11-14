@@ -665,6 +665,19 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.USER,
         System.getProperty("user.name"),
         PrincipalType.USER);
+
+    setNamespaceOwnershipAndVerify(
+        "set_ownership_noop_4",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableMap.of("unrelated_prop_1", "value_1", "unrelated_prop_2", "value_2"),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        "some_group_owner",
+        PrincipalType.GROUP);
   }
 
   private void setNamespaceOwnershipAndVerify(
