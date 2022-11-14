@@ -120,7 +120,7 @@ class BoundReference(BoundTerm[T]):
         return self
 
 
-class UnboundTerm(Term[Any], Unbound, ABC):
+class UnboundTerm(Term, Unbound, ABC):
     """Represents an unbound term."""
 
     @abstractmethod
