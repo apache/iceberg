@@ -155,9 +155,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
     Preconditions.checkArgument(
-            cacheExpirationIntervalMs != 0,
-            "%s is not allowed to be 0.",
-            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
+        cacheExpirationIntervalMs != 0,
+        "%s is not allowed to be 0.",
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
     return new FlinkCatalog(
         name,
