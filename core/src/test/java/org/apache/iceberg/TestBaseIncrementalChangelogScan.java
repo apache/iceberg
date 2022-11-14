@@ -27,7 +27,6 @@ import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ComparisonChain;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -52,31 +51,24 @@ public class TestBaseIncrementalChangelogScan
   public void testDataFilters() {
     table.newFastAppend().appendFile(FILE_A).commit();
 
-    Snapshot snap1 = table.currentSnapshot();
-    ManifestFile snap1DataManifest = Iterables.getOnlyElement(snap1.dataManifests(table.io()));
-
     table.newFastAppend().appendFile(FILE_B).commit();
 
     Snapshot snap2 = table.currentSnapshot();
 
     Assert.assertEquals("Must be 2 data manifests", 2, snap2.dataManifests(table.io()).size());
 
-    withUnavailableLocations(
-        ImmutableList.of(snap1DataManifest.path()),
-        () -> {
-          // bucket(k, 16) is 1 which is supposed to match only FILE_B
-          IncrementalChangelogScan scan = newScan().filter(Expressions.equal("data", "k"));
+    // bucket(k, 16) is 1 which is supposed to match only FILE_B
+    IncrementalChangelogScan scan = newScan().filter(Expressions.equal("data", "k"));
 
-          List<ChangelogScanTask> tasks = plan(scan);
+    List<ChangelogScanTask> tasks = plan(scan);
 
-          Assert.assertEquals("Must have 1 task", 1, tasks.size());
+    Assert.assertEquals("Must have 1 task", 1, tasks.size());
 
-          AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
-          Assert.assertEquals("Ordinal must match", 1, t1.changeOrdinal());
-          Assert.assertEquals("Snapshot must match", snap2.snapshotId(), t1.commitSnapshotId());
-          Assert.assertEquals("Data file must match", FILE_B.path(), t1.file().path());
-          Assert.assertTrue("Must be no deletes", t1.deletes().isEmpty());
-        });
+    AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
+    Assert.assertEquals("Ordinal must match", 1, t1.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap2.snapshotId(), t1.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_B.path(), t1.file().path());
+    Assert.assertTrue("Must be no deletes", t1.deletes().isEmpty());
   }
 
   @Test
@@ -131,6 +123,111 @@ public class TestBaseIncrementalChangelogScan
     Assert.assertEquals("Snapshot must match", snap2.snapshotId(), t1.commitSnapshotId());
     Assert.assertEquals("Data file must match", FILE_A.path(), t1.file().path());
     Assert.assertTrue("Must be no deletes", t1.existingDeletes().isEmpty());
+  }
+
+  @Test
+  public void testRowsDeletes() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // only scan added deletes
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan1 =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks1 = plan(scan1);
+
+    Assert.assertEquals("Must have 1 tasks", 1, tasks1.size());
+
+    DeletedRowsScanTask t1 = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks1);
+    Assert.assertEquals("Ordinal must match", 0, t1.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap1.snapshotId(), t1.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_A.path(), t1.file().path());
+    Assert.assertEquals("Must have 1 added deletes", 1, t1.addedDeletes().size());
+    Assert.assertEquals("Added deletes must match", FILE_A_DELETES.path(), t1.addedDeletes().get(0).path());
+    Assert.assertTrue("Must have no existing deletes", t1.existingDeletes().isEmpty());
+
+    // include existing deletes
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).addDeletes(FILE_C2_DELETES).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan2 =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks2 = plan(scan2);
+
+    Assert.assertEquals("Must have 2 tasks", 2, tasks2.size());
+
+    DeletedRowsScanTask t2 = (DeletedRowsScanTask) Iterables.get(tasks2, 0);
+    Assert.assertEquals("Ordinal must match", 0, t2.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap1.snapshotId(), t2.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_A.path(), t2.file().path());
+    Assert.assertEquals("Must have 1 added deletes", 1, t2.addedDeletes().size());
+    Assert.assertEquals("Added deletes must match", FILE_A2_DELETES.path(), t2.addedDeletes().get(0).path());
+    Assert.assertEquals("Must have 1 existing deletes", 1, t2.existingDeletes().size());
+    Assert.assertEquals("Existing deletes must match", FILE_A_DELETES.path(), t2.existingDeletes().get(0).path());
+
+    DeletedRowsScanTask t3 = (DeletedRowsScanTask) Iterables.get(tasks2, 1);
+    Assert.assertEquals("Ordinal must match", 0, t3.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap1.snapshotId(), t3.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_C.path(), t3.file().path());
+    Assert.assertEquals("Must have 1 added deletes", 1, t3.addedDeletes().size());
+    Assert.assertEquals("Added deletes must match", FILE_C2_DELETES.path(), t3.addedDeletes().get(0).path());
+    Assert.assertTrue("Must have no existing deletes", t3.existingDeletes().isEmpty());
+  }
+
+  @Test
+  public void testChangelogScan() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    table.newDelete().deleteFile(FILE_B).commit();
+    Snapshot snap4 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).addDeletes(FILE_C2_DELETES).commit();
+    Snapshot snap5 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap5.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    Assert.assertEquals("Must have 3 tasks", 3, tasks.size());
+
+    AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.get(tasks, 0);
+    Assert.assertEquals("Ordinal must match", 0, t1.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap3.snapshotId(), t1.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_C.path(), t1.file().path());
+    Assert.assertEquals("Must have 1 deletes", 1, t1.deletes().size());
+    Assert.assertEquals("Deletes must match", FILE_C2_DELETES.path(), t1.deletes().get(0).path());
+
+    DeletedDataFileScanTask t2 = (DeletedDataFileScanTask) Iterables.get(tasks, 1);
+    Assert.assertEquals("Ordinal must match", 1, t2.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap4.snapshotId(), t2.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_B.path(), t2.file().path());
+    Assert.assertEquals("Must have 1 existing deletes", 1, t2.existingDeletes().size());
+    Assert.assertEquals("Existing deletes must match", FILE_B_DELETES.path(), t2.existingDeletes().get(0).path());
+
+    DeletedRowsScanTask t3 = (DeletedRowsScanTask) Iterables.get(tasks, 2);
+    Assert.assertEquals("Ordinal must match", 2, t3.changeOrdinal());
+    Assert.assertEquals("Snapshot must match", snap1.snapshotId(), t3.commitSnapshotId());
+    Assert.assertEquals("Data file must match", FILE_A.path(), t3.file().path());
+    Assert.assertEquals("Must have 1 added deletes", 1, t3.addedDeletes().size());
+    Assert.assertEquals("Added deletes must match", FILE_A2_DELETES.path(), t3.addedDeletes().get(0).path());
+    Assert.assertEquals("Must have 1 existing deletes", 1, t3.existingDeletes().size());
+    Assert.assertEquals("Existing deletes must match", FILE_A_DELETES.path(), t3.existingDeletes().get(0).path());
   }
 
   @Test
@@ -246,21 +343,6 @@ public class TestBaseIncrementalChangelogScan
     Assert.assertEquals("Snapshot must match", snap2.snapshotId(), t2.commitSnapshotId());
     Assert.assertEquals("Data file must match", FILE_B.path(), t2.file().path());
     Assert.assertTrue("Must be no deletes", t2.deletes().isEmpty());
-  }
-
-  @Test
-  public void testDeleteFilesAreNotSupported() {
-    Assume.assumeTrue(formatVersion == 2);
-
-    table.newFastAppend().appendFile(FILE_A2).appendFile(FILE_B).commit();
-
-    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
-
-    AssertHelpers.assertThrows(
-        "Should complain about delete files",
-        UnsupportedOperationException.class,
-        "Delete files are currently not supported",
-        () -> plan(newScan()));
   }
 
   // plans tasks and reorders them to have deterministic order
