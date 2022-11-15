@@ -29,7 +29,6 @@ from functools import singledispatch, singledispatchmethod
 from typing import (
     Any,
     Generic,
-    Optional,
     Type,
     TypeVar,
     Union,

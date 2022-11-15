@@ -17,7 +17,6 @@
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
-    Any,
     Callable,
     Generic,
     List,
@@ -61,26 +60,26 @@ from pyiceberg.types import (
     PrimitiveType,
 )
 
-B = TypeVar("B")
+R = TypeVar("R")
 
 
-class BooleanExpressionVisitor(Generic[B], ABC):
+class BooleanExpressionVisitor(Generic[R], ABC):
     @abstractmethod
-    def visit_true(self) -> B:
+    def visit_true(self) -> R:
         """Visit method for an AlwaysTrue boolean expression
 
         Note: This visit method has no arguments since AlwaysTrue instances have no context.
         """
 
     @abstractmethod
-    def visit_false(self) -> B:
+    def visit_false(self) -> R:
         """Visit method for an AlwaysFalse boolean expression
 
         Note: This visit method has no arguments since AlwaysFalse instances have no context.
         """
 
     @abstractmethod
-    def visit_not(self, child_result: B) -> B:
+    def visit_not(self, child_result: R) -> R:
         """Visit method for a Not boolean expression
 
         Args:
@@ -88,25 +87,25 @@ class BooleanExpressionVisitor(Generic[B], ABC):
         """
 
     @abstractmethod
-    def visit_and(self, left_result: B, right_result: B) -> B:
+    def visit_and(self, left_result: R, right_result: R) -> R:
         """Visit method for an And boolean expression
 
         Args:
-            left_result (T): The result of visiting the left side of the expression
-            right_result (T): The result of visiting the right side of the expression
+            left_result (R): The result of visiting the left side of the expression
+            right_result (R): The result of visiting the right side of the expression
         """
 
     @abstractmethod
-    def visit_or(self, left_result: B, right_result: B) -> B:
+    def visit_or(self, left_result: R, right_result: R) -> R:
         """Visit method for an Or boolean expression
 
         Args:
-            left_result (T): The result of visiting the left side of the expression
-            right_result (T): The result of visiting the right side of the expression
+            left_result (R): The result of visiting the left side of the expression
+            right_result (R): The result of visiting the right side of the expression
         """
 
     @abstractmethod
-    def visit_unbound_predicate(self, predicate) -> B:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> R:
         """Visit method for an unbound predicate in an expression tree
 
         Args:
@@ -114,23 +113,23 @@ class BooleanExpressionVisitor(Generic[B], ABC):
         """
 
     @abstractmethod
-    def visit_bound_predicate(self, predicate) -> B:
+    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> R:
         """Visit method for a bound predicate in an expression tree
 
         Args:
-            predicate (BoundPredicate): An instance of a BoundPredicate
+            predicate (BoundPredicate[T]): An instance of a BoundPredicate
         """
 
 
 @singledispatch
-def visit(obj, visitor: BooleanExpressionVisitor[B]) -> B:
+def visit(obj, visitor: BooleanExpressionVisitor[R]) -> R:
     """A generic function for applying a boolean expression visitor to any point within an expression
 
     The function traverses the expression in post-order fashion
 
     Args:
         obj(BooleanExpression): An instance of a BooleanExpression
-        visitor(BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class
+        visitor(BooleanExpressionVisitor[R]): An instance of an implementation of the generic BooleanExpressionVisitor base class
 
     Raises:
         NotImplementedError: If attempting to visit an unsupported expression
@@ -138,50 +137,50 @@ def visit(obj, visitor: BooleanExpressionVisitor[B]) -> B:
     raise NotImplementedError(f"Cannot visit unsupported expression: {obj}")
 
 
-@visit.register
-def _(_: AlwaysTrue, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(AlwaysTrue)
+def _(_: AlwaysTrue, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_true()
 
 
-@visit.register
-def _(_: AlwaysFalse, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(AlwaysFalse)
+def _(_: AlwaysFalse, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_false()
 
 
-@visit.register
-def _(obj: Not, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(Not)
+def _(obj: Not, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
-    child_result: B = visit(obj.child, visitor=visitor)
+    child_result: R = visit(obj.child, visitor=visitor)
     return visitor.visit_not(child_result=child_result)
 
 
-@visit.register
-def _(obj: And, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(And)
+def _(obj: And, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
-    left_result: B = visit(obj.left, visitor=visitor)
-    right_result: B = visit(obj.right, visitor=visitor)
+    left_result: R = visit(obj.left, visitor=visitor)
+    right_result: R = visit(obj.right, visitor=visitor)
     return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
-@visit.register
-def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(UnboundPredicate)
+def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 
 
-@visit.register
-def _(obj: BoundPredicate, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(BoundPredicate)
+def _(obj: BoundPredicate[T], visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit a bound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_bound_predicate(predicate=obj)
 
 
-@visit.register
-def _(obj: Or, visitor: BooleanExpressionVisitor[B]) -> B:
+@visit.register(Or)
+def _(obj: Or, visitor: BooleanExpressionVisitor[R]) -> R:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
-    left_result: B = visit(obj.left, visitor=visitor)
-    right_result: B = visit(obj.right, visitor=visitor)
+    left_result: R = visit(obj.left, visitor=visitor)
+    right_result: R = visit(obj.right, visitor=visitor)
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
@@ -235,77 +234,77 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
         return predicate.bind(self.schema, case_sensitive=self.case_sensitive)
 
-    def visit_bound_predicate(self, predicate: BoundPredicate) -> BooleanExpression:
+    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
 
 
-class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[B], ABC):
+class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[R], ABC):
     @abstractmethod
-    def visit_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> B:
+    def visit_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> R:
         """Visit a bound In predicate"""
 
     @abstractmethod
-    def visit_not_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> B:
+    def visit_not_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> R:
         """Visit a bound NotIn predicate"""
 
     @abstractmethod
-    def visit_is_nan(self, term: BoundTerm[T]) -> B:
+    def visit_is_nan(self, term: BoundTerm[T]) -> R:
         """Visit a bound IsNan predicate"""
 
     @abstractmethod
-    def visit_not_nan(self, term: BoundTerm[T]) -> B:
+    def visit_not_nan(self, term: BoundTerm[T]) -> R:
         """Visit a bound NotNan predicate"""
 
     @abstractmethod
-    def visit_is_null(self, term: BoundTerm[T]) -> B:
+    def visit_is_null(self, term: BoundTerm[T]) -> R:
         """Visit a bound IsNull predicate"""
 
     @abstractmethod
-    def visit_not_null(self, term: BoundTerm[T]) -> B:
+    def visit_not_null(self, term: BoundTerm[T]) -> R:
         """Visit a bound NotNull predicate"""
 
     @abstractmethod
-    def visit_equal(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_equal(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound Equal predicate"""
 
     @abstractmethod
-    def visit_not_equal(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_not_equal(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound NotEqual predicate"""
 
     @abstractmethod
-    def visit_greater_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_greater_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound GreaterThanOrEqual predicate"""
 
     @abstractmethod
-    def visit_greater_than(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_greater_than(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound GreaterThan predicate"""
 
     @abstractmethod
-    def visit_less_than(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_less_than(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound LessThan predicate"""
 
     @abstractmethod
-    def visit_less_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> B:
+    def visit_less_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> R:
         """Visit a bound LessThanOrEqual predicate"""
 
     @abstractmethod
-    def visit_true(self) -> B:
+    def visit_true(self) -> R:
         """Visit a bound True predicate"""
 
     @abstractmethod
-    def visit_false(self) -> B:
+    def visit_false(self) -> R:
         """Visit a bound False predicate"""
 
     @abstractmethod
-    def visit_not(self, child_result: B) -> B:
+    def visit_not(self, child_result: R) -> R:
         """Visit a bound Not predicate"""
 
     @abstractmethod
-    def visit_and(self, left_result: B, right_result: B) -> B:
+    def visit_and(self, left_result: R, right_result: R) -> R:
         """Visit a bound And predicate"""
 
     @abstractmethod
-    def visit_or(self, left_result: B, right_result: B) -> B:
+    def visit_or(self, left_result: R, right_result: R) -> R:
         """Visit a bound Or predicate"""
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate):
@@ -317,7 +316,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[B], ABC):
         """
         raise TypeError(f"Not a bound predicate: {predicate}")
 
-    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> B:
+    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> R:
         """Visit a bound predicate
         Args:
             predicate (BoundPredicate[T]): A bound predicate
@@ -326,68 +325,68 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[B], ABC):
 
 
 @singledispatch
-def visit_bound_predicate(expr, _: BooleanExpressionVisitor[B]) -> B:
+def visit_bound_predicate(expr, _: BooleanExpressionVisitor[R]) -> R:
     raise TypeError(f"Unknown predicate: {expr}")
 
 
 @visit_bound_predicate.register(BoundIn)
-def _(expr: BoundIn, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundIn[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_in(term=expr.term, literals=expr.literals)
 
 
 @visit_bound_predicate.register(BoundNotIn)
-def _(expr: BoundNotIn, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundNotIn[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_not_in(term=expr.term, literals=expr.literals)
 
 
 @visit_bound_predicate.register(BoundIsNaN)
-def _(expr: BoundIsNaN, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundIsNaN[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_is_nan(term=expr.term)
 
 
 @visit_bound_predicate.register(BoundNotNaN)
-def _(expr: BoundNotNaN, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundNotNaN[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_not_nan(term=expr.term)
 
 
 @visit_bound_predicate.register(BoundIsNull)
-def _(expr: BoundIsNull, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundIsNull[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_is_null(term=expr.term)
 
 
 @visit_bound_predicate.register(BoundNotNull)
-def _(expr: BoundNotNull, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundNotNull[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_not_null(term=expr.term)
 
 
 @visit_bound_predicate.register(BoundEqualTo)
-def _(expr: BoundEqualTo, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundEqualTo[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_equal(term=expr.term, literal=expr.literal)
 
 
 @visit_bound_predicate.register(BoundNotEqualTo)
-def _(expr: BoundNotEqualTo, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundNotEqualTo[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_not_equal(term=expr.term, literal=expr.literal)
 
 
 @visit_bound_predicate.register(BoundGreaterThanOrEqual)
-def _(expr: BoundGreaterThanOrEqual, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundGreaterThanOrEqual[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     """Visit a bound GreaterThanOrEqual predicate"""
     return visitor.visit_greater_than_or_equal(term=expr.term, literal=expr.literal)
 
 
 @visit_bound_predicate.register(BoundGreaterThan)
-def _(expr: BoundGreaterThan, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundGreaterThan[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_greater_than(term=expr.term, literal=expr.literal)
 
 
 @visit_bound_predicate.register(BoundLessThan)
-def _(expr: BoundLessThan, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundLessThan[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_less_than(term=expr.term, literal=expr.literal)
 
 
 @visit_bound_predicate.register(BoundLessThanOrEqual)
-def _(expr: BoundLessThanOrEqual, visitor: BoundBooleanExpressionVisitor[B]) -> B:
+def _(expr: BoundLessThanOrEqual[T], visitor: BoundBooleanExpressionVisitor[R]) -> R:
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
 
 
@@ -413,10 +412,10 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
     def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         return Or(left=left_result, right=right_result)
 
-    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
         return predicate
 
-    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+    def visit_bound_predicate(self, predicate: BoundPredicate[T]) -> BooleanExpression:
         return predicate
 
 
@@ -446,7 +445,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         # No partition information
         return ROWS_MIGHT_MATCH
 
-    def visit_in(self, term: BoundTerm, literals: Set[Literal[Any]]) -> bool:
+    def visit_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -468,12 +467,12 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_not_in(self, term: BoundTerm, literals: Set[Literal[Any]]) -> bool:
+    def visit_not_in(self, term: BoundTerm[T], literals: Set[Literal[T]]) -> bool:
         # because the bounds are not necessarily a min or max value, this cannot be answered using
         # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
         return ROWS_MIGHT_MATCH
 
-    def visit_is_nan(self, term: BoundTerm) -> bool:
+    def visit_is_nan(self, term: BoundTerm[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -482,7 +481,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_not_nan(self, term: BoundTerm) -> bool:
+    def visit_not_nan(self, term: BoundTerm[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -491,7 +490,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_is_null(self, term: BoundTerm) -> bool:
+    def visit_is_null(self, term: BoundTerm[T]) -> bool:
         pos = term.ref().accessor.position
 
         if self.partition_fields[pos].contains_null is False:
@@ -499,7 +498,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_not_null(self, term: BoundTerm) -> bool:
+    def visit_not_null(self, term: BoundTerm[T]) -> bool:
         pos = term.ref().accessor.position
 
         # contains_null encodes whether at least one partition value is null,
@@ -516,7 +515,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_equal(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -536,12 +535,12 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_not_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_not_equal(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         # because the bounds are not necessarily a min or max value, this cannot be answered using
         # them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
         return ROWS_MIGHT_MATCH
 
-    def visit_greater_than_or_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_greater_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -555,7 +554,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_greater_than(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_greater_than(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -569,7 +568,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_less_than(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_less_than(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -583,7 +582,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         return ROWS_MIGHT_MATCH
 
-    def visit_less_than_or_equal(self, term: BoundTerm, literal: Literal[Any]) -> bool:
+    def visit_less_than_or_equal(self, term: BoundTerm[T], literal: Literal[T]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 

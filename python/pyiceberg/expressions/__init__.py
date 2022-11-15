@@ -116,7 +116,7 @@ class BoundReference(BoundTerm[T]):
     def __repr__(self) -> str:
         return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
 
-    def ref(self) -> BoundReference:
+    def ref(self) -> BoundReference[T]:
         return self
 
 
@@ -149,7 +149,7 @@ class Reference(UnboundTerm):
     def __eq__(self, other):
         return self.name == other.name if isinstance(other, Reference) else False
 
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[T]:
         """Bind the reference to an Iceberg schema
 
         Args:
@@ -423,7 +423,7 @@ class SetPredicate(Generic[T], UnboundPredicate, ABC):
         super().__init__(term)
         self.literals = _convert_into_set(literals)
 
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundSetPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundSetPredicate[T]:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term, {lit.to(bound_term.ref().field.field_type) for lit in self.literals})
 
@@ -550,7 +550,7 @@ class LiteralPredicate(Generic[T], UnboundPredicate, ABC):
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundLiteralPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundLiteralPredicate[T]:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term, self.literal.to(bound_term.ref().field.field_type))
 
