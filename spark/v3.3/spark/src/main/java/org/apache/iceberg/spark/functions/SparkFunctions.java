@@ -32,6 +32,7 @@ public class SparkFunctions {
   private static final Map<String, UnboundFunction> FUNCTIONS =
       ImmutableMap.of(
           "iceberg_version", new IcebergVersionFunction(),
+          "years", new YearsFunction(),
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
