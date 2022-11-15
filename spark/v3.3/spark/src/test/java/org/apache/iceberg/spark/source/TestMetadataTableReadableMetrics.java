@@ -236,11 +236,11 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSelect() throws Exception {
+  public void testSelectPrimitiveValues() throws Exception {
     createPrimitiveTable();
 
     assertEquals(
-        "select of nested readable_metrics fields should work",
+        "select of primitive readable_metrics fields should work",
         ImmutableList.of(row(1, true)),
         sql(
             "SELECT readable_metrics.intCol.lower_bound, readable_metrics.booleanCol.upper_bound FROM %s.files",
@@ -255,6 +255,19 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
         "mixed select of readable_metrics and other field should work, in the other order",
         ImmutableList.of(row(4L, 0)),
         sql("SELECT readable_metrics.longCol.value_count, content FROM %s.files", tableName));
+  }
+
+  @Test
+  public void testSelectNestedValues() throws Exception {
+    createNestedTable();
+
+    assertEquals(
+        "select of nested readable_metrics fields should work",
+        ImmutableList.of(row(0L, 3L)),
+        sql(
+            "SELECT readable_metrics.`nestedStructCol.leafStructCol.leafLongCol`.lower_bound, "
+                + "readable_metrics.`nestedStructCol.leafStructCol.leafDoubleCol`.value_count FROM %s.files",
+            tableName));
   }
 
   @Test
