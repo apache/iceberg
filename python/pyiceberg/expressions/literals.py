@@ -25,14 +25,8 @@ import struct
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatch, singledispatchmethod
-from typing import (
-    Any,
-    Generic,
-    Type,
-    TypeVar,
-    Union,
-)
+from functools import singledispatchmethod
+from typing import Generic, Type, Union, TypeVar
 from uuid import UUID
 
 from pyiceberg.types import (
@@ -53,17 +47,17 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.datetime import (
-    date_str_to_days,
+    date_str_to_date,
     date_to_days,
-    micros_to_days,
+    days_to_date,
+    micros_to_date,
     time_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
 from pyiceberg.utils.singleton import Singleton
 
-T = TypeVar("T")
-
+T = TypeVar('T')
 
 class Literal(Generic[T], ABC):
     """Literal which has a value and can be converted between types"""
@@ -72,7 +66,7 @@ class Literal(Generic[T], ABC):
 
     def __init__(self, value: T, value_type: Type[T]):
         if value is None or not isinstance(value, value_type):
-            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
+            raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
         self._value = value
 
     @property
@@ -85,7 +79,7 @@ class Literal(Generic[T], ABC):
         ...  # pragma: no cover
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.value})"
+        return f"{type(self).__name__}({self.value!r})"
 
     def __str__(self) -> str:
         return str(self.value)
@@ -112,11 +106,9 @@ class Literal(Generic[T], ABC):
         return self.value >= other.value
 
 
-@singledispatch
-def literal(value: Any) -> Literal[T]:
+def literal(value: T) -> Literal[T]:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
-    using dynamic overloading
 
     Args:
         value(python primitive type): the value to be associated with literal
@@ -126,54 +118,30 @@ def literal(value: Any) -> Literal[T]:
         >>> literal(123)
         LongLiteral(123)
     """
+    # Issues with the TypeVar: https://github.com/python/mypy/issues/9424
+    # Therefore we have to ignore the types, however they are annotated properly:
+    #
+    # reveal_type(literal(True)): Revealed type is "pyiceberg.expressions.literals.Literal[builtins.bool]"
+    # reveal_type(literal("str")): note: Revealed type is "pyiceberg.expressions.literals.Literal[builtins.str]"
+    # reveal_type(literal(123)): Revealed type is "pyiceberg.expressions.literals.Literal[builtins.int]"
+    if isinstance(value, bool):
+        return BooleanLiteral(value)  # type: ignore
+    if isinstance(value, int):
+        return LongLiteral(value)  # type: ignore
+    if isinstance(value, float):
+        return DoubleLiteral(value)  # type: ignore
+    if isinstance(value, str):
+        return StringLiteral(value)  # type: ignore
+    if isinstance(value, UUID):
+        return UUIDLiteral(value)  # type: ignore
+    if isinstance(value, bytes):
+        return BinaryLiteral(value)  # type: ignore
+    if isinstance(value, Decimal):
+        return DecimalLiteral(value)  # type: ignore
+    if isinstance(value, date):
+        return DateLiteral(value)  # type: ignore
+
     raise TypeError(f"Invalid literal value: {repr(value)}")
-
-
-@literal.register(bool)
-def _(value: bool) -> Literal[bool]:
-    return BooleanLiteral(value)
-
-
-@literal.register(int)
-def _(value: int) -> Literal[int]:
-    return LongLiteral(value)
-
-
-@literal.register(float)
-def _(value: float) -> Literal[float]:
-    # expression binding can convert to FloatLiteral if needed
-    return DoubleLiteral(value)
-
-
-@literal.register(str)
-def _(value: str) -> Literal[str]:
-    return StringLiteral(value)
-
-
-@literal.register(UUID)
-def _(value: UUID) -> Literal[UUID]:
-    return UUIDLiteral(value)
-
-
-@literal.register(bytes)
-def _(value: bytes) -> Literal[bytes]:
-    # expression binding can convert to FixedLiteral if needed
-    return BinaryLiteral(value)
-
-
-@literal.register(bytearray)
-def _(value: bytearray) -> Literal[bytes]:
-    return BinaryLiteral(bytes(value))
-
-
-@literal.register(Decimal)
-def _(value: Decimal) -> Literal[Decimal]:
-    return DecimalLiteral(value)
-
-
-@literal.register(date)
-def _(value: date) -> Literal[int]:
-    return DateLiteral(date_to_days(value))
 
 
 class FloatAboveMax(Literal[float], Singleton):
@@ -274,8 +242,8 @@ class LongLiteral(Literal[int]):
         return DoubleLiteral(float(self.value))
 
     @to.register(DateType)
-    def _(self, _: DateType) -> Literal[int]:
-        return DateLiteral(self.value)
+    def _(self, _: DateType) -> Literal[date]:
+        return DateLiteral(days_to_date(self.value))
 
     @to.register(TimeType)
     def _(self, _: TimeType) -> Literal[int]:
@@ -358,17 +326,25 @@ class DoubleLiteral(Literal[float]):
         return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
 
 
-class DateLiteral(Literal[int]):
-    def __init__(self, value: int):
-        super().__init__(value, int)
+class DateLiteral(Literal[date]):
+    def __init__(self, value: date):
+        super().__init__(value, date)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert DateLiteral into {type_var}")
 
     @to.register(DateType)
-    def _(self, _: DateType) -> Literal[int]:
+    def _(self, _: DateType) -> Literal[date]:
         return self
+
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return LongLiteral(date_to_days(self.value))
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return LongLiteral(date_to_days(self.value))
 
 
 class TimeLiteral(Literal[int]):
@@ -397,8 +373,8 @@ class TimestampLiteral(Literal[int]):
         return self
 
     @to.register(DateType)
-    def _(self, _: DateType) -> Literal[int]:
-        return DateLiteral(micros_to_days(self.value))
+    def _(self, _: DateType) -> Literal[date]:
+        return DateLiteral(micros_to_date(self.value))
 
 
 class DecimalLiteral(Literal[Decimal]):
@@ -449,9 +425,9 @@ class StringLiteral(Literal[str]):
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> Literal[int]:
+    def _(self, type_var: DateType) -> Literal[date]:
         try:
-            return DateLiteral(date_str_to_days(self.value))
+            return DateLiteral(date_str_to_date(self.value))
         except (TypeError, ValueError) as e:
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 

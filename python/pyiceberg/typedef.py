@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from datetime import date
 from decimal import Decimal
 from typing import (
     Any,
@@ -39,6 +40,3 @@ Identifier = Tuple[str, ...]
 Properties = Dict[str, str]
 RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]  # type: ignore
 
-LITERAL_TYPES = Union[str, int, bool, float, bytes, Decimal, UUID]
-
-T = TypeVar("T", bound=LITERAL_TYPES)

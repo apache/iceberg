@@ -325,7 +325,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[R], ABC):
 
 
 @singledispatch
-def visit_bound_predicate(expr, _: BooleanExpressionVisitor[R]) -> R:
+def visit_bound_predicate(expr: BoundPredicate[T], _: BooleanExpressionVisitor[R]) -> R:
     raise TypeError(f"Unknown predicate: {expr}")
 
 

@@ -327,8 +327,8 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
     [
         (
             And(
-                In(Reference("foo"), (literal("foo"), literal("bar"))),
-                In(Reference("bar"), (literal(1), literal(2), literal(3))),
+                In(Reference("foo"), {literal("foo"), literal("bar")}),
+                In(Reference("bar"), {literal(1), literal(2), literal(3)}),
             ),
             And(
                 BoundIn(
