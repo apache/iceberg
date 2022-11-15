@@ -34,14 +34,14 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
     HiveClientPool clientPool1 = clientPool.clientPool();
     Assert.assertTrue(
-        CachedClientPool.clientPoolCache().getIfPresent(new CachedClientPool.Key(metastoreUri))
+        CachedClientPool.clientPoolCache().getIfPresent(CachedClientPool.Key.of(metastoreUri))
             == clientPool1);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
     Assert.assertNull(
-        CachedClientPool.clientPoolCache().getIfPresent(new CachedClientPool.Key(metastoreUri)));
+        CachedClientPool.clientPoolCache().getIfPresent(CachedClientPool.Key.of(metastoreUri)));
   }
 
   @Test
