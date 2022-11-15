@@ -19,20 +19,26 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -99,7 +105,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
     if (!args.isNullAt(4)) {
       String[] identifierColumns = args.getString(4).split(",");
       if (identifierColumns.length > 0) {
-        df = withUpdate(df, identifierColumns);
+        df = withUpdate2(df, identifierColumns);
       }
     }
 
@@ -186,6 +192,52 @@ public class GenerateChangesProcedure extends BaseProcedure {
       viewName = shortTableName + "_changes";
     }
     return viewName;
+  }
+
+  private Dataset<Row> withUpdate2(Dataset<Row> df, String[] identifiers) {
+    Column[] partitionSpec = getPartitionSpec(df, identifiers);
+    return df.repartition(partitionSpec)
+        .mapPartitions(toUpdateRows(), RowEncoder.apply(df.schema()));
+  }
+
+  private static MapPartitionsFunction<Row, Row> toUpdateRows() {
+    return rows -> {
+      List<Row> rowsList = Lists.newArrayList(rows);
+      if (rowsList.size() != 2) {
+        return rows;
+      }
+
+      int changeTypeIndex = rowsList.get(0).fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+      String changeType0 = rowsList.get(0).getString(changeTypeIndex);
+      String changeType1 = rowsList.get(1).getString(changeTypeIndex);
+      String delete = ChangelogOperation.DELETE.name();
+      String insert = ChangelogOperation.INSERT.name();
+
+      if (changeType0.equals(delete) && changeType1.equals(insert)) {
+        return updateRows(
+            (InternalRow) rowsList.get(0), (InternalRow) rowsList.get(1), changeTypeIndex);
+      } else if (changeType0.equals(insert) && changeType1.equals(delete)) {
+        return updateRows(
+            (InternalRow) rowsList.get(1), (InternalRow) rowsList.get(0), changeTypeIndex);
+      } else {
+        throw new RuntimeException("Unexpected change type: " + changeType0 + ", " + changeType1);
+      }
+    };
+  }
+
+  private static Iterator<Row> updateRows(
+      InternalRow deletedRow, InternalRow insertedRow, int changeTypeIndex) {
+    deletedRow.update(changeTypeIndex, "");
+    insertedRow.update(changeTypeIndex, "");
+
+    if (deletedRow.equals(insertedRow)) {
+      // remove the carry over row
+      return Collections.emptyIterator();
+    } else {
+      deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+      insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+      return Lists.newArrayList((Row) deletedRow, (Row) insertedRow).iterator();
+    }
   }
 
   private Dataset<Row> withUpdate(Dataset<Row> df, String[] identifiers) {
