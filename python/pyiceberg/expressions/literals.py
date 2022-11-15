@@ -31,7 +31,6 @@ from typing import (
     Generic,
     Type,
     TypeVar,
-    Union,
 )
 from uuid import UUID
 
@@ -344,7 +343,7 @@ class DoubleLiteral(Literal[float]):
         return self
 
     @to.register(FloatType)
-    def _(self, _: FloatType) -> Union[FloatAboveMax, FloatBelowMin, FloatLiteral]:
+    def _(self, _: FloatType) -> Literal[float]:
         if FloatType.max < self.value:
             return FloatAboveMax()
         elif FloatType.min > self.value:
@@ -427,7 +426,7 @@ class StringLiteral(Literal[str]):
         return self
 
     @to.register(IntegerType)
-    def _(self, type_var: IntegerType) -> Union[IntAboveMax, IntBelowMin, LongLiteral]:
+    def _(self, type_var: IntegerType) -> Literal[int]:
         try:
             number = int(float(self.value))
 
@@ -461,11 +460,8 @@ class StringLiteral(Literal[str]):
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> Literal[int]:
-        try:
-            return TimestampLiteral(timestamp_to_micros(self.value))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
+    def _(self, _: TimestampType) -> Literal[int]:
+        return TimestampLiteral(timestamp_to_micros(self.value))
 
     @to.register(TimestamptzType)
     def _(self, _: TimestamptzType) -> Literal[int]:
@@ -481,7 +477,9 @@ class StringLiteral(Literal[str]):
         if type_var.scale == abs(dec.as_tuple().exponent):
             return DecimalLiteral(dec)
         else:
-            raise ValueError(f"Could not convert {self.value} into a {type_var}")
+            raise ValueError(
+                f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {abs(dec.as_tuple().exponent)}"
+            )
 
 
 class UUIDLiteral(Literal[UUID]):
@@ -510,7 +508,9 @@ class FixedLiteral(Literal[bytes]):
         if len(self.value) == len(type_var):
             return self
         else:
-            raise ValueError(f"Could not convert {self.value!r} into a {type_var}")
+            raise ValueError(
+                f"Could not convert {self.value!r} into a {type_var}, lengths differ {len(self.value)} <> {len(type_var)}"
+            )
 
     @to.register(BinaryType)
     def _(self, _: BinaryType) -> Literal[bytes]:

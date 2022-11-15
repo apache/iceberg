@@ -322,14 +322,28 @@ def test_timestamp_with_zone_without_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234")
     with pytest.raises(ValueError) as e:
         _ = timestamp_str.to(timestamp_str.to(TimestamptzType()))
-    assert "Invalid timestamp with zone: 2017-08-18T14:21:01.919234 (must be ISO-8601)" in str(e.value)
+    assert "Missing timezone: 2017-08-18T14:21:01.919234 (must be ISO-8601)" in str(e.value)
+
+
+def test_invalid_timestamp_in_literal():
+    timestamp_str = literal("abc")
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(timestamp_str.to(TimestamptzType()))
+    assert "Invalid timestamp with zone: abc (must be ISO-8601)" in str(e.value)
 
 
 def test_timestamp_without_zone_with_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234+07:00")
     with pytest.raises(ValueError) as e:
         _ = timestamp_str.to(TimestampType())
-    assert "Could not convert 2017-08-18T14:21:01.919234+07:00 into a timestamp" in str(e.value)
+    assert "Timezone provided, but not expected: 2017-08-18T14:21:01.919234+07:00" in str(e.value)
+
+
+def test_invalid_timestamp_with_zone_in_literal():
+    timestamp_str = literal("abc")
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(TimestampType())
+    assert "Invalid timestamp without zone: abc (must be ISO-8601)" in str(e.value)
 
 
 def test_string_to_uuid_literal():
@@ -742,3 +756,51 @@ def assert_invalid_conversions(lit, types=None):
     for type_var in types:
         with pytest.raises(TypeError):
             _ = lit.to(type_var)
+
+
+def test_compare_floats():
+    lhs = literal(18.15).to(FloatType())
+    rhs = literal(19.25).to(FloatType())
+    assert lhs != rhs
+    assert lhs < rhs
+    assert lhs <= rhs
+    assert not lhs > rhs
+    assert not lhs >= rhs
+
+
+def test_string_to_int_max_value():
+    assert isinstance(literal(str(IntegerType.max + 1)).to(IntegerType()), IntAboveMax)
+
+
+def test_string_to_int_min_value():
+    assert isinstance(literal(str(IntegerType.min - 1)).to(IntegerType()), IntBelowMin)
+
+
+def test_string_to_integer_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(IntegerType())
+    assert "Could not convert abc into a int" in str(e.value)
+
+
+def test_string_to_long_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(LongType())
+    assert "Could not convert abc into a long" in str(e.value)
+
+
+def test_string_to_date_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(DateType())
+    assert "Could not convert abc into a date" in str(e.value)
+
+
+def test_string_to_time_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(TimeType())
+    assert "Could not convert abc into a time" in str(e.value)
+
+
+def test_string_to_decimal_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("18.15").to(DecimalType(10, 0))
+    assert "Could not convert 18.15 into a decimal(10, 0), scales differ 0 <> 2" in str(e.value)
