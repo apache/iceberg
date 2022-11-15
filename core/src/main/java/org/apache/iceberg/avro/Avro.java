@@ -611,6 +611,10 @@ public class Avro {
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
 
+    // This field is temporally added to pass the map between Avro schema name and Iceberg field id
+    // mocked in the test to the classes of ProjectionDatumReader and PruneColumns
+    private Map<String, Integer> avroSchemaNameToIcebergFieldId = null;
+
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc =
         readSchema -> {
@@ -683,6 +687,12 @@ public class Avro {
       return this;
     }
 
+    public ReadBuilder withAvroSchemaNameToIcebergFieldId(
+        Map<String, Integer> schemaNameToIcebergFieldId) {
+      this.avroSchemaNameToIcebergFieldId = schemaNameToIcebergFieldId;
+      return this;
+    }
+
     public <D> AvroIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       Function<Schema, DatumReader<?>> readerFunc;
@@ -696,7 +706,8 @@ public class Avro {
 
       return new AvroIterable<>(
           file,
-          new ProjectionDatumReader<>(readerFunc, schema, renames, nameMapping),
+          new ProjectionDatumReader<>(
+              readerFunc, schema, renames, nameMapping, avroSchemaNameToIcebergFieldId),
           start,
           length,
           reuseContainers);

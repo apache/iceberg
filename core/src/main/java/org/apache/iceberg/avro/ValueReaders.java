@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.avro;
 
+import static java.util.Collections.emptyIterator;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -45,8 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
-
-import static java.util.Collections.emptyIterator;
 
 public class ValueReaders {
   private ValueReaders() {}

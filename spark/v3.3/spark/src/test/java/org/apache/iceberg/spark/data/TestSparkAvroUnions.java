@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.data;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
@@ -70,12 +72,22 @@ public class TestSparkAvroUnions {
     }
 
     Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    Map<String, Integer> avroSchemaNameToIcebergFieldId =
+        new HashMap<String, Integer>() {
+          {
+            put("unionCol", 0);
+            put("unionCol.tag", 1);
+            put("unionCol.int", 2);
+            put("unionCol.string", 3);
+          }
+        };
 
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
             .createReaderFunc(SparkAvroReader::new)
             .project(expectedSchema)
+            .withAvroSchemaNameToIcebergFieldId(avroSchemaNameToIcebergFieldId)
             .build()) {
       rows = Lists.newArrayList(reader);
 
@@ -125,12 +137,22 @@ public class TestSparkAvroUnions {
     }
 
     Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    Map<String, Integer> avroSchemaNameToIcebergFieldId =
+        new HashMap<String, Integer>() {
+          {
+            put("unionCol.tag", 1);
+            put("unionCol.int", 2);
+            put("unionCol.string", 3);
+            put("unionCol", 0);
+          }
+        };
 
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
             .createReaderFunc(SparkAvroReader::new)
             .project(expectedSchema)
+            .withAvroSchemaNameToIcebergFieldId(avroSchemaNameToIcebergFieldId)
             .build()) {
       rows = Lists.newArrayList(reader);
 
@@ -218,12 +240,23 @@ public class TestSparkAvroUnions {
     }
 
     Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    Map<String, Integer> avroSchemaNameToIcebergFieldId =
+        new HashMap<String, Integer>() {
+          {
+            put("col1", 0);
+            put("col1.element", 4);
+            put("col1.element.string", 3);
+            put("col1.element.int", 2);
+            put("col1.element.tag", 1);
+          }
+        };
 
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
             .createReaderFunc(SparkAvroReader::new)
             .project(expectedSchema)
+            .withAvroSchemaNameToIcebergFieldId(avroSchemaNameToIcebergFieldId)
             .build()) {
       rows = Lists.newArrayList(reader);
 
@@ -278,11 +311,25 @@ public class TestSparkAvroUnions {
     }
 
     Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    Map<String, Integer> avroSchemaNameToIcebergFieldId =
+        new HashMap<String, Integer>() {
+          {
+            put("col1", 0);
+            put("col1.element.field0.id", 1);
+            put("col1.element.field1.id", 2);
+            put("col1.element.tag", 3);
+            put("col1.element.field0", 4);
+            put("col1.element.field1", 5);
+            put("col1.element", 6);
+          }
+        };
+
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
             .createReaderFunc(SparkAvroReader::new)
             .project(expectedSchema)
+            .withAvroSchemaNameToIcebergFieldId(avroSchemaNameToIcebergFieldId)
             .build()) {
       rows = Lists.newArrayList(reader);
 
@@ -321,12 +368,19 @@ public class TestSparkAvroUnions {
     }
 
     Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema).select("unionCol.field0");
-
+    Map<String, Integer> avroSchemaNameToIcebergFieldId =
+        new HashMap<String, Integer>() {
+          {
+            put("unionCol", 0);
+            put("unionCol.field0", 2);
+          }
+        };
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
             .createReaderFunc(SparkAvroReader::new)
             .project(expectedSchema)
+            .withAvroSchemaNameToIcebergFieldId(avroSchemaNameToIcebergFieldId)
             .build()) {
       rows = Lists.newArrayList(reader);
 

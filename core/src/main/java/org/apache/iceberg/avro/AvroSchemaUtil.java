@@ -27,6 +27,7 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -54,6 +55,8 @@ public class AvroSchemaUtil {
   private static final Schema.Type ARRAY = Schema.Type.ARRAY;
   private static final Schema.Type UNION = Schema.Type.UNION;
   private static final Schema.Type RECORD = Schema.Type.RECORD;
+
+  private static final Joiner DOT = Joiner.on('.');
 
   public static Schema convert(org.apache.iceberg.Schema schema, String tableName) {
     return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
@@ -121,6 +124,15 @@ public class AvroSchemaUtil {
   public static Schema pruneColumns(
       Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
+  }
+
+  public static Schema pruneColumns(
+      Schema schema,
+      Set<Integer> selectedIds,
+      NameMapping nameMapping,
+      Map<String, Integer> avroSchemaFieldNameToIcebergFieldId) {
+    return new PruneColumns(selectedIds, nameMapping, avroSchemaFieldNameToIcebergFieldId)
+        .rootSchema(schema);
   }
 
   public static Schema buildAvroProjection(
@@ -514,24 +526,15 @@ public class AvroSchemaUtil {
   }
 
   public static Integer getBranchId(
-      Schema branch, NameMapping mapping, Iterable<String> parentFieldNames) {
+      Schema branch, Map<String, Integer> nameToIdMap, Iterable<String> parentFieldNames) {
     Object id = branch.getObjectProp(BRANCH_ID_PROP);
     if (id != null) {
       return toInt(id);
-    } else if (mapping != null) {
-      MappedField mappedField = findInNameMapping(mapping, parentFieldNames, branch.getName());
-      if (mappedField != null) {
-        return mappedField.id();
-      }
+    } else if (nameToIdMap != null && nameToIdMap.isEmpty()) {
+      List<String> names = Lists.newArrayList(parentFieldNames);
+      names.add(branch.getName());
+      return nameToIdMap.get(DOT.join(names));
     }
-
     return null;
-  }
-
-  private static MappedField findInNameMapping(
-      NameMapping mapping, Iterable<String> parentFieldNames, String fieldName) {
-    List<String> names = Lists.newArrayList(parentFieldNames);
-    names.add(fieldName);
-    return mapping.find(names);
   }
 }

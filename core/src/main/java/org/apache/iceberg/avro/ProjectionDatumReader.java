@@ -39,6 +39,8 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
   private Schema fileSchema = null;
   private DatumReader<D> wrapped = null;
 
+  private Map<String, Integer> avroSchemaNameToIcebergFieldId = null;
+
   public ProjectionDatumReader(
       Function<Schema, DatumReader<?>> getReader,
       org.apache.iceberg.Schema expectedSchema,
@@ -48,6 +50,16 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
     this.expectedSchema = expectedSchema;
     this.renames = renames;
     this.nameMapping = nameMapping;
+  }
+
+  public ProjectionDatumReader(
+      Function<Schema, DatumReader<?>> getReader,
+      org.apache.iceberg.Schema expectedSchema,
+      Map<String, String> renames,
+      NameMapping nameMapping,
+      Map<String, Integer> avroSchemaNameToIcebergFieldId) {
+    this(getReader, expectedSchema, renames, nameMapping);
+    this.avroSchemaNameToIcebergFieldId = avroSchemaNameToIcebergFieldId;
   }
 
   @Override
@@ -61,10 +73,12 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
   public void setSchema(Schema newFileSchema) {
     this.fileSchema = newFileSchema;
     if (nameMapping == null && !AvroSchemaUtil.hasIds(fileSchema)) {
-      nameMapping = MappingUtil.createWithTypeNameForUnionBranch(expectedSchema);
+      nameMapping = MappingUtil.create(expectedSchema);
     }
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(expectedSchema);
-    Schema prunedSchema = AvroSchemaUtil.pruneColumns(newFileSchema, projectedIds, nameMapping);
+    Schema prunedSchema =
+        AvroSchemaUtil.pruneColumns(
+            newFileSchema, projectedIds, nameMapping, avroSchemaNameToIcebergFieldId);
     this.readSchema = AvroSchemaUtil.buildAvroProjection(prunedSchema, expectedSchema, renames);
     this.wrapped = newDatumReader();
   }

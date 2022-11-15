@@ -39,10 +39,20 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final Set<Integer> selectedIds;
   private final NameMapping nameMapping;
 
+  private Map<String, Integer> avroSchemaFieldNameToIcebergFieldId;
+
   PruneColumns(Set<Integer> selectedIds, NameMapping nameMapping) {
     Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
     this.nameMapping = nameMapping;
+  }
+
+  PruneColumns(
+      Set<Integer> selectedIds,
+      NameMapping nameMapping,
+      Map<String, Integer> avroSchemaFieldNameToIcebergFieldId) {
+    this(selectedIds, nameMapping);
+    this.avroSchemaFieldNameToIcebergFieldId = avroSchemaFieldNameToIcebergFieldId;
   }
 
   Schema rootSchema(Schema record) {
@@ -362,7 +372,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (branchSchema == null) {
         branchSchema = unionTypes.get(i);
       }
-      Integer branchId = AvroSchemaUtil.getBranchId(branchSchema, nameMapping, fieldNames());
+      Integer branchId =
+          AvroSchemaUtil.getBranchId(
+              branchSchema, avroSchemaFieldNameToIcebergFieldId, fieldNames());
       if (branchId != null) {
         branchSchema.addProp(AvroSchemaUtil.BRANCH_ID_PROP, String.valueOf(branchId));
       }
