@@ -272,6 +272,15 @@ public class HTTPClient implements RESTClient {
   @Override
   public <T extends RESTResponse> T delete(
       String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,

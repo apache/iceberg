@@ -45,7 +45,9 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @return a new scan based on the given reference.
    * @throws IllegalArgumentException if a reference with the given name could not be found
    */
-  TableScan useRef(String ref);
+  default TableScan useRef(String ref) {
+    throw new UnsupportedOperationException("Using a reference is not supported");
+  }
 
   /**
    * Create a new {@link TableScan} from this scan's configuration that will use the most recent

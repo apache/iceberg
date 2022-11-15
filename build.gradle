@@ -91,6 +91,7 @@ dependencyRecommendations {
 }
 
 def projectVersion = getProjectVersion()
+final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
   group = "org.apache.iceberg"
@@ -104,6 +105,15 @@ allprojects {
 subprojects {
   apply plugin: 'nebula.dependency-recommender'
   apply plugin: 'java-library'
+
+  if (project.name in REVAPI_PROJECTS) {
+    apply plugin: 'com.palantir.revapi'
+    revapi {
+      oldGroup = project.group
+      oldName = project.name
+      oldVersion = "1.0.0"
+    }
+  }
 
   configurations {
     testImplementation.extendsFrom compileOnly
@@ -225,14 +235,6 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
-  apply plugin: 'com.palantir.revapi'
-
-  revapi {
-    oldGroup = "org.apache.iceberg"
-    oldName = "iceberg-api"
-    oldVersion = "1.0.0"
-  }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
