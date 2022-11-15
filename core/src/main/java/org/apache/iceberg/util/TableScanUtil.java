@@ -21,8 +21,6 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
@@ -185,17 +183,6 @@ public class TableScanUtil {
     return Iterables.transform(
         new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
         combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
-  }
-
-  private static <T extends ScanTask> Stream<ScanTaskGroup<T>> toTaskGroupStream(
-      Iterable<T> tasks, long splitSize, int lookback, Function<T, Long> weightFunc) {
-    CloseableIterable<ScanTaskGroup<T>> taskGroups =
-        CloseableIterable.transform(
-            CloseableIterable.combine(
-                new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
-                CloseableIterable.withNoopClose(tasks)),
-            combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
-    return StreamSupport.stream(taskGroups.spliterator(), false);
   }
 
   @SuppressWarnings("unchecked")
