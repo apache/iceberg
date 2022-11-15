@@ -486,7 +486,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
 
 ```
 INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
