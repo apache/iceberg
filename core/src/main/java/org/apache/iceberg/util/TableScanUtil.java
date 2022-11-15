@@ -187,17 +187,6 @@ public class TableScanUtil {
         combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
   }
 
-  private static <T extends ScanTask> Stream<ScanTaskGroup<T>> toTaskGroupStream(
-      Iterable<T> tasks, long splitSize, int lookback, Function<T, Long> weightFunc) {
-    CloseableIterable<ScanTaskGroup<T>> taskGroups =
-        CloseableIterable.transform(
-            CloseableIterable.combine(
-                new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
-                CloseableIterable.withNoopClose(tasks)),
-            combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
-    return StreamSupport.stream(taskGroups.spliterator(), false);
-  }
-
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> List<T> mergeTasks(List<T> tasks) {
     List<T> mergedTasks = Lists.newArrayList();
