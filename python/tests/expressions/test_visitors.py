@@ -278,7 +278,7 @@ def test_boolean_expression_visit_raise_not_implemented_error():
 def test_bind_visitor_already_bound(table_schema_simple: Schema):
     bound = BoundEqualTo[str](
         term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
-        literal=literal("hello"),
+        literal="hello",
     )
     with pytest.raises(TypeError) as exc_info:
         visit(bound, visitor=BindVisitor(schema=table_schema_simple))
@@ -327,8 +327,8 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
     [
         (
             And(
-                In(Reference("foo"), {literal("foo"), literal("bar")}),
-                In(Reference("bar"), {literal(1), literal(2), literal(3)}),
+                In(Reference("foo"), {"foo", "bar"}),
+                In(Reference("bar"), {1, 2, 3}),
             ),
             And(
                 BoundIn(
@@ -336,27 +336,27 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {literal("foo"), literal("bar")},
+                    {"foo", "bar"},
                 ),
                 BoundIn(
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
                     ),
-                    {literal(1), literal(2), literal(3)},
+                    {1, 2, 3},
                 ),
             ),
         ),
         (
             And(
-                In(Reference("foo"), (literal("bar"), literal("baz"))),
+                In(Reference("foo"), ("bar", "baz")),
                 In(
                     Reference("bar"),
-                    (literal(1),),
+                    (1,),
                 ),
                 In(
                     Reference("foo"),
-                    (literal("baz"),),
+                    ("baz",),
                 ),
             ),
             And(
@@ -366,14 +366,14 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {literal("bar"), literal("baz")},
+                        {"bar", "baz"},
                     ),
                     BoundEqualTo(
                         BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),
                         ),
-                        literal(1),
+                        1,
                     ),
                 ),
                 BoundEqualTo(
@@ -381,7 +381,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    literal("baz"),
+                    "baz",
                 ),
             ),
         ),
@@ -398,8 +398,8 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
     [
         (
             Or(
-                In(Reference("foo"), (literal("foo"), literal("bar"))),
-                In(Reference("bar"), (literal(1), literal(2), literal(3))),
+                In(Reference("foo"), ("foo", "bar")),
+                In(Reference("bar"), (1, 2, 3)),
             ),
             Or(
                 BoundIn(
@@ -407,27 +407,27 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {literal("foo"), literal("bar")},
+                    {"foo", "bar"},
                 ),
                 BoundIn(
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
                     ),
-                    {literal(1), literal(2), literal(3)},
+                    {1, 2, 3},
                 ),
             ),
         ),
         (
             Or(
-                In(Reference("foo"), (literal("bar"), literal("baz"))),
+                In(Reference("foo"), ("bar", "baz")),
                 In(
                     Reference("foo"),
-                    (literal("bar"),),
+                    ("bar",),
                 ),
                 In(
                     Reference("foo"),
-                    (literal("baz"),),
+                    ("baz",),
                 ),
             ),
             Or(
@@ -437,14 +437,14 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {literal("bar"), literal("baz")},
+                        {"bar", "baz"},
                     ),
                     BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {literal("bar")},
+                        {"bar"},
                     ),
                 ),
                 BoundIn(
@@ -452,7 +452,7 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {literal("baz")},
+                    {"baz"},
                 ),
             ),
         ),
@@ -489,36 +489,36 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
     "unbound_in_expression,expected_bound_expression",
     [
         (
-            In(Reference("foo"), (literal("foo"), literal("bar"))),
+            In(Reference("foo"), ("foo", "bar")),
             BoundIn(
                 BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {literal("foo"), literal("bar")},
+                {"foo", "bar"},
             ),
         ),
         (
-            In(Reference("foo"), (literal("bar"), literal("baz"))),
+            In(Reference("foo"), ("bar", "baz")),
             BoundIn(
                 BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {literal("bar"), literal("baz")},
+                {"bar", "baz"},
             ),
         ),
         (
             In(
                 Reference("foo"),
-                (literal("bar"),),
+                ("bar",),
             ),
             BoundEqualTo(
                 BoundReference(
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                literal("bar"),
+                "bar",
             ),
         ),
     ],
@@ -533,22 +533,22 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
     "unbound_not_expression,expected_bound_expression",
     [
         (
-            Not(In(Reference("foo"), (literal("foo"), literal("bar")))),
+            Not(In(Reference("foo"), ("foo", "bar"))),
             Not(
                 BoundIn(
                     BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {literal("foo"), literal("bar")},
+                    {"foo", "bar"},
                 )
             ),
         ),
         (
             Not(
                 Or(
-                    In(Reference("foo"), (literal("foo"), literal("bar"))),
-                    In(Reference("foo"), (literal("foo"), literal("bar"), literal("baz"))),
+                    In(Reference("foo"), ("foo", "bar")),
+                    In(Reference("foo"), ("foo", "bar", "baz")),
                 )
             ),
             Not(
@@ -558,14 +558,14 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {literal("foo"), literal("bar")},
+                        {"foo", "bar"},
                     ),
                     BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {literal("foo"), literal("bar"), literal("baz")},
+                        {"foo", "bar", "baz"},
                     ),
                 ),
             ),
@@ -586,14 +586,14 @@ def test_bound_boolean_expression_visitor_and_in():
                 field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             ),
-            literals=(literal("foo"), literal("bar")),
+            literals=("foo", "bar"),
         ),
         BoundIn(
             term=BoundReference(
                 field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                 accessor=Accessor(position=1, inner=None),
             ),
-            literals=(literal("baz"), literal("qux")),
+            literals=("baz", "qux"),
         ),
     )
     visitor = FooBoundBooleanExpressionVisitor()
@@ -610,7 +610,7 @@ def test_bound_boolean_expression_visitor_or():
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {literal("foo"), literal("bar")},
+                {"foo", "bar"},
             )
         ),
         Not(
@@ -619,7 +619,7 @@ def test_bound_boolean_expression_visitor_or():
                     field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                     accessor=Accessor(position=1, inner=None),
                 ),
-                {literal("baz"), literal("qux")},
+                {"baz", "qux"},
             )
         ),
     )
@@ -634,7 +634,7 @@ def test_bound_boolean_expression_visitor_equal():
             field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
             accessor=Accessor(position=1, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -647,7 +647,7 @@ def test_bound_boolean_expression_visitor_not_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -674,7 +674,7 @@ def test_bound_boolean_expression_visitor_in():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literals=(literal("foo"), literal("bar")),
+        literals=("foo", "bar"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -687,7 +687,7 @@ def test_bound_boolean_expression_visitor_not_in():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literals=(literal("foo"), literal("bar")),
+        literals=("foo", "bar"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -748,7 +748,7 @@ def test_bound_boolean_expression_visitor_greater_than():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -761,7 +761,7 @@ def test_bound_boolean_expression_visitor_greater_than_or_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -774,7 +774,7 @@ def test_bound_boolean_expression_visitor_less_than():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -787,7 +787,7 @@ def test_bound_boolean_expression_visitor_less_than_or_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -797,7 +797,7 @@ def test_bound_boolean_expression_visitor_less_than_or_equal():
 def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
     bound_expression = LessThanOrEqual(
         term=Reference("foo"),
-        literal=literal("foo"),
+        literal="foo",
     )
     visitor = FooBoundBooleanExpressionVisitor()
     with pytest.raises(TypeError) as exc_info:
@@ -1035,12 +1035,12 @@ def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
 
 def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
     expressions: List[BooleanExpression] = [
-        LessThan(Reference("id"), literal(5)),
-        LessThanOrEqual(Reference("id"), literal(30)),
-        EqualTo(Reference("id"), literal(70)),
-        GreaterThan(Reference("id"), literal(78)),
-        GreaterThanOrEqual(Reference("id"), literal(90)),
-        NotEqualTo(Reference("id"), literal(101)),
+        LessThan(Reference("id"), 5),
+        LessThanOrEqual(Reference("id"), 30),
+        EqualTo(Reference("id"), 70),
+        GreaterThan(Reference("id"), 78),
+        GreaterThanOrEqual(Reference("id"), 90),
+        NotEqualTo(Reference("id"), 101),
         IsNull(Reference("id")),
         NotNull(Reference("id")),
         IsNaN(Reference("float")),
@@ -1052,11 +1052,11 @@ def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
 
 
 def test_not(schema: Schema, manifest: ManifestFile):
-    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), literal(INT_MIN_VALUE - 25)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), INT_MIN_VALUE - 25))).eval(
         manifest
     ), "Should read: not(false)"
 
-    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference("id"), literal(INT_MIN_VALUE - 25)))).eval(
+    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference("id"), INT_MIN_VALUE - 25))).eval(
         manifest
     ), "Should skip: not(true)"
 
@@ -1065,24 +1065,24 @@ def test_and(schema: Schema, manifest: ManifestFile):
     assert not _ManifestEvalVisitor(
         schema,
         And(
-            LessThan(Reference("id"), literal(INT_MIN_VALUE - 25)),
-            GreaterThanOrEqual(Reference("id"), literal(INT_MIN_VALUE - 30)),
+            LessThan(Reference("id"), INT_MIN_VALUE - 25),
+            GreaterThanOrEqual(Reference("id"), INT_MIN_VALUE - 30),
         ),
     ).eval(manifest), "Should skip: and(false, true)"
 
     assert not _ManifestEvalVisitor(
         schema,
         And(
-            LessThan(Reference("id"), literal(INT_MIN_VALUE - 25)),
-            GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE + 1)),
+            LessThan(Reference("id"), INT_MIN_VALUE - 25),
+            GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 1),
         ),
     ).eval(manifest), "Should skip: and(false, false)"
 
     assert _ManifestEvalVisitor(
         schema,
         And(
-            GreaterThan(Reference("id"), literal(INT_MIN_VALUE - 25)),
-            LessThanOrEqual(Reference("id"), literal(INT_MIN_VALUE)),
+            GreaterThan(Reference("id"), INT_MIN_VALUE - 25),
+            LessThanOrEqual(Reference("id"), INT_MIN_VALUE),
         ),
     ).eval(manifest), "Should read: and(true, true)"
 
@@ -1091,319 +1091,319 @@ def test_or(schema: Schema, manifest: ManifestFile):
     assert not _ManifestEvalVisitor(
         schema,
         Or(
-            LessThan(Reference("id"), literal(INT_MIN_VALUE - 25)),
-            GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE + 1)),
+            LessThan(Reference("id"), INT_MIN_VALUE - 25),
+            GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 1),
         ),
     ).eval(manifest), "Should skip: or(false, false)"
 
     assert _ManifestEvalVisitor(
         schema,
         Or(
-            LessThan(Reference("id"), literal(INT_MIN_VALUE - 25)),
-            GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE - 19)),
+            LessThan(Reference("id"), INT_MIN_VALUE - 25),
+            GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE - 19),
         ),
     ).eval(manifest), "Should read: or(false, true)"
 
 
 def test_integer_lt(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), literal(INT_MIN_VALUE - 25))).eval(
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE - 25)).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
 
-    assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), literal(INT_MIN_VALUE))).eval(
+    assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE)).eval(
         manifest
     ), "Should not read: id range below lower bound (30 is not < 30)"
 
-    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), literal(INT_MIN_VALUE + 1))).eval(
+    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE + 1)).eval(
         manifest
     ), "Should read: one possible id"
 
-    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: may possible ids"
 
 
 def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), literal(INT_MIN_VALUE - 25))).eval(
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE - 25)).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
 
-    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), literal(INT_MIN_VALUE - 1))).eval(
+    assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE - 1)).eval(
         manifest
     ), "Should not read: id range below lower bound (29 < 30)"
 
-    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), literal(INT_MIN_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE)).eval(
         manifest
     ), "Should read: one possible id"
 
-    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: many possible ids"
 
 
 def test_integer_gt(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), literal(INT_MAX_VALUE + 6))).eval(
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE + 6)).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
 
-    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should not read: id range above upper bound (79 is not > 79)"
 
-    assert _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), literal(INT_MAX_VALUE - 1))).eval(
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE - 1)).eval(
         manifest
     ), "Should read: one possible id"
 
-    assert _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), literal(INT_MAX_VALUE - 4))).eval(
+    assert _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE - 4)).eval(
         manifest
     ), "Should read: may possible ids"
 
 
 def test_integer_gt_eq(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE + 6))).eval(
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 6)).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
 
-    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE + 1))).eval(
+    assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 1)).eval(
         manifest
     ), "Should not read: id range above upper bound (80 > 79)"
 
-    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: one possible id"
 
-    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: may possible ids"
 
 
 def test_integer_eq(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MIN_VALUE - 25))).eval(
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE - 25)).eval(
         manifest
     ), "Should not read: id below lower bound"
 
-    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MIN_VALUE - 1))).eval(
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE - 1)).eval(
         manifest
     ), "Should not read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MIN_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE)).eval(
         manifest
     ), "Should read: id equal to lower bound"
 
-    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MAX_VALUE - 4))).eval(
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MAX_VALUE - 4)).eval(
         manifest
     ), "Should read: id between lower and upper bounds"
 
-    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: id equal to upper bound"
 
-    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MAX_VALUE + 1))).eval(
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MAX_VALUE + 1)).eval(
         manifest
     ), "Should not read: id above upper bound"
 
-    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), literal(INT_MAX_VALUE + 6))).eval(
+    assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MAX_VALUE + 6)).eval(
         manifest
     ), "Should not read: id above upper bound"
 
 
 def test_integer_not_eq(schema: Schema, manifest: ManifestFile):
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MIN_VALUE - 25))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE - 25)).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MIN_VALUE - 1))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE - 1)).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MIN_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE)).eval(
         manifest
     ), "Should read: id equal to lower bound"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MAX_VALUE - 4))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MAX_VALUE - 4)).eval(
         manifest
     ), "Should read: id between lower and upper bounds"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MAX_VALUE))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MAX_VALUE)).eval(
         manifest
     ), "Should read: id equal to upper bound"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MAX_VALUE + 1))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MAX_VALUE + 1)).eval(
         manifest
     ), "Should read: id above upper bound"
 
-    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), literal(INT_MAX_VALUE + 6))).eval(
+    assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MAX_VALUE + 6)).eval(
         manifest
     ), "Should read: id above upper bound"
 
 
 def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile):
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MIN_VALUE - 25)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE - 25))).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MIN_VALUE - 1)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE - 1))).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MIN_VALUE)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE))).eval(
         manifest
     ), "Should read: id equal to lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MAX_VALUE - 4)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MAX_VALUE - 4))).eval(
         manifest
     ), "Should read: id between lower and upper bounds"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MAX_VALUE)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MAX_VALUE))).eval(
         manifest
     ), "Should read: id equal to upper bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MAX_VALUE + 1)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MAX_VALUE + 1))).eval(
         manifest
     ), "Should read: id above upper bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), literal(INT_MAX_VALUE + 6)))).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MAX_VALUE + 6))).eval(
         manifest
     ), "Should read: id above upper bound"
 
 
 def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile):
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MIN_VALUE - 25))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE - 25)), case_sensitive=False).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MIN_VALUE - 1))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE - 1)), case_sensitive=False).eval(
         manifest
     ), "Should read: id below lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MIN_VALUE))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE)), case_sensitive=False).eval(
         manifest
     ), "Should read: id equal to lower bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MAX_VALUE - 4))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MAX_VALUE - 4)), case_sensitive=False).eval(
         manifest
     ), "Should read: id between lower and upper bounds"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MAX_VALUE))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MAX_VALUE)), case_sensitive=False).eval(
         manifest
     ), "Should read: id equal to upper bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MAX_VALUE + 1))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MAX_VALUE + 1)), case_sensitive=False).eval(
         manifest
     ), "Should read: id above upper bound"
 
-    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), literal(INT_MAX_VALUE + 6))), case_sensitive=False).eval(
+    assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MAX_VALUE + 6)), case_sensitive=False).eval(
         manifest
     ), "Should read: id above upper bound"
 
 
 def test_integer_in(schema: Schema, manifest: ManifestFile):
-    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MIN_VALUE - 25), literal(INT_MIN_VALUE - 24)))).eval(
+    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))).eval(
         manifest
     ), "Should not read: id below lower bound (5 < 30, 6 < 30)"
 
-    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MIN_VALUE - 2), literal(INT_MIN_VALUE - 1)))).eval(
+    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))).eval(
         manifest
     ), "Should not read: id below lower bound (28 < 30, 29 < 30)"
 
-    assert _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MIN_VALUE - 1), literal(INT_MIN_VALUE)))).eval(
+    assert _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MIN_VALUE - 1, INT_MIN_VALUE))).eval(
         manifest
     ), "Should read: id equal to lower bound (30 == 30)"
 
-    assert _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MAX_VALUE - 4), literal(INT_MAX_VALUE - 3)))).eval(
+    assert _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))).eval(
         manifest
     ), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
 
-    assert _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MAX_VALUE), literal(INT_MAX_VALUE + 1)))).eval(
+    assert _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MAX_VALUE, INT_MAX_VALUE + 1))).eval(
         manifest
     ), "Should read: id equal to upper bound (79 == 79)"
 
-    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MAX_VALUE + 1), literal(INT_MAX_VALUE + 2)))).eval(
+    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))).eval(
         manifest
     ), "Should not read: id above upper bound (80 > 79, 81 > 79)"
 
-    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (literal(INT_MAX_VALUE + 6), literal(INT_MAX_VALUE + 7)))).eval(
+    assert not _ManifestEvalVisitor(schema, In(Reference("id"), (INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))).eval(
         manifest
     ), "Should not read: id above upper bound (85 > 79, 86 > 79)"
 
-    assert not _ManifestEvalVisitor(schema, In(Reference("all_nulls_missing_nan"), (literal("abc"), literal("def")))).eval(
+    assert not _ManifestEvalVisitor(schema, In(Reference("all_nulls_missing_nan"), ("abc", "def"))).eval(
         manifest
     ), "Should skip: in on all nulls column"
 
-    assert _ManifestEvalVisitor(schema, In(Reference("some_nulls"), (literal("abc"), literal("def")))).eval(
+    assert _ManifestEvalVisitor(schema, In(Reference("some_nulls"), ("abc", "def"))).eval(
         manifest
     ), "Should read: in on some nulls column"
 
-    assert _ManifestEvalVisitor(schema, In(Reference("no_nulls"), (literal("abc"), literal("def")))).eval(
+    assert _ManifestEvalVisitor(schema, In(Reference("no_nulls"), ("abc", "def"))).eval(
         manifest
     ), "Should read: in on no nulls column"
 
 
 def test_integer_not_in(schema: Schema, manifest: ManifestFile):
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MIN_VALUE - 25), literal(INT_MIN_VALUE - 24)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))).eval(
         manifest
     ), "Should read: id below lower bound (5 < 30, 6 < 30)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MIN_VALUE - 2), literal(INT_MIN_VALUE - 1)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MIN_VALUE - 2, INT_MIN_VALUE - 1))).eval(
         manifest
     ), "Should read: id below lower bound (28 < 30, 29 < 30)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MIN_VALUE - 1), literal(INT_MIN_VALUE)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MIN_VALUE - 1, INT_MIN_VALUE))).eval(
         manifest
     ), "Should read: id equal to lower bound (30 == 30)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MAX_VALUE - 4), literal(INT_MAX_VALUE - 3)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))).eval(
         manifest
     ), "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MAX_VALUE), literal(INT_MAX_VALUE + 1)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MAX_VALUE, INT_MAX_VALUE + 1))).eval(
         manifest
     ), "Should read: id equal to upper bound (79 == 79)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MAX_VALUE + 1), literal(INT_MAX_VALUE + 2)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))).eval(
         manifest
     ), "Should read: id above upper bound (80 > 79, 81 > 79)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (literal(INT_MAX_VALUE + 6), literal(INT_MAX_VALUE + 7)))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("id"), (INT_MAX_VALUE + 6, INT_MAX_VALUE + 7))).eval(
         manifest
     ), "Should read: id above upper bound (85 > 79, 86 > 79)"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("all_nulls_missing_nan"), (literal("abc"), literal("def")))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("all_nulls_missing_nan"), ("abc", "def"))).eval(
         manifest
     ), "Should read: notIn on no nulls column"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("some_nulls"), (literal("abc"), literal("def")))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("some_nulls"), ("abc", "def"))).eval(
         manifest
     ), "Should read: in on some nulls column"
 
-    assert _ManifestEvalVisitor(schema, NotIn(Reference("no_nulls"), (literal("abc"), literal("def")))).eval(
+    assert _ManifestEvalVisitor(schema, NotIn(Reference("no_nulls"), ("abc", "def"))).eval(
         manifest
     ), "Should read: in on no nulls column"
 
 
 def test_rewrite_not_equal_to():
-    assert rewrite_not(Not(EqualTo(Reference("x"), literal(34.56)))) == NotEqualTo(Reference("x"), literal(34.56))
+    assert rewrite_not(Not(EqualTo(Reference("x"), 34.56))) == NotEqualTo(Reference("x"), 34.56)
 
 
 def test_rewrite_not_not_equal_to():
-    assert rewrite_not(Not(NotEqualTo(Reference("x"), literal(34.56)))) == EqualTo(Reference("x"), literal(34.56))
+    assert rewrite_not(Not(NotEqualTo(Reference("x"), 34.56))) == EqualTo(Reference("x"), 34.56)
 
 
 def test_rewrite_not_in():
-    assert rewrite_not(Not(In(Reference("x"), (literal(34.56),)))) == NotIn(Reference("x"), (literal(34.56),))
+    assert rewrite_not(Not(In(Reference("x"), (34.56,)))) == NotIn(Reference("x"), (34.56,))
 
 
 def test_rewrite_and():
-    assert rewrite_not(Not(And(EqualTo(Reference("x"), literal(34.56)), EqualTo(Reference("y"), literal(34.56)),))) == Or(
-        NotEqualTo(term=Reference(name="x"), literal=literal(34.56)),
-        NotEqualTo(term=Reference(name="y"), literal=literal(34.56)),
+    assert rewrite_not(Not(And(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == Or(
+        NotEqualTo(term=Reference(name="x"), literal=34.56),
+        NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
 def test_rewrite_or():
-    assert rewrite_not(Not(Or(EqualTo(Reference("x"), literal(34.56)), EqualTo(Reference("y"), literal(34.56)),))) == And(
-        NotEqualTo(term=Reference(name="x"), literal=literal(34.56)),
-        NotEqualTo(term=Reference(name="y"), literal=literal(34.56)),
+    assert rewrite_not(Not(Or(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == And(
+        NotEqualTo(term=Reference(name="x"), literal=34.56),
+        NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 

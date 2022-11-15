@@ -26,7 +26,7 @@ from abc import ABC, abstractmethod
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
-from typing import Generic, Type, Union, TypeVar
+from typing import Generic, Type, Union, TypeVar, Any
 from uuid import UUID
 
 from pyiceberg.types import (
@@ -87,7 +87,7 @@ class Literal(Generic[T], ABC):
     def __hash__(self) -> int:
         return hash(self.value)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return self.value == other.value
 
     def __ne__(self, other) -> bool:
