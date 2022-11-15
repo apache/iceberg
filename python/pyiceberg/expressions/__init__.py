@@ -502,7 +502,7 @@ class BoundNotIn(BoundSetPredicate[T]):
 
 
 class In(SetPredicate[T]):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Iterable[Literal[T]]]):  # pylint: disable=W0221
+    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Set[Literal[T]]]):  # pylint: disable=W0221
         literals_set = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:

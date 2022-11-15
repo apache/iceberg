@@ -130,13 +130,13 @@ def test_integer_to_decimal_conversion(decimalType, decimalValue):
     assert lit.to(decimalType).value.as_tuple() == Decimal(decimalValue).as_tuple()
 
 
-def test_date_to_integer_conversion():
+def test_integer_to_date_conversion():
     one_day = "2022-03-28"
     date_delta = (datetime.date.fromisoformat(one_day) - datetime.date.fromisoformat("1970-01-01")).days
-    int_lit = literal(date_delta).to(IntegerType())
+    date_lit = literal(date_delta).to(DateType())
 
-    assert isinstance(int_lit, LongLiteral)
-    assert int_lit.value == date_delta
+    assert isinstance(date_lit, DateLiteral)
+    assert date_lit.value == date_delta
 
 
 def test_long_to_integer_within_bound():
@@ -256,7 +256,7 @@ def test_timestamp_to_date():
     epoch_lit = TimestampLiteral(int(datetime.datetime.fromisoformat("1970-01-01T01:23:45.678").timestamp() * 1_000_000))
     date_lit = epoch_lit.to(DateType())
 
-    assert date_lit.value == datetime.date(1970, 1, 1)
+    assert date_lit.value == 0
 
 
 def test_string_literal():
@@ -285,7 +285,7 @@ def test_string_to_string_literal():
 
 def test_string_to_date_literal():
     one_day = "2017-08-18"
-    date_lit = literal(one_day).to(DateType()).to(IntegerType())
+    date_lit = literal(one_day).to(DateType())
 
     date_delta = (datetime.date.fromisoformat(one_day) - datetime.date.fromisoformat("1970-01-01")).days
     assert date_delta == date_lit.value
@@ -378,7 +378,7 @@ def test_python_date_conversion():
         (literal("abc"), StringType()),
         (literal(uuid.uuid4()), UUIDType()),
         (literal(bytes([0x01, 0x02, 0x03])), FixedType(3)),
-        (literal(bytes([0x03, 0x04, 0x05, 0x06])), BinaryType()),
+        (literal(bytearray([0x03, 0x04, 0x05, 0x06])), BinaryType()),
     ],
 )
 def test_identity_conversions(lit, primitive_type):
@@ -579,11 +579,14 @@ def test_invalid_float_conversions(lit, test_type):
         _ = lit.to(test_type)
 
 
+
 @pytest.mark.parametrize("lit", [literal("2017-08-18").to(DateType())])
 @pytest.mark.parametrize(
     "test_type",
     [
         BooleanType(),
+        IntegerType(),
+        LongType(),
         FloatType(),
         DoubleType(),
         TimeType(),

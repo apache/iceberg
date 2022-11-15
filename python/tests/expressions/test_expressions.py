@@ -206,12 +206,14 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())  # type: ignore
+    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+                    set())  # type: ignore
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())  # type: ignore
+    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+                       set())  # type: ignore
     assert bound == AlwaysTrue()
 
 
@@ -220,14 +222,14 @@ def test_bind_not_in_equal_term(table_schema_simple: Schema):
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"}
     )
     assert (
-        BoundNotEqualTo(
-            term=BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                accessor=Accessor(position=0, inner=None),
-            ),
-            literal="hello",
-        )
-        == bound
+            BoundNotEqualTo(
+                term=BoundReference(
+                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                    accessor=Accessor(position=0, inner=None),
+                ),
+                literal="hello",
+            )
+            == bound
     )
 
 
@@ -470,27 +472,27 @@ def test_bind_case_insensitive(pred, table_schema_simple: Schema):
     "exp, testexpra, testexprb",
     [
         (
-            And(ExpressionA(), ExpressionB()),
-            And(ExpressionA(), ExpressionB()),
-            Or(ExpressionA(), ExpressionB()),
+                And(ExpressionA(), ExpressionB()),
+                And(ExpressionA(), ExpressionB()),
+                Or(ExpressionA(), ExpressionB()),
         ),
         (
-            Or(ExpressionA(), ExpressionB()),
-            Or(ExpressionA(), ExpressionB()),
-            And(ExpressionA(), ExpressionB()),
+                Or(ExpressionA(), ExpressionB()),
+                Or(ExpressionA(), ExpressionB()),
+                And(ExpressionA(), ExpressionB()),
         ),
         (Not(ExpressionA()), Not(ExpressionA()), ExpressionB()),
         (ExpressionA(), ExpressionA(), ExpressionB()),
         (ExpressionB(), ExpressionB(), ExpressionA()),
         (
-            In(Reference("foo"), ("hello", "world")),
-            In(Reference("foo"), ("hello", "world")),
-            In(Reference("not_foo"), ("hello", "world")),
+                In(Reference("foo"), ("hello", "world")),
+                In(Reference("foo"), ("hello", "world")),
+                In(Reference("not_foo"), ("hello", "world")),
         ),
         (
-            In(Reference("foo"), ("hello", "world")),
-            In(Reference("foo"), ("hello", "world")),
-            In(Reference("foo"), ("goodbye", "world")),
+                In(Reference("foo"), ("hello", "world")),
+                In(Reference("foo"), ("hello", "world")),
+                In(Reference("foo"), ("goodbye", "world")),
         ),
     ],
 )
@@ -502,31 +504,31 @@ def test_eq(exp, testexpra, testexprb):
     "lhs, rhs",
     [
         (
-            And(ExpressionA(), ExpressionB()),
-            Or(ExpressionB(), ExpressionA()),
+                And(ExpressionA(), ExpressionB()),
+                Or(ExpressionB(), ExpressionA()),
         ),
         (
-            Or(ExpressionA(), ExpressionB()),
-            And(ExpressionB(), ExpressionA()),
+                Or(ExpressionA(), ExpressionB()),
+                And(ExpressionB(), ExpressionA()),
         ),
         (
-            Not(ExpressionA()),
-            ExpressionA(),
+                Not(ExpressionA()),
+                ExpressionA(),
         ),
         (
-            In(Reference("foo"), ("hello", "world")),
-            NotIn(Reference("foo"), ("hello", "world")),
+                In(Reference("foo"), ("hello", "world")),
+                NotIn(Reference("foo"), ("hello", "world")),
         ),
         (
-            NotIn(Reference("foo"), ("hello", "world")),
-            In(Reference("foo"), ("hello", "world")),
+                NotIn(Reference("foo"), ("hello", "world")),
+                In(Reference("foo"), ("hello", "world")),
         ),
         (GreaterThan(Reference("foo"), 5), LessThanOrEqual(Reference("foo"), 5)),
         (LessThan(Reference("foo"), 5), GreaterThanOrEqual(Reference("foo"), 5)),
         (EqualTo(Reference("foo"), 5), NotEqualTo(Reference("foo"), 5)),
         (
-            ExpressionA(),
-            ExpressionB(),
+                ExpressionA(),
+                ExpressionB(),
         ),
     ],
 )
@@ -538,12 +540,12 @@ def test_negate(lhs, rhs):
     "lhs, rhs",
     [
         (
-            And(ExpressionA(), ExpressionB(), ExpressionA()),
-            And(And(ExpressionA(), ExpressionB()), ExpressionA()),
+                And(ExpressionA(), ExpressionB(), ExpressionA()),
+                And(And(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
         (
-            Or(ExpressionA(), ExpressionB(), ExpressionA()),
-            Or(Or(ExpressionA(), ExpressionB()), ExpressionA()),
+                Or(ExpressionA(), ExpressionB(), ExpressionA()),
+                Or(Or(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
         (Not(Not(ExpressionA())), ExpressionA()),
     ],
@@ -911,3 +913,5 @@ def test_string_argument_unbound_literal():
 
 def test_string_argument_unbound_set():
     assert In("a", {"b", "c"}) == In(Reference("a"), {"b", "c"})
+
+
