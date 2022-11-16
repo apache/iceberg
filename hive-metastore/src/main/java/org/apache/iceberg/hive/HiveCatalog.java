@@ -62,7 +62,6 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
-  private static final String HIVE_PROPERTY_PREFIX = "hive.";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -82,14 +81,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     if (conf == null) {
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
       this.conf = new Configuration();
-    }
-
-    // Forward all catalog properties that begin with `hive.` into configuration for use in setting
-    // up the MetastoreClient
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      if (entry.getKey().startsWith(HIVE_PROPERTY_PREFIX)) {
-        this.conf.set(entry.getKey(), entry.getValue());
-      }
     }
 
     if (properties.containsKey(CatalogProperties.URI)) {
