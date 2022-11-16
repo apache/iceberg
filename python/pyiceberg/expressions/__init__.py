@@ -28,7 +28,7 @@ from typing import (
     Union, TypeVar,
 )
 
-from pyiceberg.expressions.literals import Literal, literal
+from pyiceberg.expressions.literals import Literal, literal as _to_literal
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import DoubleType, FloatType, NestedField
@@ -37,15 +37,12 @@ from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar('T')
 
-def _to_literal(lit: Union[T, Literal[T]]) -> Literal[T]:
-    return lit if isinstance(lit, Literal) else literal(lit)
-
 
 def _to_unbound_term(term: Union[str, UnboundTerm]) -> UnboundTerm:
     return Reference(term) if isinstance(term, str) else term
 
 
-def _convert_into_set(values: Union[Iterable[T], Iterable[Literal[T]]]) -> Set[Literal[T]]:
+def _convert_into_set(values: Union[Any, Iterable[Literal[T]]]) -> Set[Literal[T]]:
     return {_to_literal(val) for val in values}
 
 
@@ -465,7 +462,7 @@ class BoundSetPredicate(BoundPredicate[T], ABC):
 
 
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[T], Iterable[Literal[T]]]):  # pylint: disable=W0221
+    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[Any], Iterable[Literal[T]]]):  # pylint: disable=W0221
         literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -503,7 +500,7 @@ class BoundNotIn(BoundSetPredicate[T]):
 
 class In(SetPredicate[T]):
     def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Set[Literal[T]]]):  # pylint: disable=W0221
-        literals_set = _convert_into_set(literals)
+        literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -547,7 +544,7 @@ class NotIn(SetPredicate[T], ABC):
 class LiteralPredicate(Generic[T], UnboundPredicate, ABC):
     literal: Literal[T]
 
-    def __init__(self, term: Union[str, UnboundTerm], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
+    def __init__(self, term: Union[str, UnboundTerm], literal: Union[Any, Literal[T]]):  # pylint: disable=W0621
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 
@@ -572,7 +569,7 @@ class LiteralPredicate(Generic[T], UnboundPredicate, ABC):
 class BoundLiteralPredicate(BoundPredicate[T], ABC):
     literal: Literal[T]
 
-    def __init__(self, term: BoundTerm[T], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
+    def __init__(self, term: BoundTerm[T], literal: Union[Any, Literal[T]]):  # pylint: disable=W0621
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 

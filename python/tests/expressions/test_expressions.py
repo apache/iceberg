@@ -218,7 +218,7 @@ def test_empty_bind_not_in(table_schema_simple: Schema):
 
 
 def test_bind_not_in_equal_term(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"}
     )
     assert (
@@ -258,15 +258,14 @@ def test_not_in_equal():
 
 
 def test_bind_in(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
     assert In(Reference("foo"), ("hello", "world")).bind(table_schema_simple) == bound
 
-
 def test_bind_in_invert(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
@@ -277,7 +276,7 @@ def test_bind_in_invert(table_schema_simple: Schema):
 
 
 def test_bind_not_in_invert(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
@@ -288,7 +287,7 @@ def test_bind_not_in_invert(table_schema_simple: Schema):
 
 
 def test_bind_dedup(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
@@ -296,14 +295,14 @@ def test_bind_dedup(table_schema_simple: Schema):
 
 
 def test_bind_dedup_to_eq(table_schema_simple: Schema):
-    bound = BoundEqualTo[str](
+    bound = BoundEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert In(Reference("foo"), ("hello", "hello")).bind(table_schema_simple) == bound
 
 
 def test_bound_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundEqualTo[str](
+    bound = BoundEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundNotEqualTo(
@@ -316,7 +315,7 @@ def test_bound_equal_to_invert(table_schema_simple: Schema):
 
 
 def test_bound_not_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundNotEqualTo[str](
+    bound = BoundNotEqualTo(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundEqualTo(
@@ -329,7 +328,7 @@ def test_bound_not_equal_to_invert(table_schema_simple: Schema):
 
 
 def test_bound_greater_than_or_equal_invert(table_schema_simple: Schema):
-    bound = BoundGreaterThanOrEqual[str](
+    bound = BoundGreaterThanOrEqual(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundLessThan(
@@ -342,7 +341,7 @@ def test_bound_greater_than_or_equal_invert(table_schema_simple: Schema):
 
 
 def test_bound_greater_than_invert(table_schema_simple: Schema):
-    bound = BoundGreaterThan[str](
+    bound = BoundGreaterThan(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundLessThanOrEqual(
@@ -355,7 +354,7 @@ def test_bound_greater_than_invert(table_schema_simple: Schema):
 
 
 def test_bound_less_than_invert(table_schema_simple: Schema):
-    bound = BoundLessThan[str](
+    bound = BoundLessThan(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundGreaterThanOrEqual(
@@ -368,7 +367,7 @@ def test_bound_less_than_invert(table_schema_simple: Schema):
 
 
 def test_bound_less_than_or_equal_invert(table_schema_simple: Schema):
-    bound = BoundLessThanOrEqual[str](
+    bound = BoundLessThanOrEqual(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
     )
     assert ~bound == BoundGreaterThan(
@@ -628,7 +627,7 @@ def term(field: NestedField, accessor: Accessor) -> BoundReference:
 
 
 def test_bound_reference(field: NestedField, accessor: Accessor) -> None:
-    bound_ref = BoundReference[str](field=field, accessor=accessor)
+    bound_ref = BoundReference(field=field, accessor=accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert repr(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(accessor)})"
     assert bound_ref == eval(repr(bound_ref))
@@ -887,9 +886,9 @@ def test_bound_reference_eval(table_schema_simple: Schema, foo_struct: FooStruct
     field2 = table_schema_simple.find_field(2)
     field3 = table_schema_simple.find_field(3)
 
-    bound_ref1 = BoundReference[str](field=field1, accessor=position1_accessor)
-    bound_ref2 = BoundReference[int](field=field2, accessor=position2_accessor)
-    bound_ref3 = BoundReference[bool](field=field3, accessor=position3_accessor)
+    bound_ref1 = BoundReference(field=field1, accessor=position1_accessor)
+    bound_ref2 = BoundReference(field=field2, accessor=position2_accessor)
+    bound_ref3 = BoundReference(field=field3, accessor=position3_accessor)
 
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
