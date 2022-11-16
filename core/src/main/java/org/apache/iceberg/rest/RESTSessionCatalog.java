@@ -691,6 +691,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private static List<MetadataUpdate> createChanges(TableMetadata meta) {
     ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
 
+    changes.add(new MetadataUpdate.AssignUUID(meta.uuid()));
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();

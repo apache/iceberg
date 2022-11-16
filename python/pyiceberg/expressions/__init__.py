@@ -303,7 +303,7 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
         return False
 
 
-class UnboundPredicate(Unbound, BooleanExpression, ABC):
+class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
     term: UnboundTerm
 
     def __init__(self, term: Union[str, UnboundTerm]):
@@ -322,7 +322,7 @@ class UnboundPredicate(Unbound, BooleanExpression, ABC):
         ...
 
 
-class UnaryPredicate(UnboundPredicate, ABC):
+class UnaryPredicate(UnboundPredicate[Any], ABC):
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term)
@@ -419,7 +419,7 @@ class NotNaN(UnaryPredicate):
         return BoundNotNaN[L]
 
 
-class SetPredicate(Generic[L], UnboundPredicate, ABC):
+class SetPredicate(Generic[L], UnboundPredicate[L], ABC):
     literals: Set[Literal[L]]
 
     def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):
@@ -450,7 +450,7 @@ class SetPredicate(Generic[L], UnboundPredicate, ABC):
 class BoundSetPredicate(BoundPredicate[L], ABC):
     literals: Set[Literal[L]]
 
-    def __init__(self, term: BoundTerm[L], literals: Union[Iterable[L], Iterable[Literal[L]]]):
+    def __init__(self, term: BoundTerm[L], literals: Set[Literal[L]]):
         # Since we don't know the type of BoundPredicate[L], we have to ignore this one
         super().__init__(term)  # type: ignore
         self.literals = _to_literal_set(literals)  # pylint: disable=W0621
@@ -468,13 +468,12 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
 
 
 class BoundIn(BoundSetPredicate[L]):
-    def __new__(cls, term: BoundTerm[L], literals: Union[Iterable, Iterable[Literal[L]]]):  # pylint: disable=W0221
-        literals_set: Set[Literal[L]] = _to_literal_set(literals)
-        count = len(literals_set)
+    def __new__(cls, term: BoundTerm[L], literals: Set[Literal[L]]):  # pylint: disable=W0221
+        count = len(literals)
         if count == 0:
             return AlwaysFalse()
         elif count == 1:
-            return BoundEqualTo(term, next(iter(literals_set)))
+            return BoundEqualTo(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
@@ -489,14 +488,13 @@ class BoundNotIn(BoundSetPredicate[L]):
     def __new__(  # pylint: disable=W0221
         cls,
         term: BoundTerm[L],
-        literals: Union[Iterable[L], Iterable[Literal[L]]],
+        literals: Set[Literal[L]],
     ):
-        literals_set: Set[Literal[L]] = _to_literal_set(literals)
-        count = len(literals_set)
+        count = len(literals)
         if count == 0:
             return AlwaysTrue()
         elif count == 1:
-            return BoundNotEqualTo(term, next(iter(literals_set)))
+            return BoundNotEqualTo(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
@@ -505,7 +503,7 @@ class BoundNotIn(BoundSetPredicate[L]):
 
 
 class In(SetPredicate[L]):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[Literal[L]], Iterable[L]]):  # pylint: disable=W0221
+    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
         literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -547,7 +545,7 @@ class NotIn(SetPredicate[L], ABC):
         return BoundNotIn[L]
 
 
-class LiteralPredicate(Generic[L], UnboundPredicate, ABC):
+class LiteralPredicate(Generic[L], UnboundPredicate[L], ABC):
     literal: Literal[L]
 
     def __init__(self, term: Union[str, UnboundTerm], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
@@ -575,10 +573,10 @@ class LiteralPredicate(Generic[L], UnboundPredicate, ABC):
 class BoundLiteralPredicate(BoundPredicate[L], ABC):
     literal: Literal[L]
 
-    def __init__(self, term: BoundTerm[L], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
+    def __init__(self, term: BoundTerm[L], literal: Literal[L]):  # pylint: disable=W0621
         # Since we don't know the type of BoundPredicate[L], we have to ignore this one
         super().__init__(term)  # type: ignore
-        self.literal = _to_literal(literal)  # pylint: disable=W0621
+        self.literal = literal  # pylint: disable=W0621
 
     def __eq__(self, other):
         if isinstance(other, BoundLiteralPredicate):

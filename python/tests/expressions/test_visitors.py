@@ -56,7 +56,7 @@ from pyiceberg.expressions import (
     Or,
     Reference,
 )
-from pyiceberg.expressions.literals import Literal
+from pyiceberg.expressions.literals import Literal, literal
 from pyiceberg.expressions.visitors import (
     BindVisitor,
     BooleanExpressionVisitor,
@@ -278,7 +278,7 @@ def test_boolean_expression_visit_raise_not_implemented_error():
 def test_bind_visitor_already_bound(table_schema_simple: Schema):
     bound = BoundEqualTo[str](
         term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
-        literal="hello",
+        literal=literal("hello"),
     )
     with pytest.raises(TypeError) as exc_info:
         visit(bound, visitor=BindVisitor(schema=table_schema_simple))
@@ -336,14 +336,14 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {"foo", "bar"},
+                    {literal("foo"), literal("bar")},
                 ),
-                BoundIn(
+                BoundIn[int](
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
                     ),
-                    {1, 2, 3},
+                    {literal(1), literal(2), literal(3)},
                 ),
             ),
         ),
@@ -366,14 +366,14 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {"bar", "baz"},
+                        {literal("bar"), literal("baz")},
                     ),
                     BoundEqualTo[int](
                         BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),
                         ),
-                        1,
+                        literal(1),
                     ),
                 ),
                 BoundEqualTo(
@@ -381,7 +381,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    "baz",
+                    literal("baz"),
                 ),
             ),
         ),
@@ -407,14 +407,14 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {"foo", "bar"},
+                    {literal("foo"), literal("bar")},
                 ),
-                BoundIn(
+                BoundIn[int](
                     BoundReference(
                         field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                         accessor=Accessor(position=1, inner=None),
                     ),
-                    {1, 2, 3},
+                    {literal(1), literal(2), literal(3)},
                 ),
             ),
         ),
@@ -437,14 +437,14 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {"bar", "baz"},
+                        {literal("bar"), literal("baz")},
                     ),
                     BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {"bar"},
+                        {literal("bar")},
                     ),
                 ),
                 BoundIn(
@@ -452,7 +452,7 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {"baz"},
+                    {literal("baz")},
                 ),
             ),
         ),
@@ -495,7 +495,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {"foo", "bar"},
+                {literal("foo"), literal("bar")},
             ),
         ),
         (
@@ -505,7 +505,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {"bar", "baz"},
+                {literal("bar"), literal("baz")},
             ),
         ),
         (
@@ -518,7 +518,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                "bar",
+                literal("bar"),
             ),
         ),
     ],
@@ -540,7 +540,7 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
                     ),
-                    {"foo", "bar"},
+                    {literal("foo"), literal("bar")},
                 )
             ),
         ),
@@ -558,14 +558,14 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {"foo", "bar"},
+                        {literal("foo"), literal("bar")},
                     ),
                     BoundIn(
                         BoundReference(
                             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                             accessor=Accessor(position=0, inner=None),
                         ),
-                        {"foo", "bar", "baz"},
+                        {literal("foo"), literal("bar"), literal("baz")},
                     ),
                 ),
             ),
@@ -586,14 +586,14 @@ def test_bound_boolean_expression_visitor_and_in():
                 field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                 accessor=Accessor(position=0, inner=None),
             ),
-            literals=("foo", "bar"),
+            literals={literal("foo"), literal("bar")},
         ),
         BoundIn(
             term=BoundReference(
                 field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                 accessor=Accessor(position=1, inner=None),
             ),
-            literals=("baz", "qux"),
+            literals={literal("baz"), literal("qux")},
         ),
     )
     visitor = FooBoundBooleanExpressionVisitor()
@@ -610,7 +610,7 @@ def test_bound_boolean_expression_visitor_or():
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                {"foo", "bar"},
+                {literal("foo"), literal("bar")},
             )
         ),
         Not(
@@ -619,7 +619,7 @@ def test_bound_boolean_expression_visitor_or():
                     field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
                     accessor=Accessor(position=1, inner=None),
                 ),
-                {"baz", "qux"},
+                {literal("baz"), literal("qux")},
             )
         ),
     )
@@ -634,7 +634,7 @@ def test_bound_boolean_expression_visitor_equal():
             field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
             accessor=Accessor(position=1, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -647,7 +647,7 @@ def test_bound_boolean_expression_visitor_not_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -674,7 +674,7 @@ def test_bound_boolean_expression_visitor_in():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literals=("foo", "bar"),
+        literals={literal("foo"), literal("bar")},
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -687,7 +687,7 @@ def test_bound_boolean_expression_visitor_not_in():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literals=("foo", "bar"),
+        literals={literal("foo"), literal("bar")},
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -748,7 +748,7 @@ def test_bound_boolean_expression_visitor_greater_than():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -761,7 +761,7 @@ def test_bound_boolean_expression_visitor_greater_than_or_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -774,7 +774,7 @@ def test_bound_boolean_expression_visitor_less_than():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
@@ -787,7 +787,7 @@ def test_bound_boolean_expression_visitor_less_than_or_equal():
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
             accessor=Accessor(position=0, inner=None),
         ),
-        literal="foo",
+        literal=literal("foo"),
     )
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)

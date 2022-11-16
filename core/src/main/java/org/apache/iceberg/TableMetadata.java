@@ -915,6 +915,17 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder assignUUID(String newUuid) {
+      Preconditions.checkArgument(newUuid != null, "Cannot set uuid to null");
+
+      if (!newUuid.equals(uuid)) {
+        this.uuid = newUuid;
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
     public Builder upgradeFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
           newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
