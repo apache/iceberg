@@ -203,7 +203,7 @@ def test_ref_binding_case_insensitive_failure(table_schema_simple: Schema):
 
 
 def test_in_to_eq():
-    assert In(Reference("x"), (34.56,)) == EqualTo(Reference("x"), 34.56)
+    assert In("x", (34.56,)) == EqualTo(Reference("x"), 34.56)
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
