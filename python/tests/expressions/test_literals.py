@@ -322,7 +322,7 @@ def test_timestamp_with_zone_without_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234")
     with pytest.raises(ValueError) as e:
         _ = timestamp_str.to(timestamp_str.to(TimestamptzType()))
-    assert "Missing timezone: 2017-08-18T14:21:01.919234 (must be ISO-8601)" in str(e.value)
+    assert "Missing zone offset: 2017-08-18T14:21:01.919234 (must be ISO-8601)" in str(e.value)
 
 
 def test_invalid_timestamp_in_literal():
@@ -336,7 +336,7 @@ def test_timestamp_without_zone_with_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234+07:00")
     with pytest.raises(ValueError) as e:
         _ = timestamp_str.to(TimestampType())
-    assert "Timezone provided, but not expected: 2017-08-18T14:21:01.919234+07:00" in str(e.value)
+    assert "Zone offset provided, but not expected: 2017-08-18T14:21:01.919234+07:00" in str(e.value)
 
 
 def test_invalid_timestamp_with_zone_in_literal():

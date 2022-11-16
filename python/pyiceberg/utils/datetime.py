@@ -83,7 +83,7 @@ def timestamp_to_micros(timestamp_str: str) -> int:
         return datetime_to_micros(datetime.fromisoformat(timestamp_str))
     if ISO_TIMESTAMPTZ.fullmatch(timestamp_str):
         # When we can match a timestamp without a zone, we can give a more specific error
-        raise ValueError(f"Timezone provided, but not expected: {timestamp_str}")
+        raise ValueError(f"Zone offset provided, but not expected: {timestamp_str}")
     raise ValueError(f"Invalid timestamp without zone: {timestamp_str} (must be ISO-8601)")
 
 
@@ -93,7 +93,7 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
         return datetime_to_micros(datetime.fromisoformat(timestamptz_str))
     if ISO_TIMESTAMP.fullmatch(timestamptz_str):
         # When we can match a timestamp without a zone, we can give a more specific error
-        raise ValueError(f"Missing timezone: {timestamptz_str} (must be ISO-8601)")
+        raise ValueError(f"Missing zone offset: {timestamptz_str} (must be ISO-8601)")
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
 
 
