@@ -25,8 +25,14 @@ import struct
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatchmethod, singledispatch
-from typing import Generic, Type, Union, TypeVar, Any, cast
+from functools import singledispatchmethod
+from typing import (
+    Any,
+    Generic,
+    Type,
+    TypeVar,
+    Union,
+)
 from uuid import UUID
 
 from typing_extensions import overload
@@ -49,17 +55,16 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.datetime import (
-    date_str_to_date,
+    date_str_to_days,
     date_to_days,
-    days_to_date,
-    micros_to_date,
+    micros_to_days,
     time_to_micros,
     timestamp_to_micros,
-    timestamptz_to_micros, micros_to_days, date_str_to_days,
+    timestamptz_to_micros,
 )
 from pyiceberg.utils.singleton import Singleton
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Literal(Generic[T], ABC):
@@ -116,6 +121,7 @@ def literal(value: date) -> Literal[int]:
 
 # Still an issue because bool is a subtype of int
 # https://github.com/python/mypy/issues/6992
+# Returned types are okay, see test_literals.py
 @overload
 def literal(value: bool) -> Literal[bool]:  # type: ignore
     ...
@@ -140,9 +146,11 @@ def literal(value: str) -> Literal[str]:
 def literal(value: UUID) -> Literal[UUID]:
     ...
 
+
 @overload
 def literal(value: bytearray) -> Literal[bytes]:
     ...
+
 
 @overload
 def literal(value: bytes) -> Literal[bytes]:
@@ -153,9 +161,6 @@ def literal(value: bytes) -> Literal[bytes]:
 def literal(value: Decimal) -> Literal[Decimal]:
     ...
 
-@overload
-def literal(value: Literal[T]) -> Literal[T]:
-    ...
 
 def literal(value):
     """
@@ -169,9 +174,7 @@ def literal(value):
         >>> literal(123)
         LongLiteral(123)
     """
-    if isinstance(value, Literal):
-        return value
-    elif isinstance(value, bool):
+    if isinstance(value, bool):
         return BooleanLiteral(value)
     elif isinstance(value, int):
         return LongLiteral(value)
@@ -191,7 +194,6 @@ def literal(value):
         return DateLiteral(date_to_days(value))
     else:
         raise TypeError(f"Invalid literal value: {repr(value)}")
-
 
 
 class FloatAboveMax(Literal[float], Singleton):

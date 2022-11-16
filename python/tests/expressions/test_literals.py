@@ -19,7 +19,7 @@
 import datetime
 import uuid
 from decimal import Decimal
-
+from typing import Set
 
 import pytest
 from typing_extensions import assert_type
@@ -36,11 +36,12 @@ from pyiceberg.expressions.literals import (
     FloatLiteral,
     IntAboveMax,
     IntBelowMin,
+    Literal,
     LongLiteral,
     StringLiteral,
     TimeLiteral,
     TimestampLiteral,
-    literal, Literal,
+    literal,
 )
 from pyiceberg.types import (
     BinaryType,
@@ -581,7 +582,6 @@ def test_invalid_float_conversions(lit, test_type):
         _ = lit.to(test_type)
 
 
-
 @pytest.mark.parametrize("lit", [literal("2017-08-18").to(DateType())])
 @pytest.mark.parametrize(
     "test_type",
@@ -746,8 +746,9 @@ def assert_invalid_conversions(lit, types=None):
         with pytest.raises(TypeError):
             _ = lit.to(type_var)
 
+
 # For mypy to pick up
-assert_type(literal('str'), Literal[str])
+assert_type(literal("str"), Literal[str])
 assert_type(literal(datetime.date(2010, 1, 1)), Literal[int])
 assert_type(literal(True), Literal[bool])
 assert_type(literal(123), Literal[int])
@@ -755,4 +756,5 @@ assert_type(literal(123.4), Literal[float])
 assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
 assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
 assert_type(literal(bytearray([0x01, 0x02, 0x03])), Literal[bytes])
-assert_type(literal(Decimal('19.25')), Literal[Decimal])
+assert_type(literal(Decimal("19.25")), Literal[Decimal])
+assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])

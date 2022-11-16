@@ -56,7 +56,7 @@ from pyiceberg.expressions import (
     Or,
     Reference,
 )
-from pyiceberg.expressions.literals import Literal, literal
+from pyiceberg.expressions.literals import Literal
 from pyiceberg.expressions.visitors import (
     BindVisitor,
     BooleanExpressionVisitor,
@@ -1118,9 +1118,7 @@ def test_integer_lt(schema: Schema, manifest: ManifestFile):
         manifest
     ), "Should read: one possible id"
 
-    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MAX_VALUE)).eval(
-        manifest
-    ), "Should read: may possible ids"
+    assert _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MAX_VALUE)).eval(manifest), "Should read: may possible ids"
 
 
 def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):

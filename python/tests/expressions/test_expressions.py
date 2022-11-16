@@ -17,9 +17,12 @@
 # pylint:disable=redefined-outer-name,eval-used
 
 import uuid
+from datetime import date
 from decimal import Decimal
+from typing import Set
 
 import pytest
+from typing_extensions import assert_type
 
 from pyiceberg.expressions import (
     AlwaysFalse,
@@ -53,8 +56,9 @@ from pyiceberg.expressions import (
     NotNull,
     Or,
     Reference,
+    _convert_into_set,
 )
-from pyiceberg.expressions.literals import literal
+from pyiceberg.expressions.literals import Literal, literal
 from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
@@ -206,30 +210,30 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
-                    set())  # type: ignore
+    bound = BoundIn(
+        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set()
+    )  # type: ignore
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
-                       set())  # type: ignore
+    bound = BoundNotIn(
+        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set()
+    )  # type: ignore
     assert bound == AlwaysTrue()
 
 
 def test_bind_not_in_equal_term(table_schema_simple: Schema):
-    bound = BoundNotIn(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"}
-    )
+    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"})
     assert (
-            BoundNotEqualTo(
-                term=BoundReference(
-                    field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
-                    accessor=Accessor(position=0, inner=None),
-                ),
-                literal="hello",
-            )
-            == bound
+        BoundNotEqualTo(
+            term=BoundReference(
+                field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal="hello",
+        )
+        == bound
     )
 
 
@@ -264,6 +268,7 @@ def test_bind_in(table_schema_simple: Schema):
     )
     assert In(Reference("foo"), ("hello", "world")).bind(table_schema_simple) == bound
 
+
 def test_bind_in_invert(table_schema_simple: Schema):
     bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
@@ -295,16 +300,12 @@ def test_bind_dedup(table_schema_simple: Schema):
 
 
 def test_bind_dedup_to_eq(table_schema_simple: Schema):
-    bound = BoundEqualTo(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
-    )
+    bound = BoundEqualTo(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello")
     assert In(Reference("foo"), ("hello", "hello")).bind(table_schema_simple) == bound
 
 
 def test_bound_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundEqualTo(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
-    )
+    bound = BoundEqualTo(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello")
     assert ~bound == BoundNotEqualTo(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -315,9 +316,7 @@ def test_bound_equal_to_invert(table_schema_simple: Schema):
 
 
 def test_bound_not_equal_to_invert(table_schema_simple: Schema):
-    bound = BoundNotEqualTo(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
-    )
+    bound = BoundNotEqualTo(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello")
     assert ~bound == BoundEqualTo(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -354,9 +353,7 @@ def test_bound_greater_than_invert(table_schema_simple: Schema):
 
 
 def test_bound_less_than_invert(table_schema_simple: Schema):
-    bound = BoundLessThan(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello"
-    )
+    bound = BoundLessThan(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), "hello")
     assert ~bound == BoundGreaterThanOrEqual(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -471,27 +468,27 @@ def test_bind_case_insensitive(pred, table_schema_simple: Schema):
     "exp, testexpra, testexprb",
     [
         (
-                And(ExpressionA(), ExpressionB()),
-                And(ExpressionA(), ExpressionB()),
-                Or(ExpressionA(), ExpressionB()),
+            And(ExpressionA(), ExpressionB()),
+            And(ExpressionA(), ExpressionB()),
+            Or(ExpressionA(), ExpressionB()),
         ),
         (
-                Or(ExpressionA(), ExpressionB()),
-                Or(ExpressionA(), ExpressionB()),
-                And(ExpressionA(), ExpressionB()),
+            Or(ExpressionA(), ExpressionB()),
+            Or(ExpressionA(), ExpressionB()),
+            And(ExpressionA(), ExpressionB()),
         ),
         (Not(ExpressionA()), Not(ExpressionA()), ExpressionB()),
         (ExpressionA(), ExpressionA(), ExpressionB()),
         (ExpressionB(), ExpressionB(), ExpressionA()),
         (
-                In(Reference("foo"), ("hello", "world")),
-                In(Reference("foo"), ("hello", "world")),
-                In(Reference("not_foo"), ("hello", "world")),
+            In(Reference("foo"), ("hello", "world")),
+            In(Reference("foo"), ("hello", "world")),
+            In(Reference("not_foo"), ("hello", "world")),
         ),
         (
-                In(Reference("foo"), ("hello", "world")),
-                In(Reference("foo"), ("hello", "world")),
-                In(Reference("foo"), ("goodbye", "world")),
+            In(Reference("foo"), ("hello", "world")),
+            In(Reference("foo"), ("hello", "world")),
+            In(Reference("foo"), ("goodbye", "world")),
         ),
     ],
 )
@@ -503,31 +500,31 @@ def test_eq(exp, testexpra, testexprb):
     "lhs, rhs",
     [
         (
-                And(ExpressionA(), ExpressionB()),
-                Or(ExpressionB(), ExpressionA()),
+            And(ExpressionA(), ExpressionB()),
+            Or(ExpressionB(), ExpressionA()),
         ),
         (
-                Or(ExpressionA(), ExpressionB()),
-                And(ExpressionB(), ExpressionA()),
+            Or(ExpressionA(), ExpressionB()),
+            And(ExpressionB(), ExpressionA()),
         ),
         (
-                Not(ExpressionA()),
-                ExpressionA(),
+            Not(ExpressionA()),
+            ExpressionA(),
         ),
         (
-                In(Reference("foo"), ("hello", "world")),
-                NotIn(Reference("foo"), ("hello", "world")),
+            In(Reference("foo"), ("hello", "world")),
+            NotIn(Reference("foo"), ("hello", "world")),
         ),
         (
-                NotIn(Reference("foo"), ("hello", "world")),
-                In(Reference("foo"), ("hello", "world")),
+            NotIn(Reference("foo"), ("hello", "world")),
+            In(Reference("foo"), ("hello", "world")),
         ),
         (GreaterThan(Reference("foo"), 5), LessThanOrEqual(Reference("foo"), 5)),
         (LessThan(Reference("foo"), 5), GreaterThanOrEqual(Reference("foo"), 5)),
         (EqualTo(Reference("foo"), 5), NotEqualTo(Reference("foo"), 5)),
         (
-                ExpressionA(),
-                ExpressionB(),
+            ExpressionA(),
+            ExpressionB(),
         ),
     ],
 )
@@ -539,12 +536,12 @@ def test_negate(lhs, rhs):
     "lhs, rhs",
     [
         (
-                And(ExpressionA(), ExpressionB(), ExpressionA()),
-                And(And(ExpressionA(), ExpressionB()), ExpressionA()),
+            And(ExpressionA(), ExpressionB(), ExpressionA()),
+            And(And(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
         (
-                Or(ExpressionA(), ExpressionB(), ExpressionA()),
-                Or(Or(ExpressionA(), ExpressionB()), ExpressionA()),
+            Or(ExpressionA(), ExpressionB(), ExpressionA()),
+            Or(Or(ExpressionA(), ExpressionB()), ExpressionA()),
         ),
         (Not(Not(ExpressionA())), ExpressionA()),
     ],
@@ -914,3 +911,16 @@ def test_string_argument_unbound_set():
     assert In("a", {"b", "c"}) == In(Reference("a"), {"b", "c"})
 
 
+assert_type(_convert_into_set((1, 2, 3)), Set[Literal[int]])
+
+# For mypy to pick up
+assert_type(In("a", {"a", "b", "c"}), In[str])
+assert_type(In("a", {1, 2, 3}), In[int])
+assert_type(In("a", {literal(1), literal(2), literal(3)}), In[int])
+
+assert_type(NotIn("a", {"a", "b", "c"}), In[str])
+
+assert_type(EqualTo("a", "c"), EqualTo[str])
+
+
+assert_type(EqualTo("a", date(2022, 1, 1)), EqualTo[int])

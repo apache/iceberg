@@ -23,27 +23,24 @@ from typing import (
     Any,
     Generic,
     Iterable,
+    Literal,
     Set,
     Type,
-    Union, TypeVar,
+    TypeVar,
+    Union,
 )
 
-from pyiceberg.expressions.literals import Literal, literal as _to_literal
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
 
-
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def _to_unbound_term(term: Union[str, UnboundTerm]) -> UnboundTerm:
     return Reference(term) if isinstance(term, str) else term
 
-
-def _convert_into_set(values: Union[Any, Iterable[Literal[T]]]) -> Set[Literal[T]]:
-    return {_to_literal(val) for val in values}
 
 
 class BooleanExpression(ABC):
@@ -417,7 +414,7 @@ class NotNaN(UnaryPredicate):
 class SetPredicate(Generic[T], UnboundPredicate, ABC):
     literals: Set[Literal[T]]
 
-    def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Iterable[Literal[T]]]):
+    def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable, Iterable[Literal[T]]]):
         super().__init__(term)
         self.literals = _convert_into_set(literals)
 
@@ -445,7 +442,7 @@ class SetPredicate(Generic[T], UnboundPredicate, ABC):
 class BoundSetPredicate(BoundPredicate[T], ABC):
     literals: Set[Literal[T]]
 
-    def __init__(self, term: BoundTerm[T], literals: Union[Iterable[T], Iterable[Literal[T]]]):
+    def __init__(self, term: BoundTerm[T], literals: Union[Iterable, Iterable[Literal[T]]]):
         super().__init__(term)
         self.literals = _convert_into_set(literals)  # pylint: disable=W0621
 
@@ -462,7 +459,7 @@ class BoundSetPredicate(BoundPredicate[T], ABC):
 
 
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable[Any], Iterable[Literal[T]]]):  # pylint: disable=W0221
+    def __new__(cls, term: BoundTerm[T], literals: Union[Iterable, Iterable[Literal[T]]]):  # pylint: disable=W0221
         literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -483,7 +480,7 @@ class BoundNotIn(BoundSetPredicate[T]):
     def __new__(  # pylint: disable=W0221
         cls,
         term: BoundTerm[T],
-        literals: Union[Iterable[T], Iterable[Literal[T]]],
+        literals: Union[Iterable, Iterable[Literal[T]]],
     ):
         literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
@@ -499,7 +496,7 @@ class BoundNotIn(BoundSetPredicate[T]):
 
 
 class In(SetPredicate[T]):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Set[Literal[T]]]):  # pylint: disable=W0221
+    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable, Set[Literal[T]]]):  # pylint: disable=W0221
         literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -518,7 +515,7 @@ class In(SetPredicate[T]):
 
 
 class NotIn(SetPredicate[T], ABC):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[T], Iterable[Literal[T]]]):  # pylint: disable=W0221
+    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable, Iterable[Literal[T]]]):  # pylint: disable=W0221
         literals_set: Set[Literal[T]] = _convert_into_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -544,7 +541,7 @@ class NotIn(SetPredicate[T], ABC):
 class LiteralPredicate(Generic[T], UnboundPredicate, ABC):
     literal: Literal[T]
 
-    def __init__(self, term: Union[str, UnboundTerm], literal: Union[Any, Literal[T]]):  # pylint: disable=W0621
+    def __init__(self, term: Union[str, UnboundTerm], literal: Union[T, Literal[T]]):  # pylint: disable=W0621
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 
@@ -612,7 +609,7 @@ class BoundLessThanOrEqual(BoundLiteralPredicate[T]):
         return BoundGreaterThan(self.term, self.literal)
 
 
-class EqualTo(LiteralPredicate):
+class EqualTo(LiteralPredicate[T]):
     def __invert__(self) -> NotEqualTo:
         return NotEqualTo(self.term, self.literal)
 
@@ -621,7 +618,7 @@ class EqualTo(LiteralPredicate):
         return BoundEqualTo[T]
 
 
-class NotEqualTo(LiteralPredicate):
+class NotEqualTo(LiteralPredicate[T]):
     def __invert__(self) -> EqualTo:
         return EqualTo(self.term, self.literal)
 
@@ -639,7 +636,7 @@ class LessThan(LiteralPredicate):
         return BoundLessThan[T]
 
 
-class GreaterThanOrEqual(LiteralPredicate):
+class GreaterThanOrEqual(LiteralPredicate[T]):
     def __invert__(self) -> LessThan:
         return LessThan(self.term, self.literal)
 
@@ -648,7 +645,7 @@ class GreaterThanOrEqual(LiteralPredicate):
         return BoundGreaterThanOrEqual[T]
 
 
-class GreaterThan(LiteralPredicate):
+class GreaterThan(LiteralPredicate[T]):
     def __invert__(self) -> LessThanOrEqual:
         return LessThanOrEqual(self.term, self.literal)
 
@@ -657,7 +654,7 @@ class GreaterThan(LiteralPredicate):
         return BoundGreaterThan[T]
 
 
-class LessThanOrEqual(LiteralPredicate):
+class LessThanOrEqual(LiteralPredicate[T]):
     def __invert__(self) -> GreaterThan:
         return GreaterThan(self.term, self.literal)
 
