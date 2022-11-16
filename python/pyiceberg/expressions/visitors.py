@@ -117,7 +117,7 @@ class BooleanExpressionVisitor(Generic[R], ABC):
         """Visit method for a bound predicate in an expression tree
 
         Args:
-            predicate (BoundPredicate[T]): An instance of a BoundPredicate
+            predicate (BoundPredicate[L]): An instance of a BoundPredicate
         """
 
 
@@ -319,7 +319,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[R], ABC):
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> R:
         """Visit a bound predicate
         Args:
-            predicate (BoundPredicate[T]): A bound predicate
+            predicate (BoundPredicate[L]): A bound predicate
         """
         return visit_bound_predicate(predicate, self)
 

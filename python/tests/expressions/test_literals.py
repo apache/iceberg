@@ -743,7 +743,12 @@ def assert_invalid_conversions(lit, types=None):
             _ = lit.to(type_var)
 
 
-# For mypy to pick up
+#   __  __      ___
+#  |  \/  |_  _| _ \_  _
+#  | |\/| | || |  _/ || |
+#  |_|  |_|\_, |_|  \_, |
+#          |__/     |__/
+
 assert_type(literal("str"), Literal[str])
 assert_type(literal(True), Literal[bool])
 assert_type(literal(123), Literal[int])

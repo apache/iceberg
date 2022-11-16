@@ -38,11 +38,6 @@ def micros_to_days(timestamp: int) -> int:
     return timedelta(microseconds=timestamp).days
 
 
-def micros_to_date(timestamp: int) -> date:
-    """Converts a timestamp in microseconds to a date"""
-    return days_to_date(timedelta(microseconds=timestamp).days)
-
-
 def micros_to_time(micros: int) -> time:
     """Converts a timestamp in microseconds to a time"""
     micros, microseconds = divmod(micros, 1000000)
@@ -55,11 +50,6 @@ def micros_to_time(micros: int) -> time:
 def date_str_to_days(date_str: str) -> int:
     """Converts an ISO-8601 formatted date to days from 1970-01-01"""
     return (date.fromisoformat(date_str) - EPOCH_DATE).days
-
-
-def date_str_to_date(date_str: str) -> date:
-    """Converts an ISO-8601 formatted date to a date"""
-    return days_to_date((date.fromisoformat(date_str) - EPOCH_DATE).days)
 
 
 def date_to_days(date_val: date) -> int:

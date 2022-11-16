@@ -40,7 +40,7 @@ def _to_unbound_term(term: Union[str, UnboundTerm]) -> UnboundTerm:
     return Reference(term) if isinstance(term, str) else term
 
 
-def _convert_into_set(values: Union[Iterable[L], Iterable[Literal[L]]]) -> Set[Literal[L]]:
+def _to_literal_set(values: Union[Iterable[L], Iterable[Literal[L]]]) -> Set[Literal[L]]:
     return {_to_literal(v) for v in values}
 
 
@@ -424,7 +424,7 @@ class SetPredicate(Generic[L], UnboundPredicate, ABC):
 
     def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):
         super().__init__(term)
-        self.literals = _convert_into_set(literals)
+        self.literals = _to_literal_set(literals)
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundSetPredicate[L]:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -453,7 +453,7 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
     def __init__(self, term: BoundTerm[L], literals: Union[Iterable[L], Iterable[Literal[L]]]):
         # Since we don't know the type of BoundPredicate[L], we have to ignore this one
         super().__init__(term)  # type: ignore
-        self.literals = _convert_into_set(literals)  # pylint: disable=W0621
+        self.literals = _to_literal_set(literals)  # pylint: disable=W0621
 
     def __str__(self):
         # Sort to make it deterministic
@@ -469,7 +469,7 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
 
 class BoundIn(BoundSetPredicate[L]):
     def __new__(cls, term: BoundTerm[L], literals: Union[Iterable, Iterable[Literal[L]]]):  # pylint: disable=W0221
-        literals_set: Set[Literal[L]] = _convert_into_set(literals)
+        literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -491,7 +491,7 @@ class BoundNotIn(BoundSetPredicate[L]):
         term: BoundTerm[L],
         literals: Union[Iterable[L], Iterable[Literal[L]]],
     ):
-        literals_set: Set[Literal[L]] = _convert_into_set(literals)
+        literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()
@@ -506,7 +506,7 @@ class BoundNotIn(BoundSetPredicate[L]):
 
 class In(SetPredicate[L]):
     def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[Literal[L]], Iterable[L]]):  # pylint: disable=W0221
-        literals_set: Set[Literal[L]] = _convert_into_set(literals)
+        literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysFalse()
@@ -525,7 +525,7 @@ class In(SetPredicate[L]):
 
 class NotIn(SetPredicate[L], ABC):
     def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
-        literals_set: Set[Literal[L]] = _convert_into_set(literals)
+        literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
             return AlwaysTrue()

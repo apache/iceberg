@@ -906,7 +906,12 @@ def test_string_argument_unbound_set():
     assert In("a", {"b", "c"}) == In(Reference("a"), {"b", "c"})
 
 
-# For mypy to pick up
+#   __  __      ___
+#  |  \/  |_  _| _ \_  _
+#  | |\/| | || |  _/ || |
+#  |_|  |_|\_, |_|  \_, |
+#          |__/     |__/
+
 assert_type(EqualTo("a", "b"), EqualTo[str])
 assert_type(In("a", ("a", "b", "c")), In[str])
 assert_type(In("a", (1, 2, 3)), In[int])
