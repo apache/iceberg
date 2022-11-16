@@ -18,15 +18,22 @@
  */
 package org.apache.iceberg.metrics;
 
-/** This interface defines the basic API for reporting metrics for operations to a Table. */
-@FunctionalInterface
-public interface MetricsReporter {
+import java.util.Map;
+import org.immutables.value.Value;
 
-  /**
-   * Indicates that an operation is done by reporting a {@link MetricsReport}. A {@link
-   * MetricsReport} is usually directly derived from a {@link MetricsReport} instance.
-   *
-   * @param report The {@link MetricsReport} to report.
-   */
-  void report(MetricsReport report);
+/** A Snapshot report that contains all relevant information from a Snapshot. */
+@Value.Immutable
+public interface SnapshotReport extends MetricsReport {
+
+  String tableName();
+
+  long snapshotId();
+
+  long sequenceNumber();
+
+  String operation();
+
+  SnapshotMetricsResult snapshotMetrics();
+
+  Map<String, String> metadata();
 }

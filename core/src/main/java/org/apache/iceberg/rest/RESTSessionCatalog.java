@@ -601,7 +601,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               createChanges(meta),
               meta);
 
-      return Transactions.createTableTransaction(fullName, ops, meta);
+      return Transactions.createTableTransaction(
+          fullName, ops, meta, report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override
@@ -651,7 +652,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               changes.build(),
               base);
 
-      return Transactions.replaceTableTransaction(fullName, ops, replacement);
+      return Transactions.replaceTableTransaction(
+          fullName, ops, replacement, report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.requests;
 import java.util.Locale;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.SnapshotReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 import org.immutables.value.Value;
@@ -29,7 +30,8 @@ import org.immutables.value.Value;
 public interface ReportMetricsRequest extends RESTRequest {
 
   enum ReportType {
-    SCAN_REPORT;
+    SCAN_REPORT,
+    SNAPSHOT_REPORT;
 
     static ReportType fromString(String reportType) {
       Preconditions.checkArgument(null != reportType, "Invalid report type: null");
@@ -52,7 +54,13 @@ public interface ReportMetricsRequest extends RESTRequest {
   }
 
   static ReportMetricsRequest of(MetricsReport report) {
-    ReportType reportType = report instanceof ScanReport ? ReportType.SCAN_REPORT : null;
+    ReportType reportType = null;
+    if (report instanceof ScanReport) {
+      reportType = ReportType.SCAN_REPORT;
+    } else if (report instanceof SnapshotReport) {
+      reportType = ReportType.SNAPSHOT_REPORT;
+    }
+
     Preconditions.checkArgument(
         null != reportType, "Unsupported report type: %s", report.getClass().getName());
 

@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Locale;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.ScanReportParser;
+import org.apache.iceberg.metrics.SnapshotReport;
+import org.apache.iceberg.metrics.SnapshotReportParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest.ReportType;
 import org.apache.iceberg.util.JsonUtil;
@@ -53,6 +55,10 @@ public class ReportMetricsRequestParser {
       ScanReportParser.toJsonWithoutStartEnd((ScanReport) request.report(), gen);
     }
 
+    if (ReportType.SNAPSHOT_REPORT == request.reportType()) {
+      SnapshotReportParser.toJsonWithoutStartEnd((SnapshotReport) request.report(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -78,6 +84,13 @@ public class ReportMetricsRequestParser {
       return ImmutableReportMetricsRequest.builder()
           .reportType(type)
           .report(ScanReportParser.fromJson(json))
+          .build();
+    }
+
+    if (ReportType.SNAPSHOT_REPORT == type) {
+      return ImmutableReportMetricsRequest.builder()
+          .reportType(type)
+          .report(SnapshotReportParser.fromJson(json))
           .build();
     }
 
