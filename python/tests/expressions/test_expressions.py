@@ -17,9 +17,7 @@
 # pylint:disable=redefined-outer-name,eval-used
 
 import uuid
-from datetime import date
 from decimal import Decimal
-from typing import Set
 
 import pytest
 from typing_extensions import assert_type
@@ -56,9 +54,8 @@ from pyiceberg.expressions import (
     NotNull,
     Or,
     Reference,
-    _convert_into_set,
 )
-from pyiceberg.expressions.literals import Literal, literal
+from pyiceberg.expressions.literals import literal
 from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
@@ -183,7 +180,7 @@ def test_notnan_bind_nonfloat():
 
 def test_ref_binding_case_sensitive(table_schema_simple: Schema):
     ref = Reference("foo")
-    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))  # type: ignore
+    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=True) == bound
 
 
@@ -195,7 +192,7 @@ def test_ref_binding_case_sensitive_failure(table_schema_simple: Schema):
 
 def test_ref_binding_case_insensitive(table_schema_simple: Schema):
     ref = Reference("Foo")
-    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))  # type: ignore
+    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=False) == bound
 
 
@@ -210,21 +207,19 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set()
-    )  # type: ignore
+    bound = BoundIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(
-        BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set()
-    )  # type: ignore
+    bound = BoundNotIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysTrue()
 
 
 def test_bind_not_in_equal_term(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"})
+    bound = BoundNotIn(
+        BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), {"hello"}
+    )
     assert (
         BoundNotEqualTo(
             term=BoundReference(
@@ -262,7 +257,7 @@ def test_not_in_equal():
 
 
 def test_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(
+    bound = BoundIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
@@ -270,31 +265,31 @@ def test_bind_in(table_schema_simple: Schema):
 
 
 def test_bind_in_invert(table_schema_simple: Schema):
-    bound = BoundIn(
+    bound = BoundIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
-    assert ~bound == BoundNotIn(
+    assert ~bound == BoundNotIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
 
 
 def test_bind_not_in_invert(table_schema_simple: Schema):
-    bound = BoundNotIn(
+    bound = BoundNotIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
-    assert ~bound == BoundIn(
+    assert ~bound == BoundIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {"hello", "world"},
     )
 
 
 def test_bind_dedup(table_schema_simple: Schema):
-    bound = BoundIn(
+    bound = BoundIn[str](
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
-        {"hello", "world"},
+        ("hello", "world"),
     )
     assert In(Reference("foo"), ("hello", "world", "world")).bind(table_schema_simple) == bound
 
@@ -911,16 +906,8 @@ def test_string_argument_unbound_set():
     assert In("a", {"b", "c"}) == In(Reference("a"), {"b", "c"})
 
 
-assert_type(_convert_into_set((1, 2, 3)), Set[Literal[int]])
-
 # For mypy to pick up
-assert_type(In("a", {"a", "b", "c"}), In[str])
-assert_type(In("a", {1, 2, 3}), In[int])
-assert_type(In("a", {literal(1), literal(2), literal(3)}), In[int])
-
-assert_type(NotIn("a", {"a", "b", "c"}), In[str])
-
-assert_type(EqualTo("a", "c"), EqualTo[str])
-
-
-assert_type(EqualTo("a", date(2022, 1, 1)), EqualTo[int])
+assert_type(EqualTo("a", "b"), EqualTo[str])
+assert_type(In("a", ("a", "b", "c")), In[str])
+assert_type(In("a", (1, 2, 3)), In[int])
+assert_type(NotIn("a", ("a", "b", "c")), NotIn[str])

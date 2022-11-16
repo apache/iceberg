@@ -368,7 +368,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
                         ),
                         {"bar", "baz"},
                     ),
-                    BoundEqualTo(
+                    BoundEqualTo[int](
                         BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),

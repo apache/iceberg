@@ -23,20 +23,17 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
-from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
 from typing import (
     Any,
     Generic,
     Type,
-    TypeVar,
     Union,
 )
 from uuid import UUID
 
-from typing_extensions import overload
-
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -56,7 +53,6 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.datetime import (
     date_str_to_days,
-    date_to_days,
     micros_to_days,
     time_to_micros,
     timestamp_to_micros,
@@ -64,21 +60,19 @@ from pyiceberg.utils.datetime import (
 )
 from pyiceberg.utils.singleton import Singleton
 
-T = TypeVar("T")
 
-
-class Literal(Generic[T], ABC):
+class Literal(Generic[L], ABC):
     """Literal which has a value and can be converted between types"""
 
-    _value: T
+    _value: L
 
-    def __init__(self, value: T, value_type: Type[T]):
+    def __init__(self, value: L, value_type: Type[L]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
         self._value = value
 
     @property
-    def value(self) -> T:
+    def value(self) -> L:
         return self._value
 
     @singledispatchmethod
@@ -114,55 +108,7 @@ class Literal(Generic[T], ABC):
         return self.value >= other.value
 
 
-@overload
-def literal(value: date) -> Literal[int]:
-    ...
-
-
-# Still an issue because bool is a subtype of int
-# https://github.com/python/mypy/issues/6992
-# Returned types are okay, see test_literals.py
-@overload
-def literal(value: bool) -> Literal[bool]:  # type: ignore
-    ...
-
-
-@overload
-def literal(value: int) -> Literal[int]:
-    ...
-
-
-@overload
-def literal(value: float) -> Literal[float]:
-    ...
-
-
-@overload
-def literal(value: str) -> Literal[str]:
-    ...
-
-
-@overload
-def literal(value: UUID) -> Literal[UUID]:
-    ...
-
-
-@overload
-def literal(value: bytearray) -> Literal[bytes]:
-    ...
-
-
-@overload
-def literal(value: bytes) -> Literal[bytes]:
-    ...
-
-
-@overload
-def literal(value: Decimal) -> Literal[Decimal]:
-    ...
-
-
-def literal(value):
+def literal(value: L) -> Literal[L]:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
 
@@ -174,24 +120,20 @@ def literal(value):
         >>> literal(123)
         LongLiteral(123)
     """
-    if isinstance(value, bool):
+    if isinstance(value, float):
+        return DoubleLiteral(value)  # type: ignore
+    elif isinstance(value, bool):
         return BooleanLiteral(value)
     elif isinstance(value, int):
         return LongLiteral(value)
-    elif isinstance(value, float):
-        return DoubleLiteral(value)
     elif isinstance(value, str):
         return StringLiteral(value)
     elif isinstance(value, UUID):
         return UUIDLiteral(value)
     elif isinstance(value, bytes):
         return BinaryLiteral(value)
-    elif isinstance(value, bytearray):
-        return BinaryLiteral(bytes(value))
     elif isinstance(value, Decimal):
         return DecimalLiteral(value)
-    elif isinstance(value, date):
-        return DateLiteral(date_to_days(value))
     else:
         raise TypeError(f"Invalid literal value: {repr(value)}")
 

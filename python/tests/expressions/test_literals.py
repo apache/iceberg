@@ -356,13 +356,11 @@ def test_string_to_decimal_literal():
 
 def test_python_date_conversion():
     one_day_str = "2022-03-28"
-    one_day_date = datetime.date(2022, 3, 28)
 
     from_str_lit = literal(one_day_str).to(DateType())
-    from_date_lit = literal(one_day_date)
 
-    assert isinstance(from_date_lit, DateLiteral)
-    assert from_str_lit == from_date_lit
+    assert isinstance(from_str_lit, DateLiteral)
+    assert from_str_lit.value == 19079
 
 
 @pytest.mark.parametrize(
@@ -374,14 +372,12 @@ def test_python_date_conversion():
         (literal(34.11), FloatType()),
         (literal(3.5028235e38), DoubleType()),
         (literal(Decimal(34.55).quantize(Decimal("0.01"))), DecimalType(9, 2)),
-        (literal(datetime.date(2017, 8, 18)), DateType()),
         (literal("2017-08-18"), DateType()),
         (literal("14:21:01.919"), TimeType()),
         (literal("2017-08-18T14:21:01.919"), TimestampType()),
         (literal("abc"), StringType()),
         (literal(uuid.uuid4()), UUIDType()),
         (literal(bytes([0x01, 0x02, 0x03])), FixedType(3)),
-        (literal(bytearray([0x03, 0x04, 0x05, 0x06])), BinaryType()),
     ],
 )
 def test_identity_conversions(lit, primitive_type):
@@ -749,12 +745,10 @@ def assert_invalid_conversions(lit, types=None):
 
 # For mypy to pick up
 assert_type(literal("str"), Literal[str])
-assert_type(literal(datetime.date(2010, 1, 1)), Literal[int])
 assert_type(literal(True), Literal[bool])
 assert_type(literal(123), Literal[int])
 assert_type(literal(123.4), Literal[float])
 assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
 assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
-assert_type(literal(bytearray([0x01, 0x02, 0x03])), Literal[bytes])
 assert_type(literal(Decimal("19.25")), Literal[Decimal])
 assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])
