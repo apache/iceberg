@@ -362,7 +362,4 @@ public class TableProperties {
 
   /** Implementation of the KMS client for envelope encryption. */
   public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
-
-  /** Table and configuration properties, containing this string, will be passed to KMS client */
-  public static final String ENCRYPTION_KMS_CLIENT_CUSTOM_PROPERTIES_PREFIX = "kms.client";
 }

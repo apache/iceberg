@@ -52,14 +52,24 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
 
   /**
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
-   * @param tableProperties table properties
+   * @param encryptionProperties encryption properties
    * @param tableKeyId table encryption key id
    */
   public EnvelopeEncryptionManager(
-      KmsClient kmsClient, Map<String, String> tableProperties, String tableKeyId) {
+      KmsClient kmsClient, Map<String, String> encryptionProperties, String tableKeyId) {
+    Preconditions.checkNotNull(
+        kmsClient, "Cannot create EnvelopeEncryptionManager because KmsClient is null");
+    Preconditions.checkNotNull(
+        encryptionProperties,
+        "Cannot create EnvelopeEncryptionManager because encryptionProperties are not passed");
+    Preconditions.checkNotNull(
+        tableKeyId,
+        "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
+    this.kmsClient = kmsClient;
+    this.kmsGeneratedKeys = kmsClient.supportsKeyGeneration();
 
     String fileFormat =
-        PropertyUtil.propertyAsString(tableProperties, DEFAULT_FILE_FORMAT, "parquet");
+        PropertyUtil.propertyAsString(encryptionProperties, DEFAULT_FILE_FORMAT, "parquet");
     if (!fileFormat.equals("parquet")) {
       throw new UnsupportedOperationException(
           "Iceberg encryption currently supports only parquet format for data files");
@@ -67,7 +77,7 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
 
     String dataEncryptionAlgorithm =
         PropertyUtil.propertyAsString(
-            tableProperties, ENCRYPTION_DATA_ALGORITHM, ENCRYPTION_DATA_ALGORITHM_DEFAULT);
+            encryptionProperties, ENCRYPTION_DATA_ALGORITHM, ENCRYPTION_DATA_ALGORITHM_DEFAULT);
 
     this.dataEncryptionConfig =
         EnvelopeConfiguration.builder()
@@ -77,18 +87,7 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
 
     this.dataKeyLength =
         PropertyUtil.propertyAsInt(
-            tableProperties, ENCRYPTION_DEK_LENGTH, ENCRYPTION_DEK_LENGTH_DEFAULT);
-
-    Preconditions.checkNotNull(
-        dataEncryptionConfig,
-        "Cannot create EnvelopeEncryptionManager because data encryption config is not passed");
-    Preconditions.checkNotNull(
-        dataEncryptionConfig.kekId(),
-        "Cannot create EnvelopeEncryptionManager because table key encryption key ID is not specified");
-    Preconditions.checkNotNull(
-        kmsClient, "Cannot create EnvelopeEncryptionManager because KmsClient is null");
-    this.kmsClient = kmsClient;
-    this.kmsGeneratedKeys = kmsClient.supportsKeyGeneration();
+            encryptionProperties, ENCRYPTION_DEK_LENGTH, ENCRYPTION_DEK_LENGTH_DEFAULT);
   }
 
   @Override
