@@ -126,7 +126,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
           .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
-          .build();
+          .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
     return toJson(metadataUpdate, false);

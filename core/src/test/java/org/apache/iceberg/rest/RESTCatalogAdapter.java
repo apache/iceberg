@@ -77,7 +77,7 @@ public class RESTCatalogAdapter implements RESTClient {
           .put(CommitFailedException.class, 409)
           .put(UnprocessableEntityException.class, 422)
           .put(CommitStateUnknownException.class, 500)
-          .build();
+          .buildOrThrow();
 
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;

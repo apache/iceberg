@@ -60,7 +60,7 @@ public class FlinkFilters {
           .put(BuiltInFunctionDefinitions.OR, Operation.OR)
           .put(BuiltInFunctionDefinitions.NOT, Operation.NOT)
           .put(BuiltInFunctionDefinitions.LIKE, Operation.STARTS_WITH)
-          .build();
+          .buildOrThrow();
 
   /**
    * Convert flink expression to iceberg expression.
