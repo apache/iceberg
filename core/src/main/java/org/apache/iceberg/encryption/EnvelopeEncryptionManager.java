@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg.encryption;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.ENCRYPTION_DATA_ALGORITHM;
 import static org.apache.iceberg.TableProperties.ENCRYPTION_DATA_ALGORITHM_DEFAULT;
 import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH;
 import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_PUSHDOWN_ENABLED;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
@@ -45,7 +44,6 @@ import org.apache.iceberg.util.PropertyUtil;
  */
 public class EnvelopeEncryptionManager implements EncryptionManager {
   private final EnvelopeConfiguration dataEncryptionConfig;
-  private final boolean nativeFormatEncryption;
   private final KmsClient kmsClient;
   private final int dataKeyLength;
   private final boolean kmsGeneratedKeys;
@@ -59,14 +57,12 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
    */
   public EnvelopeEncryptionManager(
       KmsClient kmsClient, Map<String, String> tableProperties, String tableKeyId) {
-    // At this point, we have an encrypted table
-    this.nativeFormatEncryption =
-        PropertyUtil.propertyAsBoolean(
-            tableProperties, ENCRYPTION_PUSHDOWN_ENABLED, ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT);
-    if (!nativeFormatEncryption) {
+
+    String fileFormat =
+        PropertyUtil.propertyAsString(tableProperties, DEFAULT_FILE_FORMAT, "parquet");
+    if (!fileFormat.equals("parquet")) {
       throw new UnsupportedOperationException(
-          "EnvelopeEncryptionManager currently only supports encryption "
-              + "provided by the underlying file format.");
+          "Iceberg encryption currently supports only parquet format for data files");
     }
 
     String dataEncryptionAlgorithm =
@@ -99,29 +95,23 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
     EnvelopeMetadata metadata = generateEnvelopeMetadata(dataEncryptionConfig);
 
-    if (nativeFormatEncryption) {
-      NativeFileCryptoParameters nativeEncryptParams =
-          NativeFileCryptoParameters.create(metadata.dek())
-              .encryptionAlgorithm(metadata.algorithm())
-              .build();
+    NativeFileCryptoParameters nativeEncryptParams =
+        NativeFileCryptoParameters.create(metadata.dek())
+            .encryptionAlgorithm(metadata.algorithm())
+            .build();
 
-      if (!(rawOutput instanceof NativelyEncryptedFile)) {
-        throw new RuntimeException(
-            "Can't natively encrypt "
-                + rawOutput.location()
-                + " because the class "
-                + rawOutput.getClass()
-                + " doesn't implement NativelyEncryptedFile interface");
-      }
-
-      ((NativelyEncryptedFile) rawOutput).setNativeCryptoParameters(nativeEncryptParams);
-
-      return new BaseEncryptedOutputFile(rawOutput, metadata);
-    } else {
-      throw new UnsupportedOperationException(
-          "EnvelopeEncryptionManager currently supports only file formats which "
-              + "have native encryption implementations");
+    if (!(rawOutput instanceof NativelyEncryptedFile)) {
+      throw new RuntimeException(
+          "Can't natively encrypt "
+              + rawOutput.location()
+              + " because the class "
+              + rawOutput.getClass()
+              + " doesn't implement NativelyEncryptedFile interface");
     }
+
+    ((NativelyEncryptedFile) rawOutput).setNativeCryptoParameters(nativeEncryptParams);
+
+    return new BaseEncryptedOutputFile(rawOutput, metadata);
   }
 
   @Override
@@ -132,29 +122,22 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
     EnvelopeMetadata metadata = EnvelopeMetadataParser.fromJson(encrypted.keyMetadata().buffer());
     ByteBuffer fileDek = kmsClient.unwrapKey(metadata.wrappedDek(), metadata.kekId());
 
-    if (nativeFormatEncryption) {
-      // Pushdown to data formats with native decryption support (such as Parquet)
-      NativeFileCryptoParameters nativeDecryptParams =
-          NativeFileCryptoParameters.create(fileDek).build();
-      InputFile rawInput = encrypted.encryptedInputFile();
+    NativeFileCryptoParameters nativeDecryptParams =
+        NativeFileCryptoParameters.create(fileDek).build();
+    InputFile rawInput = encrypted.encryptedInputFile();
 
-      if (!(rawInput instanceof NativelyEncryptedFile)) {
-        throw new RuntimeException(
-            "Can't natively decrypt "
-                + rawInput.location()
-                + " because the class "
-                + rawInput.getClass()
-                + " doesn't implement NativelyEncryptedFile interface");
-      }
-
-      ((NativelyEncryptedFile) rawInput).setNativeCryptoParameters(nativeDecryptParams);
-
-      return rawInput;
-    } else {
-      throw new UnsupportedOperationException(
-          "EnvelopeEncryptionManager currently supports only file formats which "
-              + "have native encryption implementations");
+    if (!(rawInput instanceof NativelyEncryptedFile)) {
+      throw new RuntimeException(
+          "Can't natively decrypt "
+              + rawInput.location()
+              + " because the class "
+              + rawInput.getClass()
+              + " doesn't implement NativelyEncryptedFile interface");
     }
+
+    ((NativelyEncryptedFile) rawInput).setNativeCryptoParameters(nativeDecryptParams);
+
+    return rawInput;
   }
 
   private EnvelopeMetadata generateEnvelopeMetadata(EnvelopeConfiguration config) {

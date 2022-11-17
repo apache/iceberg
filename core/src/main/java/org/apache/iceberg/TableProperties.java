@@ -360,14 +360,6 @@ public class TableProperties {
   public static final String ENCRYPTION_DATA_ALGORITHM_DEFAULT =
       EncryptionAlgorithm.AES_GCM.toString();
 
-  /**
-   * Leverage file format native encryption instead of encrypting the entire file through Iceberg
-   * encryption stream
-   */
-  public static final String ENCRYPTION_PUSHDOWN_ENABLED = "encryption.pushdown";
-
-  public static final boolean ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT = true;
-
   /** Implementation of the KMS client for envelope encryption. */
   public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
 
