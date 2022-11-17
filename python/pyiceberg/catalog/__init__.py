@@ -26,6 +26,7 @@ from typing import (
     List,
     Optional,
     Union,
+    cast,
 )
 
 from pyiceberg.exceptions import NotInstalledError
@@ -120,16 +121,18 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
             or if it could not determine the catalog based on the properties
     """
     env = _ENV_CONFIG.get_catalog_config(name)
-    conf = merge_config(env or {}, properties)
+    conf: RecursiveDict = merge_config(env or {}, cast(RecursiveDict, properties))
 
     catalog_type: Optional[CatalogType]
-    if provided_catalog_type := conf.get(TYPE):
+    provided_catalog_type = conf.get(TYPE)
+
+    if provided_catalog_type and isinstance(provided_catalog_type, str):
         catalog_type = CatalogType[provided_catalog_type.upper()]
-    else:
+    elif not provided_catalog_type:
         catalog_type = infer_catalog_type(name, conf)
 
     if catalog_type:
-        return AVAILABLE_CATALOGS[catalog_type](name, conf)
+        return AVAILABLE_CATALOGS[catalog_type](name, cast(dict[str, str], conf))
 
     raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
 

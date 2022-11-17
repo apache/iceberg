@@ -35,4 +35,4 @@ EMPTY_DICT = FrozenDict()
 
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]
-RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]  # type: ignore
+RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]
