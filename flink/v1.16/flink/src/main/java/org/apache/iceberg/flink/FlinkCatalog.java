@@ -70,6 +70,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
+import org.apache.iceberg.flink.util.FlinkPackage;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -120,7 +121,7 @@ public class FlinkCatalog extends AbstractCatalog {
     closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
 
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "flink");
-    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, "1.16");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, FlinkPackage.version());
   }
 
   @Override
