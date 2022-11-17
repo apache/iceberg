@@ -68,13 +68,6 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
     this.kmsClient = kmsClient;
     this.kmsGeneratedKeys = kmsClient.supportsKeyGeneration();
 
-    String fileFormat =
-        PropertyUtil.propertyAsString(encryptionProperties, DEFAULT_FILE_FORMAT, "parquet");
-    if (!fileFormat.equals("parquet")) {
-      throw new UnsupportedOperationException(
-          "Iceberg encryption currently supports only parquet format for data files");
-    }
-
     String dataEncryptionAlgorithm =
         PropertyUtil.propertyAsString(
             encryptionProperties, ENCRYPTION_DATA_ALGORITHM, ENCRYPTION_DATA_ALGORITHM_DEFAULT);
