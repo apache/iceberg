@@ -52,11 +52,11 @@ public interface ManifestFile {
       optional(
           503, "added_snapshot_id", Types.LongType.get(), "Snapshot ID that added the manifest");
   Types.NestedField ADDED_FILES_COUNT =
-      optional(504, "added_data_files_count", Types.IntegerType.get(), "Added entry count");
+      optional(504, "added_files_count", Types.IntegerType.get(), "Added entry count");
   Types.NestedField EXISTING_FILES_COUNT =
-      optional(505, "existing_data_files_count", Types.IntegerType.get(), "Existing entry count");
+      optional(505, "existing_files_count", Types.IntegerType.get(), "Existing entry count");
   Types.NestedField DELETED_FILES_COUNT =
-      optional(506, "deleted_data_files_count", Types.IntegerType.get(), "Deleted entry count");
+      optional(506, "deleted_files_count", Types.IntegerType.get(), "Deleted entry count");
   Types.NestedField ADDED_ROWS_COUNT =
       optional(512, "added_rows_count", Types.LongType.get(), "Added rows count");
   Types.NestedField EXISTING_ROWS_COUNT =
