@@ -234,8 +234,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns a map for this schema between field id and qualified field names. Initializes the map,
-   * if it has not been initialized by calls to {@link #findColumnName(int)}.
+   * Returns a map for this schema between field id and qualified field names.
    *
    * @return a map of field id to qualified field names
    */
