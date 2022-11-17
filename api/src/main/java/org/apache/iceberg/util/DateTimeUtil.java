@@ -34,6 +34,7 @@ public class DateTimeUtil {
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
   public static final long MICROS_PER_MILLIS = 1000L;
+  public static final long MICROS_PER_SECOND = 1_000_000L;
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -132,5 +133,59 @@ public class DateTimeUtil {
   public static long isoTimestampToMicros(String timestampString) {
     return microsFromTimestamp(
         LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+  }
+
+  public static int daysToYears(int days) {
+    return convertDays(days, ChronoUnit.YEARS);
+  }
+
+  public static int daysToMonths(int days) {
+    return convertDays(days, ChronoUnit.MONTHS);
+  }
+
+  private static int convertDays(int days, ChronoUnit granularity) {
+    if (days >= 0) {
+      LocalDate date = EPOCH_DAY.plusDays(days);
+      return (int) granularity.between(EPOCH_DAY, date);
+    } else {
+      // add 1 day to the value to account for the case where there is exactly 1 unit between the
+      // date and epoch because the result will always be decremented.
+      LocalDate date = EPOCH_DAY.plusDays(days + 1);
+      return (int) granularity.between(EPOCH_DAY, date) - 1;
+    }
+  }
+
+  public static int microsToYears(long micros) {
+    return convertMicros(micros, ChronoUnit.YEARS);
+  }
+
+  public static int microsToMonths(long micros) {
+    return convertMicros(micros, ChronoUnit.MONTHS);
+  }
+
+  public static int microsToDays(long micros) {
+    return convertMicros(micros, ChronoUnit.DAYS);
+  }
+
+  public static int microsToHours(long micros) {
+    return convertMicros(micros, ChronoUnit.HOURS);
+  }
+
+  private static int convertMicros(long micros, ChronoUnit granularity) {
+    if (micros >= 0) {
+      long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(micros, MICROS_PER_SECOND) * 1000;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+    } else {
+      // add 1 micro to the value to account for the case where there is exactly 1 unit between
+      // the timestamp and epoch because the result will always be decremented.
+      long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * 1000;
+      return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+    }
+  }
+
+  private static OffsetDateTime toOffsetDateTime(long epochSecond, long nanoAdjustment) {
+    return Instant.ofEpochSecond(epochSecond, nanoAdjustment).atOffset(ZoneOffset.UTC);
   }
 }
