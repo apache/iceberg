@@ -378,11 +378,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.GROUP);
 
     AssertHelpers.assertThrows(
-        "Setting "
-            + HiveCatalog.HMS_DB_OWNER_TYPE
-            + " without setting "
-            + HiveCatalog.HMS_DB_OWNER
-            + "is not allowed",
+        String.format(
+            "Create namespace setting %s without setting %s is not allowed",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
         IllegalArgumentException.class,
         () -> {
           try {
@@ -397,11 +395,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         });
 
     AssertHelpers.assertThrows(
-        HiveCatalog.HMS_DB_OWNER_TYPE
-            + " has an invalid value of: "
-            + meta.get(HiveCatalog.HMS_DB_OWNER_TYPE)
-            + ". Acceptable values are: "
-            + Stream.of(PrincipalType.values()).map(Enum::name).collect(Collectors.joining(", ")),
+        "No enum constant " + PrincipalType.class.getCanonicalName(),
         IllegalArgumentException.class,
         () -> {
           try {
@@ -557,11 +551,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.USER);
 
     AssertHelpers.assertThrows(
-        "Setting "
-            + HiveCatalog.HMS_DB_OWNER_TYPE
-            + " and "
-            + HiveCatalog.HMS_DB_OWNER
-            + " has to be performed together or not at all",
+        String.format(
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
         IllegalArgumentException.class,
         () -> {
           try {
@@ -579,11 +571,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         });
 
     AssertHelpers.assertThrows(
-        "Setting "
-            + HiveCatalog.HMS_DB_OWNER_TYPE
-            + " and "
-            + HiveCatalog.HMS_DB_OWNER
-            + " has to be performed together or not at all",
+        String.format(
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
         IllegalArgumentException.class,
         () -> {
           try {
@@ -786,11 +776,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.GROUP);
 
     AssertHelpers.assertThrows(
-        "Removing "
-            + HiveCatalog.HMS_DB_OWNER_TYPE
-            + " and "
-            + HiveCatalog.HMS_DB_OWNER
-            + " has to be performed together or not at all",
+        String.format(
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
         IllegalArgumentException.class,
         () -> {
           try {
@@ -812,11 +800,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         });
 
     AssertHelpers.assertThrows(
-        "Removing "
-            + HiveCatalog.HMS_DB_OWNER_TYPE
-            + " and "
-            + HiveCatalog.HMS_DB_OWNER
-            + " has to be performed together or not at all",
+        String.format(
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
         IllegalArgumentException.class,
         () -> {
           try {

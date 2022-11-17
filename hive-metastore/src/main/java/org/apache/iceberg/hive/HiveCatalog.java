@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -273,7 +271,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         namespace);
     Preconditions.checkArgument(
         meta.get(HMS_DB_OWNER_TYPE) == null || meta.get(HMS_DB_OWNER) != null,
-        "Setting " + HMS_DB_OWNER_TYPE + " without setting " + HMS_DB_OWNER + " is not allowed");
+        String.format(
+            "Create namespace setting %s without setting %s is not allowed",
+            HMS_DB_OWNER_TYPE, HMS_DB_OWNER));
     try {
       clients.run(
           client -> {
@@ -367,11 +367,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     Preconditions.checkArgument(
         (properties.get(HMS_DB_OWNER_TYPE) == null) == (properties.get(HMS_DB_OWNER) == null),
-        "Setting "
-            + HMS_DB_OWNER_TYPE
-            + " and "
-            + HMS_DB_OWNER
-            + " has to be performed together or not at all");
+        String.format(
+            "Setting %s and %s has to be performed together or not at all",
+            HMS_DB_OWNER_TYPE, HMS_DB_OWNER));
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -389,11 +387,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
     Preconditions.checkArgument(
         properties.contains(HMS_DB_OWNER_TYPE) == properties.contains(HMS_DB_OWNER),
-        "Removing "
-            + HMS_DB_OWNER_TYPE
-            + " and "
-            + HMS_DB_OWNER
-            + " has to be performed together or not at all");
+        String.format(
+            "Removing %s and %s has to be performed together or not at all",
+            HMS_DB_OWNER_TYPE, HMS_DB_OWNER));
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -543,15 +539,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
-    Preconditions.checkArgument(
-        meta.get(HMS_DB_OWNER_TYPE) == null
-            || EnumUtils.isValidEnum(PrincipalType.class, meta.get(HMS_DB_OWNER_TYPE)),
-        HMS_DB_OWNER_TYPE
-            + " has an invalid value of: "
-            + meta.get(HMS_DB_OWNER_TYPE)
-            + ". Acceptable values are: "
-            + Stream.of(PrincipalType.values()).map(Enum::name).collect(Collectors.joining(", ")));
-
     if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
