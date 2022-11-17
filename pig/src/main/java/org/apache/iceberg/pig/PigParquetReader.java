@@ -160,8 +160,10 @@ public class PigParquetReader {
         int id = field.fieldId();
         if (partitionValues.containsKey(id)) {
           // the value may be null so containsKey is used to check for a partition value
-          int fieldMaxDefinitionLevel = maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
-          reorderedFields.add(ParquetValueReaders.constant(partitionValues.get(id), fieldMaxDefinitionLevel));
+          int fieldMaxDefinitionLevel =
+              maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
+          reorderedFields.add(
+              ParquetValueReaders.constant(partitionValues.get(id), fieldMaxDefinitionLevel));
           types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);

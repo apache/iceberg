@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -26,8 +25,7 @@ public class NestedRecord {
   private long innerId;
   private String innerName;
 
-  public NestedRecord() {
-  }
+  public NestedRecord() {}
 
   public NestedRecord(long innerId, String innerName) {
     this.innerId = innerId;

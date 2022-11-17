@@ -128,32 +128,33 @@ public class ParquetValueReaders {
 
     ConstantReader(C constantValue, int definitionLevel) {
       this.constantValue = constantValue;
-      this.column = new TripleIterator<Object>() {
-        @Override
-        public int currentDefinitionLevel() {
-          return definitionLevel;
-        }
+      this.column =
+          new TripleIterator<Object>() {
+            @Override
+            public int currentDefinitionLevel() {
+              return definitionLevel;
+            }
 
-        @Override
-        public int currentRepetitionLevel() {
-          return 0;
-        }
+            @Override
+            public int currentRepetitionLevel() {
+              return 0;
+            }
 
-        @Override
-        public <N> N nextNull() {
-          return null;
-        }
+            @Override
+            public <N> N nextNull() {
+              return null;
+            }
 
-        @Override
-        public boolean hasNext() {
-          return false;
-        }
+            @Override
+            public boolean hasNext() {
+              return false;
+            }
 
-        @Override
-        public Object next() {
-          return null;
-        }
-      };
+            @Override
+            public Object next() {
+              return null;
+            }
+          };
 
       this.children = ImmutableList.of(column);
     }

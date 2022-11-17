@@ -150,14 +150,16 @@ public abstract class BaseParquetReaders<T> {
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Inferring MaxDefinitionLevel from parent field
+      // Inferring children MaxDefinitionLevel from parent field
       int inferredMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel = maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
-          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
+          int fieldMaxDefinitionLevel =
+              maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
+          reorderedFields.add(
+              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
           types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
