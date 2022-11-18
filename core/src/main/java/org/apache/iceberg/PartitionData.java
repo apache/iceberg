@@ -46,7 +46,7 @@ class PartitionData
   private final int size;
   private final Object[] data;
   private final String stringSchema;
-  private transient Schema schema = null;
+  private transient Schema schema;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   PartitionData(Schema schema) {
