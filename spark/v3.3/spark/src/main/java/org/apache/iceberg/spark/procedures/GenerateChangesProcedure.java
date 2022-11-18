@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import static org.apache.iceberg.ChangelogOperation.DELETE;
-import static org.apache.iceberg.ChangelogOperation.INSERT;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -254,10 +251,13 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
             @Override
             public Row next() {
+              String delete = ChangelogOperation.DELETE.name();
+              String insert = ChangelogOperation.INSERT.name();
+
               // if the next row is cached and changed, return it directly
               if (nextRow != null
-                  && !nextRow.getString(changeTypeIndex).equals(DELETE.name())
-                  && !nextRow.getString(changeTypeIndex).equals(INSERT.name())) {
+                  && !nextRow.getString(changeTypeIndex).equals(delete)
+                  && !nextRow.getString(changeTypeIndex).equals(insert)) {
                 Row row = nextRow;
                 nextRow = null;
                 return row;
@@ -269,8 +269,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
                 GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
 
                 if (withinPartition(currentRow, nextRow)
-                    && currentRow.getString(changeTypeIndex).equals(DELETE.name())
-                    && nextRow.getString(changeTypeIndex).equals(INSERT.name())) {
+                    && currentRow.getString(changeTypeIndex).equals(delete)
+                    && nextRow.getString(changeTypeIndex).equals(insert)) {
 
                   GenericInternalRow deletedRow =
                       new GenericInternalRow(((GenericRowWithSchema) currentRow).values());
