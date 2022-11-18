@@ -18,8 +18,14 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import static org.apache.iceberg.ChangelogOperation.DELETE;
+import static org.apache.iceberg.ChangelogOperation.INSERT;
+
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
@@ -103,7 +109,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
     if (!args.isNullAt(4)) {
       String[] identifierColumns = args.getString(4).split(",");
       if (identifierColumns.length > 0) {
-        df = withUpdate2(df, identifierColumns);
+        df = withUpdate(df, identifierColumns);
       }
     }
 
@@ -192,169 +198,20 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return viewName;
   }
 
-  private Dataset<Row> withUpdate2(Dataset<Row> df, String[] identifiers) {
+  private Dataset<Row> withUpdate(Dataset<Row> df, String[] identifiers) {
     Column[] partitionSpec = getPartitionSpec(df, identifiers);
     Column[] sortSpec = sortSpec(df, partitionSpec);
+
     int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+    List<Integer> partitionIdx =
+        Arrays.stream(partitionSpec)
+            .map(column -> df.schema().fieldIndex(column.toString()))
+            .collect(Collectors.toList());
 
     return df.repartition(partitionSpec)
         .sortWithinPartitions(sortSpec)
-        .mapPartitions(processRowsWithinTask(changeTypeIdx), RowEncoder.apply(df.schema()));
-  }
-
-  @NotNull
-  private static Column[] sortSpec(Dataset<Row> df, Column[] partitionSpec) {
-    Column[] sortSpec = new Column[partitionSpec.length + 1];
-    System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
-    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
-    return sortSpec;
-  }
-
-  private MapPartitionsFunction<Row, Row> processRowsWithinTask1(int changeTypeIndex) {
-    return rows -> {
-      Iterator<Row> iterator = new RowIterator(rows, changeTypeIndex);
-      return Iterators.filter(iterator, Objects::nonNull);
-    };
-  }
-
-  static String delete = ChangelogOperation.DELETE.name();
-  static String insert = ChangelogOperation.INSERT.name();
-
-  private static MapPartitionsFunction<Row, Row> processRowsWithinTask(int changeTypeIndex) {
-    return rowIterator -> {
-      Iterator<Row> iterator =
-          new Iterator<Row>() {
-            private Row nextRow = null;
-
-            @Override
-            public boolean hasNext() {
-              if (nextRow != null) {
-                return true;
-              }
-              return rowIterator.hasNext();
-            }
-
-            @Override
-            public Row next() {
-              // get the current row
-              Row row;
-              if (this.nextRow != null) {
-                row = this.nextRow;
-                this.nextRow = null;
-                // changed already
-                if (row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
-                  return row;
-                }
-              } else if (rowIterator.hasNext()) {
-                row = rowIterator.next();
-              } else {
-                return null;
-              }
-
-              GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
-
-              if (rowIterator.hasNext()) {
-                GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
-                // if next row is insert and current row is delete
-                // todo: we should check the equality of the ids and change_oridinal since different
-                // partitions may
-                //  fall into the same task
-                if (currentRow.getString(changeTypeIndex).equals(delete)
-                    && nextRow.getString(changeTypeIndex).equals(insert)) {
-
-                  GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
-                  deletedRow.update(changeTypeIndex, "");
-
-                  GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-                  insertedRow.update(changeTypeIndex, "");
-                  if (deletedRow.equals(insertedRow)) {
-                    row = null;
-                    // skip the next row
-                    this.nextRow = null;
-                  } else {
-                    deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-                    row = RowFactory.create(deletedRow.values());
-
-                    insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-                    this.nextRow = RowFactory.create(insertedRow.values());
-                  }
-                } else {
-                  this.nextRow = nextRow;
-                }
-              }
-              return row;
-            }
-          };
-
-      return Iterators.filter(iterator, Objects::nonNull);
-    };
-  }
-
-  private class RowIterator implements Iterator<Row> {
-    private final Iterator<Row> iterator;
-    private final int changeTypeIndex;
-    private Row nextRow = null;
-
-    public RowIterator(Iterator<Row> iterator, int changeTypeIndex) {
-      this.iterator = iterator;
-      this.changeTypeIndex = changeTypeIndex;
-    }
-
-    public boolean hasNext() {
-      if (nextRow != null) {
-        return true;
-      }
-      return iterator.hasNext();
-    }
-
-    public Row next() {
-      // get the current row
-      Row row;
-      if (this.nextRow != null) {
-        row = this.nextRow;
-        this.nextRow = null;
-        // changed already
-        if (row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
-          return row;
-        }
-      } else if (iterator.hasNext()) {
-        row = iterator.next();
-      } else {
-        return null;
-      }
-
-      GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
-
-      if (iterator.hasNext()) {
-        GenericRowWithSchema nextRow = (GenericRowWithSchema) iterator.next();
-        // if next row is insert and current row is delete
-        // todo: we should check the equality of the ids and change_oridinal since different
-        //  partitions may fall into the same task
-        if (currentRow.getString(changeTypeIndex).equals(delete)
-            && nextRow.getString(changeTypeIndex).equals(insert)) {
-
-          GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
-          deletedRow.update(changeTypeIndex, "");
-
-          GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-          insertedRow.update(changeTypeIndex, "");
-          if (deletedRow.equals(insertedRow)) {
-            row = null;
-            // skip the next row
-            this.nextRow = null;
-          } else {
-            deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-            row = RowFactory.create(deletedRow.values());
-
-            insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-            this.nextRow = RowFactory.create(insertedRow.values());
-          }
-        } else {
-          this.nextRow = nextRow;
-        }
-      }
-      return row;
-    }
+        .mapPartitions(
+            processRowsWithinTask(changeTypeIdx, partitionIdx), RowEncoder.apply(df.schema()));
   }
 
   @NotNull
@@ -370,6 +227,101 @@ public class GenerateChangesProcedure extends BaseProcedure {
     }
     partitionSpec[partitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
     return partitionSpec;
+  }
+
+  @NotNull
+  private static Column[] sortSpec(Dataset<Row> df, Column[] partitionSpec) {
+    Column[] sortSpec = new Column[partitionSpec.length + 1];
+    System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
+    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
+    return sortSpec;
+  }
+
+  private static MapPartitionsFunction<Row, Row> processRowsWithinTask(
+      int changeTypeIndex, List<Integer> partitionIdx) {
+    return rowIterator -> {
+      Iterator<Row> iterator =
+          new Iterator<Row>() {
+            private Row nextRow = null;
+
+            @Override
+            public boolean hasNext() {
+              if (nextRow != null) {
+                return true;
+              }
+              return rowIterator.hasNext();
+            }
+
+            @Override
+            public Row next() {
+              // if the next row is cached and changed, return it directly
+              if (nextRow != null
+                  && !nextRow.getString(changeTypeIndex).equals(DELETE.name())
+                  && !nextRow.getString(changeTypeIndex).equals(INSERT.name())) {
+                Row row = nextRow;
+                nextRow = null;
+                return row;
+              }
+
+              Row currentRow = currentRow();
+
+              if (rowIterator.hasNext()) {
+                GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
+
+                if (withinPartition(currentRow, nextRow)
+                    && currentRow.getString(changeTypeIndex).equals(DELETE.name())
+                    && nextRow.getString(changeTypeIndex).equals(INSERT.name())) {
+
+                  GenericInternalRow deletedRow =
+                      new GenericInternalRow(((GenericRowWithSchema) currentRow).values());
+                  GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
+
+                  // set the change_type to the same value
+                  deletedRow.update(changeTypeIndex, "");
+                  insertedRow.update(changeTypeIndex, "");
+
+                  if (deletedRow.equals(insertedRow)) {
+                    // remove two carry-over rows
+                    currentRow = null;
+                    this.nextRow = null;
+                  } else {
+                    deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+                    currentRow = RowFactory.create(deletedRow.values());
+
+                    insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+                    this.nextRow = RowFactory.create(insertedRow.values());
+                  }
+                } else {
+                  this.nextRow = nextRow;
+                }
+              }
+
+              return currentRow;
+            }
+
+            private Row currentRow() {
+              if (nextRow != null) {
+                Row row = nextRow;
+                nextRow = null;
+                return row;
+              } else {
+                return rowIterator.next();
+              }
+            }
+
+            private boolean withinPartition(Row currentRow, Row nextRow) {
+              for (int i = 0; i < partitionIdx.size(); i++) {
+                int idx = partitionIdx.get(i);
+                if (!nextRow.get(idx).equals(currentRow.get(idx))) {
+                  return false;
+                }
+              }
+              return true;
+            }
+          };
+
+      return Iterators.filter(iterator, Objects::nonNull);
+    };
   }
 
   private InternalRow[] toOutputRows(String viewName) {
