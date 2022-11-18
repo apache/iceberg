@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -27,6 +28,7 @@ import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
@@ -36,9 +38,14 @@ import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -196,8 +203,89 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
   private Dataset<Row> withUpdate2(Dataset<Row> df, String[] identifiers) {
     Column[] partitionSpec = getPartitionSpec(df, identifiers);
-    return df.repartition(partitionSpec)
-        .mapPartitions(toUpdateRows(), RowEncoder.apply(df.schema()));
+    Column[] sortSpec = new Column[partitionSpec.length + 1];
+    System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
+    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
+    int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+
+    return df.repartition(partitionSpec).sortWithinPartitions(sortSpec)
+        .mapPartitions(processRowsWithinTask(changeTypeIdx), RowEncoder.apply(df.schema()));
+  }
+
+  static String delete = ChangelogOperation.DELETE.name();
+  static String insert = ChangelogOperation.INSERT.name();
+
+  private static MapPartitionsFunction<Row, Row> processRowsWithinTask(int changeTypeIndex) {
+    return rowIterator -> {
+
+      CloseableIterator<Row> iterator = new CloseableIterator<Row>() {
+        private Row nextRow = null;
+        @Override
+        public boolean hasNext() {
+          if (nextRow != null) {
+            return true;
+          }
+          return rowIterator.hasNext();
+        }
+
+        @Override
+        public Row next() {
+          // get the current row
+          Row row;
+          if (this.nextRow != null) {
+            row = this.nextRow;
+            this.nextRow = null;
+            // changed already
+            if(row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
+              return row;
+            }
+          } else if (rowIterator.hasNext()) {
+            row = rowIterator.next();
+          } else {
+            return null;
+          }
+
+          GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
+
+          // looking for the next row with the same ids
+          if (rowIterator.hasNext()) {
+            GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
+            // if next row is insert and current row is delete
+            if (currentRow.getString(changeTypeIndex).equals(delete)
+                    && nextRow.getString(changeTypeIndex).equals(insert)) {
+
+              GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
+              deletedRow.update(changeTypeIndex, "");
+
+              GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
+              insertedRow.update(changeTypeIndex, "");
+              if (deletedRow.equals(insertedRow)) {
+                row = null;
+                // skip the next row
+                this.nextRow = null;
+              } else {
+                deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+                row = RowFactory.create(deletedRow.values());
+
+                insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+                this.nextRow = RowFactory.create(insertedRow.values());
+              }
+            } else {
+              this.nextRow = nextRow;
+            }
+          }
+          return row;
+        }
+
+        @Override
+        public void close() {
+        }
+      };
+
+      //todo: filter out the null rows
+//      CloseableIterator.transform(iterator, row -> row);
+      return iterator;
+    };
   }
 
   private static MapPartitionsFunction<Row, Row> toUpdateRows() {
