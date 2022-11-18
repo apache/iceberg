@@ -181,7 +181,7 @@ public class MetricsUtil {
       }
     }
 
-    /** @return map of projected position to actual position of this struct's fields */
+    /** Returns map of projected position to actual position of this struct's fields */
     private Map<Integer, Integer> readableMetricsProjection(Types.NestedField projection) {
       Map<Integer, Integer> result = Maps.newHashMap();
 

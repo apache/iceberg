@@ -182,11 +182,11 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       if (readableMetricsField == null) {
         return CloseableIterable.transform(files(projection), file -> (StructLike) file);
       } else {
+        // Remove virtual columns from the file projection and ensure that the underlying metrics
+        // used to create those columns are part of the file projection
         Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
         Schema fileProjection = TypeUtil.selectNot(projection, readableMetricsIds);
 
-        // If readable_metrics is selected,
-        // original metrics columns need to be selected for readable_metrics derivation
         Schema projectionForMetrics =
             TypeUtil.join(fileProjection, PROJECTION_FOR_READABLE_METRICS);
         return CloseableIterable.transform(files(projectionForMetrics), this::withReadableMetrics);
@@ -206,12 +206,12 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     private StructLike withReadableMetrics(ContentFile<?> file) {
-      int structSize = projection.columns().size();
+      int expectedSize = projection.columns().size();
       StructType projectedMetricType =
           projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
           MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
-      return new ContentFileStructWithMetrics(structSize, (StructLike) file, readableMetrics);
+      return new ContentFileStructWithMetrics(expectedSize, (StructLike) file, readableMetrics);
     }
 
     @Override
@@ -226,35 +226,36 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   }
 
   static class ContentFileStructWithMetrics implements StructLike {
-    private final int structSize;
     private final StructLike fileAsStruct;
     private final MetricsUtil.ReadableMetricsStruct readableMetrics;
+    private final int expectedSize;
 
     ContentFileStructWithMetrics(
-        int structSize,
+        int expectedSize,
         StructLike fileAsStruct,
         MetricsUtil.ReadableMetricsStruct readableMetrics) {
-      this.structSize = structSize;
       this.fileAsStruct = fileAsStruct;
       this.readableMetrics = readableMetrics;
+      this.expectedSize = expectedSize;
     }
 
     @Override
     public int size() {
-      return structSize;
+      return expectedSize;
     }
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      if (pos < (structSize - 1)) {
+      int lastExpectedIndex = expectedSize - 1;
+      if (pos < lastExpectedIndex) {
         return fileAsStruct.get(pos, javaClass);
-      } else if (pos == (structSize - 1)) {
+      } else if (pos == lastExpectedIndex) {
         return javaClass.cast(readableMetrics);
       } else {
         throw new IllegalArgumentException(
             String.format(
                 "Illegal position access for ContentFileStructWithMetrics: %d, max allowed is %d",
-                pos, (structSize - 1)));
+                pos, lastExpectedIndex));
       }
     }
 
