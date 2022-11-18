@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 
 public class UnboundPartitionSpec {
 
@@ -53,10 +54,13 @@ public class UnboundPartitionSpec {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
 
     for (UnboundPartitionField field : fields) {
-      if (field.partitionId != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, field.transform);
-      } else {
-        builder.add(field.sourceId, field.name, field.transform);
+      Types.NestedField column = schema.findField(field.sourceId);
+      if (column != null) {
+        if (field.partitionId != null) {
+          builder.add(field.sourceId, field.partitionId, field.name, field.transform);
+        } else {
+          builder.add(field.sourceId, field.name, field.transform);
+        }
       }
     }
 
