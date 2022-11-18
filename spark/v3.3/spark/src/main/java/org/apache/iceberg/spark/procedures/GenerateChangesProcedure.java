@@ -18,18 +18,13 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -38,19 +33,15 @@ import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
-import org.apache.spark.sql.expressions.Window;
-import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -203,13 +194,27 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
   private Dataset<Row> withUpdate2(Dataset<Row> df, String[] identifiers) {
     Column[] partitionSpec = getPartitionSpec(df, identifiers);
+    Column[] sortSpec = sortSpec(df, partitionSpec);
+    int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+
+    return df.repartition(partitionSpec)
+        .sortWithinPartitions(sortSpec)
+        .mapPartitions(processRowsWithinTask(changeTypeIdx), RowEncoder.apply(df.schema()));
+  }
+
+  @NotNull
+  private static Column[] sortSpec(Dataset<Row> df, Column[] partitionSpec) {
     Column[] sortSpec = new Column[partitionSpec.length + 1];
     System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
     sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
-    int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+    return sortSpec;
+  }
 
-    return df.repartition(partitionSpec).sortWithinPartitions(sortSpec)
-        .mapPartitions(processRowsWithinTask(changeTypeIdx), RowEncoder.apply(df.schema()));
+  private MapPartitionsFunction<Row, Row> processRowsWithinTask1(int changeTypeIndex) {
+    return rows -> {
+      Iterator<Row> iterator = new RowIterator(rows, changeTypeIndex);
+      return Iterators.filter(iterator, Objects::nonNull);
+    };
   }
 
   static String delete = ChangelogOperation.DELETE.name();
@@ -217,171 +222,139 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
   private static MapPartitionsFunction<Row, Row> processRowsWithinTask(int changeTypeIndex) {
     return rowIterator -> {
+      Iterator<Row> iterator =
+          new Iterator<Row>() {
+            private Row nextRow = null;
 
-      CloseableIterator<Row> iterator = new CloseableIterator<Row>() {
-        private Row nextRow = null;
-        @Override
-        public boolean hasNext() {
-          if (nextRow != null) {
-            return true;
-          }
-          return rowIterator.hasNext();
-        }
-
-        @Override
-        public Row next() {
-          // get the current row
-          Row row;
-          if (this.nextRow != null) {
-            row = this.nextRow;
-            this.nextRow = null;
-            // changed already
-            if(row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
-              return row;
+            @Override
+            public boolean hasNext() {
+              if (nextRow != null) {
+                return true;
+              }
+              return rowIterator.hasNext();
             }
-          } else if (rowIterator.hasNext()) {
-            row = rowIterator.next();
-          } else {
-            return null;
-          }
 
-          GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
+            @Override
+            public Row next() {
+              // get the current row
+              Row row;
+              if (this.nextRow != null) {
+                row = this.nextRow;
+                this.nextRow = null;
+                // changed already
+                if (row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
+                  return row;
+                }
+              } else if (rowIterator.hasNext()) {
+                row = rowIterator.next();
+              } else {
+                return null;
+              }
 
-          // looking for the next row with the same ids
-          if (rowIterator.hasNext()) {
-            GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
-            // if next row is insert and current row is delete
-            if (currentRow.getString(changeTypeIndex).equals(delete)
+              GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
+
+              if (rowIterator.hasNext()) {
+                GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
+                // if next row is insert and current row is delete
+                // todo: we should check the equality of the ids and change_oridinal since different
+                // partitions may
+                //  fall into the same task
+                if (currentRow.getString(changeTypeIndex).equals(delete)
                     && nextRow.getString(changeTypeIndex).equals(insert)) {
 
-              GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
-              deletedRow.update(changeTypeIndex, "");
+                  GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
+                  deletedRow.update(changeTypeIndex, "");
 
-              GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-              insertedRow.update(changeTypeIndex, "");
-              if (deletedRow.equals(insertedRow)) {
-                row = null;
-                // skip the next row
-                this.nextRow = null;
-              } else {
-                deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-                row = RowFactory.create(deletedRow.values());
+                  GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
+                  insertedRow.update(changeTypeIndex, "");
+                  if (deletedRow.equals(insertedRow)) {
+                    row = null;
+                    // skip the next row
+                    this.nextRow = null;
+                  } else {
+                    deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+                    row = RowFactory.create(deletedRow.values());
 
-                insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-                this.nextRow = RowFactory.create(insertedRow.values());
+                    insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+                    this.nextRow = RowFactory.create(insertedRow.values());
+                  }
+                } else {
+                  this.nextRow = nextRow;
+                }
               }
-            } else {
-              this.nextRow = nextRow;
+              return row;
             }
-          }
+          };
+
+      return Iterators.filter(iterator, Objects::nonNull);
+    };
+  }
+
+  private class RowIterator implements Iterator<Row> {
+    private final Iterator<Row> iterator;
+    private final int changeTypeIndex;
+    private Row nextRow = null;
+
+    public RowIterator(Iterator<Row> iterator, int changeTypeIndex) {
+      this.iterator = iterator;
+      this.changeTypeIndex = changeTypeIndex;
+    }
+
+    public boolean hasNext() {
+      if (nextRow != null) {
+        return true;
+      }
+      return iterator.hasNext();
+    }
+
+    public Row next() {
+      // get the current row
+      Row row;
+      if (this.nextRow != null) {
+        row = this.nextRow;
+        this.nextRow = null;
+        // changed already
+        if (row.getString(changeTypeIndex).equals(ChangelogOperation.UPDATE_AFTER.name())) {
           return row;
         }
-
-        @Override
-        public void close() {
-        }
-      };
-
-      //todo: filter out the null rows
-//      CloseableIterator.transform(iterator, row -> row);
-      return iterator;
-    };
-  }
-
-  private static MapPartitionsFunction<Row, Row> toUpdateRows() {
-    return rows -> {
-      List<Row> rowsList = Lists.newArrayList(rows);
-      if (rowsList.size() != 2) {
-        return rows;
-      }
-
-      int changeTypeIndex = rowsList.get(0).fieldIndex(MetadataColumns.CHANGE_TYPE.name());
-      String changeType0 = rowsList.get(0).getString(changeTypeIndex);
-      String changeType1 = rowsList.get(1).getString(changeTypeIndex);
-      String delete = ChangelogOperation.DELETE.name();
-      String insert = ChangelogOperation.INSERT.name();
-
-      if (changeType0.equals(delete) && changeType1.equals(insert)) {
-        return updateRows(
-            (InternalRow) rowsList.get(0), (InternalRow) rowsList.get(1), changeTypeIndex);
-      } else if (changeType0.equals(insert) && changeType1.equals(delete)) {
-        return updateRows(
-            (InternalRow) rowsList.get(1), (InternalRow) rowsList.get(0), changeTypeIndex);
+      } else if (iterator.hasNext()) {
+        row = iterator.next();
       } else {
-        throw new RuntimeException("Unexpected change type: " + changeType0 + ", " + changeType1);
+        return null;
       }
-    };
-  }
 
-  private static Iterator<Row> updateRows(
-      InternalRow deletedRow, InternalRow insertedRow, int changeTypeIndex) {
-    deletedRow.update(changeTypeIndex, "");
-    insertedRow.update(changeTypeIndex, "");
+      GenericRowWithSchema currentRow = (GenericRowWithSchema) row;
 
-    if (deletedRow.equals(insertedRow)) {
-      // remove the carry over row
-      return Collections.emptyIterator();
-    } else {
-      deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-      insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-      return Lists.newArrayList((Row) deletedRow, (Row) insertedRow).iterator();
+      if (iterator.hasNext()) {
+        GenericRowWithSchema nextRow = (GenericRowWithSchema) iterator.next();
+        // if next row is insert and current row is delete
+        // todo: we should check the equality of the ids and change_oridinal since different
+        //  partitions may fall into the same task
+        if (currentRow.getString(changeTypeIndex).equals(delete)
+            && nextRow.getString(changeTypeIndex).equals(insert)) {
+
+          GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
+          deletedRow.update(changeTypeIndex, "");
+
+          GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
+          insertedRow.update(changeTypeIndex, "");
+          if (deletedRow.equals(insertedRow)) {
+            row = null;
+            // skip the next row
+            this.nextRow = null;
+          } else {
+            deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+            row = RowFactory.create(deletedRow.values());
+
+            insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+            this.nextRow = RowFactory.create(insertedRow.values());
+          }
+        } else {
+          this.nextRow = nextRow;
+        }
+      }
+      return row;
     }
-  }
-
-  private Dataset<Row> withUpdate(Dataset<Row> df, String[] identifiers) {
-    Column[] partitionSpec = getPartitionSpec(df, identifiers);
-    String countCol = UUID.randomUUID().toString().replace("-", "");
-    String rankCol = UUID.randomUUID().toString().replace("-", "");
-
-    Dataset<Row> dfWithUpdate =
-        df.withColumn(countCol, functions.count("*").over(Window.partitionBy(partitionSpec)))
-            .withColumn(
-                rankCol,
-                functions
-                    .rank()
-                    .over(
-                        Window.partitionBy(partitionSpec)
-                            .orderBy(MetadataColumns.CHANGE_TYPE.name())));
-
-    Dataset<Row> preImageDf =
-        dfWithUpdate
-            .filter(rankCol + " = 1")
-            .filter(countCol + " = 2")
-            .drop(rankCol, countCol)
-            .withColumn(
-                MetadataColumns.CHANGE_TYPE.name(),
-                functions.lit(ChangelogOperation.UPDATE_BEFORE.name()));
-
-    Dataset<Row> postImageDf =
-        dfWithUpdate
-            .filter(rankCol + " = 2")
-            .filter(countCol + " = 2")
-            .drop(rankCol, countCol)
-            .withColumn(
-                MetadataColumns.CHANGE_TYPE.name(),
-                functions.lit(ChangelogOperation.UPDATE_AFTER.name()));
-
-    // remove the carry-over rows
-    Dataset<Row> dfWithoutCarryOver = removeCarryOvers(preImageDf.union(postImageDf));
-
-    // should we throw an exception if count > 2?
-    Dataset<Row> othersDf = dfWithUpdate.filter(countCol + " != 2").drop(rankCol, countCol);
-
-    return dfWithoutCarryOver.union(othersDf);
-  }
-
-  private Dataset<Row> removeCarryOvers(Dataset<Row> df) {
-    Column[] partitionSpec =
-        Arrays.stream(df.columns())
-            .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
-            .map(df::col)
-            .toArray(Column[]::new);
-
-    String countCol = UUID.randomUUID().toString().replace("-", "");
-    Dataset<Row> dfWithCount =
-        df.withColumn(countCol, functions.count("*").over(Window.partitionBy(partitionSpec)));
-
-    return dfWithCount.filter(countCol + " = 1").drop(countCol);
   }
 
   @NotNull
