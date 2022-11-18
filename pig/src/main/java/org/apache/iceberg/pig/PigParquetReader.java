@@ -154,7 +154,7 @@ public class PigParquetReader {
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Inferring MaxDefinitionLevel from parent field
+      // Defaulting to parent max definition level + 1
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
