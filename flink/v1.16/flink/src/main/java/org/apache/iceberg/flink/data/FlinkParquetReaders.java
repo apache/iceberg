@@ -115,13 +115,13 @@ public class FlinkParquetReaders {
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       // Inferring children MaxDefinitionLevel from parent field
-      int inferredMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
+              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
               ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
           types.add(null);

@@ -155,13 +155,13 @@ public class PigParquetReader {
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       // Inferring MaxDefinitionLevel from parent field
-      int inferredMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (partitionValues.containsKey(id)) {
           // the value may be null so containsKey is used to check for a partition value
           int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, inferredMaxDefinitionLevel);
+              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
               ParquetValueReaders.constant(partitionValues.get(id), fieldMaxDefinitionLevel));
           types.add(null);
