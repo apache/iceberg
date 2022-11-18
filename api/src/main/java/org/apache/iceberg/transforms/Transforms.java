@@ -111,7 +111,9 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> identity(Type type) {
-    return Identity.get();
+    Transform<T, T> transform = identity();
+    transform.bind(type);
+    return transform;
   }
 
   /**
@@ -125,14 +127,21 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> year(Type type) {
+    Transform<T, Integer> transform;
     switch (type.typeId()) {
       case DATE:
-        return (Transform<T, Integer>) Dates.YEAR;
+        transform = (Transform<T, Integer>) Dates.YEAR;
+        break;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR;
+        transform = (Transform<T, Integer>) Timestamps.YEAR;
+        break;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by year");
     }
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
@@ -146,14 +155,22 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> month(Type type) {
+    Transform<T, Integer> transform;
+
     switch (type.typeId()) {
       case DATE:
-        return (Transform<T, Integer>) Dates.MONTH;
+        transform = (Transform<T, Integer>) Dates.MONTH;
+        break;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.MONTH;
+        transform = (Transform<T, Integer>) Timestamps.MONTH;
+        break;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by month");
     }
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
@@ -167,14 +184,22 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> day(Type type) {
+    Transform<T, Integer> transform;
+
     switch (type.typeId()) {
       case DATE:
-        return (Transform<T, Integer>) Dates.DAY;
+        transform = (Transform<T, Integer>) Dates.DAY;
+        break;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY;
+        transform = (Transform<T, Integer>) Timestamps.DAY;
+        break;
       default:
         throw new IllegalArgumentException("Cannot partition type " + type + " by day");
     }
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
@@ -190,7 +215,12 @@ public class Transforms {
   public static <T> Transform<T, Integer> hour(Type type) {
     Preconditions.checkArgument(
         type.typeId() == Type.TypeID.TIMESTAMP, "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) Timestamps.HOUR;
+
+    Transform<T, Integer> transform = (Transform<T, Integer>) Timestamps.HOUR;
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
@@ -204,7 +234,11 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, Integer> bucket(Type type, int numBuckets) {
-    return Bucket.get(type, numBuckets);
+    Transform<T, Integer> transform = Bucket.get(type, numBuckets);
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
@@ -218,7 +252,11 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> truncate(Type type, int width) {
-    return (Transform<T, T>) Truncate.get(type, width);
+    Transform<T, T> transform = (Transform<T, T>) Truncate.get(type, width);
+
+    transform.bind(type);
+
+    return transform;
   }
 
   /**
