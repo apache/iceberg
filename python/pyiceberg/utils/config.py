@@ -31,10 +31,6 @@ PYICEBERG_YML = ".pyiceberg.yaml"
 logger = logging.getLogger(__name__)
 
 
-def _coalesce(lhs: str, rhs: str) -> str:
-    return lhs or rhs
-
-
 def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
     """merges right-hand side into the left-hand side"""
     new_config = lhs.copy()
@@ -44,9 +40,9 @@ def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
             if isinstance(lhs_value, dict) and isinstance(rhs_value, dict):
                 # If they are both dicts, then we have to go deeper
                 new_config[rhs_key] = merge_config(lhs_value, rhs_value)
-            elif isinstance(lhs_value, str) and isinstance(rhs_value, str):
+            else:
                 # Take the non-null value, with precedence on rhs
-                new_config[rhs_key] = _coalesce(rhs_value, lhs_value)
+                new_config[rhs_key] = lhs_value or rhs_value
         else:
             # New key
             new_config[rhs_key] = rhs_value
