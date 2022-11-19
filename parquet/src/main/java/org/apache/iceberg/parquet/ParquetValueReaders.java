@@ -55,6 +55,10 @@ public class ParquetValueReaders {
     return new ConstantReader<>(value);
   }
 
+  public static <C> ParquetValueReader<C> constant(C value, int definitionLevel) {
+    return new ConstantReader<>(value, definitionLevel);
+  }
+
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
   }
@@ -113,9 +117,46 @@ public class ParquetValueReaders {
 
   static class ConstantReader<C> implements ParquetValueReader<C> {
     private final C constantValue;
+    private final TripleIterator<?> column;
+    private final List<TripleIterator<?>> children;
 
     ConstantReader(C constantValue) {
       this.constantValue = constantValue;
+      this.column = NullReader.NULL_COLUMN;
+      this.children = NullReader.COLUMNS;
+    }
+
+    ConstantReader(C constantValue, int definitionLevel) {
+      this.constantValue = constantValue;
+      this.column =
+          new TripleIterator<Object>() {
+            @Override
+            public int currentDefinitionLevel() {
+              return definitionLevel;
+            }
+
+            @Override
+            public int currentRepetitionLevel() {
+              return 0;
+            }
+
+            @Override
+            public <N> N nextNull() {
+              return null;
+            }
+
+            @Override
+            public boolean hasNext() {
+              return false;
+            }
+
+            @Override
+            public Object next() {
+              return null;
+            }
+          };
+
+      this.children = ImmutableList.of(column);
     }
 
     @Override
@@ -125,12 +166,12 @@ public class ParquetValueReaders {
 
     @Override
     public TripleIterator<?> column() {
-      return NullReader.NULL_COLUMN;
+      return column;
     }
 
     @Override
     public List<TripleIterator<?>> columns() {
-      return NullReader.COLUMNS;
+      return children;
     }
 
     @Override

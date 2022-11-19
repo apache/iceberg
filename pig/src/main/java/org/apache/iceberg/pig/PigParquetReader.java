@@ -136,6 +136,7 @@ public class PigParquetReader {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
+      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
@@ -143,6 +144,9 @@ public class PigParquetReader {
         int id = fieldType.getId().intValue();
         readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         typesById.put(id, fieldType);
+        if (partitionValues.containsKey(id)) {
+          maxDefinitionLevelsById.put(id, fieldD);
+        }
       }
 
       List<Types.NestedField> expectedFields =
@@ -150,11 +154,16 @@ public class PigParquetReader {
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
+      // Defaulting to parent max definition level
+      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (partitionValues.containsKey(id)) {
           // the value may be null so containsKey is used to check for a partition value
-          reorderedFields.add(ParquetValueReaders.constant(partitionValues.get(id)));
+          int fieldMaxDefinitionLevel =
+              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
+          reorderedFields.add(
+              ParquetValueReaders.constant(partitionValues.get(id), fieldMaxDefinitionLevel));
           types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);

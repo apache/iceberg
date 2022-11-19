@@ -23,17 +23,12 @@ from __future__ import annotations
 
 import struct
 from abc import ABC, abstractmethod
-from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatch, singledispatchmethod
-from typing import (
-    Any,
-    Generic,
-    Type,
-    TypeVar,
-)
+from functools import singledispatchmethod
+from typing import Any, Generic, Type
 from uuid import UUID
 
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -53,7 +48,6 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.datetime import (
     date_str_to_days,
-    date_to_days,
     micros_to_days,
     time_to_micros,
     timestamp_to_micros,
@@ -61,19 +55,19 @@ from pyiceberg.utils.datetime import (
 )
 from pyiceberg.utils.singleton import Singleton
 
-T = TypeVar("T")
 
-
-class Literal(Generic[T], ABC):
+class Literal(Generic[L], ABC):
     """Literal which has a value and can be converted between types"""
 
-    def __init__(self, value: T, value_type: Type):
+    _value: L
+
+    def __init__(self, value: L, value_type: Type[L]):
         if value is None or not isinstance(value, value_type):
-            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
+            raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
         self._value = value
 
     @property
-    def value(self) -> T:
+    def value(self) -> L:
         return self._value
 
     @singledispatchmethod
@@ -82,7 +76,7 @@ class Literal(Generic[T], ABC):
         ...  # pragma: no cover
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.value})"
+        return f"{type(self).__name__}({self.value!r})"
 
     def __str__(self) -> str:
         return str(self.value)
@@ -90,7 +84,7 @@ class Literal(Generic[T], ABC):
     def __hash__(self) -> int:
         return hash(self.value)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return self.value == other.value
 
     def __ne__(self, other) -> bool:
@@ -109,11 +103,9 @@ class Literal(Generic[T], ABC):
         return self.value >= other.value
 
 
-@singledispatch
-def literal(value: Any) -> Literal:
+def literal(value: L) -> Literal[L]:
     """
     A generic Literal factory to construct an iceberg Literal based on python primitive data type
-    using dynamic overloading
 
     Args:
         value(python primitive type): the value to be associated with literal
@@ -123,54 +115,22 @@ def literal(value: Any) -> Literal:
         >>> literal(123)
         LongLiteral(123)
     """
-    raise TypeError(f"Invalid literal value: {repr(value)}")
-
-
-@literal.register(bool)
-def _(value: bool) -> Literal[bool]:
-    return BooleanLiteral(value)
-
-
-@literal.register(int)
-def _(value: int) -> Literal[int]:
-    return LongLiteral(value)
-
-
-@literal.register(float)
-def _(value: float) -> Literal[float]:
-    # expression binding can convert to FloatLiteral if needed
-    return DoubleLiteral(value)
-
-
-@literal.register(str)
-def _(value: str) -> Literal[str]:
-    return StringLiteral(value)
-
-
-@literal.register(UUID)
-def _(value: UUID) -> Literal[UUID]:
-    return UUIDLiteral(value)
-
-
-@literal.register(bytes)
-def _(value: bytes) -> Literal[bytes]:
-    # expression binding can convert to FixedLiteral if needed
-    return BinaryLiteral(value)
-
-
-@literal.register(bytearray)
-def _(value: bytearray) -> Literal[bytes]:
-    return BinaryLiteral(bytes(value))
-
-
-@literal.register(Decimal)
-def _(value: Decimal) -> Literal[Decimal]:
-    return DecimalLiteral(value)
-
-
-@literal.register(date)
-def _(value: date) -> Literal[int]:
-    return DateLiteral(date_to_days(value))
+    if isinstance(value, float):
+        return DoubleLiteral(value)
+    elif isinstance(value, bool):
+        return BooleanLiteral(value)
+    elif isinstance(value, int):
+        return LongLiteral(value)
+    elif isinstance(value, str):
+        return StringLiteral(value)
+    elif isinstance(value, UUID):
+        return UUIDLiteral(value)
+    elif isinstance(value, bytes):
+        return BinaryLiteral(value)
+    elif isinstance(value, Decimal):
+        return DecimalLiteral(value)
+    else:
+        raise TypeError(f"Invalid literal value: {repr(value)}")
 
 
 class FloatAboveMax(Literal[float], Singleton):
@@ -480,6 +440,9 @@ class StringLiteral(Literal[str]):
             raise ValueError(
                 f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {abs(dec.as_tuple().exponent)}"
             )
+
+    def __repr__(self) -> str:
+        return f"literal({repr(self.value)})"
 
 
 class UUIDLiteral(Literal[UUID]):

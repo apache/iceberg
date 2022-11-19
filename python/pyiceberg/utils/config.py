@@ -16,7 +16,7 @@
 # under the License.
 import logging
 import os
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import yaml
 
@@ -31,10 +31,6 @@ PYICEBERG_YML = ".pyiceberg.yaml"
 logger = logging.getLogger(__name__)
 
 
-def _coalesce(lhs: Optional[Any], rhs: Optional[Any]) -> Optional[Any]:
-    return lhs or rhs
-
-
 def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
     """merges right-hand side into the left-hand side"""
     new_config = lhs.copy()
@@ -46,7 +42,7 @@ def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
                 new_config[rhs_key] = merge_config(lhs_value, rhs_value)
             else:
                 # Take the non-null value, with precedence on rhs
-                new_config[rhs_key] = _coalesce(rhs_value, lhs_value)
+                new_config[rhs_key] = lhs_value or rhs_value
         else:
             # New key
             new_config[rhs_key] = rhs_value
