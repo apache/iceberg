@@ -231,7 +231,9 @@ class ProjectionUtil {
   static <T> UnboundPredicate<T> projectTransformPredicate(
       Transform<?, T> transform, String partitionName, BoundPredicate<?> pred) {
     if (pred.term() instanceof BoundTransform
-        && transform.equals(((BoundTransform<?, ?>) pred.term()).transform())) {
+        && transform
+            .toString()
+            .equals(((BoundTransform<?, ?>) pred.term()).transform().toString())) {
       // the bound value must be a T because the transform matches
       return (UnboundPredicate<T>) removeTransform(partitionName, pred);
     }
