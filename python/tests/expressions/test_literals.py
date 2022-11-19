@@ -19,8 +19,10 @@
 import datetime
 import uuid
 from decimal import Decimal
+from typing import Set
 
 import pytest
+from typing_extensions import assert_type
 
 from pyiceberg.expressions.literals import (
     BinaryLiteral,
@@ -34,6 +36,7 @@ from pyiceberg.expressions.literals import (
     FloatLiteral,
     IntAboveMax,
     IntBelowMin,
+    Literal,
     LongLiteral,
     StringLiteral,
     TimeLiteral,
@@ -367,13 +370,11 @@ def test_string_to_decimal_literal():
 
 def test_python_date_conversion():
     one_day_str = "2022-03-28"
-    one_day_date = datetime.date(2022, 3, 28)
 
     from_str_lit = literal(one_day_str).to(DateType())
-    from_date_lit = literal(one_day_date)
 
-    assert isinstance(from_date_lit, DateLiteral)
-    assert from_str_lit == from_date_lit
+    assert isinstance(from_str_lit, DateLiteral)
+    assert from_str_lit.value == 19079
 
 
 @pytest.mark.parametrize(
@@ -385,14 +386,12 @@ def test_python_date_conversion():
         (literal(34.11), FloatType()),
         (literal(3.5028235e38), DoubleType()),
         (literal(Decimal(34.55).quantize(Decimal("0.01"))), DecimalType(9, 2)),
-        (literal(datetime.date(2017, 8, 18)), DateType()),
         (literal("2017-08-18"), DateType()),
         (literal("14:21:01.919"), TimeType()),
         (literal("2017-08-18T14:21:01.919"), TimestampType()),
         (literal("abc"), StringType()),
         (literal(uuid.uuid4()), UUIDType()),
         (literal(bytes([0x01, 0x02, 0x03])), FixedType(3)),
-        (literal(bytearray([0x03, 0x04, 0x05, 0x06])), BinaryType()),
     ],
 )
 def test_identity_conversions(lit, primitive_type):
@@ -412,8 +411,8 @@ def test_fixed_literal():
 
 
 def test_binary_literal():
-    bin_lit012 = literal(bytearray([0x00, 0x01, 0x02]))
-    bin_lit013 = literal(bytearray([0x00, 0x01, 0x03]))
+    bin_lit012 = literal(bytes([0x00, 0x01, 0x02]))
+    bin_lit013 = literal(bytes([0x00, 0x01, 0x03]))
     assert bin_lit012 == bin_lit012
     assert bin_lit012 != bin_lit013
     assert bin_lit012 < bin_lit013
@@ -424,7 +423,7 @@ def test_binary_literal():
 
 
 def test_raise_on_comparison_to_none():
-    bin_lit012 = literal(bytearray([0x00, 0x01, 0x02]))
+    bin_lit012 = literal(bytes([0x00, 0x01, 0x02]))
     fixed_lit012 = literal(bytes([0x00, 0x01, 0x02]))
 
     with pytest.raises(AttributeError):
@@ -453,7 +452,7 @@ def test_raise_on_comparison_to_none():
 
 
 def test_binary_to_fixed():
-    lit = literal(bytearray([0x00, 0x01, 0x02]))
+    lit = literal(bytes([0x00, 0x01, 0x02]))
     fixed_lit = lit.to(FixedType(3))
     assert fixed_lit is not None
     assert lit.value == fixed_lit.value
@@ -464,7 +463,7 @@ def test_binary_to_fixed():
 
 
 def test_binary_to_smaller_fixed_none():
-    lit = literal(bytearray([0x00, 0x01, 0x02]))
+    lit = literal(bytes([0x00, 0x01, 0x02]))
 
     with pytest.raises(TypeError) as e:
         _ = lit.to(FixedType(2))
@@ -479,7 +478,7 @@ def test_fixed_to_binary():
 
 
 def test_fixed_to_smaller_fixed_none():
-    lit = literal(bytearray([0x00, 0x01, 0x02])).to(FixedType(3))
+    lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
     with pytest.raises(ValueError) as e:
         lit.to(lit.to(FixedType(2)))
     assert "Could not convert b'\\x00\\x01\\x02' into a fixed[2]" in str(e.value)
@@ -734,7 +733,7 @@ def test_invalid_fixed_conversions():
 
 def test_invalid_binary_conversions():
     assert_invalid_conversions(
-        literal(bytearray([0x00, 0x01, 0x02])),
+        literal(bytes([0x00, 0x01, 0x02])),
         [
             BooleanType(),
             IntegerType(),
@@ -804,3 +803,19 @@ def test_string_to_decimal_type_invalid_value():
     with pytest.raises(ValueError) as e:
         _ = literal("18.15").to(DecimalType(10, 0))
     assert "Could not convert 18.15 into a decimal(10, 0), scales differ 0 <> 2" in str(e.value)
+
+
+#   __  __      ___
+#  |  \/  |_  _| _ \_  _
+#  | |\/| | || |  _/ || |
+#  |_|  |_|\_, |_|  \_, |
+#          |__/     |__/
+
+assert_type(literal("str"), Literal[str])
+assert_type(literal(True), Literal[bool])
+assert_type(literal(123), Literal[int])
+assert_type(literal(123.4), Literal[float])
+assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
+assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
+assert_type(literal(Decimal("19.25")), Literal[Decimal])
+assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])

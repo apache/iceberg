@@ -72,6 +72,7 @@ pre-commit = "2.20.0"
 fastavro = "1.6.1"
 coverage = { version = "^6.5.0", extras = ["toml"] }
 requests-mock = "1.10.0"
+typing-extensions = '4.4.0'
 
 [tool.poetry.scripts]
 pyiceberg = "pyiceberg.cli.console:run"
