@@ -118,7 +118,7 @@ def literal(value: L) -> Literal[L]:
     if isinstance(value, float):
         return DoubleLiteral(value)
     elif isinstance(value, bool):
-        return BooleanLiteral(value)  # type: ignore
+        return BooleanLiteral(value)
     elif isinstance(value, int):
         return LongLiteral(value)
     elif isinstance(value, str):
