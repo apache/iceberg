@@ -61,6 +61,7 @@ from pyiceberg.expressions.literals import (
     TimestampLiteral,
     _transform_literal,
 )
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -151,7 +152,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         ...
 
     @abstractmethod
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate]:
         ...
 
     @property
@@ -829,11 +830,11 @@ def _transform_set(name: str, pred: BoundSetPredicate, func: Callable[[Optional[
         raise ValueError(f"Unknown BoundSetPredicate: {pred}")
 
 
-class BoundTransform(BoundTerm[T]):
+class BoundTransform(BoundTerm[Any]):
     """A transform expression"""
 
     transform: Transform
 
-    def __init__(self, term: BoundTerm[T], transform: Transform):
+    def __init__(self, term: BoundTerm, transform: Transform):
         self.term = term
         self.transform = transform

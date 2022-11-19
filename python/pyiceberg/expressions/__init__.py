@@ -25,9 +25,6 @@ from typing import (
     Iterable,
     Set,
     Type,
-    Tuple,
-    Type,
-    TypeVar,
     Union,
 )
 
