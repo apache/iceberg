@@ -70,6 +70,10 @@ class Bound(ABC):
 class Unbound(ABC):
     """Represents an unbound value expression"""
 
+    @abstractmethod
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> Bound:
+        ...
+
     @property
     @abstractmethod
     def as_bound(self) -> Type[Bound]:
@@ -128,7 +132,7 @@ class UnboundTerm(Term, Unbound, ABC):
 
     @abstractmethod
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm:
-        ...  # pragma: no cover
+        ...
 
 
 class Reference(UnboundTerm):
@@ -513,7 +517,7 @@ class In(SetPredicate[L]):
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> NotIn:
+    def __invert__(self) -> NotIn[L]:
         return NotIn[L](self.term, self.literals)
 
     @property
@@ -532,7 +536,7 @@ class NotIn(SetPredicate[L], ABC):
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> In:
+    def __invert__(self) -> In[L]:
         return In[L](self.term, self.literals)
 
     def __eq__(self, other: Any) -> bool:
@@ -589,17 +593,17 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
 
 class BoundEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundNotEqualTo[L]:
-        return BoundNotEqualTo(self.term, self.literal)
+        return BoundNotEqualTo[L](self.term, self.literal)
 
 
 class BoundNotEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundEqualTo[L]:
-        return BoundEqualTo(self.term, self.literal)
+        return BoundEqualTo[L](self.term, self.literal)
 
 
 class BoundGreaterThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThan[L]:
-        return BoundLessThan(self.term, self.literal)
+        return BoundLessThan[L](self.term, self.literal)
 
 
 class BoundGreaterThan(BoundLiteralPredicate[L]):
@@ -609,17 +613,17 @@ class BoundGreaterThan(BoundLiteralPredicate[L]):
 
 class BoundLessThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThanOrEqual[L]:
-        return BoundGreaterThanOrEqual(self.term, self.literal)
+        return BoundGreaterThanOrEqual[L](self.term, self.literal)
 
 
 class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThan[L]:
-        return BoundGreaterThan(self.term, self.literal)
+        return BoundGreaterThan[L](self.term, self.literal)
 
 
 class EqualTo(LiteralPredicate[L]):
     def __invert__(self) -> NotEqualTo:
-        return NotEqualTo(self.term, self.literal)
+        return NotEqualTo[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundEqualTo[L]]:
@@ -627,17 +631,17 @@ class EqualTo(LiteralPredicate[L]):
 
 
 class NotEqualTo(LiteralPredicate[L]):
-    def __invert__(self) -> EqualTo:
-        return EqualTo(self.term, self.literal)
+    def __invert__(self) -> EqualTo[L]:
+        return EqualTo[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundNotEqualTo[L]]:
         return BoundNotEqualTo[L]
 
 
-class LessThan(LiteralPredicate):
-    def __invert__(self) -> GreaterThanOrEqual:
-        return GreaterThanOrEqual(self.term, self.literal)
+class LessThan(LiteralPredicate[L]):
+    def __invert__(self) -> GreaterThanOrEqual[L]:
+        return GreaterThanOrEqual[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundLessThan[L]]:
@@ -645,8 +649,8 @@ class LessThan(LiteralPredicate):
 
 
 class GreaterThanOrEqual(LiteralPredicate[L]):
-    def __invert__(self) -> LessThan:
-        return LessThan(self.term, self.literal)
+    def __invert__(self) -> LessThan[L]:
+        return LessThan[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundGreaterThanOrEqual[L]]:
@@ -654,8 +658,8 @@ class GreaterThanOrEqual(LiteralPredicate[L]):
 
 
 class GreaterThan(LiteralPredicate[L]):
-    def __invert__(self) -> LessThanOrEqual:
-        return LessThanOrEqual(self.term, self.literal)
+    def __invert__(self) -> LessThanOrEqual[L]:
+        return LessThanOrEqual[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundGreaterThan[L]]:
@@ -663,8 +667,8 @@ class GreaterThan(LiteralPredicate[L]):
 
 
 class LessThanOrEqual(LiteralPredicate[L]):
-    def __invert__(self) -> GreaterThan:
-        return GreaterThan(self.term, self.literal)
+    def __invert__(self) -> GreaterThan[L]:
+        return GreaterThan[L](self.term, self.literal)
 
     @property
     def as_bound(self) -> Type[BoundLessThanOrEqual[L]]:

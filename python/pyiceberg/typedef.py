@@ -40,4 +40,4 @@ Properties = Dict[str, str]
 RecursiveDict = Dict[str, Union[str, "RecursiveDict"]]
 
 # Represents the literal value
-L = TypeVar("L", str, bool, int, float, bytes, UUID, Decimal)
+L = TypeVar("L", str, bool, int, float, bytes, UUID, Decimal, covariant=True)

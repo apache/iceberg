@@ -91,8 +91,8 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """Visit method for an And boolean expression
 
         Args:
-            left_result (R): The result of visiting the left side of the expression
-            right_result (R): The result of visiting the right side of the expression
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
         """
 
     @abstractmethod
@@ -100,12 +100,12 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """Visit method for an Or boolean expression
 
         Args:
-            left_result (R): The result of visiting the left side of the expression
-            right_result (R): The result of visiting the right side of the expression
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
         """
 
     @abstractmethod
-    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> T:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit method for an unbound predicate in an expression tree
 
         Args:
@@ -231,7 +231,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         return Or(left=left_result, right=right_result)
 
-    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
         return predicate.bind(self.schema, case_sensitive=self.case_sensitive)
 
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
@@ -307,10 +307,10 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit a bound Or predicate"""
 
-    def visit_unbound_predicate(self, predicate: UnboundPredicate):
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]):
         """Visit an unbound predicate
         Args:
-            predicate (UnboundPredicate): An unbound predicate
+            predicate (UnboundPredicate[L]): An unbound predicate
         Raises:
             TypeError: This always raises since an unbound predicate is not expected in a bound boolean expression
         """
@@ -412,7 +412,7 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
     def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         return Or(left=left_result, right=right_result)
 
-    def visit_unbound_predicate(self, predicate: UnboundPredicate) -> BooleanExpression:
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
         return predicate
 
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
