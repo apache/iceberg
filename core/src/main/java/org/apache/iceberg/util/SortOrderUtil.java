@@ -75,7 +75,7 @@ public class SortOrderUtil {
     // partition field.
     for (SortField sortField : sortOrder.fields()) {
       Pair<String, Integer> sourceAndTransform =
-          Pair.of(sortField.transform().dedupName(), sortField.sourceId());
+          Pair.of(sortField.transform().toString(), sortField.sourceId());
       if (requiredClusteringFields.containsKey(sourceAndTransform)) {
         requiredClusteringFields.remove(sourceAndTransform);
         continue; // keep processing the prefix
@@ -86,7 +86,7 @@ public class SortOrderUtil {
       for (PartitionField field : spec.fields()) {
         if (sortField.sourceId() == field.sourceId()
             && sortField.transform().satisfiesOrderOf(field.transform())) {
-          requiredClusteringFields.remove(Pair.of(field.transform().dedupName(), field.sourceId()));
+          requiredClusteringFields.remove(Pair.of(field.transform().toString(), field.sourceId()));
         }
       }
 
@@ -112,7 +112,7 @@ public class SortOrderUtil {
     for (PartitionField partField : spec.fields()) {
       if (!partField.transform().toString().equals("void")) {
         requiredClusteringFields.put(
-            Pair.of(partField.transform().dedupName(), partField.sourceId()), partField);
+            Pair.of(partField.transform().toString(), partField.sourceId()), partField);
       }
     }
 
@@ -123,7 +123,7 @@ public class SortOrderUtil {
         if (!partField.equals(field)
             && partField.sourceId() == field.sourceId()
             && partField.transform().satisfiesOrderOf(field.transform())) {
-          requiredClusteringFields.remove(Pair.of(field.transform().dedupName(), field.sourceId()));
+          requiredClusteringFields.remove(Pair.of(field.transform().toString(), field.sourceId()));
         }
       }
     }
