@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.avro.generic.GenericData;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
@@ -38,6 +39,8 @@ import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
@@ -59,6 +62,7 @@ import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
 import org.apache.iceberg.flink.source.FlinkInputSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -278,6 +282,161 @@ public class TestHelpers {
       case STRUCT:
         Assertions.assertThat(expected).as("Should expect a Record").isInstanceOf(StructLike.class);
         assertRowData(type.asStructType(), logicalType, (StructLike) expected, (RowData) actual);
+        break;
+      case UUID:
+        Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
+        Assert.assertEquals(
+            "UUID should be equal",
+            expected.toString(),
+            UUID.nameUUIDFromBytes((byte[]) actual).toString());
+        break;
+      case FIXED:
+        Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
+        Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) actual);
+        break;
+      default:
+        throw new IllegalArgumentException("Not a supported type: " + type);
+    }
+  }
+
+  public static void assertEqualsSafe(
+      Schema schema, List<GenericData.Record> recs, List<Row> rows) {
+    Streams.forEachPair(
+        recs.stream(), rows.stream(), (rec, row) -> assertEqualsSafe(schema, rec, row));
+  }
+
+  public static void assertEqualsSafe(Schema schema, GenericData.Record rec, Row row) {
+    List<Types.NestedField> fields = schema.asStruct().fields();
+    RowType rowType = FlinkSchemaUtil.convert(schema);
+    for (int i = 0; i < fields.size(); i += 1) {
+      Type fieldType = fields.get(i).type();
+      Object expectedValue = rec.get(i);
+      Object actualValue = row.getField(i);
+      LogicalType logicalType = rowType.getTypeAt(i);
+      assertAvroEquals(fieldType, logicalType, expectedValue, actualValue);
+    }
+  }
+
+  public static void assertEqualsSafe(Types.StructType struct, GenericData.Record rec, Row row) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      Type fieldType = fields.get(i).type();
+      Object expectedValue = rec.get(i);
+      Object actualValue = row.getField(i);
+      assertAvroEquals(fieldType, null, expectedValue, actualValue);
+    }
+  }
+
+  private static void assertAvroEquals(
+      Type type, LogicalType logicalType, Object expected, Object actual) {
+
+    if (expected == null && actual == null) {
+      return;
+    }
+
+    Assert.assertTrue(
+        "expected and actual should be both null or not null", expected != null && actual != null);
+
+    switch (type.typeId()) {
+      case BOOLEAN:
+        Assert.assertEquals("boolean value should be equal", expected, actual);
+        break;
+      case INTEGER:
+        Assert.assertEquals("int value should be equal", expected, actual);
+        break;
+      case LONG:
+        Assert.assertEquals("long value should be equal", expected, actual);
+        break;
+      case FLOAT:
+        Assert.assertEquals("float value should be equal", expected, actual);
+        break;
+      case DOUBLE:
+        Assert.assertEquals("double value should be equal", expected, actual);
+        break;
+      case STRING:
+        Assertions.assertThat(expected)
+            .as("Should expect a CharSequence")
+            .isInstanceOf(CharSequence.class);
+        Assert.assertEquals("string should be equal", String.valueOf(expected), actual.toString());
+        break;
+      case DATE:
+        Assertions.assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
+        LocalDate date = DateTimeUtil.dateFromDays((int) actual);
+        Assert.assertEquals("date should be equal", expected, date);
+        break;
+      case TIME:
+        Assertions.assertThat(expected)
+            .as("Should expect a LocalTime")
+            .isInstanceOf(LocalTime.class);
+        int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
+        Assert.assertEquals("time millis should be equal", milliseconds, actual);
+        break;
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          Assertions.assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          Assert.assertEquals(
+              "OffsetDataTime should be equal",
+              ts.toLocalDateTime(),
+              ((TimestampData) actual).toLocalDateTime());
+        } else {
+          Assertions.assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) expected;
+          Assert.assertEquals(
+              "LocalDataTime should be equal", ts, ((TimestampData) actual).toLocalDateTime());
+        }
+        break;
+      case BINARY:
+        Assertions.assertThat(expected)
+            .as("Should expect a ByteBuffer")
+            .isInstanceOf(ByteBuffer.class);
+        Assert.assertEquals("binary should be equal", expected, ByteBuffer.wrap((byte[]) actual));
+        break;
+      case DECIMAL:
+        Assertions.assertThat(expected)
+            .as("Should expect a BigDecimal")
+            .isInstanceOf(BigDecimal.class);
+        BigDecimal bd = (BigDecimal) expected;
+        Assert.assertEquals(
+            "decimal value should be equal", bd, ((DecimalData) actual).toBigDecimal());
+        break;
+      case LIST:
+        Assertions.assertThat(expected)
+            .as("Should expect a Collection")
+            .isInstanceOf(Collection.class);
+        Collection<?> expectedArrayData = (Collection<?>) expected;
+        ArrayData actualArrayData;
+        try {
+          actualArrayData = (ArrayData) actual;
+        } catch (ClassCastException e) {
+          actualArrayData = new GenericArrayData((Object[]) actual);
+        }
+        LogicalType elementType = ((ArrayType) logicalType).getElementType();
+        Assert.assertEquals(
+            "array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertArrayValues(
+            type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
+        break;
+      case MAP:
+        Assertions.assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
+        MapData actualMap;
+        try {
+          actualMap = (MapData) actual;
+        } catch (ClassCastException e) {
+          actualMap = new GenericMapData((Map<?, ?>) actual);
+        }
+        assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, actualMap);
+        break;
+      case STRUCT:
+        Assertions.assertThat(expected)
+            .as("Should expect a Record")
+            .isInstanceOf(GenericData.Record.class);
+        assertEqualsSafe(
+            type.asNestedType().asStructType(), (GenericData.Record) expected, (Row) actual);
         break;
       case UUID:
         Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
