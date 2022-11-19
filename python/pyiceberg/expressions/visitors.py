@@ -109,7 +109,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """Visit method for an unbound predicate in an expression tree
 
         Args:
-            predicate (UnboundPredicate): An instance of an UnboundPredicate
+            predicate (UnboundPredicate[L): An instance of an UnboundPredicate
         """
 
     @abstractmethod
@@ -129,7 +129,7 @@ def visit(obj, visitor: BooleanExpressionVisitor[T]) -> T:
 
     Args:
         obj(BooleanExpression): An instance of a BooleanExpression
-        visitor(BooleanExpressionVisitor[R]): An instance of an implementation of the generic BooleanExpressionVisitor base class
+        visitor(BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class
 
     Raises:
         NotImplementedError: If attempting to visit an unsupported expression
@@ -165,7 +165,7 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 
 @visit.register(UnboundPredicate)
-def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
+def _(obj: UnboundPredicate[L], visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 

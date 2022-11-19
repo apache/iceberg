@@ -180,7 +180,7 @@ def test_notnan_bind_nonfloat():
 
 def test_ref_binding_case_sensitive(table_schema_simple: Schema):
     ref = Reference("foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=True) == bound
 
 
@@ -192,7 +192,7 @@ def test_ref_binding_case_sensitive_failure(table_schema_simple: Schema):
 
 def test_ref_binding_case_insensitive(table_schema_simple: Schema):
     ref = Reference("Foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=False) == bound
 
 
@@ -207,12 +207,12 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysTrue()
 
 
@@ -257,7 +257,7 @@ def test_not_in_equal():
 
 
 def test_bind_in(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -265,29 +265,29 @@ def test_bind_in(table_schema_simple: Schema):
 
 
 def test_bind_in_invert(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
-    assert ~bound == BoundNotIn[str](
+    assert ~bound == BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
 
 
 def test_bind_not_in_invert(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
-    assert ~bound == BoundIn[str](
+    assert ~bound == BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
 
 
 def test_bind_dedup(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )

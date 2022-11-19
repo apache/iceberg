@@ -317,7 +317,7 @@ class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
         return self.term == other.term if isinstance(other, UnboundPredicate) else False
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         ...
 
     @property
@@ -327,7 +327,7 @@ class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
 
 
 class UnaryPredicate(UnboundPredicate[Any], ABC):
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate[Any]:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term)
 
@@ -336,7 +336,7 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
 
     @property
     @abstractmethod
-    def as_bound(self) -> Type[BoundUnaryPredicate[L]]:
+    def as_bound(self) -> Type[BoundUnaryPredicate[Any]]:
         ...
 
 
@@ -423,7 +423,7 @@ class NotNaN(UnaryPredicate):
         return BoundNotNaN[L]
 
 
-class SetPredicate(Generic[L], UnboundPredicate[L], ABC):
+class SetPredicate(UnboundPredicate[L], ABC):
     literals: Set[Literal[L]]
 
     def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):
@@ -549,7 +549,7 @@ class NotIn(SetPredicate[L], ABC):
         return BoundNotIn[L]
 
 
-class LiteralPredicate(Generic[L], UnboundPredicate[L], ABC):
+class LiteralPredicate(UnboundPredicate[L], ABC):
     literal: Literal[L]
 
     def __init__(self, term: Union[str, UnboundTerm], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
@@ -622,7 +622,7 @@ class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
 
 
 class EqualTo(LiteralPredicate[L]):
-    def __invert__(self) -> NotEqualTo:
+    def __invert__(self) -> NotEqualTo[L]:
         return NotEqualTo[L](self.term, self.literal)
 
     @property
