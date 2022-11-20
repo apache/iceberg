@@ -127,11 +127,11 @@ class BoundReference(BoundTerm[L]):
         return self
 
 
-class UnboundTerm(Term, Unbound, ABC):
+class UnboundTerm(Term[Any], Unbound, ABC):
     """Represents an unbound term."""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm[Any]:
         ...
 
 
@@ -171,10 +171,10 @@ class Reference(UnboundTerm):
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         accessor = schema.accessor_for_field(field.field_id)
-        return self.as_bound(field=field, accessor=accessor)
+        return self.as_bound(field=field, accessor=accessor)  # type: ignore
 
     @property
-    def as_bound(self) -> Type[BoundReference]:
+    def as_bound(self) -> Type[BoundReference[L]]:
         return BoundReference[L]
 
 
@@ -317,17 +317,17 @@ class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
         return self.term == other.term if isinstance(other, UnboundPredicate) else False
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundPredicate[L]:
         ...
 
     @property
     @abstractmethod
-    def as_bound(self) -> Type[BoundPredicate]:
+    def as_bound(self) -> Type[BoundPredicate[L]]:
         ...
 
 
 class UnaryPredicate(UnboundPredicate[Any], ABC):
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate[Any]:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term)
 
@@ -361,7 +361,7 @@ class BoundNotNull(BoundUnaryPredicate[L]):
             return AlwaysTrue()
         return super().__new__(cls)
 
-    def __invert__(self) -> BoundIsNull:
+    def __invert__(self) -> BoundIsNull[L]:
         return BoundIsNull(self.term)
 
 
@@ -622,7 +622,7 @@ class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
 
 
 class EqualTo(LiteralPredicate[L]):
-    def __invert__(self) -> NotEqualTo:
+    def __invert__(self) -> NotEqualTo[L]:
         return NotEqualTo[L](self.term, self.literal)
 
     @property

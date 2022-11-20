@@ -113,6 +113,7 @@ namespace_packages = false
 warn_redundant_casts = true
 warn_unreachable = true
 warn_unused_ignores = true
+disallow_any_generics = true
 
 [[tool.mypy.overrides]]
 module = "pyarrow.*"

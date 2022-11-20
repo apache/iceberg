@@ -17,6 +17,7 @@
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
+    Any,
     Callable,
     Generic,
     List,
@@ -165,7 +166,7 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 
 @visit.register(UnboundPredicate)
-def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
+def _(obj: UnboundPredicate[Any], visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 

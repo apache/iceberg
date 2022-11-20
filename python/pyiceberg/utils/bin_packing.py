@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from typing import (
     Callable,
     Generic,
@@ -43,9 +45,9 @@ class Bin(Generic[T]):
         self.items.append(item)
 
 
-class PackingIterator:
+class PackingIterator(Generic[T]):
 
-    bins: List[Bin]
+    bins: List[Bin[T]]
 
     def __init__(
         self,
@@ -62,7 +64,7 @@ class PackingIterator:
         self.largest_bin_first = largest_bin_first
         self.bins = []
 
-    def __iter__(self) -> "PackingIterator":
+    def __iter__(self) -> PackingIterator[T]:
         return self
 
     def __next__(self) -> List[T]:
@@ -88,13 +90,13 @@ class PackingIterator:
 
         return self.remove_bin().items
 
-    def find_bin(self, weight: int) -> Optional[Bin]:
+    def find_bin(self, weight: int) -> Optional[Bin[T]]:
         for bin_ in self.bins:
             if bin_.can_add(weight):
                 return bin_
         return None
 
-    def remove_bin(self) -> Bin:
+    def remove_bin(self) -> Bin[T]:
         if self.largest_bin_first:
             bin_ = max(self.bins, key=lambda b: b.weight())
             self.bins.remove(bin_)
