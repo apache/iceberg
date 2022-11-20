@@ -25,6 +25,7 @@ from typing import (
     Iterable,
     Set,
     Type,
+    TypeVar,
     Union,
 )
 
@@ -67,11 +68,14 @@ class Bound(ABC):
     """Represents a bound value expression"""
 
 
-class Unbound(ABC):
+B = TypeVar("B")
+
+
+class Unbound(Generic[B], ABC):
     """Represents an unbound value expression"""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> Bound:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> B:
         ...
 
     @property
@@ -127,11 +131,11 @@ class BoundReference(BoundTerm[L]):
         return self
 
 
-class UnboundTerm(Term, Unbound, ABC):
+class UnboundTerm(Term, Unbound[BoundTerm[L]], ABC):
     """Represents an unbound term."""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm[L]:
         ...
 
 
@@ -307,7 +311,7 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
         return False
 
 
-class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
+class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression, ABC):
     term: UnboundTerm
 
     def __init__(self, term: Union[str, UnboundTerm]):
