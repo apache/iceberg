@@ -141,6 +141,14 @@ def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
             yield ManifestEntry(**dict_repr)
 
 
+def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
+    return filter(lambda entry: entry.status != ManifestEntryStatus.DELETED, read_manifest_entry(input_file))
+
+
+def files(input_file: InputFile) -> Iterator[DataFile]:
+    return (entry.data_file for entry in live_entries(input_file))
+
+
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
     with AvroFile(input_file) as reader:
         schema = reader.schema
