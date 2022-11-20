@@ -244,12 +244,12 @@ class ScanTask(ABC):
 
 @dataclass(init=False)
 class FileScanTask(ScanTask):
-    data_file: DataFile
+    file: DataFile
     start: int
     length: int
 
     def __init__(self, data_file: DataFile, start: Optional[int] = None, length: Optional[int] = None):
-        self.data_file = data_file
+        self.file = data_file
         self.start = start or 0
         self.length = length or data_file.file_size_in_bytes
 
@@ -333,4 +333,33 @@ class DataScan(TableScan["DataScan"]):
             yield from (FileScanTask(file) for file in matching_partition_files)
 
     def to_arrow(self):
-        raise NotImplementedError("Not yet implemented")
+        from pyiceberg.io.pyarrow import PyArrowFileIO
+
+        fs = None
+        if isinstance(self.table.io, PyArrowFileIO):
+            scheme, path = PyArrowFileIO.parse_location(self.table.location())
+            fs = self.table.io.get_fs(scheme)
+
+        import pyarrow.parquet as pq
+
+        locations = []
+        for task in self.plan_files():
+            if isinstance(task, FileScanTask):
+                _, path = PyArrowFileIO.parse_location(task.file.file_path)
+                locations.append(path)
+            else:
+                raise ValueError(f"Cannot read unexpected task: {task}")
+
+        columns = None
+        if "*" not in self.selected_fields:
+            columns = list(self.selected_fields)
+
+        return pq.read_table(source=locations, filesystem=fs, columns=columns)
+
+    def to_duckdb(self, table_name: str, connection=None):
+        import duckdb
+
+        con = connection or duckdb.connect(database=":memory:")
+        con.register(table_name, self.to_arrow())
+
+        return con
