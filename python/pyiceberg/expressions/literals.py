@@ -53,6 +53,7 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -381,12 +382,14 @@ class DecimalLiteral(Literal[Decimal]):
         super().__init__(value, Decimal)
 
     def increment(self) -> Literal[Decimal]:
-        inc_value = 1 / (10 ** abs(self.value.as_tuple().exponent))
-        return DecimalLiteral(self.value + Decimal(str(inc_value)))
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled + 1, original_scale))
 
     def decrement(self) -> Literal[Decimal]:
-        inc_value = 1 / (10 ** abs(self.value.as_tuple().exponent))
-        return DecimalLiteral(self.value - Decimal(str(inc_value)))
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled - 1, original_scale))
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:

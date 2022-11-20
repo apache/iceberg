@@ -761,11 +761,8 @@ class VoidTransform(Transform, Singleton):
         return "VoidTransform()"
 
 
-M = TypeVar("M")
-
-
 def _truncate_number(
-    name: str, pred: BoundLiteralPredicate, transform: Callable[[Optional[M]], Optional[M]]
+    name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
 ) -> Optional[UnboundPredicate]:
     boundary = pred.literal
 
@@ -773,11 +770,11 @@ def _truncate_number(
         raise ValueError(f"Expected a numeric literal, got: {type(boundary)}")
 
     if isinstance(pred, BoundLessThan):
-        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary.decrement()))
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary.decrement()))  # type: ignore
     elif isinstance(pred, BoundLessThanOrEqual):
         return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     elif isinstance(pred, BoundGreaterThan):
-        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary.increment()))
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary.increment()))  # type: ignore
     elif isinstance(pred, BoundGreaterThanOrEqual):
         return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     elif isinstance(pred, BoundEqualTo):
@@ -787,7 +784,7 @@ def _truncate_number(
 
 
 def _truncate_array(
-    name: str, pred: BoundLiteralPredicate, transform: Callable[[Optional[M]], Optional[M]]
+    name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
 ) -> Optional[UnboundPredicate]:
     boundary = pred.literal
 
@@ -820,7 +817,7 @@ def _remove_transform(partition_name: str, pred: BoundPredicate):
 
 
 def _set_apply_transform(
-    name: str, pred: BoundSetPredicate[L], transform: Callable[[Optional[M]], Optional[M]]
+    name: str, pred: BoundSetPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
 ) -> UnboundPredicate:
     literals = pred.literals
     if isinstance(pred, BoundSetPredicate):
