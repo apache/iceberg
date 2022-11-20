@@ -715,31 +715,44 @@ def test_projection_hour_unary(bound_reference_timestamp) -> None:
     assert HourTransform().project("name", BoundNotNull(term=bound_reference_timestamp)) == NotNull(term="name")
 
 
+TIMESTAMP_EXAMPLE = 1667696874000000  # Sun Nov 06 2022 01:07:54
+HOUR_IN_MICROSECONDS = 60 * 60 * 1000 * 1000
+
+
 def test_projection_hour_literal(bound_reference_timestamp) -> None:
     assert HourTransform().project(
-        "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(1667696874000))
-    ) == EqualTo(term="name", literal=463)
+        "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
+    ) == EqualTo(term="name", literal=463249)
 
 
 def test_projection_hour_set_same_hour(bound_reference_timestamp) -> None:
     assert HourTransform().project(
         "name",
-        BoundIn(term=bound_reference_timestamp, literals={TimestampLiteral(1667696874001), TimestampLiteral(1667696874000)}),
-    ) == EqualTo(term="name", literal=463)
+        BoundIn(
+            term=bound_reference_timestamp,
+            literals={TimestampLiteral(TIMESTAMP_EXAMPLE + 1), TimestampLiteral(TIMESTAMP_EXAMPLE)},
+        ),
+    ) == EqualTo(term="name", literal=463249)
 
 
 def test_projection_hour_set_in(bound_reference_timestamp) -> None:
     assert HourTransform().project(
         "name",
-        BoundIn(term=bound_reference_timestamp, literals={TimestampLiteral(1667696874001), TimestampLiteral(1567696874000)}),
-    ) == In(term="name", literals={435, 463})
+        BoundIn(
+            term=bound_reference_timestamp,
+            literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
+        ),
+    ) == In(term="name", literals={463249, 463250})
 
 
 def test_projection_hour_set_not_in(bound_reference_timestamp) -> None:
     assert (
         HourTransform().project(
             "name",
-            BoundNotIn(term=bound_reference_timestamp, literals={TimestampLiteral(1567696874), TimestampLiteral(1667696874)}),
+            BoundNotIn(
+                term=bound_reference_timestamp,
+                literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
+            ),
         )
         is None
     )
@@ -751,27 +764,33 @@ def test_projection_identity_unary(bound_reference_timestamp) -> None:
 
 def test_projection_identity_literal(bound_reference_timestamp) -> None:
     assert IdentityTransform().project(
-        "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(1667696874000))
+        "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
     ) == EqualTo(
-        term="name", literal=TimestampLiteral(1667696874000)  # type: ignore
+        term="name", literal=TimestampLiteral(TIMESTAMP_EXAMPLE)  # type: ignore
     )
 
 
 def test_projection_identity_set_in(bound_reference_timestamp) -> None:
     assert IdentityTransform().project(
         "name",
-        BoundIn(term=bound_reference_timestamp, literals={TimestampLiteral(1667696874001), TimestampLiteral(1567696874000)}),
+        BoundIn(
+            term=bound_reference_timestamp,
+            literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
+        ),
     ) == In(
-        term="name", literals={TimestampLiteral(1567696874000), TimestampLiteral(1667696874001)}  # type: ignore
+        term="name", literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)}  # type: ignore
     )
 
 
 def test_projection_identity_set_not_in(bound_reference_timestamp) -> None:
     assert IdentityTransform().project(
         "name",
-        BoundNotIn(term=bound_reference_timestamp, literals={TimestampLiteral(1567696874), TimestampLiteral(1667696874)}),
+        BoundNotIn(
+            term=bound_reference_timestamp,
+            literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
+        ),
     ) == NotIn(
-        term="name", literals={TimestampLiteral(1567696874), TimestampLiteral(1667696874)}  # type: ignore
+        term="name", literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)}  # type: ignore
     )
 
 

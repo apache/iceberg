@@ -25,12 +25,7 @@ import struct
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Type,
-)
+from typing import Any, Generic, Type
 from uuid import UUID
 
 from pyiceberg.typedef import L
@@ -215,10 +210,10 @@ class LongLiteral(Literal[int]):
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert LongLiteral into {type_var}")
 
-    def increment(self) -> LongLiteral:
+    def increment(self) -> Literal[int]:
         return LongLiteral(self.value + 1)
 
-    def decrement(self) -> LongLiteral:
+    def decrement(self) -> Literal[int]:
         return LongLiteral(self.value - 1)
 
     @to.register(LongType)
@@ -330,11 +325,11 @@ class DateLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
-    def increment(self) -> TimeLiteral:
-        return TimeLiteral(self.value + 1)
+    def increment(self) -> Literal[int]:
+        return DateLiteral(self.value + 1)
 
-    def decrement(self) -> TimeLiteral:
-        return TimeLiteral(self.value - 1)
+    def decrement(self) -> Literal[int]:
+        return DateLiteral(self.value - 1)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
@@ -349,12 +344,6 @@ class TimeLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
-    def increment(self) -> TimeLiteral:
-        return TimeLiteral(self.value + 1)
-
-    def decrement(self) -> TimeLiteral:
-        return TimeLiteral(self.value - 1)
-
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
         raise TypeError(f"Cannot convert TimeLiteral into {type_var}")
@@ -368,11 +357,11 @@ class TimestampLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
-    def increment(self) -> TimeLiteral:
-        return TimeLiteral(self.value + 1)
+    def increment(self) -> Literal[int]:
+        return TimestampLiteral(self.value + 1)
 
-    def decrement(self) -> TimeLiteral:
-        return TimeLiteral(self.value - 1)
+    def decrement(self) -> Literal[int]:
+        return TimestampLiteral(self.value - 1)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:
@@ -391,10 +380,10 @@ class DecimalLiteral(Literal[Decimal]):
     def __init__(self, value: Decimal):
         super().__init__(value, Decimal)
 
-    def increment(self) -> DecimalLiteral:
+    def increment(self) -> Literal[Decimal]:
         return DecimalLiteral(self.value + 1)
 
-    def decrement(self) -> DecimalLiteral:
+    def decrement(self) -> Literal[Decimal]:
         return DecimalLiteral(self.value - 1)
 
     @singledispatchmethod
@@ -535,8 +524,3 @@ class BinaryLiteral(Literal[bytes]):
             raise TypeError(
                 f"Cannot convert BinaryLiteral into {type_var}, different length: {len(type_var)} <> {len(self.value)}"
             )
-
-
-def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
-    """Small helper to upwrap the value from the literal, and wrap it again"""
-    return literal(func(lit.value))
