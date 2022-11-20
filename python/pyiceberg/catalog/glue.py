@@ -182,6 +182,7 @@ class GlueCatalog(Catalog):
             identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
             metadata=metadata,
             metadata_location=metadata_location,
+            io=self._load_file_io(metadata.properties),
         )
 
     def _default_warehouse_location(self, database_name: str, table_name: str) -> str:

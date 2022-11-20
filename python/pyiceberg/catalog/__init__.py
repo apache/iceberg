@@ -25,6 +25,7 @@ from typing import (
     Callable,
     List,
     Optional,
+    Set,
     Union,
     cast,
 )
@@ -158,7 +159,7 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
     raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
 
 
-def delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
+def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
     """Helper to delete files.
 
     Log warnings if failing to delete any file
@@ -175,7 +176,7 @@ def delete_files(io: FileIO, files_to_delete: set[str], file_type: str) -> None:
             logger.warning(msg=f"Failed to delete {file_type} file {file}", exc_info=exc)
 
 
-def delete_data_files(io: FileIO, manifests_to_delete: list[ManifestFile]) -> None:
+def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
     """Helper to delete data files linked to given manifests.
 
     Log warnings if failing to delete any file
