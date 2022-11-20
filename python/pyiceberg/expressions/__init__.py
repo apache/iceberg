@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from functools import reduce
+from functools import cached_property, reduce
 from typing import (
     Any,
     Generic,
@@ -29,9 +29,8 @@ from typing import (
 )
 
 from pyiceberg.expressions.literals import Literal, literal
-from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.typedef import L
+from pyiceberg.typedef import L, StructProtocol
 from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
 
@@ -458,6 +457,10 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
         # Since we don't know the type of BoundPredicate[L], we have to ignore this one
         super().__init__(term)  # type: ignore
         self.literals = _to_literal_set(literals)  # pylint: disable=W0621
+
+    @cached_property
+    def value_set(self) -> Set[L]:
+        return {lit.value for lit in self.literals}
 
     def __str__(self):
         # Sort to make it deterministic

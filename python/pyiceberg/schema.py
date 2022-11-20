@@ -35,7 +35,7 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
-from pyiceberg.files import StructProtocol
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     IcebergType,
     ListType,
