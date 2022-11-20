@@ -145,6 +145,32 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDefaultWarehouseLocationCustomCatalogId() {
+    GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
+    String catalogId = "myCatalogId";
+    ImmutableMap.Builder<String, String> catalogIdPropertiesBuilder =
+        ImmutableMap.<String, String>builder().put(AwsProperties.GLUE_CATALOG_ID, catalogId);
+    catalogWithCustomCatalogId.initialize(
+        CATALOG_NAME,
+        WAREHOUSE_PATH + "/",
+        new AwsProperties(catalogIdPropertiesBuilder.build()),
+        glue,
+        LockManagers.defaultLockManager(),
+        null,
+        ImmutableMap.of());
+
+    Mockito.doReturn(
+            GetDatabaseResponse.builder()
+                .database(Database.builder().name("db").locationUri("s3://bucket2/db").build())
+                .build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    catalogWithCustomCatalogId.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    Mockito.verify(glue)
+        .getDatabase(Mockito.argThat((GetDatabaseRequest req) -> req.catalogId() == catalogId));
+  }
+
+  @Test
   public void testListTables() {
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
