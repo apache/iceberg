@@ -420,7 +420,9 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return predicate
 
 
-def expression_evaluator(schema: Schema, unbound: BooleanExpression, case_sensitive=True) -> Callable[[StructProtocol], bool]:
+def expression_evaluator(
+    schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True
+) -> Callable[[StructProtocol], bool]:
     return _ExpressionEvaluator(schema, unbound, case_sensitive).eval
 
 
@@ -428,10 +430,10 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
     bound: BooleanExpression
     struct: StructProtocol
 
-    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive=True):
+    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True):
         self.bound = bind(schema, unbound, case_sensitive)
 
-    def eval(self, struct: StructProtocol):
+    def eval(self, struct: StructProtocol) -> bool:
         self.struct = struct
         return visit(self.bound, self)
 
