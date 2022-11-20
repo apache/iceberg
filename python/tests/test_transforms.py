@@ -844,7 +844,7 @@ def test_projection_truncate_decimal_literal_eq(bound_reference_decimal: BoundRe
 def test_projection_truncate_decimal_literal_gt(bound_reference_decimal: BoundReference) -> None:
     assert TruncateTransform(2).project(
         "name", BoundGreaterThan(term=bound_reference_decimal, literal=DecimalLiteral(Decimal(19.25)))
-    ) == GreaterThanOrEqual(term="name", literal=Decimal("20.24"))
+    ) == GreaterThanOrEqual(term="name", literal=Decimal("19.26"))
 
 
 def test_projection_truncate_decimal_literal_gte(bound_reference_decimal: BoundReference) -> None:
@@ -874,7 +874,7 @@ def test_projection_truncate_long_literal_eq(bound_reference_long: BoundReferenc
 def test_projection_truncate_long_literal_gt(bound_reference_long: BoundReference) -> None:
     assert TruncateTransform(2).project(
         "name", BoundGreaterThan(term=bound_reference_long, literal=DecimalLiteral(Decimal(19.25)))
-    ) == GreaterThanOrEqual(term="name", literal=Decimal("20.24"))
+    ) == GreaterThanOrEqual(term="name", literal=Decimal("19.26"))
 
 
 def test_projection_truncate_long_literal_gte(bound_reference_long: BoundReference) -> None:

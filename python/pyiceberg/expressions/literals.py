@@ -381,10 +381,12 @@ class DecimalLiteral(Literal[Decimal]):
         super().__init__(value, Decimal)
 
     def increment(self) -> Literal[Decimal]:
-        return DecimalLiteral(self.value + 1)
+        inc_value = 1 / (10 ** abs(self.value.as_tuple().exponent))
+        return DecimalLiteral(self.value + Decimal(str(inc_value)))
 
     def decrement(self) -> Literal[Decimal]:
-        return DecimalLiteral(self.value - 1)
+        inc_value = 1 / (10 ** abs(self.value.as_tuple().exponent))
+        return DecimalLiteral(self.value - Decimal(str(inc_value)))
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:

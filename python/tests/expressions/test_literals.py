@@ -805,6 +805,24 @@ def test_string_to_decimal_type_invalid_value():
     assert "Could not convert 18.15 into a decimal(10, 0), scales differ 0 <> 2" in str(e.value)
 
 
+def test_decimal_literal_increment():
+    dec = DecimalLiteral(Decimal("10.123"))
+    # Twice to check that we don't mutate the value
+    assert dec.increment() == DecimalLiteral(Decimal("10.124"))
+    assert dec.increment() == DecimalLiteral(Decimal("10.124"))
+    # To check that the scale is still the same
+    assert dec.increment().value.as_tuple() == Decimal("10.124").as_tuple()
+
+
+def test_decimal_literal_dencrement():
+    dec = DecimalLiteral(Decimal("10.123"))
+    # Twice to check that we don't mutate the value
+    assert dec.decrement() == DecimalLiteral(Decimal("10.122"))
+    assert dec.decrement() == DecimalLiteral(Decimal("10.122"))
+    # To check that the scale is still the same
+    assert dec.decrement().value.as_tuple() == Decimal("10.122").as_tuple()
+
+
 #   __  __      ___
 #  |  \/  |_  _| _ \_  _
 #  | |\/| | || |  _/ || |
