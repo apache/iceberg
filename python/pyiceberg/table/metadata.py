@@ -29,8 +29,8 @@ from typing import (
 from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
+from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.schema import Schema, assign_fresh_schema_ids
-from pyiceberg.table.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import (

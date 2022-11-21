@@ -42,10 +42,10 @@ from pyiceberg.exceptions import (
     NoSuchNamespaceError,
     NoSuchTableError,
 )
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
 from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
-from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import (
     MetadataLogEntry,

@@ -51,8 +51,8 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.literals import Literal
 from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import PartitionSpec
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     DoubleType,

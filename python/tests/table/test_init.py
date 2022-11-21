@@ -26,10 +26,10 @@ from pyiceberg.expressions import (
     In,
 )
 from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import PartitionSpec, Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
-from pyiceberg.table.partitioning import PartitionField
 from pyiceberg.table.snapshots import (
     Operation,
     Snapshot,

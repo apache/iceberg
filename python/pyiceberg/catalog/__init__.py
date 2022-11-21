@@ -33,9 +33,9 @@ from typing import (
 from pyiceberg.exceptions import NotInstalledError
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import ManifestFile
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
