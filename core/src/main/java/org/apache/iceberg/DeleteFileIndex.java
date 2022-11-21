@@ -271,7 +271,8 @@ class DeleteFileIndex {
     T deleteUpper = Conversions.fromByteBuffer(type, deleteUpperBuf);
 
     return !((comparator.compare(deleteLower, dataLower) <= 0
-        && comparator.compare(deleteUpper, dataLower) <= 0) || ((comparator.compare(deleteLower, dataUpper) >= 0
+            && comparator.compare(deleteUpper, dataLower) <= 0)
+        || ((comparator.compare(deleteLower, dataUpper) >= 0
             && comparator.compare(deleteUpper, dataUpper) >= 0)));
   }
 
