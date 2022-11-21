@@ -184,6 +184,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
                 .toArray(String[]::new);
         return action.zOrder(columnNames);
       } else {
+        if (sortOrderFields.isEmpty()) {
+          return action.sort();
+        }
         return action.sort(buildSortOrder(sortOrderFields, schema));
       }
     }
