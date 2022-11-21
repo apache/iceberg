@@ -865,27 +865,27 @@ def test_projection_truncate_decimal_in(bound_reference_decimal: BoundReference)
     )
 
 
-def test_projection_truncate_long_literal_eq(bound_reference_long: BoundReference) -> None:
+def test_projection_truncate_long_literal_eq(bound_reference_decimal: BoundReference) -> None:
     assert TruncateTransform(2).project(
-        "name", BoundEqualTo(term=bound_reference_long, literal=DecimalLiteral(Decimal(19.25)))
+        "name", BoundEqualTo(term=bound_reference_decimal, literal=DecimalLiteral(Decimal(19.25)))
     ) == EqualTo(term="name", literal=Decimal("19.24"))
 
 
-def test_projection_truncate_long_literal_gt(bound_reference_long: BoundReference) -> None:
+def test_projection_truncate_long_literal_gt(bound_reference_decimal: BoundReference) -> None:
     assert TruncateTransform(2).project(
-        "name", BoundGreaterThan(term=bound_reference_long, literal=DecimalLiteral(Decimal(19.25)))
+        "name", BoundGreaterThan(term=bound_reference_decimal, literal=DecimalLiteral(Decimal(19.25)))
     ) == GreaterThanOrEqual(term="name", literal=Decimal("19.26"))
 
 
-def test_projection_truncate_long_literal_gte(bound_reference_long: BoundReference) -> None:
+def test_projection_truncate_long_literal_gte(bound_reference_decimal: BoundReference) -> None:
     assert TruncateTransform(2).project(
-        "name", BoundGreaterThanOrEqual(term=bound_reference_long, literal=DecimalLiteral(Decimal(19.25)))
+        "name", BoundGreaterThanOrEqual(term=bound_reference_decimal, literal=DecimalLiteral(Decimal(19.25)))
     ) == GreaterThanOrEqual(term="name", literal=Decimal("19.24"))
 
 
-def test_projection_truncate_long_in(bound_reference_long: BoundReference) -> None:
+def test_projection_truncate_long_in(bound_reference_decimal: BoundReference) -> None:
     assert TruncateTransform(2).project(
-        "name", BoundIn(term=bound_reference_long, literals={DecimalLiteral(Decimal(19.25)), DecimalLiteral(Decimal(18.15))})
+        "name", BoundIn(term=bound_reference_decimal, literals={DecimalLiteral(Decimal(19.25)), DecimalLiteral(Decimal(18.15))})
     ) == In(
         term="name",
         literals={
