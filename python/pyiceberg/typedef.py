@@ -45,7 +45,7 @@ V = TypeVar("V")
 
 
 # from https://stackoverflow.com/questions/2912231/is-there-a-clever-way-to-pass-the-key-to-defaultdicts-default-factory
-class KeyDefaultDict(dict[K, V]):
+class KeyDefaultDict(Dict[K, V]):
     def __init__(self, default_factory: Callable[[K], V]):
         super().__init__()
         self.default_factory = default_factory
