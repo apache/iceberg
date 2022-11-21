@@ -815,9 +815,7 @@ def _remove_transform(partition_name: str, pred: BoundPredicate[L]):
         raise ValueError(f"Cannot replace transform in unknown predicate: {pred}")
 
 
-def _set_apply_transform(
-    name: str, pred: BoundSetPredicate[L], transform: Callable[[L], L]
-) -> UnboundPredicate[Any]:
+def _set_apply_transform(name: str, pred: BoundSetPredicate[L], transform: Callable[[L], L]) -> UnboundPredicate[Any]:
     literals = pred.literals
     if isinstance(pred, BoundSetPredicate):
         return pred.as_unbound(Reference(name), {_transform_literal(transform, literal) for literal in literals})
