@@ -22,6 +22,7 @@ import java.io.ObjectStreamException;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
@@ -140,6 +141,23 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public boolean isIdentity() {
     return true;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    } else if (!(o instanceof Identity)) {
+      return false;
+    }
+
+    Identity<?> that = (Identity<?>) o;
+    return type.equals(that.type);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(type);
   }
 
   @Override
