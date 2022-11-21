@@ -24,7 +24,7 @@ import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 
-class UpdateableReference {
+public class UpdateableReference {
 
   private Reference reference;
   private final boolean mutable;
