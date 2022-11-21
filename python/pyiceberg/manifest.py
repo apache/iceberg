@@ -142,7 +142,7 @@ def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
 
 
 def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
-    return filter(lambda entry: entry.status != ManifestEntryStatus.DELETED, read_manifest_entry(input_file))
+    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
 
 
 def files(input_file: InputFile) -> Iterator[DataFile]:

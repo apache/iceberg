@@ -18,6 +18,7 @@ from abc import abstractmethod
 from decimal import Decimal
 from typing import (
     Any,
+    Callable,
     Dict,
     Protocol,
     Tuple,
@@ -37,6 +38,26 @@ class FrozenDict(Dict[Any, Any]):
 
 
 EMPTY_DICT = FrozenDict()
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+# from https://stackoverflow.com/questions/2912231/is-there-a-clever-way-to-pass-the-key-to-defaultdicts-default-factory
+class KeyDefaultDict(dict[K, V]):
+    def __init__(self, default_factory: Callable[[K], V]):
+        super().__init__()
+        self.default_factory = default_factory
+
+    def __missing__(self, key: K) -> V:
+        if self.default_factory is None:
+            raise KeyError(key)
+        else:
+            val = self.default_factory(key)
+            self[key] = val
+            return val
+
 
 Identifier = Tuple[str, ...]
 Properties = Dict[str, str]

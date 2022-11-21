@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import cache
 from typing import (
     Any,
     Callable,
@@ -49,6 +48,7 @@ from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
     Identifier,
+    KeyDefaultDict,
     Properties,
     StructProtocol,
 )
@@ -255,15 +255,13 @@ class FileScanTask(ScanTask):
 
 
 class _DictAsStruct(StructProtocol):
-    pos_to_name: dict[int, str]
-    wrapped: dict[str, Any]
+    pos_to_name: Dict[int, str]
+    wrapped: Dict[str, Any]
 
     def __init__(self, partition_type: StructType):
-        self.pos_to_name = {}
-        for pos, field in enumerate(partition_type.fields):
-            self.pos_to_name[pos] = field.name
+        self.pos_to_name = {pos: field.name for pos, field in enumerate(partition_type.fields)}
 
-    def wrap(self, to_wrap: dict[str, Any]) -> _DictAsStruct:
+    def wrap(self, to_wrap: Dict[str, Any]) -> _DictAsStruct:
         self.wrapped = to_wrap
         return self
 
@@ -287,46 +285,49 @@ class DataScan(TableScan["DataScan"]):
     ):
         super().__init__(table, row_filter, partition_filter, selected_fields, case_sensitive, snapshot_id, options)
 
+    def _build_manifest_evaluator(self, spec_id: int) -> Callable[[ManifestFile], bool]:
+        spec = self.table.specs()[spec_id]
+        return visitors.manifest_evaluator(spec, self.table.schema(), self.partition_filter, self.case_sensitive)
+
+    def _build_partition_evaluator(self, spec_id: int) -> Callable[[DataFile], bool]:
+        spec = self.table.specs()[spec_id]
+        partition_type = spec.partition_type(self.table.schema())
+        partition_schema = Schema(*partition_type.fields)
+
+        # TODO: project the row filter  # pylint: disable=W0511
+        partition_expr = And(self.partition_filter, AlwaysTrue())
+
+        # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
+        wrapper = _DictAsStruct(partition_type)
+        evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
+
+        return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
+
     def plan_files(self) -> Iterator[ScanTask]:
         snapshot = self.snapshot()
         if not snapshot:
-            return ()
+            return
 
         io = self.table.io
 
         # step 1: filter manifests using partition summaries
         # the filter depends on the partition spec used to write the manifest file, so create a cache of filters for each spec id
 
-        @cache
-        def manifest_filter(spec_id: int) -> Callable[[ManifestFile], bool]:
-            spec = self.table.specs()[spec_id]
-            return visitors.manifest_evaluator(spec, self.table.schema(), self.partition_filter, self.case_sensitive)
+        manifest_evaluators: Dict[int, Callable[[ManifestFile], bool]] = KeyDefaultDict(self._build_manifest_evaluator)
 
-        def partition_summary_filter(manifest_file: ManifestFile) -> bool:
-            return manifest_filter(manifest_file.partition_spec_id)(manifest_file)
-
-        manifests = list(filter(partition_summary_filter, snapshot.manifests(io)))
+        manifests = [
+            manifest_file
+            for manifest_file in snapshot.manifests(io)
+            if manifest_evaluators[manifest_file.partition_spec_id](manifest_file)
+        ]
 
         # step 2: filter the data files in each manifest
         # this filter depends on the partition spec used to write the manifest file
 
-        @cache
-        def partition_evaluator(spec_id: int) -> Callable[[DataFile], bool]:
-            spec = self.table.specs()[spec_id]
-            partition_type = spec.partition_type(self.table.schema())
-            partition_schema = Schema(*partition_type.fields)
-
-            # TODO: project the row filter  # pylint: disable=W0511
-            partition_expr = And(self.partition_filter, AlwaysTrue())
-
-            # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
-            wrapper = _DictAsStruct(partition_type)
-            evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
-
-            return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
+        partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
         for manifest in manifests:
-            partition_filter = partition_evaluator(manifest.partition_spec_id)
+            partition_filter = partition_evaluators[manifest.partition_spec_id]
             all_files = files(io.new_input(manifest.manifest_path))
             matching_partition_files = filter(partition_filter, all_files)
 
