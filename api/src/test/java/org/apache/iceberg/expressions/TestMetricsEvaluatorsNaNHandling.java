@@ -58,7 +58,7 @@ public class TestMetricsEvaluatorsNaNHandling {
               .put(3, 10L)
               .put(4, 10L)
               .put(5, 10L)
-              .build(),
+              .buildOrThrow(),
           // null value counts
           ImmutableMap.<Integer, Long>builder()
               .put(1, 0L)
@@ -66,23 +66,23 @@ public class TestMetricsEvaluatorsNaNHandling {
               .put(3, 0L)
               .put(4, 0L)
               .put(5, 0L)
-              .build(),
+              .buildOrThrow(),
           // nan value counts
-          ImmutableMap.<Integer, Long>builder().put(1, 10L).put(4, 10L).put(5, 5L).build(),
+          ImmutableMap.<Integer, Long>builder().put(1, 10L).put(4, 10L).put(5, 5L).buildOrThrow(),
           // lower bounds
           ImmutableMap.<Integer, ByteBuffer>builder()
               .put(1, toByteBuffer(Types.DoubleType.get(), Double.NaN))
               .put(2, toByteBuffer(Types.DoubleType.get(), 7D))
               .put(3, toByteBuffer(Types.FloatType.get(), Float.NaN))
               .put(5, toByteBuffer(Types.FloatType.get(), 7F))
-              .build(),
+              .buildOrThrow(),
           // upper bounds
           ImmutableMap.<Integer, ByteBuffer>builder()
               .put(1, toByteBuffer(Types.DoubleType.get(), Double.NaN))
               .put(2, toByteBuffer(Types.DoubleType.get(), Double.NaN))
               .put(3, toByteBuffer(Types.FloatType.get(), Float.NaN))
               .put(5, toByteBuffer(Types.FloatType.get(), 22F))
-              .build());
+              .buildOrThrow());
 
   private static final Set<BiFunction<String, Number, Expression>> LESS_THAN_EXPRESSIONS =
       ImmutableSet.of(Expressions::lessThan, Expressions::lessThanOrEqual);
