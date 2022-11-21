@@ -125,7 +125,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         builder.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
       }
 
-      this.catalogProperties = builder.build();
+      this.catalogProperties = builder.buildOrThrow();
       awsClientFactory = AwsClientFactories.from(catalogProperties);
       Preconditions.checkArgument(
           awsClientFactory instanceof LakeFormationAwsClientFactory,
@@ -232,7 +232,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           lockManager,
           catalogName,
           awsProperties,
-          tableSpecificCatalogPropertiesBuilder.build(),
+          tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
           hadoopConf,
           tableIdentifier);
     }

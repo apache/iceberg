@@ -94,7 +94,7 @@ public class SparkFilters {
           .put(Or.class, Operation.OR)
           .put(Not.class, Operation.NOT)
           .put(StringStartsWith.class, Operation.STARTS_WITH)
-          .build();
+          .buildOrThrow();
 
   public static Expression convert(Filter[] filters) {
     Expression expression = Expressions.alwaysTrue();

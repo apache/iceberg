@@ -44,7 +44,7 @@ class ParquetWriteSupport<T> extends WriteSupport<T> {
         ImmutableMap.<String, String>builder()
             .putAll(keyValueMetadata)
             .putAll(wrappedContext.getExtraMetaData())
-            .build();
+            .buildOrThrow();
     return new WriteContext(type, metadata);
   }
 

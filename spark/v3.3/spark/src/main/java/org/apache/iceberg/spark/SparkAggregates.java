@@ -39,7 +39,7 @@ public class SparkAggregates {
           .put(CountStar.class, Operation.COUNT_STAR)
           .put(Max.class, Operation.MAX)
           .put(Min.class, Operation.MIN)
-          .build();
+          .buildOrThrow();
 
   public static Expression convert(AggregateFunc aggregate) {
     Operation op = AGGREGATES.get(aggregate.getClass());
