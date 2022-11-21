@@ -337,7 +337,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     ImmutableMap newMeta =
-        ImmutableMap.<String, String>builder().putAll(meta).put("location", hiveLocalDir).build();
+        ImmutableMap.<String, String>builder()
+            .putAll(meta)
+            .put("location", hiveLocalDir)
+            .buildOrThrow();
     Namespace namespace2 = Namespace.of("haveLocation");
 
     catalog.createNamespace(namespace2, newMeta);

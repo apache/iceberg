@@ -74,7 +74,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         "aws_session_token": properties.get("s3.session-token"),
     }
     config_kwargs = {}
-    register_events: Dict[str, Callable] = {}
+    register_events: Dict[str, Callable[[Properties], None]] = {}
 
     if signer := properties.get("s3.signer"):
         logger.info("Loading signer %s", signer)
@@ -194,7 +194,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], AbstractFileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:

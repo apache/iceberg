@@ -96,7 +96,7 @@ public class SortField implements Serializable {
     }
 
     SortField that = (SortField) other;
-    return transform.equals(that.transform)
+    return transform.toString().equals(that.transform.toString())
         && sourceId == that.sourceId
         && direction == that.direction
         && nullOrder == that.nullOrder;

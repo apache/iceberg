@@ -35,7 +35,7 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
-from pyiceberg.files import StructProtocol
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     IcebergType,
     ListType,
@@ -746,7 +746,7 @@ def assign_fresh_schema_ids(schema: Schema) -> Schema:
 class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
     """Traverses the schema and assigns monotonically increasing ids"""
 
-    counter: itertools.count
+    counter: itertools.count  # type: ignore
     reserved_ids: Dict[int, int]
 
     def __init__(self, start: int = 1) -> None:

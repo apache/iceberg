@@ -32,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.SortOrderVisitor;
-import org.apache.iceberg.transforms.Transform;
 
 public class SortOrderUtil {
 
@@ -67,7 +66,7 @@ public class SortOrderUtil {
 
     // make a map of the partition fields that need to be included in the clustering produced by the
     // sort order
-    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields =
+    Map<Pair<String, Integer>, PartitionField> requiredClusteringFields =
         requiredClusteringFields(spec);
 
     // remove any partition fields that are clustered by the sort order by iterating over a prefix
@@ -75,8 +74,8 @@ public class SortOrderUtil {
     // this will stop when a non-partition field is found, or when the sort field only satisfies the
     // partition field.
     for (SortField sortField : sortOrder.fields()) {
-      Pair<Transform<?, ?>, Integer> sourceAndTransform =
-          Pair.of(sortField.transform(), sortField.sourceId());
+      Pair<String, Integer> sourceAndTransform =
+          Pair.of(sortField.transform().toString(), sortField.sourceId());
       if (requiredClusteringFields.containsKey(sourceAndTransform)) {
         requiredClusteringFields.remove(sourceAndTransform);
         continue; // keep processing the prefix
@@ -87,7 +86,7 @@ public class SortOrderUtil {
       for (PartitionField field : spec.fields()) {
         if (sortField.sourceId() == field.sourceId()
             && sortField.transform().satisfiesOrderOf(field.transform())) {
-          requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
+          requiredClusteringFields.remove(Pair.of(field.transform().toString(), field.sourceId()));
         }
       }
 
@@ -107,14 +106,13 @@ public class SortOrderUtil {
     return builder.build();
   }
 
-  private static Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields(
+  private static Map<Pair<String, Integer>, PartitionField> requiredClusteringFields(
       PartitionSpec spec) {
-    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields =
-        Maps.newLinkedHashMap();
+    Map<Pair<String, Integer>, PartitionField> requiredClusteringFields = Maps.newLinkedHashMap();
     for (PartitionField partField : spec.fields()) {
       if (!partField.transform().toString().equals("void")) {
         requiredClusteringFields.put(
-            Pair.of(partField.transform(), partField.sourceId()), partField);
+            Pair.of(partField.transform().toString(), partField.sourceId()), partField);
       }
     }
 
@@ -125,7 +123,7 @@ public class SortOrderUtil {
         if (!partField.equals(field)
             && partField.sourceId() == field.sourceId()
             && partField.transform().satisfiesOrderOf(field.transform())) {
-          requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
+          requiredClusteringFields.remove(Pair.of(field.transform().toString(), field.sourceId()));
         }
       }
     }

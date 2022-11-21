@@ -39,7 +39,7 @@ def _convert_to_hashable_type(element: Any) -> Any:
 
 
 class Singleton:
-    _instances: ClassVar[Dict] = {}
+    _instances: ClassVar[Dict] = {}  # type: ignore
 
     def __new__(cls, *args, **kwargs):
         key = (cls, tuple(args), _convert_to_hashable_type(kwargs))

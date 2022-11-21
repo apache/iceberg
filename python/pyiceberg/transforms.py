@@ -150,7 +150,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         ...
 
     @abstractmethod
-    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         ...
 
     @property
@@ -205,7 +205,7 @@ class BucketTransform(Transform[S, int]):
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         transformer = self.transform(pred.term.ref().field.field_type)
 
         if isinstance(pred.term, BoundTransform):
@@ -292,7 +292,7 @@ class TimeTransform(Transform[S, int], Singleton):
     def granularity(self) -> TimeResolution:
         ...
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         return self.granularity <= other.granularity if hasattr(other, "granularity") else False
 
     def result_type(self, source: IcebergType) -> IntegerType:
@@ -302,7 +302,7 @@ class TimeTransform(Transform[S, int], Singleton):
     def transform(self, source: IcebergType) -> Callable[[Optional[Any]], Optional[int]]:
         ...
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         transformer = self.transform(pred.term.ref().field.field_type)
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
@@ -324,7 +324,7 @@ class TimeTransform(Transform[S, int], Singleton):
         return True
 
 
-class YearTransform(TimeTransform):
+class YearTransform(TimeTransform[S]):
     """Transforms a datetime value into a year value.
 
     Example:
@@ -370,7 +370,7 @@ class YearTransform(TimeTransform):
         return "YearTransform()"
 
 
-class MonthTransform(TimeTransform):
+class MonthTransform(TimeTransform[S]):
     """Transforms a datetime value into a month value.
 
     Example:
@@ -416,7 +416,7 @@ class MonthTransform(TimeTransform):
         return "MonthTransform()"
 
 
-class DayTransform(TimeTransform):
+class DayTransform(TimeTransform[S]):
     """Transforms a datetime value into a day value.
 
     Example:
@@ -465,7 +465,7 @@ class DayTransform(TimeTransform):
         return "DayTransform()"
 
 
-class HourTransform(TimeTransform):
+class HourTransform(TimeTransform[S]):
     """Transforms a datetime value into a hour value.
 
     Example:
@@ -529,7 +529,7 @@ class IdentityTransform(Transform[S, S]):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
         elif isinstance(pred, BoundUnaryPredicate):
@@ -545,7 +545,7 @@ class IdentityTransform(Transform[S, S]):
     def preserves_order(self) -> bool:
         return True
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         """ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
@@ -589,7 +589,7 @@ class TruncateTransform(Transform[S, S]):
     def source_type(self) -> IcebergType:
         return self._source_type
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         field_type = pred.term.ref().field.field_type
 
         if isinstance(pred.term, BoundTransform):
@@ -638,7 +638,7 @@ class TruncateTransform(Transform[S, S]):
 
         return lambda v: truncate_func(v) if v else None
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         if self == other:
             return True
         elif (
@@ -702,10 +702,7 @@ def _(_type: IcebergType, value: int) -> str:
     return datetime.to_human_timestamptz(value)
 
 
-UNKNOWN = "unknown"
-
-
-class UnknownTransform(Transform):
+class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided
     Args:
       source_type (IcebergType): An Iceberg `Type`
@@ -730,14 +727,14 @@ class UnknownTransform(Transform):
     def result_type(self, source: IcebergType) -> StringType:
         return StringType()
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         return None
 
     def __repr__(self) -> str:
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
-class VoidTransform(Transform, Singleton):
+class VoidTransform(Transform[S, None], Singleton):
     """A transform that always returns None"""
 
     __root__ = "void"
@@ -751,7 +748,7 @@ class VoidTransform(Transform, Singleton):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
-    def project(self, name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
         return None
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
@@ -763,7 +760,7 @@ class VoidTransform(Transform, Singleton):
 
 def _truncate_number(
     name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
-) -> Optional[UnboundPredicate]:
+) -> Optional[UnboundPredicate[Any]]:
     boundary = pred.literal
 
     if not isinstance(boundary, (LongLiteral, DecimalLiteral, DateLiteral, TimestampLiteral)):
@@ -785,7 +782,7 @@ def _truncate_number(
 
 def _truncate_array(
     name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
-) -> Optional[UnboundPredicate]:
+) -> Optional[UnboundPredicate[Any]]:
     boundary = pred.literal
 
     if type(pred) in {BoundLessThan, BoundLessThanOrEqual}:
@@ -798,14 +795,16 @@ def _truncate_array(
         return None
 
 
-def _project_transform_predicate(transform: Transform, partition_name: str, pred: BoundPredicate) -> Optional[UnboundPredicate]:
+def _project_transform_predicate(
+    transform: Transform[Any, Any], partition_name: str, pred: BoundPredicate[L]
+) -> Optional[UnboundPredicate[Any]]:
     term = pred.term
     if isinstance(term, BoundTransform) and transform == term.transform:
         return _remove_transform(partition_name, pred)
     return None
 
 
-def _remove_transform(partition_name: str, pred: BoundPredicate):
+def _remove_transform(partition_name: str, pred: BoundPredicate[L]):
     if isinstance(pred, BoundUnaryPredicate):
         return pred.as_unbound(Reference(partition_name))
     elif isinstance(pred, BoundLiteralPredicate):
@@ -817,8 +816,8 @@ def _remove_transform(partition_name: str, pred: BoundPredicate):
 
 
 def _set_apply_transform(
-    name: str, pred: BoundSetPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
-) -> UnboundPredicate:
+    name: str, pred: BoundSetPredicate[L], transform: Callable[[L], L]
+) -> UnboundPredicate[Any]:
     literals = pred.literals
     if isinstance(pred, BoundSetPredicate):
         return pred.as_unbound(Reference(name), {_transform_literal(transform, literal) for literal in literals})
@@ -826,11 +825,11 @@ def _set_apply_transform(
         raise ValueError(f"Unknown BoundSetPredicate: {pred}")
 
 
-class BoundTransform(BoundTerm[Any]):
+class BoundTransform(BoundTerm[L]):
     """A transform expression"""
 
-    transform: Transform
+    transform: Transform[L, Any]
 
-    def __init__(self, term: BoundTerm, transform: Transform):
-        self.term = term
+    def __init__(self, term: BoundTerm[L], transform: Transform[L, Any]):
+        self.term: BoundTerm[L] = term
         self.transform = transform

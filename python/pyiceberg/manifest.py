@@ -187,7 +187,7 @@ def _(list_type: ListType, values: List[Any]) -> Any:
 
 
 @_convert_pos_to_dict.register
-def _(map_type: MapType, values: Dict) -> Dict:
+def _(map_type: MapType, values: Dict[Any, Any]) -> Dict[Any, Any]:
     """In the case of a map, we both traverse over the key and value to handle complex types"""
     return (
         {
@@ -200,5 +200,5 @@ def _(map_type: MapType, values: Dict) -> Dict:
 
 
 @_convert_pos_to_dict.register
-def _(primitive: PrimitiveType, value: Any) -> Any:  # pylint: disable=unused-argument
+def _(_: PrimitiveType, value: Any) -> Any:
     return value

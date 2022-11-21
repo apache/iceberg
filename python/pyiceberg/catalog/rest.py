@@ -172,7 +172,7 @@ class OAuthErrorResponse(IcebergBaseModel):
 class RestCatalog(Catalog):
     uri: str
     session: Session
-    properties: dict
+    properties: Properties
 
     def __init__(
         self,
@@ -198,9 +198,9 @@ class RestCatalog(Catalog):
         self.session = Session()
         # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
-            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
+            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
                 self.session.verify = ssl_ca_bundle
-            if ssl_client := ssl_config.get(CLIENT):
+            if ssl_client := ssl_config.get(CLIENT):  # type: ignore
                 if all(k in ssl_client for k in (CERT, KEY)):
                     self.session.cert = (ssl_client[CERT], ssl_client[KEY])
                 elif ssl_client_cert := ssl_client.get(CERT):
