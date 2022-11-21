@@ -148,12 +148,12 @@ public class TestGlueCatalog {
   public void testDefaultWarehouseLocationCustomCatalogId() {
     GlueCatalog catalogWithCustomCatalogId = new GlueCatalog();
     String catalogId = "myCatalogId";
-    ImmutableMap.Builder<String, String> catalogIdPropertiesBuilder =
-        ImmutableMap.<String, String>builder().put(AwsProperties.GLUE_CATALOG_ID, catalogId);
+    AwsProperties awsProperties = new AwsProperties();
+    awsProperties.setGlueCatalogId(catalogId);
     catalogWithCustomCatalogId.initialize(
         CATALOG_NAME,
         WAREHOUSE_PATH + "/",
-        new AwsProperties(catalogIdPropertiesBuilder.build()),
+        awsProperties,
         glue,
         LockManagers.defaultLockManager(),
         null,
