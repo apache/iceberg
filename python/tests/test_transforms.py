@@ -17,6 +17,7 @@
 # pylint: disable=eval-used,protected-access
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 import mmh3 as mmh3
@@ -392,7 +393,7 @@ def test_void_transform():
 
 
 class TestType(IcebergBaseModel):
-    __root__: Transform
+    __root__: Transform[Any, Any]
 
 
 def test_bucket_transform_serialize():

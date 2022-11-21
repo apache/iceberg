@@ -36,7 +36,7 @@ from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
 
 
-def _to_unbound_term(term: Union[str, UnboundTerm]) -> UnboundTerm:
+def _to_unbound_term(term: Union[str, UnboundTerm[Any]]) -> UnboundTerm[Any]:
     return Reference(term) if isinstance(term, str) else term
 
 
@@ -130,7 +130,7 @@ class BoundReference(BoundTerm[L]):
         return self
 
 
-class UnboundTerm(Term, Unbound[BoundTerm[L]], ABC):
+class UnboundTerm(Term[Any], Unbound[BoundTerm[L]], ABC):
     """Represents an unbound term."""
 
     @abstractmethod
@@ -138,7 +138,7 @@ class UnboundTerm(Term, Unbound[BoundTerm[L]], ABC):
         ...
 
 
-class Reference(UnboundTerm):
+class Reference(UnboundTerm[Any]):
     """A reference not yet bound to a field in a schema
 
     Args:
@@ -174,10 +174,10 @@ class Reference(UnboundTerm):
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         accessor = schema.accessor_for_field(field.field_id)
-        return self.as_bound(field=field, accessor=accessor)
+        return self.as_bound(field=field, accessor=accessor)  # type: ignore
 
     @property
-    def as_bound(self) -> Type[BoundReference]:
+    def as_bound(self) -> Type[BoundReference[L]]:
         return BoundReference[L]
 
 
@@ -311,9 +311,9 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
 
 
 class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression, ABC):
-    term: UnboundTerm
+    term: UnboundTerm[Any]
 
-    def __init__(self, term: Union[str, UnboundTerm]):
+    def __init__(self, term: Union[str, UnboundTerm[Any]]):
         self.term = _to_unbound_term(term)
 
     def __eq__(self, other):
@@ -325,7 +325,7 @@ class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression
 
     @property
     @abstractmethod
-    def as_bound(self) -> Type[BoundPredicate]:
+    def as_bound(self) -> Type[BoundPredicate[L]]:
         ...
 
 
@@ -364,7 +364,7 @@ class BoundNotNull(BoundUnaryPredicate[L]):
             return AlwaysTrue()
         return super().__new__(cls)
 
-    def __invert__(self) -> BoundIsNull:
+    def __invert__(self) -> BoundIsNull[L]:
         return BoundIsNull(self.term)
 
 
@@ -429,7 +429,7 @@ class NotNaN(UnaryPredicate):
 class SetPredicate(UnboundPredicate[L], ABC):
     literals: Set[Literal[L]]
 
-    def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):
+    def __init__(self, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]):
         super().__init__(term)
         self.literals = _to_literal_set(literals)
 
@@ -514,7 +514,9 @@ class BoundNotIn(BoundSetPredicate[L]):
 
 
 class In(SetPredicate[L]):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
+    def __new__(
+        cls, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]
+    ):  # pylint: disable=W0221
         literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -533,7 +535,9 @@ class In(SetPredicate[L]):
 
 
 class NotIn(SetPredicate[L], ABC):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
+    def __new__(
+        cls, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]
+    ):  # pylint: disable=W0221
         literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -559,7 +563,7 @@ class NotIn(SetPredicate[L], ABC):
 class LiteralPredicate(UnboundPredicate[L], ABC):
     literal: Literal[L]
 
-    def __init__(self, term: Union[str, UnboundTerm], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
+    def __init__(self, term: Union[str, UnboundTerm[Any]], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 
