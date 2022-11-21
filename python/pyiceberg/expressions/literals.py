@@ -53,6 +53,7 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -210,6 +211,12 @@ class LongLiteral(Literal[int]):
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert LongLiteral into {type_var}")
 
+    def increment(self) -> Literal[int]:
+        return LongLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return LongLiteral(self.value - 1)
+
     @to.register(LongType)
     def _(self, _: LongType) -> Literal[int]:
         return self
@@ -319,6 +326,12 @@ class DateLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> Literal[int]:
+        return DateLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return DateLiteral(self.value - 1)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert DateLiteral into {type_var}")
@@ -345,6 +358,12 @@ class TimestampLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> Literal[int]:
+        return TimestampLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return TimestampLiteral(self.value - 1)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert TimestampLiteral into {type_var}")
@@ -361,6 +380,16 @@ class TimestampLiteral(Literal[int]):
 class DecimalLiteral(Literal[Decimal]):
     def __init__(self, value: Decimal):
         super().__init__(value, Decimal)
+
+    def increment(self) -> Literal[Decimal]:
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled + 1, original_scale))
+
+    def decrement(self) -> Literal[Decimal]:
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled - 1, original_scale))
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
