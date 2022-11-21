@@ -43,8 +43,8 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, SchemaVisitor
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,

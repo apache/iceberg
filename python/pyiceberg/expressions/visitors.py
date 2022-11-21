@@ -54,6 +54,7 @@ from pyiceberg.expressions.literals import Literal
 from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Schema
 from pyiceberg.table import PartitionSpec
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     DoubleType,
     FloatType,
@@ -241,11 +242,11 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
 
 class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     @abstractmethod
-    def visit_in(self, term: BoundTerm[L], literals: Set[Literal[L]]) -> T:
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> T:
         """Visit a bound In predicate"""
 
     @abstractmethod
-    def visit_not_in(self, term: BoundTerm[L], literals: Set[Literal[L]]) -> T:
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> T:
         """Visit a bound NotIn predicate"""
 
     @abstractmethod
@@ -332,12 +333,12 @@ def visit_bound_predicate(expr: BoundPredicate[L], _: BooleanExpressionVisitor[T
 
 @visit_bound_predicate.register(BoundIn)
 def _(expr: BoundIn[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
-    return visitor.visit_in(term=expr.term, literals=expr.literals)
+    return visitor.visit_in(term=expr.term, literals=expr.value_set)
 
 
 @visit_bound_predicate.register(BoundNotIn)
 def _(expr: BoundNotIn[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
-    return visitor.visit_not_in(term=expr.term, literals=expr.literals)
+    return visitor.visit_not_in(term=expr.term, literals=expr.value_set)
 
 
 @visit_bound_predicate.register(BoundIsNaN)
@@ -420,6 +421,77 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return predicate
 
 
+def expression_evaluator(
+    schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True
+) -> Callable[[StructProtocol], bool]:
+    return _ExpressionEvaluator(schema, unbound, case_sensitive).eval
+
+
+class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
+    bound: BooleanExpression
+    struct: StructProtocol
+
+    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True):
+        self.bound = bind(schema, unbound, case_sensitive)
+
+    def eval(self, struct: StructProtocol) -> bool:
+        self.struct = struct
+        return visit(self.bound, self)
+
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        return term.eval(self.struct) in literals
+
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        return term.eval(self.struct) not in literals
+
+    def visit_is_nan(self, term: BoundTerm[L]) -> bool:
+        val = term.eval(self.struct)
+        return val != val
+
+    def visit_not_nan(self, term: BoundTerm[L]) -> bool:
+        val = term.eval(self.struct)
+        return val == val
+
+    def visit_is_null(self, term: BoundTerm[L]) -> bool:
+        return term.eval(self.struct) is None
+
+    def visit_not_null(self, term: BoundTerm[L]) -> bool:
+        return term.eval(self.struct) is not None
+
+    def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) == literal.value
+
+    def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) != literal.value
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) >= literal.value
+
+    def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) > literal.value
+
+    def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) < literal.value
+
+    def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return term.eval(self.struct) <= literal.value
+
+    def visit_true(self) -> bool:
+        return True
+
+    def visit_false(self) -> bool:
+        return False
+
+    def visit_not(self, child_result: bool) -> bool:
+        return not child_result
+
+    def visit_and(self, left_result: bool, right_result: bool) -> bool:
+        return left_result and right_result
+
+    def visit_or(self, left_result: bool, right_result: bool) -> bool:
+        return left_result or right_result
+
+
 ROWS_MIGHT_MATCH = True
 ROWS_CANNOT_MATCH = False
 IN_PREDICATE_LIMIT = 200
@@ -446,7 +518,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         # No partition information
         return ROWS_MIGHT_MATCH
 
-    def visit_in(self, term: BoundTerm[L], literals: Set[Literal[L]]) -> bool:
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
@@ -458,17 +530,17 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
 
-        if all(lower > val.value for val in literals):
+        if all(lower > val for val in literals):
             return ROWS_CANNOT_MATCH
 
         if field.upper_bound is not None:
             upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
-            if all(upper < val.value for val in literals):
+            if all(upper < val for val in literals):
                 return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
-    def visit_not_in(self, term: BoundTerm[L], literals: Set[Literal[L]]) -> bool:
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
         # because the bounds are not necessarily a min or max value, this cannot be answered using
         # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
         return ROWS_MIGHT_MATCH

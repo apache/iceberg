@@ -73,7 +73,7 @@ public class PartitionField implements Serializable {
     return sourceId == that.sourceId
         && fieldId == that.fieldId
         && name.equals(that.name)
-        && transform.equals(that.transform);
+        && transform.toString().equals(that.transform.toString());
   }
 
   @Override
