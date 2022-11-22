@@ -86,6 +86,8 @@ class Literal(Generic[L], ABC):
         return hash(self.value)
 
     def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Literal):
+            return False
         return self.value == other.value
 
     def __ne__(self, other) -> bool:
@@ -400,6 +402,18 @@ class DecimalLiteral(Literal[Decimal]):
         if type_var.scale == abs(self.value.as_tuple().exponent):
             return self
         raise ValueError(f"Could not convert {self.value} into a {type_var}")
+
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return LongLiteral(int(self.value.to_integral_value()))
+
+    @to.register(FloatType)
+    def _(self, _: FloatType):
+        return FloatLiteral(float(self.value))
+
+    @to.register(DoubleType)
+    def _(self, _: DoubleLiteral):
+        return DoubleLiteral(float(self.value))
 
 
 class StringLiteral(Literal[str]):
