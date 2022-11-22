@@ -81,7 +81,7 @@ public class Transforms {
     }
 
     if (transform.equalsIgnoreCase("identity")) {
-      return Identity.get();
+      return Identity.get(type);
     }
 
     try {
@@ -111,7 +111,7 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> identity(Type type) {
-    return Identity.get();
+    return Identity.get(type);
   }
 
   /**
