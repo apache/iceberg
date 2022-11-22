@@ -18,6 +18,7 @@
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from typing_extensions import assert_type
@@ -619,7 +620,7 @@ def accessor() -> Accessor:
 
 
 @pytest.fixture
-def term(field: NestedField, accessor: Accessor) -> BoundReference:
+def term(field: NestedField, accessor: Accessor) -> BoundReference[Any]:
     return BoundReference(
         field=field,
         accessor=accessor,
@@ -688,14 +689,14 @@ def test_bound_reference_field_property():
     assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
-def test_bound_is_null(term: BoundReference) -> None:
+def test_bound_is_null(term: BoundReference[Any]) -> None:
     bound_is_null = BoundIsNull(term)
     assert str(bound_is_null) == f"BoundIsNull(term={str(term)})"
     assert repr(bound_is_null) == f"BoundIsNull(term={repr(term)})"
     assert bound_is_null == eval(repr(bound_is_null))
 
 
-def test_bound_is_not_null(term: BoundReference) -> None:
+def test_bound_is_not_null(term: BoundReference[Any]) -> None:
     bound_not_null = BoundNotNull(term)
     assert str(bound_not_null) == f"BoundNotNull(term={str(term)})"
     assert repr(bound_not_null) == f"BoundNotNull(term={repr(term)})"
@@ -758,14 +759,14 @@ def test_not_nan() -> None:
     assert not_nan == eval(repr(not_nan))
 
 
-def test_bound_in(term: BoundReference) -> None:
+def test_bound_in(term: BoundReference[Any]) -> None:
     bound_in = BoundIn(term, {literal("a"), literal("b"), literal("c")})
     assert str(bound_in) == f"BoundIn({str(term)}, {{a, b, c}})"
     assert repr(bound_in) == f"BoundIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
     assert bound_in == eval(repr(bound_in))
 
 
-def test_bound_not_in(term: BoundReference) -> None:
+def test_bound_not_in(term: BoundReference[Any]) -> None:
     bound_not_in = BoundNotIn(term, {literal("a"), literal("b"), literal("c")})
     assert str(bound_not_in) == f"BoundNotIn({str(term)}, {{a, b, c}})"
     assert repr(bound_not_in) == f"BoundNotIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
@@ -788,42 +789,42 @@ def test_not_in() -> None:
     assert not_in == eval(repr(not_in))
 
 
-def test_bound_equal_to(term: BoundReference) -> None:
+def test_bound_equal_to(term: BoundReference[Any]) -> None:
     bound_equal_to = BoundEqualTo(term, literal("a"))
     assert str(bound_equal_to) == f"BoundEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_equal_to) == f"BoundEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_equal_to == eval(repr(bound_equal_to))
 
 
-def test_bound_not_equal_to(term: BoundReference) -> None:
+def test_bound_not_equal_to(term: BoundReference[Any]) -> None:
     bound_not_equal_to = BoundNotEqualTo(term, literal("a"))
     assert str(bound_not_equal_to) == f"BoundNotEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_not_equal_to) == f"BoundNotEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_not_equal_to == eval(repr(bound_not_equal_to))
 
 
-def test_bound_greater_than_or_equal_to(term: BoundReference) -> None:
+def test_bound_greater_than_or_equal_to(term: BoundReference[Any]) -> None:
     bound_greater_than_or_equal_to = BoundGreaterThanOrEqual(term, literal("a"))
     assert str(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than_or_equal_to == eval(repr(bound_greater_than_or_equal_to))
 
 
-def test_bound_greater_than(term: BoundReference) -> None:
+def test_bound_greater_than(term: BoundReference[Any]) -> None:
     bound_greater_than = BoundGreaterThan(term, literal("a"))
     assert str(bound_greater_than) == f"BoundGreaterThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than) == f"BoundGreaterThan(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than == eval(repr(bound_greater_than))
 
 
-def test_bound_less_than(term: BoundReference) -> None:
+def test_bound_less_than(term: BoundReference[Any]) -> None:
     bound_less_than = BoundLessThan(term, literal("a"))
     assert str(bound_less_than) == f"BoundLessThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than) == f"BoundLessThan(term={repr(term)}, literal=literal('a'))"
     assert bound_less_than == eval(repr(bound_less_than))
 
 
-def test_bound_less_than_or_equal(term: BoundReference) -> None:
+def test_bound_less_than_or_equal(term: BoundReference[Any]) -> None:
     bound_less_than_or_equal = BoundLessThanOrEqual(term, literal("a"))
     assert str(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={repr(term)}, literal=literal('a'))"

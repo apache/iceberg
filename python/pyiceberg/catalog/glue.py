@@ -56,11 +56,11 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadata, new_table_metadata
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
@@ -310,7 +310,7 @@ class GlueCatalog(Catalog):
         manifest_lists_to_delete = set()
         manifests_to_delete = []
         for snapshot in metadata.snapshots:
-            manifests_to_delete += snapshot.fetch_manifest_list(io)
+            manifests_to_delete += snapshot.manifests(io)
             if snapshot.manifest_list is not None:
                 manifest_lists_to_delete.add(snapshot.manifest_list)
 

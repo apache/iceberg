@@ -27,7 +27,7 @@ def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] 
     if help_message is not None:
         help_message = f" {help_message}."
 
-    def decorator(func: Callable):
+    def decorator(func: Callable):  # type: ignore
         @functools.wraps(func)
         def new_func(*args, **kwargs):
             warnings.simplefilter("always", DeprecationWarning)  # turn off filter

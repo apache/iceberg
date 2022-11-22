@@ -449,7 +449,7 @@ schema = Schema(
     NestedField(field_id=4, name="symbol", field_type=StringType(), required=False),
 )
 
-from pyiceberg.table.partitioning import PartitionSpec, PartitionField
+from pyiceberg.partitioning import PartitionSpec, PartitionField
 from pyiceberg.transforms import DayTransform
 
 partition_spec = PartitionSpec(

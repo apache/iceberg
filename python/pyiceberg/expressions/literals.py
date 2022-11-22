@@ -53,6 +53,7 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from pyiceberg.utils.decimal import decimal_to_unscaled, unscaled_to_decimal
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -72,7 +73,7 @@ class Literal(Generic[L], ABC):
 
     @singledispatchmethod
     @abstractmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal[L]:
         ...  # pragma: no cover
 
     def __repr__(self) -> str:
@@ -194,7 +195,7 @@ class BooleanLiteral(Literal[bool]):
         super().__init__(value, bool)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal[bool]:  # type: ignore
         raise TypeError(f"Cannot convert BooleanLiteral into {type_var}")
 
     @to.register(BooleanType)
@@ -207,8 +208,14 @@ class LongLiteral(Literal[int]):
         super().__init__(value, int)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert LongLiteral into {type_var}")
+
+    def increment(self) -> Literal[int]:
+        return LongLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return LongLiteral(self.value - 1)
 
     @to.register(LongType)
     def _(self, _: LongType) -> Literal[int]:
@@ -274,7 +281,7 @@ class FloatLiteral(Literal[float]):
         return self._value32 >= other
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert FloatLiteral into {type_var}")
 
     @to.register(FloatType)
@@ -295,7 +302,7 @@ class DoubleLiteral(Literal[float]):
         super().__init__(value, float)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert DoubleLiteral into {type_var}")
 
     @to.register(DoubleType)
@@ -319,8 +326,14 @@ class DateLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> Literal[int]:
+        return DateLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return DateLiteral(self.value - 1)
+
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert DateLiteral into {type_var}")
 
     @to.register(DateType)
@@ -333,7 +346,7 @@ class TimeLiteral(Literal[int]):
         super().__init__(value, int)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert TimeLiteral into {type_var}")
 
     @to.register(TimeType)
@@ -345,8 +358,14 @@ class TimestampLiteral(Literal[int]):
     def __init__(self, value: int):
         super().__init__(value, int)
 
+    def increment(self) -> Literal[int]:
+        return TimestampLiteral(self.value + 1)
+
+    def decrement(self) -> Literal[int]:
+        return TimestampLiteral(self.value - 1)
+
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert TimestampLiteral into {type_var}")
 
     @to.register(TimestampType)
@@ -362,8 +381,18 @@ class DecimalLiteral(Literal[Decimal]):
     def __init__(self, value: Decimal):
         super().__init__(value, Decimal)
 
+    def increment(self) -> Literal[Decimal]:
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled + 1, original_scale))
+
+    def decrement(self) -> Literal[Decimal]:
+        original_scale = abs(self.value.as_tuple().exponent)
+        unscaled = decimal_to_unscaled(self.value)
+        return DecimalLiteral(unscaled_to_decimal(unscaled - 1, original_scale))
+
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert DecimalLiteral into {type_var}")
 
     @to.register(DecimalType)
@@ -378,7 +407,7 @@ class StringLiteral(Literal[str]):
         super().__init__(value, str)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert StringLiteral into {type_var}")
 
     @to.register(StringType)
@@ -450,7 +479,7 @@ class UUIDLiteral(Literal[UUID]):
         super().__init__(value, UUID)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert UUIDLiteral into {type_var}")
 
     @to.register(UUIDType)
@@ -463,7 +492,7 @@ class FixedLiteral(Literal[bytes]):
         super().__init__(value, bytes)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert FixedLiteral into {type_var}")
 
     @to.register(FixedType)
@@ -485,7 +514,7 @@ class BinaryLiteral(Literal[bytes]):
         super().__init__(value, bytes)
 
     @singledispatchmethod
-    def to(self, type_var: IcebergType) -> Literal:
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert BinaryLiteral into {type_var}")
 
     @to.register(BinaryType)
