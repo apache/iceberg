@@ -148,7 +148,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
             ? metadata.metadataFileLocation()
             : writeNewMetadata(metadata, currentVersion() + 1);
 
-    String refName = client.getRef().getName();
+    String refName = client.refName();
     boolean delete = true;
     try {
       client.commitTable(base, metadata, newMetadataLocation, table, key);

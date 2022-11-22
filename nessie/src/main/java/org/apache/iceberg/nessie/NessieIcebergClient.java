@@ -501,6 +501,10 @@ public class NessieIcebergClient implements AutoCloseable {
     return String.format("Iceberg commit against %s", tableName);
   }
 
+  public String refName() {
+    return getRef().getName();
+  }
+
   @Override
   public void close() {
     if (null != api) {
