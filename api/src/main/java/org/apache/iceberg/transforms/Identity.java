@@ -144,6 +144,7 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public boolean equals(Object o) {
+    // Can be removed with 2.0.0 deprecation of get(Type)
     if (this == o) {
       return true;
     } else if (o instanceof Identity) {
@@ -154,6 +155,7 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public int hashCode() {
+    // Can be removed with 2.0.0 deprecation of get(Type)
     return 0;
   }
 
