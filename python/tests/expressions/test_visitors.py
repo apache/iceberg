@@ -64,12 +64,15 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
+    inclusive_projection,
     rewrite_not,
     visit,
     visit_bound_predicate,
 )
 from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Accessor, Schema
+from pyiceberg.transforms import IdentityTransform
 from pyiceberg.types import (
     DoubleType,
     FloatType,
@@ -1429,3 +1432,162 @@ def test_rewrite_bound():
             accessor=Accessor(position=0, inner=None),
         )
     )
+
+
+@pytest.fixture
+def spec() -> PartitionSpec:
+    return PartitionSpec(PartitionField(1, 1000, IdentityTransform(), "id"))
+
+
+def test_identity_projection(schema: Schema, spec: PartitionSpec):
+    predicates = [
+        NotNull("id"),
+        IsNull("id"),
+        LessThan("id", 100),
+        LessThanOrEqual("id", 101),
+        GreaterThan("id", 102),
+        GreaterThanOrEqual("id", 103),
+        EqualTo("id", 104),
+        NotEqualTo("id", 105),
+    ]
+
+    expected = [
+        BoundNotNull(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        BoundIsNull(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        BoundLessThan(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(100),
+        ),
+        BoundLessThanOrEqual(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(101),
+        ),
+        BoundGreaterThan(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(102),
+        ),
+        BoundGreaterThanOrEqual(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(103),
+        ),
+        BoundEqualTo(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(104),
+        ),
+        BoundNotEqualTo(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(105),
+        ),
+    ]
+
+    for idx in range(len(predicates)):
+        expr = inclusive_projection(predicates[idx], schema, spec)
+        assert expr == expected[idx]
+
+
+def test_identity_projection_ignore_casing(schema: Schema, spec: PartitionSpec):
+    predicates = [
+        NotNull("ID"),
+        IsNull("ID"),
+        LessThan("ID", 100),
+        LessThanOrEqual("ID", 101),
+        GreaterThan("ID", 102),
+        GreaterThanOrEqual("ID", 103),
+        EqualTo("ID", 104),
+        NotEqualTo("ID", 105),
+    ]
+
+    expected = [
+        BoundNotNull(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        BoundIsNull(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            )
+        ),
+        BoundLessThan(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(100),
+        ),
+        BoundLessThanOrEqual(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(101),
+        ),
+        BoundGreaterThan(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(102),
+        ),
+        BoundGreaterThanOrEqual(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(103),
+        ),
+        BoundEqualTo(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(104),
+        ),
+        BoundNotEqualTo(
+            term=BoundReference[int](
+                field=NestedField(field_id=1000, name="id", field_type=IntegerType(), required=False),
+                accessor=Accessor(position=0, inner=None),
+            ),
+            literal=literal(105),
+        ),
+    ]
+
+    for idx in range(len(predicates)):
+        expr = inclusive_projection(predicates[idx], schema, spec, case_sensitive=False)
+        assert expr == expected[idx]
+
+
+def test_identity_projection_empty_spec(schema: Schema):
+    with pytest.raises(ValueError) as exc_info:
+        _ = inclusive_projection(IsNull("all_nulls_missing_nan"), schema, PartitionSpec())
+    assert str(exc_info.value) == "Could not find field with name all_nulls_missing_nan, case_sensitive=True"
