@@ -134,12 +134,25 @@ def literal(value: L) -> Literal[L]:
         raise TypeError(f"Invalid literal value: {repr(value)}")
 
 
-class FloatAboveMax(Literal[float], Singleton):
+class AboveMax(Literal[L]):
+    ...
+
+
+class BelowMin(Literal[L]):
+    ...
+
+
+class FloatAboveMax(AboveMax[float], Singleton):
     def __init__(self):
         super().__init__(FloatType.max, float)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of FloatAboveMax")
+
+    @to.register(FloatType)
+    def _(self, _: FloatType) -> Literal[float]:
+        return self
 
     def __repr__(self) -> str:
         return "FloatAboveMax()"
@@ -148,12 +161,17 @@ class FloatAboveMax(Literal[float], Singleton):
         return "FloatAboveMax"
 
 
-class FloatBelowMin(Literal[float], Singleton):
+class FloatBelowMin(BelowMin[float], Singleton):
     def __init__(self):
         super().__init__(FloatType.min, float)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of FloatBelowMin")
+
+    @to.register(FloatType)
+    def _(self, _: FloatType) -> Literal[float]:
+        return self
 
     def __repr__(self) -> str:
         return "FloatBelowMin()"
@@ -162,12 +180,17 @@ class FloatBelowMin(Literal[float], Singleton):
         return "FloatBelowMin"
 
 
-class IntAboveMax(Literal[int]):
+class IntAboveMax(AboveMax[int], Singleton):
     def __init__(self):
         super().__init__(IntegerType.max, int)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of IntAboveMax")
+
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return self
 
     def __repr__(self) -> str:
         return "IntAboveMax()"
@@ -176,12 +199,17 @@ class IntAboveMax(Literal[int]):
         return "IntAboveMax"
 
 
-class IntBelowMin(Literal[int]):
+class IntBelowMin(BelowMin[int], Singleton):
     def __init__(self):
         super().__init__(IntegerType.min, int)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of IntBelowMin")
+
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return self
 
     def __repr__(self) -> str:
         return "IntBelowMin()"
