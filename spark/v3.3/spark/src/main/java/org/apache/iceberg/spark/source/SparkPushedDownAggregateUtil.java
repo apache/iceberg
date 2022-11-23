@@ -219,13 +219,15 @@ public class SparkPushedDownAggregateUtil {
                       Types.IntegerType.get(), ByteBuffer.wrap(valueInBytes));
               if (isMin) {
                 if (result == null
-                    || (Literal.of(intValue)).comparator().compare(intValue, (int) result) < 0) {
-                  result = (T) (Integer) intValue;
+                    || (Literal.of(intValue)).comparator().compare(intValue, (Integer) result)
+                        < 0) {
+                  result = (T) Integer.valueOf(intValue);
                 }
               } else {
                 if (result == null
-                    || (Literal.of(intValue)).comparator().compare(intValue, (int) result) > 0) {
-                  result = (T) (Integer) intValue;
+                    || (Literal.of(intValue)).comparator().compare(intValue, (Integer) result)
+                        > 0) {
+                  result = (T) Integer.valueOf(intValue);
                 }
               }
               break;
@@ -237,12 +239,12 @@ public class SparkPushedDownAggregateUtil {
               if (isMin) {
                 if (result == null
                     || (Literal.of(longValue)).comparator().compare(longValue, (Long) result) < 0) {
-                  result = (T) (Long) longValue;
+                  result = (T) Long.valueOf(longValue);
                 }
               } else {
                 if (result == null
                     || (Literal.of(longValue)).comparator().compare(longValue, (Long) result) > 0) {
-                  result = (T) (Long) longValue;
+                  result = (T) Long.valueOf(longValue);
                 }
               }
               break;
@@ -251,13 +253,13 @@ public class SparkPushedDownAggregateUtil {
                   Conversions.fromByteBuffer(Types.FloatType.get(), ByteBuffer.wrap(valueInBytes));
               if (isMin) {
                 if (result == null
-                    || (Literal.of(fValue)).comparator().compare(fValue, (float) result) < 0) {
-                  result = (T) (Float) fValue;
+                    || (Literal.of(fValue)).comparator().compare(fValue, (Float) result) < 0) {
+                  result = (T) Float.valueOf(fValue);
                 }
               } else {
                 if (result == null
-                    || (Literal.of(fValue)).comparator().compare(fValue, (float) result) > 0) {
-                  result = (T) (Float) fValue;
+                    || (Literal.of(fValue)).comparator().compare(fValue, (Float) result) > 0) {
+                  result = (T) Float.valueOf(fValue);
                 }
               }
               break;
@@ -266,15 +268,15 @@ public class SparkPushedDownAggregateUtil {
                   Conversions.fromByteBuffer(Types.DoubleType.get(), ByteBuffer.wrap(valueInBytes));
               if (isMin) {
                 if (result == null
-                    || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result)
+                    || (Literal.of(doubleValue)).comparator().compare(doubleValue, (Double) result)
                         < 0) {
-                  result = (T) (Double) doubleValue;
+                  result = (T) Double.valueOf(doubleValue);
                 }
               } else {
                 if (result == null
-                    || (Literal.of(doubleValue)).comparator().compare(doubleValue, (double) result)
+                    || (Literal.of(doubleValue)).comparator().compare(doubleValue, (Double) result)
                         > 0) {
-                  result = (T) (Double) doubleValue;
+                  result = (T) Double.valueOf(doubleValue);
                 }
               }
               break;
