@@ -32,6 +32,7 @@ from pyiceberg import __version__
 from pyiceberg.catalog import (
     TOKEN,
     URI,
+    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -263,7 +264,11 @@ class RestCatalog(Catalog):
         return TokenResponse(**response.json()).access_token
 
     def _fetch_config(self, properties: Properties) -> Properties:
-        response = self.session.get(self.url(Endpoints.get_config, prefixed=False))
+        params = {}
+        if warehouse_location := properties.get(WAREHOUSE_LOCATION):
+            params[WAREHOUSE_LOCATION] = warehouse_location
+
+        response = self.session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
         try:
             response.raise_for_status()
         except HTTPError as exc:

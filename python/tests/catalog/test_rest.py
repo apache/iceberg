@@ -95,6 +95,33 @@ def test_token_200(rest_mock: Mocker):
     )
 
 
+def test_config_200(requests_mock: Mocker):
+    requests_mock.get(
+        f"{TEST_URI}v1/config",
+        json={"defaults": {}, "overrides": {}},
+        status_code=200,
+    )
+    requests_mock.post(
+        f"{TEST_URI}v1/oauth/tokens",
+        json={
+            "access_token": TEST_TOKEN,
+            "token_type": "Bearer",
+            "expires_in": 86400,
+            "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+        },
+        status_code=200,
+        request_headers=OAUTH_TEST_HEADERS,
+    )
+    RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS, warehouse="s3://some-bucket")
+
+    assert requests_mock.called
+    assert requests_mock.call_count == 2
+
+    history = requests_mock.request_history
+    assert history[1].method == "GET"
+    assert history[1].url == "https://iceberg-test-catalog/v1/config?warehouse=s3%3A%2F%2Fsome-bucket"
+
+
 def test_token_400(rest_mock: Mocker):
     rest_mock.post(
         f"{TEST_URI}v1/oauth/tokens",
