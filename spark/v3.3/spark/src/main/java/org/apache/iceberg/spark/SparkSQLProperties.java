@@ -42,4 +42,8 @@ public class SparkSQLProperties {
   // Controls whether to check the order of fields during writes
   public static final String CHECK_ORDERING = "spark.sql.iceberg.check-ordering";
   public static final boolean CHECK_ORDERING_DEFAULT = true;
+
+  // Controls whether to push down aggregate (MAX/MIN/COUNT) to Iceberg
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "spark.sql.iceberg.aggregate_pushdown";
+  public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
 }

@@ -228,4 +228,15 @@ public class SparkReadConf {
         .defaultValue(Long.MIN_VALUE)
         .parse();
   }
+
+  public boolean aggregatePushDown() {
+    boolean enable =
+        confParser
+            .booleanConf()
+            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED)
+            .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
+            .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
+            .parse();
+    return enable;
+  }
 }

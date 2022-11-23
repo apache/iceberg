@@ -37,11 +37,34 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     return term().ref();
   }
 
+  public Types.NestedField nestedField(int index) {
+    if (op() == Operation.COUNT_STAR) {
+      return Types.NestedField.required(index, "COUNT(*)", Types.LongType.get());
+    } else if (op() == Operation.COUNT) {
+      return Types.NestedField.required(
+          index, "COUNT(" + term().ref().name() + ")", Types.LongType.get());
+    } else if (op() == Operation.MAX) {
+      return Types.NestedField.required(index, "MAX(" + term().ref().name() + ")", term().type());
+    } else if (op() == Operation.MIN) {
+      return Types.NestedField.required(index, "MIN(" + term().ref().name() + ")", term().type());
+    } else {
+      throw new UnsupportedOperationException();
+    }
+  }
+
   public Type type() {
     if (op() == Operation.COUNT || op() == Operation.COUNT_STAR) {
       return Types.LongType.get();
     } else {
       return term().type();
+    }
+  }
+
+  public String columnName() {
+    if (op() == Operation.COUNT_STAR) {
+      return "*";
+    } else {
+      return ref().name();
     }
   }
 }
