@@ -209,6 +209,43 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
+  public void testWatermark() throws Exception {
+    long timestamp = 0;
+
+    JobID jobID = new JobID();
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+      harness.setup();
+      harness.open();
+      assertSnapshotSize(0);
+
+      List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+      for (int i = 1; i <= 3; i++) {
+        RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
+        DataFile dataFile = writeDataFile("data-" + i, ImmutableList.of(rowData));
+        timestamp = timestamp + i;
+
+        harness.processElement(of(dataFile), timestamp);
+        rows.add(rowData);
+
+        harness.snapshot(i, timestamp);
+        assertFlinkManifests(1);
+
+        harness.processWatermark(timestamp);
+
+        harness.notifyOfCompletedCheckpoint(i);
+        assertFlinkManifests(0);
+
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
+        assertSnapshotSize(i);
+        assertWatermark(jobID, timestamp);
+        Assert.assertEquals(
+            TestIcebergFilesCommitter.class.getName(),
+            table.currentSnapshot().summary().get("flink.test"));
+      }
+    }
+  }
+
+  @Test
   public void testOrderedEventsBetweenCheckpoints() throws Exception {
     // It's possible that two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
@@ -815,6 +852,12 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     table.refresh();
     long actualId = IcebergFilesCommitter.getMaxCommittedCheckpointId(table, jobID.toString());
     Assert.assertEquals(expectedId, actualId);
+  }
+
+  private void assertWatermark(JobID jobID, long expectedWatermark) {
+    table.refresh();
+    long actualWatermark = IcebergFilesCommitter.getWatermark(table, jobID.toString());
+    Assert.assertEquals(expectedWatermark, actualWatermark);
   }
 
   private void assertSnapshotSize(int expectedSnapshotSize) {
