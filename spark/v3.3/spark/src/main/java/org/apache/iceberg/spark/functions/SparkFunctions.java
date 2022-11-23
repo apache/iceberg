@@ -33,6 +33,7 @@ public class SparkFunctions {
       ImmutableMap.of(
           "iceberg_version", new IcebergVersionFunction(),
           "years", new YearsFunction(),
+          "months", new MonthsFunction(),
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
