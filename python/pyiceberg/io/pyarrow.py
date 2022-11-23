@@ -25,6 +25,7 @@ with the pyarrow library.
 import os
 from functools import lru_cache, singledispatch
 from typing import (
+    Any,
     Callable,
     List,
     Tuple,
@@ -33,6 +34,7 @@ from typing import (
 from urllib.parse import urlparse
 
 import pyarrow as pa
+import pyarrow.compute as pc
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -41,6 +43,25 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
+from pyiceberg.expressions import (
+    BooleanExpression,
+    BoundEqualTo,
+    BoundGreaterThan,
+    BoundGreaterThanOrEqual,
+    BoundIn,
+    BoundIsNaN,
+    BoundIsNull,
+    BoundLessThan,
+    BoundLessThanOrEqual,
+    BoundNotEqualTo,
+    BoundNotIn,
+    BoundNotNaN,
+    BoundNotNull,
+    BoundPredicate,
+    UnboundPredicate,
+)
+from pyiceberg.expressions.visitors import BooleanExpressionVisitor
+from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
     InputFile,
@@ -49,7 +70,7 @@ from pyiceberg.io import (
     OutputStream,
 )
 from pyiceberg.schema import Schema, SchemaVisitor, visit
-from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.typedef import EMPTY_DICT, L, Properties
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -379,3 +400,95 @@ def _(_: StringType) -> pa.DataType:
 def _(_: BinaryType) -> pa.DataType:
     # Variable length by default
     return pa.binary()
+
+
+class _ConvertToArrowExpression(BooleanExpressionVisitor[pc.Expression]):
+    def visit_true(self) -> pc.Expression:
+        return pc.scalar(True)
+
+    def visit_false(self) -> pc.Expression:
+        return pc.scalar(False)
+
+    def visit_not(self, child_result: pc.Expression) -> pc.Expression:
+        return ~child_result
+
+    def visit_and(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result & right_result
+
+    def visit_or(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result | right_result
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> pc.Expression:
+        raise ValueError("Please bind the expression first")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[Any]) -> pc.Expression:
+        return _iceberg_to_pyarrow_predicate(predicate)
+
+
+@singledispatch
+def _iceberg_to_pyarrow_predicate(expr: BoundPredicate[str]) -> pc.Expression:
+    raise ValueError(f"Unknown expression: {expr}")
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundIsNull)
+def _(bound: BoundIsNull[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name).is_null(False)
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundNotNull)
+def _(bound: BoundNotNull[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name).is_valid()
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundIsNaN)
+def _(bound: BoundIsNaN[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name).is_null(True)
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundNotNaN)
+def _(bound: BoundNotNaN[str]) -> pc.Expression:
+    return ~pc.field(bound.term.ref().field.name).is_null(True)
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundEqualTo)
+def _(bound: BoundEqualTo[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) == bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundNotEqualTo)
+def _(bound: BoundNotEqualTo[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) != bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundGreaterThanOrEqual)
+def _(bound: BoundGreaterThanOrEqual[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) >= bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundGreaterThan)
+def _(bound: BoundGreaterThan[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) > bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundLessThan)
+def _(bound: BoundLessThan[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) < bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundLessThanOrEqual)
+def _(bound: BoundLessThanOrEqual[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name) <= bound.literal.value
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundIn)
+def _(bound: BoundIn[str]) -> pc.Expression:
+    return pc.field(bound.term.ref().field.name).isin(lit.value for lit in bound.literals)
+
+
+@_iceberg_to_pyarrow_predicate.register(BoundNotIn)
+def _(bound: BoundNotIn[str]) -> pc.Expression:
+    return ~pc.field(bound.term.ref().field.name).isin(lit.value for lit in bound.literals)
+
+
+def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
+    return boolean_expression_visit(expr, _ConvertToArrowExpression())

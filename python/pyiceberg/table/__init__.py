@@ -38,7 +38,9 @@ from pyiceberg.expressions import (
     BooleanExpression,
     visitors,
 )
+from pyiceberg.expressions.visitors import bind
 from pyiceberg.io import FileIO
+from pyiceberg.io.pyarrow import expression_to_pyarrow, schema_to_pyarrow
 from pyiceberg.manifest import DataFile, ManifestFile, files
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -341,8 +343,6 @@ class DataScan(TableScan["DataScan"]):
             scheme, path = PyArrowFileIO.parse_location(self.table.location())
             fs = self.table.io.get_fs(scheme)
 
-        import pyarrow.parquet as pq
-
         locations = []
         for task in self.plan_files():
             if isinstance(task, FileScanTask):
@@ -355,7 +355,23 @@ class DataScan(TableScan["DataScan"]):
         if "*" not in self.selected_fields:
             columns = list(self.selected_fields)
 
-        return pq.read_table(source=locations, filesystem=fs, columns=columns)
+        pyarrow_filter = None
+        if self.row_filter is not AlwaysTrue():
+            bound_row_filter = bind(self.table.schema(), self.row_filter)
+            pyarrow_filter = expression_to_pyarrow(bound_row_filter)
+
+        from pyarrow.dataset import dataset
+
+        ds = dataset(
+            source=locations,
+            filesystem=fs,
+            # Optionally provide the Schema for the Dataset,
+            # in which case it will not be inferred from the source.
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset
+            schema=schema_to_pyarrow(self.table.schema()),
+        )
+
+        return ds.to_table(filter=pyarrow_filter, columns=columns)
 
     def to_duckdb(self, table_name: str, connection=None):
         import duckdb

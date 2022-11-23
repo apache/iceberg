@@ -185,7 +185,7 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
-def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool = True) -> BooleanExpression:
     """Travers over an expression to bind the predicates to the schema
 
     Args:
