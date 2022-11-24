@@ -76,7 +76,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Before
   public void before() {
-    pushCatalog();
     sql(
         "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         CATALOG_NAME, warehouse);
@@ -98,8 +97,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
-    popCatalog();
-    sql("DROP CATALOG IF EXISTS %s", CATALOG_NAME);
+    dropCatalog(CATALOG_NAME, true);
   }
 
   @Test
