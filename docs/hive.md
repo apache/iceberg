@@ -38,6 +38,12 @@ Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following feat
 DML operations work only with MapReduce execution engine.
 {{< /hint >}}
 
+With Hive version 4.0.0-alpha-2 and above,
+the Iceberg integration when using HiveCatalog supports the following additional features:
+
+* Altering a table with expiring snapshots.
+* Create a table like an existing table (CTLT table)
+
 With Hive version 4.0.0-alpha-1 and above,
 the Iceberg integration when using HiveCatalog supports the following additional features:
 
@@ -243,7 +249,7 @@ The result is:
 | j                                  | IDENTITY       | NULL
 
 You can create Iceberg partitions using the following Iceberg partition specification syntax
-(supported only in Hive 4.0.0-alpha-1):
+(supported only from Hive 4.0.0-alpha-1):
 
 ```sql
 CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED AS ICEBERG;
@@ -286,7 +292,11 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
     SELECT * FROM source;
 ```
 
+### CREATE TABLE LIKE TABLE
+
+`CREATE TABLE LIKE TABLE` operation 
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
+// Todo: finish this.
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
 tables are created using either a [`Catalog`](../../../javadoc/{{% icebergVersion
@@ -506,6 +516,14 @@ The function is available with the following syntax:
 ```sql
 SELECT * FROM table_a FOR SYSTEM_TIME AS OF '2021-08-09 10:35:57';
 SELECT * FROM table_a FOR SYSTEM_VERSION AS OF 1234567;
+```
+
+You can expire snapshots of an Iceberg table using an ALTER TABLE query from Hive. You should periodically expire snapshots to delete data files that is no longer needed, and reduce the size of table metadata.
+
+Each write to an Iceberg table from Hive creates a new snapshot, or version, of a table. Snapshots can be used for time-travel queries, or the table can be rolled back to any valid snapshot. Snapshots accumulate until they are expired by the expire_snapshots operation.
+Enter a query to expire snapshots having the following timestamp: `2021-12-09 05:39:18.689000000`
+```sql
+ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
 ```
 
 ## Type compatibility
