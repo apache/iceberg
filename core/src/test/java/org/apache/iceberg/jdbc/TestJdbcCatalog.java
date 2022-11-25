@@ -628,7 +628,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testCreateTableInNonExistingNamespace() {
+  public void testCreateTableInNonExistingNamespace() throws IOException {
     try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
       Namespace namespace = Namespace.of("testDb", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
@@ -642,7 +642,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testCreateTableInNonExistingNamespaceStrictMode() {
+  public void testCreateTableInNonExistingNamespaceStrictMode() throws IOException {
     try (JdbcCatalog jdbcCatalog =
         initCatalog(
             "strict_jdbc_catalog", ImmutableMap.of(JdbcUtil.STRICT_MODE_PROPERTY, "true"))) {
