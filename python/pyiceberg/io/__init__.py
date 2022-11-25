@@ -281,10 +281,11 @@ def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[Fi
     return None
 
 
-def load_file_io(properties: Properties, location: Optional[str] = None) -> FileIO:
+def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = None) -> FileIO:
     # First look for the py-io-impl property to directly load the class
     if io_impl := properties.get(PY_IO_IMPL):
         if file_io := _import_file_io(io_impl, properties):
+            logger.info("Loaded FileIO: %s", io_impl)
             return file_io
         else:
             raise ValueError(f"Could not initialize FileIO: {io_impl}")
@@ -301,6 +302,7 @@ def load_file_io(properties: Properties, location: Optional[str] = None) -> File
 
     try:
         # Default to PyArrow
+        logger.info("Defaulting to PyArrow FileIO")
         from pyiceberg.io.pyarrow import PyArrowFileIO
 
         return PyArrowFileIO(properties)

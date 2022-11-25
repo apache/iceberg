@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -77,7 +76,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
   public TestAppenderFactory(String fileFormat, boolean partitioned) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
     this.partitioned = partitioned;
   }
 
@@ -192,7 +191,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EqualityDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newEqDeleteWriter(out, format, partition);
     try (EqualityDeleteWriter<T> closeableWriter = eqDeleteWriter) {
-      closeableWriter.deleteAll(deletes);
+      closeableWriter.write(deletes);
     }
 
     // Check that the delete equality file has the expected equality deletes.
@@ -227,9 +226,10 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        closeableWriter.delete(delete.first(), delete.second());
+        closeableWriter.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
 
@@ -274,9 +274,10 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
         appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
-        closeableWriter.delete(delete.path(), delete.pos(), delete.row());
+        closeableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }
 

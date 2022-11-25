@@ -82,7 +82,7 @@ public class SerializableTable implements Table, Serializable {
     this.io = fileIO(table);
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
-    this.refs = table.refs();
+    this.refs = SerializableMap.copyOf(table.refs());
   }
 
   /**
@@ -235,6 +235,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return locationProvider;
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return lazyTable().statisticsFiles();
   }
 
   @Override

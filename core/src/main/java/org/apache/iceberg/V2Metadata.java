@@ -250,6 +250,7 @@ class V2Metadata {
         ManifestEntry.STATUS,
         ManifestEntry.SNAPSHOT_ID,
         ManifestEntry.SEQUENCE_NUMBER,
+        ManifestEntry.FILE_SEQUENCE_NUMBER,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
@@ -310,20 +311,27 @@ class V2Metadata {
         case 1:
           return wrapped.snapshotId();
         case 2:
-          if (wrapped.sequenceNumber() == null) {
-            // if the entry's sequence number is null, then it will inherit the sequence number of
-            // the current commit.
+          if (wrapped.dataSequenceNumber() == null) {
+            // if the entry's data sequence number is null,
+            // then it will inherit the sequence number of the current commit.
             // to validate that this is correct, check that the snapshot id is either null (will
-            // also be inherited) or
-            // that it matches the id of the current commit.
+            // also be inherited) or that it matches the id of the current commit.
             Preconditions.checkState(
                 wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
                 "Found unassigned sequence number for an entry from snapshot: %s",
                 wrapped.snapshotId());
+
+            // inheritance should work only for ADDED entries
+            Preconditions.checkState(
+                wrapped.status() == Status.ADDED,
+                "Only entries with status ADDED can have null sequence number");
+
             return null;
           }
-          return wrapped.sequenceNumber();
+          return wrapped.dataSequenceNumber();
         case 3:
+          return wrapped.fileSequenceNumber();
+        case 4:
           return fileWrapper.wrap(wrapped.file());
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
@@ -346,6 +354,16 @@ class V2Metadata {
     }
 
     @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
     public Long sequenceNumber() {
       return wrapped.sequenceNumber();
     }
@@ -353,6 +371,16 @@ class V2Metadata {
     @Override
     public void setSequenceNumber(long sequenceNumber) {
       wrapped.setSequenceNumber(sequenceNumber);
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
     }
 
     @Override

@@ -35,21 +35,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestMetadataTableScans extends TableTestBase {
-
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   public TestMetadataTableScans(int formatVersion) {
     super(formatVersion);
@@ -961,53 +952,5 @@ public class TestMetadataTableScans extends TableTestBase {
         "Expected snapshots do not match",
         expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
         actualManifestListPaths(manifestsTableScan));
-  }
-
-  private Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
-        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
-        .map(t -> t.file().path().toString())
-        .collect(Collectors.toSet());
-  }
-
-  private Set<String> expectedManifestListPaths(Iterable<Snapshot> snapshots, Long... snapshotIds) {
-    Set<Long> snapshotIdSet = Sets.newHashSet(snapshotIds);
-    return StreamSupport.stream(snapshots.spliterator(), false)
-        .filter(s -> snapshotIdSet.contains(s.snapshotId()))
-        .map(Snapshot::manifestListLocation)
-        .collect(Collectors.toSet());
-  }
-
-  private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
-      throws IOException {
-    try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
-      for (CombinedScanTask combinedScanTask : tasks) {
-        for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          if (ignoreResiduals) {
-            Assert.assertEquals(
-                "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
-          } else {
-            Assert.assertNotEquals(
-                "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
-          }
-        }
-      }
-    }
-  }
-
-  private void validateIncludesPartitionScan(CloseableIterable<FileScanTask> tasks, int partValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
-            .anyMatch(a -> a.file().partition().get(0, Object.class).equals(partValue)));
-  }
-
-  private boolean manifestHasPartition(ManifestFile mf, int partValue) {
-    int lower =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).lowerBound());
-    int upper =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
-    return (lower <= partValue) && (upper >= partValue);
   }
 }

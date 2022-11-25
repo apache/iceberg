@@ -32,12 +32,12 @@ To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions. Spark 2.4 does not support SQL DDL.
 
 {{< hint info >}}
-Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3.x or the [Iceberg API](..//java-api-quickstart).
+Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3 or the [Iceberg API](..//java-api-quickstart).
 {{< /hint >}}
 
 ## `CREATE TABLE`
 
-Spark 3.0 can create tables in any Iceberg catalog with the clause `USING iceberg`:
+Spark 3 can create tables in any Iceberg catalog with the clause `USING iceberg`:
 
 ```sql
 CREATE TABLE prod.db.sample (
@@ -103,6 +103,16 @@ USING iceberg
 AS SELECT ...
 ```
 
+The newly created table won't inherit the partition spec and table properties from the source table in SELECT, you can use PARTITIONED BY and TBLPROPERTIES in CTAS to declare partition spec and table properties for the new table.
+
+```sql
+CREATE TABLE prod.db.sample
+USING iceberg
+PARTITIONED BY (part)
+TBLPROPERTIES ('key'='value')
+AS SELECT ...
+```
+
 ## `REPLACE TABLE ... AS SELECT`
 
 Iceberg supports RTAS as an atomic operation when using a [`SparkCatalog`](../spark-configuration#catalog-configuration). RTAS is supported, but is not atomic when using [`SparkSessionCatalog`](../spark-configuration#replacing-the-session-catalog).
@@ -132,12 +142,28 @@ The new table properties in the `REPLACE TABLE` command will be merged with any 
 
 ## `DROP TABLE`
 
-To delete a table, run:
+The drop table behavior changed in 0.14.
+
+Prior to 0.14, running `DROP TABLE` would remove the table from the catalog and delete the table contents as well.
+
+From 0.14 onwards, `DROP TABLE` would only remove the table from the catalog.
+In order to delete the table contents `DROP TABLE PURGE` should be used.
+
+### `DROP TABLE`
+
+To drop the table from the catalog, run:
 
 ```sql
 DROP TABLE prod.db.sample
 ```
 
+### `DROP TABLE PURGE`
+
+To drop the table from the catalog and delete the table's contents, run:
+
+```sql
+DROP TABLE prod.db.sample PURGE
+```
 
 ## `ALTER TABLE`
 
@@ -307,7 +333,7 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z
 
 ## `ALTER TABLE` SQL extensions
 
-These commands are available in Spark 3.x when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
+These commands are available in Spark 3 when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
 
 ### `ALTER TABLE ... ADD PARTITION FIELD`
 

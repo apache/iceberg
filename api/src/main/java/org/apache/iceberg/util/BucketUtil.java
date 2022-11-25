@@ -43,12 +43,24 @@ public class BucketUtil {
     return MURMUR3.hashLong(value).asInt();
   }
 
+  private static long doubleToLongBits(double value) {
+    long bits = Double.doubleToLongBits(value);
+
+    // Change negative zero (-0.0) to positive zero (0.0). As IEEE 754
+    // mandates 0.0 == -0.0, both should also produce the same hash value.
+    if (bits == Long.MIN_VALUE) {
+      bits = 0L;
+    }
+
+    return bits;
+  }
+
   public static int hash(float value) {
-    return MURMUR3.hashLong(Double.doubleToLongBits((double) value)).asInt();
+    return MURMUR3.hashLong(doubleToLongBits((double) value)).asInt();
   }
 
   public static int hash(double value) {
-    return MURMUR3.hashLong(Double.doubleToLongBits(value)).asInt();
+    return MURMUR3.hashLong(doubleToLongBits(value)).asInt();
   }
 
   public static int hash(CharSequence value) {

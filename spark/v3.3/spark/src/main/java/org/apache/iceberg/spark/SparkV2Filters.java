@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.NaNUtil;
@@ -53,8 +52,6 @@ import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkV2Filters {
-
-  private static final Joiner DOT = Joiner.on(".");
 
   private static final String TRUE = "ALWAYS_TRUE";
   private static final String FALSE = "ALWAYS_FALSE";
@@ -89,7 +86,7 @@ public class SparkV2Filters {
           .put(OR, Operation.OR)
           .put(NOT, Operation.NOT)
           .put(STARTS_WITH, Operation.STARTS_WITH)
-          .build();
+          .buildOrThrow();
 
   private SparkV2Filters() {}
 
@@ -105,17 +102,17 @@ public class SparkV2Filters {
           return Expressions.alwaysFalse();
 
         case IS_NULL:
-          return isRef(child(predicate)) ? isNull(toColumnName(child(predicate))) : null;
+          return isRef(child(predicate)) ? isNull(SparkUtil.toColumnName(child(predicate))) : null;
 
         case NOT_NULL:
-          return isRef(child(predicate)) ? notNull(toColumnName(child(predicate))) : null;
+          return isRef(child(predicate)) ? notNull(SparkUtil.toColumnName(child(predicate))) : null;
 
         case LT:
           if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            String columnName = toColumnName(leftChild(predicate));
+            String columnName = SparkUtil.toColumnName(leftChild(predicate));
             return lessThan(columnName, convertLiteral(rightChild(predicate)));
           } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            String columnName = toColumnName(rightChild(predicate));
+            String columnName = SparkUtil.toColumnName(rightChild(predicate));
             return greaterThan(columnName, convertLiteral(leftChild(predicate)));
           } else {
             return null;
@@ -123,10 +120,10 @@ public class SparkV2Filters {
 
         case LT_EQ:
           if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            String columnName = toColumnName(leftChild(predicate));
+            String columnName = SparkUtil.toColumnName(leftChild(predicate));
             return lessThanOrEqual(columnName, convertLiteral(rightChild(predicate)));
           } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            String columnName = toColumnName(rightChild(predicate));
+            String columnName = SparkUtil.toColumnName(rightChild(predicate));
             return greaterThanOrEqual(columnName, convertLiteral(leftChild(predicate)));
           } else {
             return null;
@@ -134,10 +131,10 @@ public class SparkV2Filters {
 
         case GT:
           if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            String columnName = toColumnName(leftChild(predicate));
+            String columnName = SparkUtil.toColumnName(leftChild(predicate));
             return greaterThan(columnName, convertLiteral(rightChild(predicate)));
           } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            String columnName = toColumnName(rightChild(predicate));
+            String columnName = SparkUtil.toColumnName(rightChild(predicate));
             return lessThan(columnName, convertLiteral(leftChild(predicate)));
           } else {
             return null;
@@ -145,10 +142,10 @@ public class SparkV2Filters {
 
         case GT_EQ:
           if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            String columnName = toColumnName(leftChild(predicate));
+            String columnName = SparkUtil.toColumnName(leftChild(predicate));
             return greaterThanOrEqual(columnName, convertLiteral(rightChild(predicate)));
           } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            String columnName = toColumnName(rightChild(predicate));
+            String columnName = SparkUtil.toColumnName(rightChild(predicate));
             return lessThanOrEqual(columnName, convertLiteral(leftChild(predicate)));
           } else {
             return null;
@@ -158,10 +155,10 @@ public class SparkV2Filters {
           Object value;
           String columnName;
           if (isRef(leftChild(predicate)) && isLiteral(rightChild(predicate))) {
-            columnName = toColumnName(leftChild(predicate));
+            columnName = SparkUtil.toColumnName(leftChild(predicate));
             value = convertLiteral(rightChild(predicate));
           } else if (isRef(rightChild(predicate)) && isLiteral(leftChild(predicate))) {
-            columnName = toColumnName(rightChild(predicate));
+            columnName = SparkUtil.toColumnName(rightChild(predicate));
             value = convertLiteral(leftChild(predicate));
           } else {
             return null;
@@ -183,7 +180,7 @@ public class SparkV2Filters {
         case IN:
           if (isSupportedInPredicate(predicate)) {
             return in(
-                toColumnName(childAtIndex(predicate, 0)),
+                SparkUtil.toColumnName(childAtIndex(predicate, 0)),
                 Arrays.stream(predicate.children())
                     .skip(1)
                     .map(val -> convertLiteral(((Literal<?>) val)))
@@ -202,13 +199,13 @@ public class SparkV2Filters {
             // col NOT IN (1, 2) in Spark is equal to notNull(col) && notIn(col, 1, 2) in Iceberg
             Expression notIn =
                 notIn(
-                    toColumnName(childAtIndex(childPredicate, 0)),
+                    SparkUtil.toColumnName(childAtIndex(childPredicate, 0)),
                     Arrays.stream(childPredicate.children())
                         .skip(1)
                         .map(val -> convertLiteral(((Literal<?>) val)))
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
-            return and(notNull(toColumnName(childAtIndex(childPredicate, 0))), notIn);
+            return and(notNull(SparkUtil.toColumnName(childAtIndex(childPredicate, 0))), notIn);
           } else if (hasNoInFilter(childPredicate)) {
             Expression child = convert(childPredicate);
             if (child != null) {
@@ -240,16 +237,12 @@ public class SparkV2Filters {
           }
 
         case STARTS_WITH:
-          String colName = toColumnName(leftChild(predicate));
+          String colName = SparkUtil.toColumnName(leftChild(predicate));
           return startsWith(colName, convertLiteral(rightChild(predicate)).toString());
       }
     }
 
     return null;
-  }
-
-  private static String toColumnName(NamedReference ref) {
-    return DOT.join(ref.fieldNames());
   }
 
   @SuppressWarnings("unchecked")

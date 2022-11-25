@@ -59,7 +59,11 @@ public class TableMetadataParser {
 
     public static Codec fromName(String codecName) {
       Preconditions.checkArgument(codecName != null, "Codec name is null");
-      return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      try {
+        return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid codec name: %s", codecName), e);
+      }
     }
 
     public static Codec fromFileName(String fileName) {
@@ -208,11 +212,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     // write properties map
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
     generator.writeNumberField(
         CURRENT_SNAPSHOT_ID,
@@ -385,7 +385,12 @@ public class TableMetadataParser {
       // parse the spec array
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
-        builder.add(PartitionSpecParser.fromJson(schema, spec));
+        UnboundPartitionSpec unboundSpec = PartitionSpecParser.fromJson(spec);
+        if (unboundSpec.specId() == defaultSpecId) {
+          builder.add(unboundSpec.bind(schema));
+        } else {
+          builder.add(unboundSpec.bindUnchecked(schema));
+        }
       }
       specs = builder.build();
 

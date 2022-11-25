@@ -800,6 +800,24 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testDropTableWithPurge() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Assert.assertFalse("Table should not exist before create", catalog.tableExists(TABLE));
+
+    catalog.buildTable(TABLE, SCHEMA).create();
+    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+
+    boolean dropped = catalog.dropTable(TABLE, true);
+    Assert.assertTrue("Should drop a table that does exist", dropped);
+    Assert.assertFalse("Table should not exist after drop", catalog.tableExists(TABLE));
+  }
+
+  @Test
   public void testDropMissingTable() {
     C catalog = catalog();
 

@@ -75,6 +75,24 @@ public class MetadataColumns {
   public static final String DELETE_FILE_ROW_FIELD_NAME = "row";
   public static final int DELETE_FILE_ROW_FIELD_ID = Integer.MAX_VALUE - 103;
   public static final String DELETE_FILE_ROW_DOC = "Deleted row values";
+  public static final NestedField CHANGE_TYPE =
+      NestedField.required(
+          Integer.MAX_VALUE - 104,
+          "_change_type",
+          Types.StringType.get(),
+          "Record type in changelog");
+  public static final NestedField CHANGE_ORDINAL =
+      NestedField.optional(
+          Integer.MAX_VALUE - 105,
+          "_change_ordinal",
+          Types.IntegerType.get(),
+          "Change ordinal in changelog");
+  public static final NestedField COMMIT_SNAPSHOT_ID =
+      NestedField.optional(
+          Integer.MAX_VALUE - 106,
+          "_commit_snapshot_id",
+          Types.LongType.get(),
+          "Commit snapshot ID");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(

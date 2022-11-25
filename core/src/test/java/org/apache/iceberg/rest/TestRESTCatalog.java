@@ -144,7 +144,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    this.restCatalog = new RESTCatalog(context, (config) -> new HTTPClientFactory().apply(config));
+    this.restCatalog =
+        new RESTCatalog(
+            context,
+            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
     restCatalog.setConf(conf);
     restCatalog.initialize(
         "prod",
@@ -224,7 +227,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   responseType,
                   ConfigResponse.builder()
                       .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
-                      .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
+                      .withOverrides(
+                          ImmutableMap.of(
+                              CatalogProperties.CACHE_ENABLED,
+                              "false",
+                              CatalogProperties.WAREHOUSE_LOCATION,
+                              queryParams.get(CatalogProperties.WAREHOUSE_LOCATION) + "warehouse"))
                       .build());
             }
             return super.get(path, queryParams, responseType, headers, errorHandler);
@@ -235,7 +243,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Map<String, String> initialConfig =
         ImmutableMap.of(
             CatalogProperties.URI, "http://localhost:8080",
-            CatalogProperties.CACHE_ENABLED, "true");
+            CatalogProperties.CACHE_ENABLED, "true",
+            CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/");
 
     restCat.setConf(new Configuration());
     restCat.initialize("prod", initialConfig);
@@ -249,6 +258,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "Catalog after initialize should use the server's default properties if not specified",
         "1",
         restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE));
+
+    Assert.assertEquals(
+        "Catalog should return final warehouse location",
+        "s3://bucket/warehouse",
+        restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION));
+
     restCat.close();
   }
 
@@ -263,8 +278,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     AssertHelpers.assertThrows(
         "Configuration passed to initialize must have uri",
-        IllegalArgumentException.class,
-        "REST Catalog server URI is required",
+        NullPointerException.class,
+        "Invalid uri for http client: null",
         () -> restCat.initialize("prod", ImmutableMap.of()));
 
     restCat.close();

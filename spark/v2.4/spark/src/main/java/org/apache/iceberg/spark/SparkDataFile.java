@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -109,8 +108,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public FileFormat format() {
-    String formatAsString = wrapped.getString(fileFormatPosition).toUpperCase(Locale.ROOT);
-    return FileFormat.valueOf(formatAsString);
+    return FileFormat.fromString(wrapped.getString(fileFormatPosition));
   }
 
   @Override

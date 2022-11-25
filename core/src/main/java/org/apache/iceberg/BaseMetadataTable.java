@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.transforms.Transforms;
 
@@ -159,6 +160,11 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   @Override
   public List<HistoryEntry> history() {
     return table().history();
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ImmutableList.of();
   }
 
   @Override

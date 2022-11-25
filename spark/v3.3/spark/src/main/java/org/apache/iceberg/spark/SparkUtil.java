@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
@@ -45,6 +46,7 @@ import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
@@ -72,6 +74,8 @@ public class SparkUtil {
   // session.
   private static final String SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR =
       SPARK_CATALOG_CONF_PREFIX + ".%s.hadoop.";
+
+  private static final Joiner DOT = Joiner.on(".");
 
   private SparkUtil() {}
 
@@ -286,5 +290,9 @@ public class SparkUtil {
     }
 
     return filterExpressions;
+  }
+
+  public static String toColumnName(NamedReference ref) {
+    return DOT.join(ref.fieldNames());
   }
 }

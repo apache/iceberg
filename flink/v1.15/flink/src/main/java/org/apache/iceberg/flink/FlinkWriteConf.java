@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.DistributionMode;
@@ -81,7 +80,7 @@ public class FlinkWriteConf {
             .tableProperty(TableProperties.DEFAULT_FILE_FORMAT)
             .defaultValue(TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
             .parse();
-    return FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH));
+    return FileFormat.fromString(valueAsString);
   }
 
   public long targetDataFileSize() {
@@ -91,6 +90,66 @@ public class FlinkWriteConf {
         .flinkConfig(FlinkWriteOptions.TARGET_FILE_SIZE_BYTES)
         .tableProperty(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES)
         .defaultValue(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT)
+        .parse();
+  }
+
+  public String parquetCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String parquetCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_LEVEL.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.PARQUET_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT)
+        .parseOptional();
+  }
+
+  public String avroCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.AVRO_COMPRESSION)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String avroCompressionLevel() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_LEVEL.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_LEVEL)
+        .tableProperty(TableProperties.AVRO_COMPRESSION_LEVEL)
+        .defaultValue(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)
+        .parseOptional();
+  }
+
+  public String orcCompressionCodec() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_CODEC.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_CODEC)
+        .tableProperty(TableProperties.ORC_COMPRESSION)
+        .defaultValue(TableProperties.ORC_COMPRESSION_DEFAULT)
+        .parse();
+  }
+
+  public String orcCompressionStrategy() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.COMPRESSION_STRATEGY.key())
+        .flinkConfig(FlinkWriteOptions.COMPRESSION_STRATEGY)
+        .tableProperty(TableProperties.ORC_COMPRESSION_STRATEGY)
+        .defaultValue(TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT)
         .parse();
   }
 

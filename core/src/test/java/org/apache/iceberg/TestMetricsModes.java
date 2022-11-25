@@ -29,11 +29,11 @@ import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -51,8 +51,6 @@ public class TestMetricsModes {
   public TestMetricsModes(int formatVersion) {
     this.formatVersion = formatVersion;
   }
-
-  @Rule public ExpectedException exceptionRule = ExpectedException.none();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -75,9 +73,9 @@ public class TestMetricsModes {
 
   @Test
   public void testInvalidTruncationLength() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage("length should be positive");
-    MetricsModes.fromString("truncate(0)");
+    Assertions.assertThatThrownBy(() -> MetricsModes.fromString("truncate(0)"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Truncate length should be positive");
   }
 
   @Test

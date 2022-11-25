@@ -27,10 +27,10 @@ buildscript {
   }
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
-    classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
+    classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.11.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.7'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
@@ -91,6 +91,7 @@ dependencyRecommendations {
 }
 
 def projectVersion = getProjectVersion()
+final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
   group = "org.apache.iceberg"
@@ -104,6 +105,15 @@ allprojects {
 subprojects {
   apply plugin: 'nebula.dependency-recommender'
   apply plugin: 'java-library'
+
+  if (project.name in REVAPI_PROJECTS) {
+    apply plugin: 'com.palantir.revapi'
+    revapi {
+      oldGroup = project.group
+      oldName = project.name
+      oldVersion = "1.0.0"
+    }
+  }
 
   configurations {
     testImplementation.extendsFrom compileOnly
@@ -225,8 +235,6 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
-  apply plugin: 'com.palantir.revapi'
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -286,6 +294,7 @@ project(':iceberg-core') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation "com.esotericsoftware:kryo"
+    testImplementation "com.google.guava:guava-testlib"
   }
 }
 
@@ -542,7 +551,9 @@ project(':iceberg-orc') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(':iceberg-common')
+    testImplementation 'org.apache.orc:orc-tools'
   }
 }
 

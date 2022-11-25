@@ -40,7 +40,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -119,7 +119,7 @@ class DeleteFileIndex {
   }
 
   DeleteFile[] forEntry(ManifestEntry<DataFile> entry) {
-    return forDataFile(entry.sequenceNumber(), entry.file());
+    return forDataFile(entry.dataSequenceNumber(), entry.file());
   }
 
   DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
@@ -364,7 +364,7 @@ class DeleteFileIndex {
     private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
-    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
+    private ScanMetrics scanMetrics = ScanMetrics.noop();
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -406,7 +406,7 @@ class DeleteFileIndex {
       return this;
     }
 
-    Builder scanMetrics(ScanReport.ScanMetrics newScanMetrics) {
+    Builder scanMetrics(ScanMetrics newScanMetrics) {
       this.scanMetrics = newScanMetrics;
       return this;
     }
@@ -423,7 +423,7 @@ class DeleteFileIndex {
               deleteFile -> {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
-                    if (entry.sequenceNumber() > minSequenceNumber) {
+                    if (entry.dataSequenceNumber() > minSequenceNumber) {
                       // copy with stats for better filtering against data file stats
                       deleteEntries.add(entry.copy());
                     }
@@ -467,7 +467,7 @@ class DeleteFileIndex {
                   .map(
                       entry ->
                           // a delete file is indexed by the sequence number it should be applied to
-                          Pair.of(entry.sequenceNumber() - 1, entry.file()))
+                          Pair.of(entry.dataSequenceNumber() - 1, entry.file()))
                   .sorted(Comparator.comparingLong(Pair::first))
                   .collect(Collectors.toList());
 
@@ -477,7 +477,7 @@ class DeleteFileIndex {
           List<Pair<Long, DeleteFile>> posFilesSortedBySeq =
               deleteFilesByPartition.get(partition).stream()
                   .filter(entry -> entry.file().content() == FileContent.POSITION_DELETES)
-                  .map(entry -> Pair.of(entry.sequenceNumber(), entry.file()))
+                  .map(entry -> Pair.of(entry.dataSequenceNumber(), entry.file()))
                   .sorted(Comparator.comparingLong(Pair::first))
                   .collect(Collectors.toList());
 
@@ -494,7 +494,7 @@ class DeleteFileIndex {
                       entry -> {
                         // a delete file is indexed by the sequence number it should be applied to
                         long applySeq =
-                            entry.sequenceNumber()
+                            entry.dataSequenceNumber()
                                 - (entry.file().content() == FileContent.EQUALITY_DELETES ? 1 : 0);
                         return Pair.of(applySeq, entry.file());
                       })
@@ -508,6 +508,19 @@ class DeleteFileIndex {
           sortedDeletesByPartition.put(partition, Pair.of(seqs, files));
         }
       }
+
+      scanMetrics.indexedDeleteFiles().increment(deleteEntries.size());
+      deleteFilesByPartition
+          .values()
+          .forEach(
+              entry -> {
+                FileContent content = entry.file().content();
+                if (content == FileContent.EQUALITY_DELETES) {
+                  scanMetrics.equalityDeleteFiles().increment();
+                } else if (content == FileContent.POSITION_DELETES) {
+                  scanMetrics.positionalDeleteFiles().increment();
+                }
+              });
 
       return new DeleteFileIndex(
           specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
@@ -529,16 +542,21 @@ class DeleteFileIndex {
                             caseSensitive);
                       });
 
-      Iterable<ManifestFile> matchingManifests =
+      CloseableIterable<ManifestFile> closeableDeleteManifests =
+          CloseableIterable.withNoopClose(deleteManifests);
+      CloseableIterable<ManifestFile> matchingManifests =
           evalCache == null
-              ? deleteManifests
-              : Iterables.filter(
-                  deleteManifests,
+              ? closeableDeleteManifests
+              : CloseableIterable.filter(
+                  scanMetrics.skippedDeleteManifests(),
+                  closeableDeleteManifests,
                   manifest ->
                       manifest.content() == ManifestContent.DELETES
                           && (manifest.hasAddedFiles() || manifest.hasExistingFiles())
                           && evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
+      matchingManifests =
+          CloseableIterable.count(scanMetrics.scannedDeleteManifests(), matchingManifests);
       return Iterables.transform(
           matchingManifests,
           manifest ->

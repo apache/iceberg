@@ -164,7 +164,27 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     InputFile toCopy = ops.io().newInputFile(manifest.path());
     OutputFile newFile = newManifestOutput();
     return ManifestFiles.copyRewriteManifest(
-        current.formatVersion(), toCopy, specsById, newFile, snapshotId(), summaryBuilder);
+        current.formatVersion(),
+        manifest.partitionSpecId(),
+        toCopy,
+        specsById,
+        newFile,
+        snapshotId(),
+        summaryBuilder);
+  }
+
+  /**
+   * Apply the update's changes to the base table metadata and return the new manifest list.
+   *
+   * @param base the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
+   * @deprecated Will be removed in 1.2.0, use {@link BaseRewriteManifests#apply(TableMetadata,
+   *     Snapshot)}.
+   */
+  @Deprecated
+  @Override
+  public List<ManifestFile> apply(TableMetadata base) {
+    return super.apply(base);
   }
 
   @Override

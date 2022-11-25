@@ -20,11 +20,8 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -57,20 +54,20 @@ public class TestScanReportParser {
                 ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: projection");
+        .hasMessage("Cannot parse missing int: schema-id");
 
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,"
-                        + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}"))
+                        + "\"schema-id\" : 4,\"projected-field-ids\" : [ 1, 2, 3 ],\"projected-field-names\" : [ \"c1\", \"c2\", \"c3\" ]}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: metrics");
   }
 
   @Test
   public void extraFields() {
-    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+    ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -82,14 +79,19 @@ public class TestScanReportParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
     scanMetrics.skippedDataFiles().increment(3L);
     scanMetrics.skippedDeleteFiles().increment(3L);
+    scanMetrics.scannedDeleteManifests().increment(3L);
+    scanMetrics.skippedDeleteManifests().increment(3L);
+    scanMetrics.indexedDeleteFiles().increment(10L);
+    scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.equalityDeleteFiles().increment(4L);
 
     String tableName = "roundTripTableName";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
-            .projection(projection)
+            .schemaId(4)
+            .addProjectedFieldIds(1, 2, 3)
+            .addProjectedFieldNames("c1", "c2", "c3")
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
             .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
@@ -98,7 +100,7 @@ public class TestScanReportParser {
     Assertions.assertThat(
             ScanReportParser.fromJson(
                 "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,"
-                    + "\"filter\":true,\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
+                    + "\"filter\":true,\"schema-id\": 4,\"projected-field-ids\": [ 1, 2, 3 ],\"projected-field-names\": [ \"c1\", \"c2\", \"c3\" ],"
                     + "\"metrics\":{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
                     + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
@@ -110,10 +112,13 @@ public class TestScanReportParser {
                     + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
                     + "\"skipped-data-files\":{\"unit\":\"count\",\"value\":3},"
                     + "\"skipped-delete-files\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"scanned-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"skipped-delete-manifests\":{\"unit\":\"count\",\"value\":3},"
+                    + "\"indexed-delete-files\":{\"unit\":\"count\",\"value\":10},"
+                    + "\"equality-delete-files\":{\"unit\":\"count\",\"value\":4},"
+                    + "\"positional-delete-files\":{\"unit\":\"count\",\"value\":6},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
-        .usingRecursiveComparison()
-        .ignoringFields("projection")
         .isEqualTo(scanReport);
   }
 
@@ -149,14 +154,28 @@ public class TestScanReportParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"projection\":23}"))
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"schema-id\":\"23\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse type from json: 23");
+        .hasMessage("Cannot parse to an integer value: schema-id: \"23\"");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanReportParser.fromJson(
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"schema-id\":23,\"projected-field-ids\": [\"1\"],\"metrics\":{}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse integer from non-int value in projected-field-ids: \"1\"");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ScanReportParser.fromJson(
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":true,\"schema-id\":23,\"projected-field-ids\": [1],\"projected-field-names\": [1],\"metrics\":{}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value in projected-field-names: 1");
   }
 
   @Test
   public void roundTripSerde() {
-    ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+    ScanMetrics scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
     scanMetrics.resultDataFiles().increment(5L);
     scanMetrics.resultDeleteFiles().increment(5L);
@@ -168,14 +187,19 @@ public class TestScanReportParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
     scanMetrics.skippedDataFiles().increment(3L);
     scanMetrics.skippedDeleteFiles().increment(3L);
+    scanMetrics.scannedDeleteManifests().increment(3L);
+    scanMetrics.skippedDeleteManifests().increment(3L);
+    scanMetrics.indexedDeleteFiles().increment(10L);
+    scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.equalityDeleteFiles().increment(4L);
 
     String tableName = "roundTripTableName";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
-            .projection(projection)
+            .schemaId(4)
+            .addProjectedFieldIds(1, 2, 3)
+            .addProjectedFieldNames("c1", "c2", "c3")
             .filter(Expressions.alwaysTrue())
             .snapshotId(23L)
             .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
@@ -186,17 +210,9 @@ public class TestScanReportParser {
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
             + "  \"filter\" : true,\n"
-            + "  \"projection\" : {\n"
-            + "    \"type\" : \"struct\",\n"
-            + "    \"schema-id\" : 0,\n"
-            + "    \"fields\" : [ {\n"
-            + "      \"id\" : 1,\n"
-            + "      \"name\" : \"c1\",\n"
-            + "      \"required\" : true,\n"
-            + "      \"type\" : \"string\",\n"
-            + "      \"doc\" : \"c1\"\n"
-            + "    } ]\n"
-            + "  },\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ 1, 2, 3 ],\n"
+            + "  \"projected-field-names\" : [ \"c1\", \"c2\", \"c3\" ],\n"
             + "  \"metrics\" : {\n"
             + "    \"total-planning-duration\" : {\n"
             + "      \"count\" : 1,\n"
@@ -242,27 +258,44 @@ public class TestScanReportParser {
             + "    \"skipped-delete-files\" : {\n"
             + "      \"unit\" : \"count\",\n"
             + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"scanned-delete-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"skipped-delete-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 3\n"
+            + "    },\n"
+            + "    \"indexed-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 10\n"
+            + "    },\n"
+            + "    \"equality-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 4\n"
+            + "    },\n"
+            + "    \"positional-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 6\n"
             + "    }\n"
             + "  }\n"
             + "}";
 
     String json = ScanReportParser.toJson(scanReport, true);
-    Assertions.assertThat(ScanReportParser.fromJson(json))
-        .usingRecursiveComparison()
-        .ignoringFields("projection")
-        .isEqualTo(scanReport);
+    Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
   public void roundTripSerdeWithNoopMetrics() {
     String tableName = "roundTripTableName";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
-            .projection(projection)
+            .schemaId(4)
+            .addProjectedFieldIds(1, 2, 3)
+            .addProjectedFieldNames("c1", "c2", "c3")
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
             .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
@@ -273,25 +306,75 @@ public class TestScanReportParser {
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
             + "  \"filter\" : true,\n"
-            + "  \"projection\" : {\n"
-            + "    \"type\" : \"struct\",\n"
-            + "    \"schema-id\" : 0,\n"
-            + "    \"fields\" : [ {\n"
-            + "      \"id\" : 1,\n"
-            + "      \"name\" : \"c1\",\n"
-            + "      \"required\" : true,\n"
-            + "      \"type\" : \"string\",\n"
-            + "      \"doc\" : \"c1\"\n"
-            + "    } ]\n"
-            + "  },\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ 1, 2, 3 ],\n"
+            + "  \"projected-field-names\" : [ \"c1\", \"c2\", \"c3\" ],\n"
             + "  \"metrics\" : { }\n"
             + "}";
 
     String json = ScanReportParser.toJson(scanReport, true);
-    Assertions.assertThat(ScanReportParser.fromJson(json))
-        .usingRecursiveComparison()
-        .ignoringFields("projection")
-        .isEqualTo(scanReport);
+    Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithEmptyFieldIdsAndNames() {
+    String tableName = "roundTripTableName";
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .schemaId(4)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ ],\n"
+            + "  \"projected-field-names\" : [ ],\n"
+            + "  \"metrics\" : { }\n"
+            + "}";
+
+    String json = ScanReportParser.toJson(scanReport, true);
+    Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithMetadata() {
+    String tableName = "roundTripTableName";
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .schemaId(4)
+            .snapshotId(23L)
+            .filter(Expressions.alwaysTrue())
+            .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
+            .metadata(ImmutableMap.of("k1", "v1", "k2", "v2"))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"filter\" : true,\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ ],\n"
+            + "  \"projected-field-names\" : [ ],\n"
+            + "  \"metrics\" : { },\n"
+            + "  \"metadata\" : {\n"
+            + "    \"k1\" : \"v1\",\n"
+            + "    \"k2\" : \"v2\"\n"
+            + "  }\n"
+            + "}";
+
+    String json = ScanReportParser.toJson(scanReport, true);
+    Assertions.assertThat(ScanReportParser.fromJson(json)).isEqualTo(scanReport);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 }

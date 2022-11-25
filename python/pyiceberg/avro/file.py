@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from io import SEEK_SET
+from typing import Optional, Type
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
@@ -65,7 +66,7 @@ class AvroFileHeader:
     meta: dict[str, str]
     sync: bytes
 
-    def compression_codec(self) -> type[Codec] | None:
+    def compression_codec(self) -> Optional[Type[Codec]]:
         """Get the file's compression codec algorithm from the file's metadata.
 
         In the case of a null codec, we return a None indicating that we
@@ -108,7 +109,7 @@ class Block:
 
 class AvroFile:
     input_file: InputFile
-    read_schema: Schema | None
+    read_schema: Optional[Schema]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -116,9 +117,9 @@ class AvroFile:
     reader: StructReader
 
     decoder: BinaryDecoder
-    block: Block | None = None
+    block: Optional[Block] = None
 
-    def __init__(self, input_file: InputFile, read_schema: Schema | None = None) -> None:
+    def __init__(self, input_file: InputFile, read_schema: Optional[Schema] = None) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
 

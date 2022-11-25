@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
@@ -67,6 +68,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
+  private final String branch;
+  private final String tag;
   private final List<Expression> runtimeFilterExpressions;
 
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
@@ -88,6 +91,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
+    this.branch = readConf.branch();
+    this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
 
     if (scan == null) {
@@ -179,7 +184,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       }
 
       LOG.info(
-          "Trying to filter {} files using runtime filter {}", files().size(), runtimeFilterExpr);
+          "Trying to filter {} files using runtime filter {}",
+          files().size(),
+          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       List<FileScanTask> filteredFiles =
           files().stream()
@@ -194,7 +201,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
           "{}/{} files matched runtime filter {}",
           filteredFiles.size(),
           files().size(),
-          runtimeFilterExpr);
+          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
       if (filteredFiles.size() < files().size()) {
@@ -244,6 +251,14 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       Snapshot snapshot = table().snapshot(snapshotIdAsOfTime);
       return estimateStatistics(snapshot);
 
+    } else if (branch != null) {
+      Snapshot snapshot = table().snapshot(branch);
+      return estimateStatistics(snapshot);
+
+    } else if (tag != null) {
+      Snapshot snapshot = table().snapshot(tag);
+      return estimateStatistics(snapshot);
+
     } else {
       Snapshot snapshot = table().currentSnapshot();
       return estimateStatistics(snapshot);
@@ -251,6 +266,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -269,7 +285,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
-        && Objects.equals(asOfTimestamp, that.asOfTimestamp);
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp)
+        && Objects.equals(branch, that.branch)
+        && Objects.equals(tag, that.tag);
   }
 
   @Override
@@ -282,7 +300,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         snapshotId,
         startSnapshotId,
         endSnapshotId,
-        asOfTimestamp);
+        asOfTimestamp,
+        branch,
+        tag);
   }
 
   @Override

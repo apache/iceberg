@@ -208,7 +208,7 @@ public abstract class TestWriterMetrics<T> {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    int numColumns = 33;
+    int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
@@ -227,16 +227,16 @@ public abstract class TestWriterMetrics<T> {
         OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
 
     T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter =
+    DataWriter<T> dataWriter =
         newWriterFactory(maxColumnTable)
             .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
-    dataWriter.add(row);
+    dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 
     // start at 1 because IDs were reassigned in the table
     int id = 1;
-    for (; id <= 32; id += 1) {
+    for (; id <= TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT; id += 1) {
       Assert.assertNotNull("Should have lower bound metrics", dataFile.lowerBounds().get(id));
       Assert.assertNotNull("Should have upper bound metrics", dataFile.upperBounds().get(id));
       Assert.assertNull(
@@ -262,7 +262,7 @@ public abstract class TestWriterMetrics<T> {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    int numColumns = 33;
+    int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
@@ -287,10 +287,10 @@ public abstract class TestWriterMetrics<T> {
         OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
 
     T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter =
+    DataWriter<T> dataWriter =
         newWriterFactory(maxColumnTable)
             .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
-    dataWriter.add(row);
+    dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 

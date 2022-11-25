@@ -330,7 +330,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         writerFactory.newEqualityDeleteWriter(file, spec, partitionKey);
 
     try (EqualityDeleteWriter<T> closableWriter = writer) {
-      closableWriter.deleteAll(deletes);
+      closableWriter.write(deletes);
     }
 
     return writer.toDeleteFile();
@@ -347,9 +347,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     PositionDeleteWriter<T> writer =
         writerFactory.newPositionDeleteWriter(file, spec, partitionKey);
 
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closableWriter = writer) {
       for (PositionDelete<T> delete : deletes) {
-        closableWriter.delete(delete.path(), delete.pos(), delete.row());
+        closableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }
 

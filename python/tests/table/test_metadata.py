@@ -24,6 +24,7 @@ from uuid import UUID
 import pytest
 
 from pyiceberg.exceptions import ValidationError
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromByteStream
 from pyiceberg.table import SortOrder
@@ -33,7 +34,6 @@ from pyiceberg.table.metadata import (
     TableMetadataV2,
     new_table_metadata,
 )
-from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.sorting import NullOrder, SortDirection, SortField
 from pyiceberg.transforms import IdentityTransform

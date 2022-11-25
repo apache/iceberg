@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -55,6 +56,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter implements RESTClient {
@@ -75,7 +77,7 @@ public class RESTCatalogAdapter implements RESTClient {
           .put(CommitFailedException.class, 409)
           .put(UnprocessableEntityException.class, 422)
           .put(CommitStateUnknownException.class, 500)
-          .build();
+          .buildOrThrow();
 
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;
@@ -123,10 +125,15 @@ public class RESTCatalogAdapter implements RESTClient {
         UpdateTableRequest.class,
         LoadTableResponse.class),
     DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}"),
-    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename", RenameTableRequest.class, null);
+    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename", RenameTableRequest.class, null),
+    REPORT_METRICS(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/tables/{table}/metrics",
+        ReportMetricsRequest.class,
+        null);
 
     private final HTTPMethod method;
-    private final int requriedLength;
+    private final int requiredLength;
     private final Map<Integer, String> requirements;
     private final Map<Integer, String> variables;
     private final Class<? extends RESTRequest> requestClass;
@@ -159,14 +166,14 @@ public class RESTCatalogAdapter implements RESTClient {
       this.requestClass = requestClass;
       this.responseClass = responseClass;
 
-      this.requriedLength = parts.size();
+      this.requiredLength = parts.size();
       this.requirements = requirementsBuilder.build();
       this.variables = variablesBuilder.build();
     }
 
     private boolean matches(HTTPMethod requestMethod, List<String> requestPath) {
       return method == requestMethod
-          && requriedLength == requestPath.size()
+          && requiredLength == requestPath.size()
           && requirements.entrySet().stream()
               .allMatch(
                   requirement ->
@@ -201,6 +208,7 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
+  @SuppressWarnings("MethodLength")
   public <T extends RESTResponse> T handleRequest(
       Route route, Map<String, String> vars, Object body, Class<T> responseType) {
     switch (route) {
@@ -314,7 +322,11 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_TABLE:
         {
-          CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+          if (PropertyUtil.propertyAsBoolean(vars, "purgeRequested", false)) {
+            CatalogHandlers.purgeTable(catalog, identFromPathVars(vars));
+          } else {
+            CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+          }
           return null;
         }
 
@@ -335,6 +347,13 @@ public class RESTCatalogAdapter implements RESTClient {
         {
           RenameTableRequest request = castRequest(RenameTableRequest.class, body);
           CatalogHandlers.renameTable(catalog, request);
+          return null;
+        }
+
+      case REPORT_METRICS:
+        {
+          // nothing to do here other than checking that we're getting the correct request
+          castRequest(ReportMetricsRequest.class, body);
           return null;
         }
 
@@ -389,6 +408,16 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.DELETE, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override

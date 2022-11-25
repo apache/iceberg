@@ -54,11 +54,7 @@ public class ErrorResponseParser {
     generator.writeStringField(TYPE, errorResponse.type());
     generator.writeNumberField(CODE, errorResponse.code());
     if (errorResponse.stack() != null) {
-      generator.writeArrayFieldStart(STACK);
-      for (String line : errorResponse.stack()) {
-        generator.writeString(line);
-      }
-      generator.writeEndArray();
+      JsonUtil.writeStringArray(STACK, errorResponse.stack(), generator);
     }
 
     generator.writeEndObject();

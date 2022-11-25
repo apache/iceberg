@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -80,7 +79,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"count\":44,\"time-unit\":\"unknown\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant java.util.concurrent.TimeUnit.UNKNOWN");
+        .hasMessage("Invalid time unit: unknown");
   }
 
   @Test

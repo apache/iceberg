@@ -58,11 +58,11 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadata, new_table_metadata
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
@@ -153,7 +153,7 @@ PROP_PREVIOUS_METADATA_LOCATION = "previous_metadata_location"
 def _construct_parameters(metadata_location: str, previous_metadata_location: Optional[str] = None) -> Dict[str, Any]:
     properties = {PROP_EXTERNAL: "TRUE", PROP_TABLE_TYPE: "ICEBERG", PROP_METADATA_LOCATION: metadata_location}
     if previous_metadata_location:
-        properties[previous_metadata_location] = previous_metadata_location
+        properties[PROP_PREVIOUS_METADATA_LOCATION] = previous_metadata_location
 
     return properties
 
@@ -255,7 +255,12 @@ class HiveCatalog(Catalog):
 
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
-        return Table(identifier=(table.dbName, table.tableName), metadata=metadata, metadata_location=metadata_location)
+        return Table(
+            identifier=(table.dbName, table.tableName),
+            metadata=metadata,
+            metadata_location=metadata_location,
+            io=self._load_file_io(metadata.properties),
+        )
 
     def _write_metadata(self, metadata: TableMetadata, io: FileIO, metadata_path: str):
         ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
@@ -403,7 +408,7 @@ class HiveCatalog(Catalog):
             raise NoSuchTableError(f"Table does not exist: {from_table_name}") from e
         except InvalidOperationException as e:
             raise NoSuchNamespaceError(f"Database does not exists: {to_database_name}") from e
-        return Table()
+        return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.

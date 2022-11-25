@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -218,8 +219,9 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    String defaultValue = table.location() + "/metadata";
-    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue);
+    String defaultValue = LocationUtil.stripTrailingSlash(table.location()) + "/metadata";
+    return LocationUtil.stripTrailingSlash(
+        table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue));
   }
 
   @Override

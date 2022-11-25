@@ -215,7 +215,8 @@ The following properties can be set globally and are not limited to a specific c
 * `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
 * `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
+* `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; negative values like `-1` will disable expiration, value 0 is not allowed to set. default value is `-1`. (Optional)
 
 ### Hive catalog
 
@@ -486,7 +487,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
 
 ```
 INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
@@ -700,13 +701,16 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-| Flink option           | Default                    | Description                                                                                                |
-|------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
-| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
-| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes                                                        |
-| upsert-enabled         | Table write.upsert.enabled | Overrides this table's write.upsert.enabled                                                                |
-| overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
-| distribution-mode      | Table write.distribution-mode | Overrides this table's write.distribution-mode                                                             |
+| Flink option           | Default                                    | Description                                                                                                |
+|------------------------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| write-format           | Table write.format.default                 | File format to use for this write operation; parquet, avro, or orc                                         |
+| target-file-size-bytes | As per table property                      | Overrides this table's write.target-file-size-bytes                                                        |
+| upsert-enabled         | Table write.upsert.enabled                 | Overrides this table's write.upsert.enabled                                                                |
+| overwrite-enabled      | false                                      | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
+| distribution-mode      | Table write.distribution-mode              | Overrides this table's write.distribution-mode                                                             |
+| compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write                                                    |
+| compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write                        |
+| compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                  |
 
 
 ## Inspecting tables.

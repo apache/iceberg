@@ -151,7 +151,7 @@ public class TestSnapshotRefParser {
     AssertHelpers.assertThrows(
         "SnapshotRefParser should fail to deserialize ref with invalid tag",
         IllegalArgumentException.class,
-        "No enum constant",
+        "Invalid snapshot ref type: not-a-valid-tag-type",
         () -> SnapshotRefParser.fromJson(invalidTagType));
 
     String invalidRefAge =

@@ -27,6 +27,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -34,7 +35,7 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
-from pyiceberg.files import StructProtocol
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     IcebergType,
     ListType,
@@ -133,27 +134,33 @@ class Schema(IcebergBaseModel):
         """Returns the schema as a struct"""
         return StructType(*self.fields)
 
-    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> Optional[NestedField]:
+    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
         """Find a field using a field name or field ID
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
+        Raises:
+            ValueError: When the value cannot be found
+
         Returns:
             NestedField: The matched NestedField
         """
         if isinstance(name_or_id, int):
-            return self._lazy_id_to_field.get(name_or_id)
+            if name_or_id not in self._lazy_id_to_field:
+                raise ValueError(f"Could not find field with id: {name_or_id}")
+            return self._lazy_id_to_field[name_or_id]
+
         if case_sensitive:
             field_id = self._name_to_id.get(name_or_id)
         else:
             field_id = self._lazy_name_to_id_lower.get(name_or_id.lower())
 
         if field_id is None:
-            raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
+            raise ValueError(f"Could not find field with name {name_or_id}, case_sensitive={case_sensitive}")
 
-        return self._lazy_id_to_field.get(field_id)
+        return self._lazy_id_to_field[field_id]
 
     def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
         """Find a field type using a field name or field ID
@@ -185,18 +192,25 @@ class Schema(IcebergBaseModel):
         """
         return self._lazy_id_to_name.get(column_id)
 
-    def accessor_for_field(self, field_id: int) -> Optional["Accessor"]:
+    def accessor_for_field(self, field_id: int) -> "Accessor":
         """Find a schema position accessor given a field ID
 
         Args:
             field_id (int): The ID of the field
 
+        Raises:
+            ValueError: When the value cannot be found
+
         Returns:
             Accessor: An accessor for the given field ID
         """
-        return self._lazy_id_to_accessor.get(field_id)
 
-    def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
+        if field_id not in self._lazy_id_to_accessor:
+            raise ValueError(f"Could not find accessor for field with id: {field_id}")
+
+        return self._lazy_id_to_accessor[field_id]
+
+    def select(self, *names: str, case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns
 
         Args:
@@ -205,20 +219,20 @@ class Schema(IcebergBaseModel):
 
         Returns:
             Schema: A new schema with pruned columns
+
+        Raises:
+            ValueError: If a column is selected that doesn't exist
         """
-        if case_sensitive:
-            return self._case_sensitive_select(schema=self, names=names)
-        return self._case_insensitive_select(schema=self, names=names)
 
-    @classmethod
-    def _case_sensitive_select(cls, schema: "Schema", names: List[str]):
-        # TODO: Add a PruneColumns schema visitor and use it here
-        raise NotImplementedError()
+        try:
+            if case_sensitive:
+                ids = {self._name_to_id[name] for name in names}
+            else:
+                ids = {self._lazy_name_to_id_lower[name.lower()] for name in names}
+        except KeyError as e:
+            raise ValueError(f"Could not find column: {e}") from e
 
-    @classmethod
-    def _case_insensitive_select(cls, schema: "Schema", names: List[str]):
-        # TODO: Add a PruneColumns schema visitor and use it here
-        raise NotImplementedError()
+        return prune_columns(self, ids)
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -732,7 +746,7 @@ def assign_fresh_schema_ids(schema: Schema) -> Schema:
 class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
     """Traverses the schema and assigns monotonically increasing ids"""
 
-    counter: itertools.count
+    counter: itertools.count  # type: ignore
     reserved_ids: Dict[int, int]
 
     def __init__(self, start: int = 1) -> None:
@@ -782,3 +796,146 @@ class _SetFreshIDs(PreOrderSchemaVisitor[IcebergType]):
 
     def primitive(self, primitive: PrimitiveType) -> PrimitiveType:
         return primitive
+
+
+def prune_columns(schema: Schema, selected: Set[int], select_full_types: bool = True) -> Schema:
+    result = visit(schema.as_struct(), _PruneColumnsVisitor(selected, select_full_types))
+    return Schema(
+        *(result or StructType()).fields,
+        schema_id=schema.schema_id,
+        identifier_field_ids=list(selected.intersection(schema.identifier_field_ids)),
+    )
+
+
+class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
+    selected: Set[int]
+    select_full_types: bool
+
+    def __init__(self, selected: Set[int], select_full_types: bool):
+        self.selected = selected
+        self.select_full_types = select_full_types
+
+    def schema(self, schema: Schema, struct_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        return struct_result
+
+    def struct(self, struct: StructType, field_results: List[Optional[IcebergType]]) -> Optional[IcebergType]:
+        fields = struct.fields
+        selected_fields = []
+        same_type = True
+
+        for idx, projected_type in enumerate(field_results):
+            field = fields[idx]
+            if field.field_type == projected_type:
+                selected_fields.append(field)
+            elif projected_type is not None:
+                same_type = False
+                # Type has changed, create a new field with the projected type
+                selected_fields.append(
+                    NestedField(
+                        field_id=field.field_id,
+                        name=field.name,
+                        field_type=projected_type,
+                        doc=field.doc,
+                        required=field.required,
+                    )
+                )
+
+        if selected_fields:
+            if len(selected_fields) == len(fields) and same_type is True:
+                # Nothing has changed, and we can return the original struct
+                return struct
+            else:
+                return StructType(*selected_fields)
+        return None
+
+    def field(self, field: NestedField, field_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        if field.field_id in self.selected:
+            if self.select_full_types:
+                return field.field_type
+            elif field.field_type.is_struct:
+                return self._project_selected_struct(field_result)
+            else:
+                if not field.field_type.is_primitive:
+                    raise ValueError(
+                        f"Cannot explicitly project List or Map types, {field.field_id}:{field.name} of type {field.field_type} was selected"
+                    )
+                # Selected non-struct field
+                return field.field_type
+        elif field_result is not None:
+            # This field wasn't selected but a subfield was so include that
+            return field_result
+        else:
+            return None
+
+    def list(self, list_type: ListType, element_result: Optional[IcebergType]) -> Optional[IcebergType]:
+        if list_type.element_id in self.selected:
+            if self.select_full_types:
+                return list_type
+            elif list_type.element_type and list_type.element_type.is_struct:
+                projected_struct = self._project_selected_struct(element_result)
+                return self._project_list(list_type, projected_struct)
+            else:
+                if not list_type.element_type.is_primitive:
+                    raise ValueError(
+                        f"Cannot explicitly project List or Map types, {list_type.element_id} of type {list_type.element_type} was selected"
+                    )
+                return list_type
+        elif element_result is not None:
+            return self._project_list(list_type, element_result)
+        else:
+            return None
+
+    def map(
+        self, map_type: MapType, key_result: Optional[IcebergType], value_result: Optional[IcebergType]
+    ) -> Optional[IcebergType]:
+        if map_type.value_id in self.selected:
+            if self.select_full_types:
+                return map_type
+            elif map_type.value_type and map_type.value_type.is_struct:
+                projected_struct = self._project_selected_struct(value_result)
+                return self._project_map(map_type, projected_struct)
+            if not map_type.value_type.is_primitive:
+                raise ValueError(
+                    f"Cannot explicitly project List or Map types, Map value {map_type.value_id} of type {map_type.value_type} was selected"
+                )
+            return map_type
+        elif value_result is not None:
+            return self._project_map(map_type, value_result)
+        elif map_type.key_id in self.selected:
+            return map_type
+        return None
+
+    def primitive(self, primitive: PrimitiveType) -> Optional[IcebergType]:
+        return None
+
+    @staticmethod
+    def _project_selected_struct(projected_field: Optional[IcebergType]) -> StructType:
+        if projected_field and not isinstance(projected_field, StructType):
+            raise ValueError("Expected a struct")
+
+        if projected_field is None:
+            return StructType()
+        else:
+            return projected_field
+
+    @staticmethod
+    def _project_list(list_type: ListType, element_result: IcebergType):
+        if list_type.element_type == element_result:
+            return list_type
+        else:
+            return ListType(
+                element_id=list_type.element_id, element_type=element_result, element_required=list_type.element_required
+            )
+
+    @staticmethod
+    def _project_map(map_type: MapType, value_result: IcebergType):
+        if map_type.value_type == value_result:
+            return map_type
+        else:
+            return MapType(
+                key_id=map_type.key_id,
+                value_id=map_type.value_id,
+                key_type=map_type.key_type,
+                value_type=value_result,
+                value_required=map_type.value_required,
+            )

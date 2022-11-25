@@ -18,22 +18,16 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.Serializable;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -44,7 +38,7 @@ import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.metric.CustomMetric;
@@ -62,9 +56,10 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStatistics {
+abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
 
+  private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
@@ -81,10 +76,10 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-    super(spark, table, readConf, expectedSchema);
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -109,15 +104,17 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
     return filterExpressions;
   }
 
+  protected abstract List<CombinedScanTask> tasks();
+
   @Override
   public Batch toBatch() {
-    return this;
+    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema, hashCode());
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
     return new SparkMicroBatchStream(
-        sparkContext(), table, readConf, expectedSchema, checkpointLocation);
+        sparkContext, table, readConf, expectedSchema, checkpointLocation);
   }
 
   @Override
@@ -178,20 +175,22 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
 
     @Override
     public PartitionReader<InternalRow> createReader(InputPartition partition) {
-      if (partition instanceof ReadTask) {
-        return new RowReader((ReadTask) partition);
-      } else {
-        throw new UnsupportedOperationException("Incorrect input partition type: " + partition);
-      }
+      Preconditions.checkArgument(
+          partition instanceof SparkInputPartition,
+          "Unknown input partition type: %s",
+          partition.getClass().getName());
+
+      return new RowReader((SparkInputPartition) partition);
     }
 
     @Override
     public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
-      if (partition instanceof ReadTask) {
-        return new BatchReader((ReadTask) partition, batchSize);
-      } else {
-        throw new UnsupportedOperationException("Incorrect input partition type: " + partition);
-      }
+      Preconditions.checkArgument(
+          partition instanceof SparkInputPartition,
+          "Unknown input partition type: %s",
+          partition.getClass().getName());
+
+      return new BatchReader((SparkInputPartition) partition, batchSize);
     }
 
     @Override
@@ -201,13 +200,19 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
   }
 
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
-    private long numSplits;
+    private static final Logger LOG = LoggerFactory.getLogger(RowReader.class);
 
-    RowReader(ReadTask task) {
-      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
-      numSplits = task.task.files().size();
-      LOG.debug(
-          "Reading {} file split(s) for table {} using RowReader", numSplits, task.table().name());
+    private final long numSplits;
+
+    RowReader(SparkInputPartition partition) {
+      super(
+          partition.taskGroup(),
+          partition.table(),
+          partition.expectedSchema(),
+          partition.isCaseSensitive());
+
+      numSplits = partition.taskGroup().tasks().size();
+      LOG.debug("Reading {} file split(s) for table {}", numSplits, partition.table().name());
     }
 
     @Override
@@ -220,15 +225,21 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
 
   private static class BatchReader extends BatchDataReader
       implements PartitionReader<ColumnarBatch> {
-    private long numSplits;
 
-    BatchReader(ReadTask task, int batchSize) {
-      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
-      numSplits = task.task.files().size();
-      LOG.debug(
-          "Reading {} file split(s) for table {} using BatchReader",
-          numSplits,
-          task.table().name());
+    private static final Logger LOG = LoggerFactory.getLogger(BatchReader.class);
+
+    private final long numSplits;
+
+    BatchReader(SparkInputPartition partition, int batchSize) {
+      super(
+          partition.taskGroup(),
+          partition.table(),
+          partition.expectedSchema(),
+          partition.isCaseSensitive(),
+          batchSize);
+
+      numSplits = partition.taskGroup().tasks().size();
+      LOG.debug("Reading {} file split(s) for table {}", numSplits, partition.table().name());
     }
 
     @Override
@@ -236,58 +247,6 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
       return new CustomTaskMetric[] {
         new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
       };
-    }
-  }
-
-  static class ReadTask implements InputPartition, Serializable {
-    private final CombinedScanTask task;
-    private final Broadcast<Table> tableBroadcast;
-    private final String expectedSchemaString;
-    private final boolean caseSensitive;
-
-    private transient Schema expectedSchema = null;
-    private transient String[] preferredLocations = null;
-
-    ReadTask(
-        CombinedScanTask task,
-        Broadcast<Table> tableBroadcast,
-        String expectedSchemaString,
-        boolean caseSensitive,
-        boolean localityPreferred) {
-      this.task = task;
-      this.tableBroadcast = tableBroadcast;
-      this.expectedSchemaString = expectedSchemaString;
-      this.caseSensitive = caseSensitive;
-      if (localityPreferred) {
-        Table table = tableBroadcast.value();
-        this.preferredLocations = Util.blockLocations(table.io(), task);
-      } else {
-        this.preferredLocations = HadoopInputFile.NO_LOCATION_PREFERENCE;
-      }
-    }
-
-    @Override
-    public String[] preferredLocations() {
-      return preferredLocations;
-    }
-
-    public Collection<FileScanTask> files() {
-      return task.files();
-    }
-
-    public Table table() {
-      return tableBroadcast.value();
-    }
-
-    public boolean isCaseSensitive() {
-      return caseSensitive;
-    }
-
-    private Schema expectedSchema() {
-      if (expectedSchema == null) {
-        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
-      }
-      return expectedSchema;
     }
   }
 }

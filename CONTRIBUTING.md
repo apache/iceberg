@@ -46,6 +46,68 @@ on how to build iceberg locally.
 The [Iceberg website](https://iceberg.apache.org/) and documentations are hosted in a different repository [iceberg-docs](https://github.com/apache/iceberg-docs).
 Read the repository README for contribution guidelines for the website and documentation.
 
+## Semantic Versioning
+
+Apache Iceberg leverages [semantic versioning](https://semver.org/#semantic-versioning-200) to ensure compatibility
+for developers and users of the iceberg libraries as APIs and implementations evolve.  The requirements and
+guarantees provided depend on the subproject as described below:
+
+### Major Version Deprecations Required
+
+__Modules__
+`iceberg-api`
+
+The API subproject is the main interface for developers and users of the Iceberg API and therefore has the strongest
+guarantees.  Evolution of the interfaces in this subproject are enforced by [Revapi](https://revapi.org/) and require
+explicit acknowledgement of API changes.
+
+All public interfaces and classes require one major version for deprecation cycle.  Any backward incompatible changes
+should be annotated as `@Deprecated` and removed for the next major release.  Backward compatible changes are allowed
+within major versions. 
+
+### Minor Version Deprecations Required
+
+__Modules__
+`iceberg-common`
+`iceberg-core`
+`iceberg-data`
+`iceberg-orc`
+`iceberg-parquet`
+
+Changes to public interfaces and classes in the subprojects listed above require a deprecation cycle of one minor
+release.  These projects contain common and internal code used by other projects and can evolve within a major release.
+Minor release deprecation will provide other subprojects and external projects notice and opportunity to transition
+to new implementations.
+
+### Minor Version Deprecations Discretionary
+
+__modules__ (All modules not referenced above)
+
+Other modules are less likely to be extended directly and modifications should make a good faith effort to follow a 
+minor version deprecation cycle.  If there are significant structural or design changes that result in deprecations 
+being difficult to orchestrate, it is up to the committers to decide if deprecation is necessary.
+
+## Deprecation Notices
+
+All interfaces, classes, and methods targeted for deprecation must include the following:
+
+1. `@Deprecated` annotation on the appropriate element
+2. `@depreceted` javadoc comment including: the version for removal, the appropriate alternative for usage
+3. Replacement of existing code paths that use the deprecated behavior
+
+Example:
+
+```java
+  /**
+   * Set the sequence number for this manifest entry.
+   *
+   * @param sequenceNumber a sequence number
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use dataSequenceNumber() instead.
+   */
+  @Deprecated
+  void sequenceNumber(long sequenceNumber);
+```
+
 ## Style
 
 For Java styling, check out the section

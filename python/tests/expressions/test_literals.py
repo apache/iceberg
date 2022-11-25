@@ -14,22 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint:disable=eval-used
+
 import datetime
 import uuid
 from decimal import Decimal
+from typing import Set
 
 import pytest
+from typing_extensions import assert_type
 
 from pyiceberg.expressions.literals import (
-    AboveMax,
-    BelowMin,
     BinaryLiteral,
     BooleanLiteral,
     DateLiteral,
     DecimalLiteral,
     DoubleLiteral,
     FixedLiteral,
+    FloatAboveMax,
+    FloatBelowMin,
     FloatLiteral,
+    IntAboveMax,
+    IntBelowMin,
+    Literal,
     LongLiteral,
     StringLiteral,
     TimeLiteral,
@@ -52,8 +59,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-
-# Base
 
 
 def test_literal_from_none_error():
@@ -147,11 +152,11 @@ def test_long_to_integer_within_bound():
 def test_long_to_integer_outside_bound():
     big_lit = literal(IntegerType.max + 1).to(LongType())
     above_max_lit = big_lit.to(IntegerType())
-    assert above_max_lit == AboveMax()
+    assert above_max_lit == IntAboveMax()
 
     small_lit = literal(IntegerType.min - 1).to(LongType())
     below_min_lit = small_lit.to(IntegerType())
-    assert below_min_lit == BelowMin()
+    assert below_min_lit == IntBelowMin()
 
 
 def test_long_to_float_conversion():
@@ -218,11 +223,11 @@ def test_double_to_float_within_bound():
 def test_double_to_float_outside_bound():
     big_lit = literal(FloatType.max + 1.0e37).to(DoubleType())
     above_max_lit = big_lit.to(FloatType())
-    assert above_max_lit == AboveMax()
+    assert above_max_lit == FloatAboveMax()
 
     small_lit = literal(FloatType.min - 1.0e37).to(DoubleType())
     below_min_lit = small_lit.to(FloatType())
-    assert below_min_lit == BelowMin()
+    assert below_min_lit == FloatBelowMin()
 
 
 @pytest.mark.parametrize(
@@ -239,9 +244,15 @@ def test_decimal_to_decimal_conversion():
 
     assert lit.value.as_tuple() == lit.to(DecimalType(9, 2)).value.as_tuple()
     assert lit.value.as_tuple() == lit.to(DecimalType(11, 2)).value.as_tuple()
-    assert lit.to(DecimalType(9, 0)) is None
-    assert lit.to(DecimalType(9, 1)) is None
-    assert lit.to(DecimalType(9, 3)) is None
+    with pytest.raises(ValueError) as e:
+        _ = lit.to(DecimalType(9, 0))
+    assert "Could not convert 34.11 into a decimal(9, 0)" in str(e.value)
+    with pytest.raises(ValueError) as e:
+        _ = lit.to(DecimalType(9, 1))
+    assert "Could not convert 34.11 into a decimal(9, 1)" in str(e.value)
+    with pytest.raises(ValueError) as e:
+        _ = lit.to(DecimalType(9, 3))
+    assert "Could not convert 34.11 into a decimal(9, 3)" in str(e.value)
 
 
 def test_timestamp_to_date():
@@ -251,14 +262,14 @@ def test_timestamp_to_date():
     assert date_lit.value == 0
 
 
-# STRING
-
-
 def test_string_literal():
     sqrt2 = literal("1.414").to(StringType())
     pi = literal("3.141").to(StringType())
     pi_string_lit = StringLiteral("3.141")
     pi_double_lit = literal(3.141).to(DoubleType())
+
+    assert literal("3.141").to(IntegerType()) == literal(3)
+    assert literal("3.141").to(LongType()) == literal(3)
 
     assert sqrt2 != pi
     assert pi != pi_double_lit
@@ -312,12 +323,30 @@ def test_string_to_timestamp_literal():
 
 def test_timestamp_with_zone_without_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234")
-    assert timestamp_str.to(TimestamptzType()) is None
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(timestamp_str.to(TimestamptzType()))
+    assert "Missing zone offset: 2017-08-18T14:21:01.919234 (must be ISO-8601)" in str(e.value)
+
+
+def test_invalid_timestamp_in_literal():
+    timestamp_str = literal("abc")
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(timestamp_str.to(TimestamptzType()))
+    assert "Invalid timestamp with zone: abc (must be ISO-8601)" in str(e.value)
 
 
 def test_timestamp_without_zone_with_zone_in_literal():
     timestamp_str = literal("2017-08-18T14:21:01.919234+07:00")
-    assert timestamp_str.to(TimestampType()) is None
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(TimestampType())
+    assert "Zone offset provided, but not expected: 2017-08-18T14:21:01.919234+07:00" in str(e.value)
+
+
+def test_invalid_timestamp_with_zone_in_literal():
+    timestamp_str = literal("abc")
+    with pytest.raises(ValueError) as e:
+        _ = timestamp_str.to(TimestampType())
+    assert "Invalid timestamp without zone: abc (must be ISO-8601)" in str(e.value)
 
 
 def test_string_to_uuid_literal():
@@ -339,6 +368,15 @@ def test_string_to_decimal_literal():
 # MISC
 
 
+def test_python_date_conversion():
+    one_day_str = "2022-03-28"
+
+    from_str_lit = literal(one_day_str).to(DateType())
+
+    assert isinstance(from_str_lit, DateLiteral)
+    assert from_str_lit.value == 19079
+
+
 @pytest.mark.parametrize(
     "lit, primitive_type",
     [
@@ -354,7 +392,6 @@ def test_string_to_decimal_literal():
         (literal("abc"), StringType()),
         (literal(uuid.uuid4()), UUIDType()),
         (literal(bytes([0x01, 0x02, 0x03])), FixedType(3)),
-        (literal(bytearray([0x03, 0x04, 0x05, 0x06])), BinaryType()),
     ],
 )
 def test_identity_conversions(lit, primitive_type):
@@ -374,8 +411,8 @@ def test_fixed_literal():
 
 
 def test_binary_literal():
-    bin_lit012 = literal(bytearray([0x00, 0x01, 0x02]))
-    bin_lit013 = literal(bytearray([0x00, 0x01, 0x03]))
+    bin_lit012 = literal(bytes([0x00, 0x01, 0x02]))
+    bin_lit013 = literal(bytes([0x00, 0x01, 0x03]))
     assert bin_lit012 == bin_lit012
     assert bin_lit012 != bin_lit013
     assert bin_lit012 < bin_lit013
@@ -386,7 +423,7 @@ def test_binary_literal():
 
 
 def test_raise_on_comparison_to_none():
-    bin_lit012 = literal(bytearray([0x00, 0x01, 0x02]))
+    bin_lit012 = literal(bytes([0x00, 0x01, 0x02]))
     fixed_lit012 = literal(bytes([0x00, 0x01, 0x02]))
 
     with pytest.raises(AttributeError):
@@ -415,16 +452,22 @@ def test_raise_on_comparison_to_none():
 
 
 def test_binary_to_fixed():
-    lit = literal(bytearray([0x00, 0x01, 0x02]))
+    lit = literal(bytes([0x00, 0x01, 0x02]))
     fixed_lit = lit.to(FixedType(3))
     assert fixed_lit is not None
     assert lit.value == fixed_lit.value
-    assert lit.to(FixedType(4)) is None
+
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(FixedType(4))
+    assert "Cannot convert BinaryLiteral into fixed[4], different length: 4 <> 3" in str(e.value)
 
 
 def test_binary_to_smaller_fixed_none():
-    lit = literal(bytearray([0x00, 0x01, 0x02]))
-    assert lit.to(FixedType(2)) is None
+    lit = literal(bytes([0x00, 0x01, 0x02]))
+
+    with pytest.raises(TypeError) as e:
+        _ = lit.to(FixedType(2))
+    assert "Cannot convert BinaryLiteral into fixed[2], different length: 2 <> 3" in str(e.value)
 
 
 def test_fixed_to_binary():
@@ -435,36 +478,62 @@ def test_fixed_to_binary():
 
 
 def test_fixed_to_smaller_fixed_none():
-    lit = literal(bytearray([0x00, 0x01, 0x02])).to(FixedType(3))
-    assert lit.to(FixedType(2)) is None
-
-
-def test_above_max():
-    a = AboveMax()
-    # singleton
-    assert a == AboveMax()
-    assert str(a) == "AboveMax"
-    assert repr(a) == "AboveMax()"
+    lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
     with pytest.raises(ValueError) as e:
-        a.value()
-    assert "AboveMax has no value" in str(e.value)
+        lit.to(lit.to(FixedType(2)))
+    assert "Could not convert b'\\x00\\x01\\x02' into a fixed[2]" in str(e.value)
+
+
+def test_above_max_float():
+    a = FloatAboveMax()
+    # singleton
+    assert a == FloatAboveMax()
+    assert str(a) == "FloatAboveMax"
+    assert repr(a) == "FloatAboveMax()"
+    assert a.value == FloatType.max
+    assert a == eval(repr(a))
     with pytest.raises(TypeError) as e:
         a.to(IntegerType())
-    assert "Cannot change the type of AboveMax" in str(e.value)
+    assert "Cannot change the type of FloatAboveMax" in str(e.value)
 
 
-def test_below_min():
-    b = BelowMin()
+def test_below_min_float():
+    b = FloatBelowMin()
     # singleton
-    assert b == BelowMin()
-    assert str(b) == "BelowMin"
-    assert repr(b) == "BelowMin()"
-    with pytest.raises(ValueError) as e:
-        b.value()
-    assert "BelowMin has no value" in str(e.value)
+    assert b == FloatBelowMin()
+    assert str(b) == "FloatBelowMin"
+    assert repr(b) == "FloatBelowMin()"
+    assert b == eval(repr(b))
+    assert b.value == FloatType.min
     with pytest.raises(TypeError) as e:
         b.to(IntegerType())
-    assert "Cannot change the type of BelowMin" in str(e.value)
+    assert "Cannot change the type of FloatBelowMin" in str(e.value)
+
+
+def test_above_max_int():
+    a = IntAboveMax()
+    # singleton
+    assert a == IntAboveMax()
+    assert str(a) == "IntAboveMax"
+    assert repr(a) == "IntAboveMax()"
+    assert a.value == IntegerType.max
+    assert a == eval(repr(a))
+    with pytest.raises(TypeError) as e:
+        a.to(IntegerType())
+    assert "Cannot change the type of IntAboveMax" in str(e.value)
+
+
+def test_below_min_int():
+    b = IntBelowMin()
+    # singleton
+    assert b == IntBelowMin()
+    assert str(b) == "IntBelowMin"
+    assert repr(b) == "IntBelowMin()"
+    assert b == eval(repr(b))
+    assert b.value == IntegerType.min
+    with pytest.raises(TypeError) as e:
+        b.to(IntegerType())
+    assert "Cannot change the type of IntBelowMin" in str(e.value)
 
 
 def test_invalid_boolean_conversions():
@@ -519,7 +588,8 @@ def test_invalid_long_conversions():
     ],
 )
 def test_invalid_float_conversions(lit, test_type):
-    assert lit.to(test_type) is None
+    with pytest.raises(TypeError):
+        _ = lit.to(test_type)
 
 
 @pytest.mark.parametrize("lit", [literal("2017-08-18").to(DateType())])
@@ -585,6 +655,13 @@ def test_invalid_timestamp_conversions():
     )
 
 
+def test_invalid_decimal_conversion_scale():
+    lit = literal(Decimal("34.11"))
+    with pytest.raises(ValueError) as e:
+        lit.to(DecimalType(9, 4))
+    assert "Could not convert 34.11 into a decimal(9, 4)" in str(e.value)
+
+
 def test_invalid_decimal_conversions():
     assert_invalid_conversions(
         literal(Decimal("34.11")),
@@ -598,7 +675,6 @@ def test_invalid_decimal_conversions():
             TimeType(),
             TimestampType(),
             TimestamptzType(),
-            DecimalType(9, 4),
             StringType(),
             UUIDType(),
             FixedType(1),
@@ -610,7 +686,7 @@ def test_invalid_decimal_conversions():
 def test_invalid_string_conversions():
     assert_invalid_conversions(
         literal("abc"),
-        [BooleanType(), IntegerType(), LongType(), FloatType(), DoubleType(), FixedType(1), BinaryType()],
+        [BooleanType(), FloatType(), DoubleType(), FixedType(1), BinaryType()],
     )
 
 
@@ -657,7 +733,7 @@ def test_invalid_fixed_conversions():
 
 def test_invalid_binary_conversions():
     assert_invalid_conversions(
-        literal(bytearray([0x00, 0x01, 0x02])),
+        literal(bytes([0x00, 0x01, 0x02])),
         [
             BooleanType(),
             IntegerType(),
@@ -677,4 +753,87 @@ def test_invalid_binary_conversions():
 
 def assert_invalid_conversions(lit, types=None):
     for type_var in types:
-        assert lit.to(type_var) is None
+        with pytest.raises(TypeError):
+            _ = lit.to(type_var)
+
+
+def test_compare_floats():
+    lhs = literal(18.15).to(FloatType())
+    rhs = literal(19.25).to(FloatType())
+    assert lhs != rhs
+    assert lhs < rhs
+    assert lhs <= rhs
+    assert not lhs > rhs
+    assert not lhs >= rhs
+
+
+def test_string_to_int_max_value():
+    assert isinstance(literal(str(IntegerType.max + 1)).to(IntegerType()), IntAboveMax)
+
+
+def test_string_to_int_min_value():
+    assert isinstance(literal(str(IntegerType.min - 1)).to(IntegerType()), IntBelowMin)
+
+
+def test_string_to_integer_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(IntegerType())
+    assert "Could not convert abc into a int" in str(e.value)
+
+
+def test_string_to_long_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(LongType())
+    assert "Could not convert abc into a long" in str(e.value)
+
+
+def test_string_to_date_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(DateType())
+    assert "Could not convert abc into a date" in str(e.value)
+
+
+def test_string_to_time_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("abc").to(TimeType())
+    assert "Could not convert abc into a time" in str(e.value)
+
+
+def test_string_to_decimal_type_invalid_value():
+    with pytest.raises(ValueError) as e:
+        _ = literal("18.15").to(DecimalType(10, 0))
+    assert "Could not convert 18.15 into a decimal(10, 0), scales differ 0 <> 2" in str(e.value)
+
+
+def test_decimal_literal_increment():
+    dec = DecimalLiteral(Decimal("10.123"))
+    # Twice to check that we don't mutate the value
+    assert dec.increment() == DecimalLiteral(Decimal("10.124"))
+    assert dec.increment() == DecimalLiteral(Decimal("10.124"))
+    # To check that the scale is still the same
+    assert dec.increment().value.as_tuple() == Decimal("10.124").as_tuple()
+
+
+def test_decimal_literal_dencrement():
+    dec = DecimalLiteral(Decimal("10.123"))
+    # Twice to check that we don't mutate the value
+    assert dec.decrement() == DecimalLiteral(Decimal("10.122"))
+    assert dec.decrement() == DecimalLiteral(Decimal("10.122"))
+    # To check that the scale is still the same
+    assert dec.decrement().value.as_tuple() == Decimal("10.122").as_tuple()
+
+
+#   __  __      ___
+#  |  \/  |_  _| _ \_  _
+#  | |\/| | || |  _/ || |
+#  |_|  |_|\_, |_|  \_, |
+#          |__/     |__/
+
+assert_type(literal("str"), Literal[str])
+assert_type(literal(True), Literal[bool])
+assert_type(literal(123), Literal[int])
+assert_type(literal(123.4), Literal[float])
+assert_type(literal(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")), Literal[uuid.UUID])
+assert_type(literal(bytes([0x01, 0x02, 0x03])), Literal[bytes])
+assert_type(literal(Decimal("19.25")), Literal[Decimal])
+assert_type({literal(1), literal(2), literal(3)}, Set[Literal[int]])

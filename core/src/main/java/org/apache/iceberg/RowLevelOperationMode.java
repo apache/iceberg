@@ -38,17 +38,27 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * during reads.
  */
 public enum RowLevelOperationMode {
-  COPY_ON_WRITE,
-  MERGE_ON_READ;
+  COPY_ON_WRITE("copy-on-write"),
+  MERGE_ON_READ("merge-on-read");
+
+  private final String modeName;
+
+  RowLevelOperationMode(String modeName) {
+    this.modeName = modeName;
+  }
 
   public static RowLevelOperationMode fromName(String modeName) {
     Preconditions.checkArgument(modeName != null, "Mode name is null");
-    if ("copy-on-write".equalsIgnoreCase(modeName)) {
+    if (COPY_ON_WRITE.modeName().equalsIgnoreCase(modeName)) {
       return COPY_ON_WRITE;
-    } else if ("merge-on-read".equalsIgnoreCase(modeName)) {
+    } else if (MERGE_ON_READ.modeName().equalsIgnoreCase(modeName)) {
       return MERGE_ON_READ;
     } else {
       throw new IllegalArgumentException("Unknown row-level operation mode: " + modeName);
     }
+  }
+
+  public String modeName() {
+    return modeName;
   }
 }

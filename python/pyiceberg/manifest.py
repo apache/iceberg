@@ -104,7 +104,7 @@ class ManifestEntry(IcebergBaseModel):
     data_file: DataFile = Field()
 
 
-class FieldSummary(IcebergBaseModel):
+class PartitionFieldSummary(IcebergBaseModel):
     contains_null: bool = Field()
     contains_nan: Optional[bool] = Field()
     lower_bound: Optional[bytes] = Field()
@@ -125,7 +125,7 @@ class ManifestFile(IcebergBaseModel):
     added_rows_count: Optional[int] = Field()
     existing_rows_counts: Optional[int] = Field()
     deleted_rows_count: Optional[int] = Field()
-    partitions: Optional[List[FieldSummary]] = Field()
+    partitions: Optional[List[PartitionFieldSummary]] = Field()
     key_metadata: Optional[bytes] = Field()
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
@@ -139,6 +139,14 @@ def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
         for record in reader:
             dict_repr = _convert_pos_to_dict(schema, record)
             yield ManifestEntry(**dict_repr)
+
+
+def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
+    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
+
+
+def files(input_file: InputFile) -> Iterator[DataFile]:
+    return (entry.data_file for entry in live_entries(input_file))
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
@@ -187,7 +195,7 @@ def _(list_type: ListType, values: List[Any]) -> Any:
 
 
 @_convert_pos_to_dict.register
-def _(map_type: MapType, values: Dict) -> Dict:
+def _(map_type: MapType, values: Dict[Any, Any]) -> Dict[Any, Any]:
     """In the case of a map, we both traverse over the key and value to handle complex types"""
     return (
         {
@@ -200,5 +208,5 @@ def _(map_type: MapType, values: Dict) -> Dict:
 
 
 @_convert_pos_to_dict.register
-def _(primitive: PrimitiveType, value: Any) -> Any:  # pylint: disable=unused-argument
+def _(_: PrimitiveType, value: Any) -> Any:
     return value

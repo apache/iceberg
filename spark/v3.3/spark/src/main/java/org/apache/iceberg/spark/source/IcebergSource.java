@@ -47,9 +47,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 /**
  * The IcebergSource loads/writes tables with format "iceberg". It can load paths and tables.
  *
- * <p>How paths/tables are loaded when using spark.read().format("iceberg").path(table)
+ * <p>How paths/tables are loaded when using spark.read().format("iceberg").load(table)
  *
- * <p>table = "file:/path/to/table" -&gt; loads a HadoopTable at given path table = "tablename"
+ * <p>table = "file:///path/to/table" -&gt; loads a HadoopTable at given path table = "tablename"
  * -&gt; loads currentCatalog.currentNamespace.tablename table = "catalog.tablename" -&gt; load
  * "tablename" from the specified catalog. table = "namespace.tablename" -&gt; load
  * "namespace.tablename" from current catalog table = "catalog.namespace.tablename" -&gt;

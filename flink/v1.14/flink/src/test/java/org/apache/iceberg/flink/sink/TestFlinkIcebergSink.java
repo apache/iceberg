@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -98,7 +97,7 @@ public class TestFlinkIcebergSink {
   }
 
   public TestFlinkIcebergSink(String format, int parallelism, boolean partitioned) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
   }
@@ -362,7 +361,7 @@ public class TestFlinkIcebergSink {
     AssertHelpers.assertThrows(
         "Should fail with invalid distribution mode.",
         IllegalArgumentException.class,
-        "No enum constant org.apache.iceberg.DistributionMode.UNRECOGNIZED",
+        "Invalid distribution mode: UNRECOGNIZED",
         () -> {
           builder.append();
 
@@ -390,7 +389,7 @@ public class TestFlinkIcebergSink {
     AssertHelpers.assertThrows(
         "Should fail with invalid file format.",
         IllegalArgumentException.class,
-        "No enum constant org.apache.iceberg.FileFormat.UNRECOGNIZED",
+        "Invalid file format: UNRECOGNIZED",
         () -> {
           builder.append();
 

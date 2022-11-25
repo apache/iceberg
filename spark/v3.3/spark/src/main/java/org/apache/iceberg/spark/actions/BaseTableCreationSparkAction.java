@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
@@ -173,10 +174,9 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   }
 
   protected String getMetadataLocation(Table table) {
-    return table
-        .properties()
-        .getOrDefault(
-            TableProperties.WRITE_METADATA_LOCATION,
-            table.location() + "/" + ICEBERG_METADATA_FOLDER);
+    String defaultValue =
+        LocationUtil.stripTrailingSlash(table.location()) + "/" + ICEBERG_METADATA_FOLDER;
+    return LocationUtil.stripTrailingSlash(
+        table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue));
   }
 }

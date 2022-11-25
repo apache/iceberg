@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Represents a boolean expression tree. */
 public interface Expression extends Serializable {
@@ -41,7 +43,21 @@ public interface Expression extends Serializable {
     AND,
     OR,
     STARTS_WITH,
-    NOT_STARTS_WITH;
+    NOT_STARTS_WITH,
+    COUNT,
+    COUNT_STAR,
+    MAX,
+    MIN;
+
+    public static Operation fromString(String operationType) {
+      Preconditions.checkArgument(null != operationType, "Invalid operation type: null");
+      try {
+        return Expression.Operation.valueOf(operationType.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid operation type: %s", operationType), e);
+      }
+    }
 
     /** Returns the operation used when this is negated. */
     public Operation negate() {

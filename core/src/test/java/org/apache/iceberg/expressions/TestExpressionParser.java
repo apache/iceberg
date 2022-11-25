@@ -301,7 +301,7 @@ public class TestExpressionParser {
                         + "  }\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.expressions.Expression.Operation.ILLEGAL");
+        .hasMessage("Invalid operation type: illegal");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -315,7 +315,7 @@ public class TestExpressionParser {
                         + "  }\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.expressions.Expression.Operation.ILLEGAL");
+        .hasMessage("Invalid operation type: ILLEGAL");
   }
 
   @Test

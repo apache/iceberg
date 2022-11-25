@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
@@ -48,7 +49,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive) {
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, taskGroup, ChangelogUtil.dropChangelogMetadata(expectedSchema), caseSensitive);
   }
 
   @Override

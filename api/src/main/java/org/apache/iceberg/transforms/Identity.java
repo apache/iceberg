@@ -29,6 +29,18 @@ import org.apache.iceberg.util.SerializableFunction;
 class Identity<T> implements Transform<T, T> {
   private static final Identity<?> INSTANCE = new Identity<>();
 
+  private final Type type;
+
+  /**
+   * Instantiates a new Identity Transform
+   *
+   * @deprecated use {@link #get()} instead; will be removed in 2.0.0
+   */
+  @Deprecated
+  public static <I> Identity<I> get(Type type) {
+    return new Identity<>(type);
+  }
+
   @SuppressWarnings("unchecked")
   public static <I> Identity<I> get() {
     return (Identity<I>) INSTANCE;
@@ -48,7 +60,13 @@ class Identity<T> implements Transform<T, T> {
     }
   }
 
-  private Identity() {}
+  private Identity() {
+    this(null);
+  }
+
+  private Identity(Type type) {
+    this.type = type;
+  }
 
   @Override
   public T apply(T value) {
@@ -56,6 +74,7 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:HiddenField")
   public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return Apply.get();
@@ -64,6 +83,24 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public boolean canTransform(Type maybePrimitive) {
     return maybePrimitive.isPrimitiveType();
+  }
+
+  /**
+   * Returns a human-readable String representation of a transformed value.
+   *
+   * <p>null values will return "null"
+   *
+   * @param value a transformed value
+   * @return a human-readable String representation of the value
+   * @deprecated use {@link #toHumanString(Type, Object)} instead; will be removed in 2.0.0
+   */
+  @Deprecated
+  @Override
+  public String toHumanString(T value) {
+    if (this.type != null) {
+      return toHumanString(this.type, value);
+    }
+    return Transform.super.toHumanString(value);
   }
 
   @Override
@@ -103,6 +140,23 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public boolean isIdentity() {
     return true;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    // Can be removed with 2.0.0 deprecation of get(Type)
+    if (this == o) {
+      return true;
+    } else if (o instanceof Identity) {
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public int hashCode() {
+    // Can be removed with 2.0.0 deprecation of get(Type)
+    return 0;
   }
 
   @Override

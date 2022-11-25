@@ -22,6 +22,7 @@ import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.DESC;
 
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,11 +48,28 @@ public class TestSortOrderParser extends TableTestBase {
 
     Assert.assertEquals(10, order.orderId());
     Assert.assertEquals(1, order.fields().size());
-    org.assertj.core.api.Assertions.assertThat(order.fields().get(0).transform())
-        .isInstanceOf(UnknownTransform.class);
+    Assertions.assertThat(order.fields().get(0).transform()).isInstanceOf(UnknownTransform.class);
     Assert.assertEquals("custom_transform", order.fields().get(0).transform().toString());
     Assert.assertEquals(2, order.fields().get(0).sourceId());
     Assert.assertEquals(DESC, order.fields().get(0).direction());
     Assert.assertEquals(NULLS_FIRST, order.fields().get(0).nullOrder());
+  }
+
+  @Test
+  public void invalidSortDirection() {
+    String jsonString =
+        "{\n"
+            + "  \"order-id\" : 10,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"transform\" : \"custom_transform\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"direction\" : \"invalid\",\n"
+            + "    \"null-order\" : \"nulls-first\"\n"
+            + "  } ]\n"
+            + "}";
+
+    Assertions.assertThatThrownBy(() -> SortOrderParser.fromJson(table.schema(), jsonString))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid sort direction: invalid");
   }
 }

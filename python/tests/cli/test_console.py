@@ -28,10 +28,11 @@ from click.testing import CliRunner
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
+from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 from tests.conftest import EXAMPLE_TABLE_METADATA_V2
@@ -47,7 +48,12 @@ class MockCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        return Table(identifier=identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2))
+        return Table(
+            identifier=Catalog.identifier_to_tuple(identifier),
+            metadata_location="s3://tmp/",
+            metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+            io=load_file_io(),
+        )
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
@@ -56,6 +62,7 @@ class MockCatalog(Catalog):
                 identifier=tuple_identifier,
                 metadata_location="s3://tmp/",
                 metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+                io=load_file_io(),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {'.'.join(tuple_identifier)}")
@@ -74,7 +81,10 @@ class MockCatalog(Catalog):
         tuple_identifier = Catalog.identifier_to_tuple(from_identifier)
         if tuple_identifier == ("default", "foo"):
             return Table(
-                identifier=tuple_identifier, metadata_location="s3://tmp/", metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+                identifier=tuple_identifier,
+                metadata_location="s3://tmp/",
+                metadata=TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2),
+                io=load_file_io(),
             )
         else:
             raise NoSuchTableError(f"Table does not exist: {from_identifier}")
@@ -838,6 +848,5 @@ def test_json_properties_remove_table_property_does_not_exists(_):
 def test_json_properties_remove_table_does_not_exist(_):
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.doesnotexist", "location"])
-    print(result)
     assert result.exit_code == 1
     assert result.output == """{"type": "NoSuchTableError", "message": "Table does not exist: default.doesnotexist"}\n"""

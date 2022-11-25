@@ -18,10 +18,18 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -64,6 +72,51 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeLongIn() {
+    Object[] tooLongRange =
+        IntStream.range(95, 95 + ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD)
+            .boxed()
+            .toArray();
+    Object[] almostTooLongRange = Arrays.copyOf(tooLongRange, tooLongRange.length - 1);
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test IN ((2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (3-digit-int), (3-digit-int), (3-digit-int), (3-digit-int))",
+        ExpressionUtil.toSanitizedString(Expressions.in("test", almostTooLongRange)));
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))",
+        ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongRange)));
+
+    // The sanitization resulting in an expression tree does not abbreviate
+    List<String> expectedValues = Lists.newArrayList();
+    expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));
+    expectedValues.addAll(Collections.nCopies(5, "(3-digit-int)"));
+    assertEquals(
+        Expressions.in("test", expectedValues),
+        ExpressionUtil.sanitize(Expressions.in("test", tooLongRange)));
+  }
+
+  @Test
+  public void zeroAndNegativeNumberHandling() {
+    Assertions.assertThat(
+            ExpressionUtil.toSanitizedString(
+                Expressions.in(
+                    "test",
+                    0,
+                    -1,
+                    -100,
+                    Integer.MIN_VALUE,
+                    Integer.MAX_VALUE,
+                    -1234567891234.4d,
+                    Float.MAX_VALUE,
+                    Double.MAX_VALUE)))
+        .isEqualTo(
+            "test IN ((1-digit-int), (1-digit-int), (3-digit-int), (10-digit-int), (10-digit-int), (13-digit-float), (39-digit-float), (309-digit-float))");
+  }
+
+  @Test
   public void testSanitizeNotIn() {
     assertEquals(
         Expressions.notIn("test", "(2-digit-int)", "(3-digit-int)"),
@@ -73,6 +126,33 @@ public class TestExpressionUtil {
         "Sanitized string should be identical except for descriptive literal",
         "test NOT IN ((2-digit-int), (3-digit-int))",
         ExpressionUtil.toSanitizedString(Expressions.notIn("test", 34, 345)));
+  }
+
+  @Test
+  public void testSanitizeLongNotIn() {
+    Object[] tooLongRange =
+        IntStream.range(95, 95 + ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD)
+            .boxed()
+            .toArray();
+    Object[] almostTooLongRange = Arrays.copyOf(tooLongRange, tooLongRange.length - 1);
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test NOT IN ((2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (2-digit-int), (3-digit-int), (3-digit-int), (3-digit-int), (3-digit-int))",
+        ExpressionUtil.toSanitizedString(Expressions.notIn("test", almostTooLongRange)));
+
+    Assert.assertEquals(
+        "Sanitized string should be abbreviated",
+        "test NOT IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))",
+        ExpressionUtil.toSanitizedString(Expressions.notIn("test", tooLongRange)));
+
+    // The sanitization resulting in an expression tree does not abbreviate
+    List<String> expectedValues = Lists.newArrayList();
+    expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));
+    expectedValues.addAll(Collections.nCopies(5, "(3-digit-int)"));
+    assertEquals(
+        Expressions.notIn("test", expectedValues),
+        ExpressionUtil.sanitize(Expressions.notIn("test", tooLongRange)));
   }
 
   @Test
@@ -260,6 +340,260 @@ public class TestExpressionUtil {
           "test = (timestamp)",
           ExpressionUtil.toSanitizedString(Expressions.equal("test", timestamp)));
     }
+  }
+
+  @Test
+  public void testSanitizeTimestampAboutNow() {
+    // this string is the current UTC time, without a zone offset
+    String nowLocal =
+        OffsetDateTime.now().atZoneSameInstant(ZoneOffset.UTC).toLocalDateTime().toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nowLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-about-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nowLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampPast() {
+    String ninetyMinutesAgoLocal =
+        OffsetDateTime.now()
+            .minusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesAgoLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampLastWeek() {
+    String lastWeekLocal =
+        OffsetDateTime.now()
+            .minusHours(180)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeekLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestampFuture() {
+    String ninetyMinutesFromNowLocal =
+        OffsetDateTime.now()
+            .plusMinutes(90)
+            .atZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
+            .toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesFromNowLocal)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowLocal).to(Types.TimestampType.withoutZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowLocal)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzAboutNow() {
+    // this string is the current time with the local zone offset
+    String nowUtc = OffsetDateTime.now().toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nowUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-about-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nowUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzPast() {
+    String ninetyMinutesAgoUtc = OffsetDateTime.now().minusMinutes(90).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesAgoUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzLastWeek() {
+    String lastWeekUtc = OffsetDateTime.now().minusHours(180).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeekUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekUtc)));
+  }
+
+  @Test
+  public void testSanitizeTimestamptzFuture() {
+    String ninetyMinutesFromNowUtc = OffsetDateTime.now().plusMinutes(90).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", ninetyMinutesFromNowUtc)));
+
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowUtc).to(Types.TimestampType.withZone()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (timestamp-1-hours-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowUtc)));
+  }
+
+  @Test
+  public void testSanitizeDateToday() {
+    String today = LocalDate.now(ZoneOffset.UTC).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-today)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", today)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-today)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(today).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-today)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", today)));
+  }
+
+  @Test
+  public void testSanitizeDateLastWeek() {
+    String lastWeek = LocalDate.now(ZoneOffset.UTC).minusWeeks(1).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-ago)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", lastWeek)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(lastWeek).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-7-days-ago)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeek)));
+  }
+
+  @Test
+  public void testSanitizeDateNextWeek() {
+    String nextWeek = LocalDate.now(ZoneOffset.UTC).plusWeeks(1).toString();
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-from-now)"),
+        ExpressionUtil.sanitize(Expressions.equal("test", nextWeek)));
+
+    assertEquals(
+        Expressions.equal("test", "(date-7-days-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ, "test", Literal.of(nextWeek).to(Types.DateType.get()))));
+
+    Assert.assertEquals(
+        "Sanitized string should be identical except for descriptive literal",
+        "test = (date-7-days-from-now)",
+        ExpressionUtil.toSanitizedString(Expressions.equal("test", nextWeek)));
   }
 
   @Test
@@ -481,12 +815,8 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(Expression expected, Expression actual) {
-    if (expected instanceof UnboundPredicate) {
-      Assert.assertTrue("Should be an UnboundPredicate", actual instanceof UnboundPredicate);
-      assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
-    } else {
-      Assert.fail("Unknown expected expression: " + expected);
-    }
+    Assertions.assertThat(expected).isInstanceOf(UnboundPredicate.class);
+    assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
   }
 
   private void assertEquals(UnboundPredicate<?> expected, UnboundPredicate<?> actual) {
@@ -496,14 +826,16 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(UnboundTerm<?> expected, UnboundTerm<?> actual) {
+    Assertions.assertThat(expected)
+        .as("Unknown expected term: " + expected)
+        .isOfAnyClassIn(NamedReference.class, UnboundTransform.class);
+
     if (expected instanceof NamedReference) {
       Assert.assertTrue("Should be a NamedReference", actual instanceof NamedReference);
       assertEquals((NamedReference<?>) expected, (NamedReference<?>) actual);
     } else if (expected instanceof UnboundTransform) {
       Assert.assertTrue("Should be an UnboundTransform", actual instanceof UnboundTransform);
       assertEquals((UnboundTransform<?, ?>) expected, (UnboundTransform<?, ?>) actual);
-    } else {
-      Assert.fail("Unknown expected term: " + expected);
     }
   }
 

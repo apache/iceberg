@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -182,6 +183,8 @@ public class SparkScanBuilder
   public Scan build() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
+    String branch = readConf.branch();
+    String tag = readConf.tag();
 
     Preconditions.checkArgument(
         snapshotId == null || asOfTimestamp == null,
@@ -225,6 +228,14 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
+    if (branch != null) {
+      scan = scan.useRef(branch);
+    }
+
+    if (tag != null) {
+      scan = scan.useRef(tag);
+    }
+
     if (startSnapshotId != null) {
       if (endSnapshotId != null) {
         scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
@@ -238,12 +249,54 @@ public class SparkScanBuilder
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
+  public Scan buildChangelogScan() {
+    Preconditions.checkArgument(
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
+        "Cannot set neither %s, %s, %s and %s for changelogs",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
+
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalChangelogScan scan =
+        table
+            .newIncrementalChangelogScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (startSnapshotId != null) {
+      scan = scan.fromSnapshotExclusive(startSnapshotId);
+    }
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
   public Scan buildMergeOnReadScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
-        "Cannot set time travel options %s and %s for row-level command scans",
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
+        "Cannot set time travel options %s, %s, %s and %s for row-level command scans",
         SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Preconditions.checkArgument(
         readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
@@ -306,8 +359,8 @@ public class SparkScanBuilder
         spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
   }
 
-  private TableScan configureSplitPlanning(TableScan scan) {
-    TableScan configuredScan = scan;
+  private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {
+    T configuredScan = scan;
 
     Long splitSize = readConf.splitSizeOption();
     if (splitSize != null) {

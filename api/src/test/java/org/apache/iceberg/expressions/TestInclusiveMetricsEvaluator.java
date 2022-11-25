@@ -94,7 +94,7 @@ public class TestInclusiveMetricsEvaluator {
               .put(12, 50L)
               .put(13, 50L)
               .put(14, 50L)
-              .build(),
+              .buildOrThrow(),
           // null value counts
           ImmutableMap.<Integer, Long>builder()
               .put(4, 50L)
@@ -104,7 +104,7 @@ public class TestInclusiveMetricsEvaluator {
               .put(11, 0L)
               .put(12, 1L)
               .put(14, 0L)
-              .build(),
+              .buildOrThrow(),
           // nan value counts
           ImmutableMap.of(
               7, 50L,

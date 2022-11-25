@@ -23,14 +23,21 @@ with the pyarrow library.
 """
 
 import os
-from functools import lru_cache
-from typing import Callable, Tuple, Union
+from functools import lru_cache, singledispatch
+from typing import (
+    Callable,
+    List,
+    Tuple,
+    Union,
+)
 from urllib.parse import urlparse
 
+import pyarrow as pa
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    LocalFileSystem,
     S3FileSystem,
 )
 
@@ -41,7 +48,28 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
+    IntegerType,
+    ListType,
+    LongType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StringType,
+    StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+)
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -170,22 +198,28 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs_and_path: Callable = lru_cache(self._get_fs_and_path)
+        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
-    def _get_fs_and_path(self, location: str) -> Tuple[FileSystem, str]:
-        uri = urlparse(location)  # Create a ParseResult from the URI
-        if not uri.scheme:  # If no scheme, assume the path is to a local file
-            return FileSystem.from_uri(os.path.abspath(location))
-        elif uri.scheme in {"s3", "s3a", "s3n"}:
+    @staticmethod
+    def parse_location(location: str) -> Tuple[str, str]:
+        """Returns the path without the scheme"""
+        uri = urlparse(location)
+        return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
+
+    def _get_fs(self, scheme: str) -> FileSystem:
+        if scheme in {"s3", "s3a", "s3n"}:
             client_kwargs = {
                 "endpoint_override": self.properties.get("s3.endpoint"),
                 "access_key": self.properties.get("s3.access-key-id"),
                 "secret_key": self.properties.get("s3.secret-access-key"),
+                "session_token": self.properties.get("s3.session-token"),
             }
-            return (S3FileSystem(**client_kwargs), uri.netloc + uri.path)
+            return S3FileSystem(**client_kwargs)
+        elif scheme == "file":
+            return LocalFileSystem()
         else:
-            return FileSystem.from_uri(location)  # Infer the proper filesystem
+            raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
     def new_input(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to read bytes from the file at the given location
@@ -196,7 +230,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        fs, path = self.get_fs_and_path(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path)
 
     def new_output(self, location: str) -> PyArrowFile:
@@ -208,7 +243,8 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        fs, path = self.get_fs_and_path(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
@@ -224,8 +260,9 @@ class PyArrowFileIO(FileIO):
             PermissionError: If the file at the provided location cannot be accessed due to a permission error such as
                 an AWS error code 15
         """
-        str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        fs, path = self.get_fs_and_path(str_path)
+        str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        scheme, path = self.parse_location(str_location)
+        fs = self._get_fs(scheme)
 
         try:
             fs.delete_file(path)
@@ -239,3 +276,106 @@ class PyArrowFileIO(FileIO):
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot delete file, access denied: {location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
+
+
+def schema_to_pyarrow(schema: Schema) -> pa.schema:
+    return visit(schema, _ConvertToArrowSchema())
+
+
+class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
+    def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
+        return pa.schema(list(struct_result))
+
+    def struct(self, _: StructType, field_results: List[pa.DataType]) -> pa.DataType:
+        return pa.struct(field_results)
+
+    def field(self, field: NestedField, field_result: pa.DataType) -> pa.Field:
+        return pa.field(
+            name=field.name,
+            type=field_result,
+            nullable=not field.required,
+            metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
+        )
+
+    def list(self, _: ListType, element_result: pa.DataType) -> pa.DataType:
+        return pa.list_(value_type=element_result)
+
+    def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
+        return pa.map_(key_type=key_result, item_type=value_result)
+
+    def primitive(self, primitive: PrimitiveType) -> pa.DataType:
+        return _iceberg_to_pyarrow_type(primitive)
+
+
+@singledispatch
+def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
+    raise ValueError(f"Unknown type: {primitive}")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(primitive: FixedType) -> pa.DataType:
+    return pa.binary(len(primitive))
+
+
+@_iceberg_to_pyarrow_type.register
+def _(primitive: DecimalType) -> pa.DataType:
+    return pa.decimal128(primitive.precision, primitive.scale)
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: BooleanType) -> pa.DataType:
+    return pa.bool_()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: IntegerType) -> pa.DataType:
+    return pa.int32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: LongType) -> pa.DataType:
+    return pa.int64()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: FloatType) -> pa.DataType:
+    # 32-bit IEEE 754 floating point
+    return pa.float32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: DoubleType) -> pa.DataType:
+    # 64-bit IEEE 754 floating point
+    return pa.float64()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: DateType) -> pa.DataType:
+    # Date encoded as an int
+    return pa.date32()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimeType) -> pa.DataType:
+    return pa.time64("us")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimestampType) -> pa.DataType:
+    return pa.timestamp(unit="us")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: TimestamptzType) -> pa.DataType:
+    return pa.timestamp(unit="us", tz="+00:00")
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: StringType) -> pa.DataType:
+    return pa.string()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: BinaryType) -> pa.DataType:
+    # Variable length by default
+    return pa.binary()

@@ -46,7 +46,7 @@ public class Transforms {
       int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
         return Truncate.get(parsedWidth);
-      } else if (name.equals("bucket")) {
+      } else if (name.equalsIgnoreCase("bucket")) {
         return Bucket.get(parsedWidth);
       }
     }
@@ -75,13 +75,13 @@ public class Transforms {
       int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
         return (Transform<?, ?>) Truncate.get(type, parsedWidth);
-      } else if (name.equals("bucket")) {
+      } else if (name.equalsIgnoreCase("bucket")) {
         return (Transform<?, ?>) Bucket.get(type, parsedWidth);
       }
     }
 
     if (transform.equalsIgnoreCase("identity")) {
-      return Identity.get();
+      return Identity.get(type);
     }
 
     try {
@@ -111,7 +111,7 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> identity(Type type) {
-    return Identity.get();
+    return Identity.get(type);
   }
 
   /**
@@ -178,11 +178,11 @@ public class Transforms {
   }
 
   /**
-   * Returns a hour {@link Transform} for timestamps.
+   * Returns an hour {@link Transform} for timestamps.
    *
    * @param type the {@link Type source type} for the transform
    * @param <T> Java type passed to this transform
-   * @return a hour transform
+   * @return an hour transform
    * @deprecated use {@link #hour()} instead; will be removed in 2.0.0
    */
   @Deprecated
@@ -242,30 +242,30 @@ public class Transforms {
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns a month {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform
-   * @return a year transform
+   * @return a month transform
    */
   public static <T> Transform<T, Integer> month() {
     return Months.get();
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns a day {@link Transform} for date or timestamp types.
    *
    * @param <T> Java type passed to this transform
-   * @return a year transform
+   * @return a day transform
    */
   public static <T> Transform<T, Integer> day() {
     return Days.get();
   }
 
   /**
-   * Returns a year {@link Transform} for date or timestamp types.
+   * Returns an hour {@link Transform} for timestamp types.
    *
    * @param <T> Java type passed to this transform
-   * @return a year transform
+   * @return an hour transform
    */
   public static <T> Transform<T, Integer> hour() {
     return Hours.get();

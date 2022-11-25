@@ -594,4 +594,42 @@ public class TestGlueCatalog {
         ImmutableMap.of());
     Assert.assertEquals(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")), true);
   }
+
+  @Test
+  public void testTableLevelS3TagProperties() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            "true",
+            AwsProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            "true");
+    AwsProperties awsProperties = new AwsProperties(properties);
+    glueCatalog.initialize(
+        CATALOG_NAME,
+        WAREHOUSE_PATH,
+        awsProperties,
+        glue,
+        LockManagers.defaultLockManager(),
+        null,
+        properties);
+    GlueTableOperations glueTableOperations =
+        (GlueTableOperations)
+            glueCatalog.newTableOps(TableIdentifier.of(Namespace.of("db"), "table"));
+    Map<String, String> tableCatalogProperties = glueTableOperations.tableCatalogProperties();
+
+    Assert.assertTrue(
+        tableCatalogProperties.containsKey(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE)));
+    Assert.assertEquals(
+        "table",
+        tableCatalogProperties.get(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE)));
+    Assert.assertTrue(
+        tableCatalogProperties.containsKey(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)));
+    Assert.assertEquals(
+        "db",
+        tableCatalogProperties.get(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE)));
+  }
 }

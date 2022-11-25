@@ -88,7 +88,7 @@ public class TestStrictMetricsEvaluator {
               .put(12, 50L)
               .put(13, 50L)
               .put(14, 50L)
-              .build(),
+              .buildOrThrow(),
           // null value counts
           ImmutableMap.<Integer, Long>builder()
               .put(4, 50L)
@@ -97,7 +97,7 @@ public class TestStrictMetricsEvaluator {
               .put(11, 50L)
               .put(12, 0L)
               .put(13, 1L)
-              .build(),
+              .buildOrThrow(),
           // nan value counts
           ImmutableMap.of(
               8, 50L,

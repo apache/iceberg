@@ -303,6 +303,26 @@ public class TestSortOrder {
   }
 
   @Test
+  public void testColumnDropWithSortOrder() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, formatVersion);
+
+    int initialColSize = table.schema().columns().size();
+
+    table.replaceSortOrder().asc("id").commit();
+    table.replaceSortOrder().asc("data").commit();
+
+    table.updateSchema().deleteColumn("id").commit();
+
+    SortOrder actualOrder = table.sortOrder();
+    Assert.assertEquals(
+        "Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID + 1, actualOrder.orderId());
+    Assert.assertEquals(
+        "Schema must have one less column", initialColSize - 1, table.schema().columns().size());
+  }
+
+  @Test
   public void testIncompatibleSchemaEvolutionWithSortOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order =

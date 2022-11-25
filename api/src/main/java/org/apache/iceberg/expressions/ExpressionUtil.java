@@ -18,10 +18,19 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
@@ -29,11 +38,19 @@ import org.apache.iceberg.types.Types;
 public class ExpressionUtil {
   private static final Function<Object, Integer> HASH_FUNC =
       Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
-  private static final Pattern DATE = Pattern.compile("\\d\\d\\d\\d-\\d\\d-\\d\\d");
-  private static final Pattern TIME = Pattern.compile("\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?");
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final long FIVE_MINUTES_IN_MICROS = TimeUnit.MINUTES.toMicros(5);
+  private static final long THREE_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(3);
+  private static final long NINETY_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(90);
+  private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+  private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
   private static final Pattern TIMESTAMP =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
+  private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
-          "\\d\\d\\d\\d-\\d\\d-\\d\\dT\\d\\d:\\d\\d(:\\d\\d(.\\d{1,6})?)?([-+]\\d\\d:\\d\\d)?");
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?([-+]\\d{2}:\\d{2}|Z)");
+  static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
+  private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
   private ExpressionUtil() {}
 
@@ -48,7 +65,7 @@ public class ExpressionUtil {
    * @return a sanitized Expression
    */
   public static Expression sanitize(Expression expr) {
-    return ExpressionVisitors.visit(expr, ExpressionSanitizer.INSTANCE);
+    return ExpressionVisitors.visit(expr, new ExpressionSanitizer());
   }
 
   /**
@@ -62,7 +79,7 @@ public class ExpressionUtil {
    * @return a sanitized expression string
    */
   public static String toSanitizedString(Expression expr) {
-    return ExpressionVisitors.visit(expr, StringSanitizer.INSTANCE);
+    return ExpressionVisitors.visit(expr, new StringSanitizer());
   }
 
   /**
@@ -105,7 +122,15 @@ public class ExpressionUtil {
 
   private static class ExpressionSanitizer
       extends ExpressionVisitors.ExpressionVisitor<Expression> {
-    private static final ExpressionSanitizer INSTANCE = new ExpressionSanitizer();
+    private final long now;
+    private final int today;
+
+    private ExpressionSanitizer() {
+      long nowMillis = System.currentTimeMillis();
+      OffsetDateTime nowDateTime = Instant.ofEpochMilli(nowMillis).atOffset(ZoneOffset.UTC);
+      this.now = nowMillis * 1000;
+      this.today = (int) ChronoUnit.DAYS.between(EPOCH, nowDateTime);
+    }
 
     @Override
     public Expression alwaysTrue() {
@@ -155,11 +180,12 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
-          return new UnboundPredicate<>(pred.op(), pred.term(), (T) sanitize(pred.literal()));
+          return new UnboundPredicate<>(
+              pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
         case NOT_IN:
           Iterable<String> iter =
-              () -> pred.literals().stream().map(ExpressionUtil::sanitize).iterator();
+              () -> pred.literals().stream().map(lit -> sanitize(lit, now, today)).iterator();
           return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
         default:
           throw new UnsupportedOperationException(
@@ -169,7 +195,15 @@ public class ExpressionUtil {
   }
 
   private static class StringSanitizer extends ExpressionVisitors.ExpressionVisitor<String> {
-    private static final StringSanitizer INSTANCE = new StringSanitizer();
+    private final long nowMicros;
+    private final int today;
+
+    private StringSanitizer() {
+      long nowMillis = System.currentTimeMillis();
+      OffsetDateTime nowDateTime = Instant.ofEpochMilli(nowMillis).atOffset(ZoneOffset.UTC);
+      this.nowMicros = nowMillis * 1000;
+      this.today = (int) ChronoUnit.DAYS.between(EPOCH, nowDateTime);
+    }
 
     @Override
     public String alwaysTrue() {
@@ -224,33 +258,39 @@ public class ExpressionUtil {
         case NOT_NAN:
           return "not_nan(" + term + ")";
         case LT:
-          return term + " < " + sanitize(pred.literal());
+          return term + " < " + sanitize(pred.literal(), nowMicros, today);
         case LT_EQ:
-          return term + " <= " + sanitize(pred.literal());
+          return term + " <= " + sanitize(pred.literal(), nowMicros, today);
         case GT:
-          return term + " > " + sanitize(pred.literal());
+          return term + " > " + sanitize(pred.literal(), nowMicros, today);
         case GT_EQ:
-          return term + " >= " + sanitize(pred.literal());
+          return term + " >= " + sanitize(pred.literal(), nowMicros, today);
         case EQ:
-          return term + " = " + sanitize(pred.literal());
+          return term + " = " + sanitize(pred.literal(), nowMicros, today);
         case NOT_EQ:
-          return term + " != " + sanitize(pred.literal());
+          return term + " != " + sanitize(pred.literal(), nowMicros, today);
         case IN:
           return term
               + " IN "
-              + pred.literals().stream()
-                  .map(ExpressionUtil::sanitize)
+              + abbreviateValues(
+                      pred.literals().stream()
+                          .map(lit -> sanitize(lit, nowMicros, today))
+                          .collect(Collectors.toList()))
+                  .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
-              + pred.literals().stream()
-                  .map(ExpressionUtil::sanitize)
+              + abbreviateValues(
+                      pred.literals().stream()
+                          .map(lit -> sanitize(lit, nowMicros, today))
+                          .collect(Collectors.toList()))
+                  .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
-          return term + " STARTS WITH " + sanitize(pred.literal());
+          return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
-          return term + " NOT STARTS WITH " + sanitize(pred.literal());
+          return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -258,24 +298,32 @@ public class ExpressionUtil {
     }
   }
 
-  private static String sanitize(Literal<?> literal) {
-    if (literal instanceof Literals.StringLiteral) {
-      CharSequence value = ((Literals.StringLiteral) literal).value();
-      if (DATE.matcher(value).matches()) {
-        return "(date)";
-      } else if (TIME.matcher(value).matches()) {
-        return "(time)";
-      } else if (TIMESTAMP.matcher(value).matches()) {
-        return "(timestamp)";
-      } else {
-        return sanitizeString(value);
+  private static <T> List<String> abbreviateValues(List<String> sanitizedValues) {
+    if (sanitizedValues.size() >= LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD) {
+      Set<String> distinctValues = ImmutableSet.copyOf(sanitizedValues);
+      if (distinctValues.size()
+          <= sanitizedValues.size() - LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN) {
+        List<String> abbreviatedList = Lists.newArrayListWithCapacity(distinctValues.size() + 1);
+        abbreviatedList.addAll(distinctValues);
+        abbreviatedList.add(
+            String.format(
+                "... (%d values hidden, %d in total)",
+                sanitizedValues.size() - distinctValues.size(), sanitizedValues.size()));
+        return abbreviatedList;
       }
+    }
+    return sanitizedValues;
+  }
+
+  private static String sanitize(Literal<?> literal, long now, int today) {
+    if (literal instanceof Literals.StringLiteral) {
+      return sanitizeString(((Literals.StringLiteral) literal).value(), now, today);
     } else if (literal instanceof Literals.DateLiteral) {
-      return "(date)";
+      return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
+    } else if (literal instanceof Literals.TimestampLiteral) {
+      return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
-    } else if (literal instanceof Literals.TimestampLiteral) {
-      return "(timestamp)";
     } else if (literal instanceof Literals.IntegerLiteral) {
       return sanitizeNumber(((Literals.IntegerLiteral) literal).value(), "int");
     } else if (literal instanceof Literals.LongLiteral) {
@@ -286,16 +334,65 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
     } else {
       // for uuid, decimal, fixed, and binary, match the string result
-      return sanitizeString(literal.value().toString());
+      return sanitizeSimpleString(literal.value().toString());
     }
   }
 
+  private static String sanitizeDate(int days, int today) {
+    String isPast = today > days ? "ago" : "from-now";
+    int diff = Math.abs(today - days);
+    if (diff == 0) {
+      return "(date-today)";
+    } else if (diff < 90) {
+      return "(date-" + diff + "-days-" + isPast + ")";
+    }
+
+    return "(date)";
+  }
+
+  private static String sanitizeTimestamp(long micros, long now) {
+    String isPast = now > micros ? "ago" : "from-now";
+    long diff = Math.abs(now - micros);
+    if (diff < FIVE_MINUTES_IN_MICROS) {
+      return "(timestamp-about-now)";
+    }
+
+    long hours = TimeUnit.MICROSECONDS.toHours(diff);
+    if (hours <= THREE_DAYS_IN_HOURS) {
+      return "(timestamp-" + hours + "-hours-" + isPast + ")";
+    } else if (hours < NINETY_DAYS_IN_HOURS) {
+      long days = hours / 24;
+      return "(timestamp-" + days + "-days-" + isPast + ")";
+    }
+
+    return "(timestamp)";
+  }
+
   private static String sanitizeNumber(Number value, String type) {
-    int numDigits = (int) Math.log10(value.doubleValue()) + 1;
+    // log10 of zero isn't defined and will result in negative infinity
+    int numDigits =
+        0.0d == value.doubleValue() ? 1 : (int) Math.log10(Math.abs(value.doubleValue())) + 1;
     return "(" + numDigits + "-digit-" + type + ")";
   }
 
-  private static String sanitizeString(CharSequence value) {
+  private static String sanitizeString(CharSequence value, long now, int today) {
+    if (DATE.matcher(value).matches()) {
+      Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
+      return sanitizeDate(date.value(), today);
+    } else if (TIMESTAMP.matcher(value).matches()) {
+      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
+      return sanitizeTimestamp(ts.value(), now);
+    } else if (TIMESTAMPTZ.matcher(value).matches()) {
+      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
+      return sanitizeTimestamp(ts.value(), now);
+    } else if (TIME.matcher(value).matches()) {
+      return "(time)";
+    } else {
+      return sanitizeSimpleString(value);
+    }
+  }
+
+  private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format("(hash-%08x)", HASH_FUNC.apply(value));
   }

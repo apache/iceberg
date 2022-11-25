@@ -27,7 +27,7 @@ menu:
 
 # Spark Procedures
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Stored procedures are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.x.
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Stored procedures are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.
 
 ## Usage
 
@@ -214,6 +214,8 @@ If `older_than` and `retain_last` are omitted, the table's [expiration propertie
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `deleted_data_files_count` | long | Number of data files deleted by this operation |
+| `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
+| `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
 | `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
 
@@ -419,12 +421,15 @@ Existing data files are added to the Iceberg table's metadata and can be read us
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
 
+By default, the original table is retained with the name `table_BACKUP_`.
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to migrate |
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
+| `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 
 #### Output
 

@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Generalized interface for creating telemetry related instances for tracking operations.
@@ -45,13 +46,20 @@ public interface MetricsContext extends Serializable {
     }
 
     public static Unit fromDisplayName(String displayName) {
-      return Unit.valueOf(displayName.toUpperCase(Locale.ROOT));
+      Preconditions.checkArgument(null != displayName, "Invalid unit: null");
+      try {
+        return Unit.valueOf(displayName.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid unit: %s", displayName), e);
+      }
     }
   }
 
   default void initialize(Map<String, String> properties) {}
 
-  /** @deprecated Use {@link org.apache.iceberg.metrics.Counter} instead. */
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.metrics.Counter} instead.
+   */
   @Deprecated
   interface Counter<T extends Number> {
     /** Increment the counter by a single whole number value (i.e. 1). */
@@ -102,7 +110,7 @@ public interface MetricsContext extends Serializable {
    * @param type numeric type of the counter value
    * @param unit the unit designation of the metric
    * @return a counter implementation
-   * @deprecated Use {@link MetricsContext#counter(String, Unit)} instead.
+   * @deprecated will be removed in 2.0.0, use {@link MetricsContext#counter(String, Unit)} instead.
    */
   @Deprecated
   default <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
@@ -118,6 +126,16 @@ public interface MetricsContext extends Serializable {
    */
   default org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
     throw new UnsupportedOperationException("Counter is not supported.");
+  }
+
+  /**
+   * Get a named counter using {@link Unit#COUNT}
+   *
+   * @param name The name of the counter
+   * @return a {@link org.apache.iceberg.metrics.Counter} implementation
+   */
+  default org.apache.iceberg.metrics.Counter counter(String name) {
+    return counter(name, Unit.COUNT);
   }
 
   /**

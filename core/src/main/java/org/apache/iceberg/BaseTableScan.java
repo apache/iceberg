@@ -18,18 +18,24 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -40,7 +46,7 @@ import org.slf4j.LoggerFactory;
 abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask>
     implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
-  private ScanReport.ScanMetrics scanMetrics;
+  private ScanMetrics scanMetrics;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
@@ -55,15 +61,25 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
     return context().snapshotId();
   }
 
+  /**
+   * @return whether column stats are returned.
+   * @deprecated Will be removed in 1.2.0, use {@link TableScanContext#returnColumnStats()}
+   *     directly.
+   */
+  @Deprecated
+  protected boolean colStats() {
+    return context().returnColumnStats();
+  }
+
   protected Map<String, String> options() {
     return context().options();
   }
 
   protected abstract CloseableIterable<FileScanTask> doPlanFiles();
 
-  protected ScanReport.ScanMetrics scanMetrics() {
+  protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
-      this.scanMetrics = ScanReport.ScanMetrics.of(new DefaultMetricsContext());
+      this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     }
 
     return scanMetrics;
@@ -87,7 +103,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(
-        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+        snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
     Preconditions.checkArgument(
         tableOps().current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s",
@@ -97,9 +113,19 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   }
 
   @Override
+  public TableScan useRef(String name) {
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
+    Snapshot snapshot = table().snapshot(name);
+    Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
+    return newRefinedScan(
+        tableOps(), table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+  }
+
+  @Override
   public TableScan asOfTime(long timestampMillis) {
     Preconditions.checkArgument(
-        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+        snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
 
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }
@@ -116,21 +142,30 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
-      Timer.Timed scanDuration = scanMetrics().totalPlanningDuration().start();
+      List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
+      List<String> projectedFieldNames =
+          projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
+
+      Timer.Timed planningDuration = scanMetrics().totalPlanningDuration().start();
 
       return CloseableIterable.whenComplete(
           doPlanFiles(),
           () -> {
-            scanDuration.stop();
+            planningDuration.stop();
+            Map<String, String> metadata = Maps.newHashMap(context().options());
+            metadata.putAll(EnvironmentContext.get());
             ScanReport scanReport =
                 ImmutableScanReport.builder()
-                    .projection(schema())
+                    .schemaId(schema().schemaId())
+                    .projectedFieldIds(projectedFieldIds)
+                    .projectedFieldNames(projectedFieldNames)
                     .tableName(table().name())
                     .snapshotId(snapshot.snapshotId())
                     .filter(ExpressionUtil.sanitize(filter()))
                     .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
+                    .metadata(metadata)
                     .build();
-            context().scanReporter().reportScan(scanReport);
+            context().metricsReporter().report(scanReport);
           });
     } else {
       LOG.info("Scanning empty table {}", table());

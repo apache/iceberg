@@ -56,8 +56,9 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingScanReporter;
-import org.apache.iceberg.metrics.ScanReporter;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -67,6 +68,7 @@ import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -104,13 +106,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
-  private ScanReporter scanReporter = null;
+  private MetricsReporter reporter = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
 
   public RESTSessionCatalog() {
-    this(new HTTPClientFactory());
+    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
   }
 
   RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -142,10 +144,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         config =
             fetchConfig(
                 initClient,
-                RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())));
+                RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())),
+                props);
       } else {
         authResponse = null;
-        config = fetchConfig(initClient, initHeaders);
+        config = fetchConfig(initClient, initHeaders, props);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close HTTP client", e);
@@ -174,7 +177,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.io =
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
-    this.scanReporter = new LoggingScanReporter();
+    this.reporter = new LoggingMetricsReporter();
 
     super.initialize(name, mergedProps);
   }
@@ -221,8 +224,20 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public boolean purgeTable(SessionContext context, TableIdentifier ident) {
-    throw new UnsupportedOperationException("Purge is not supported");
+  public boolean purgeTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
+    try {
+      client.delete(
+          paths.table(identifier),
+          ImmutableMap.of("purgeRequested", "true"),
+          null,
+          headers(context),
+          ErrorHandlers.tableErrorHandler());
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
   }
 
   @Override
@@ -284,12 +299,34 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             tableFileIO(response.config()),
             response.tableMetadata());
 
-    BaseTable table = new BaseTable(ops, fullTableName(loadedIdent), this.scanReporter);
+    TableIdentifier tableIdentifier = loadedIdent;
+    BaseTable table =
+        new BaseTable(
+            ops,
+            fullTableName(loadedIdent),
+            report -> reportMetrics(tableIdentifier, report, session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
 
     return table;
+  }
+
+  private void reportMetrics(
+      TableIdentifier tableIdentifier,
+      MetricsReport report,
+      Supplier<Map<String, String>> headers) {
+    reporter.report(report);
+    try {
+      client.post(
+          paths.metrics(tableIdentifier),
+          ReportMetricsRequest.of(report),
+          null,
+          headers,
+          ErrorHandlers.defaultErrorHandler());
+    } catch (Exception e) {
+      LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
+    }
   }
 
   @Override
@@ -654,6 +691,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private static List<MetadataUpdate> createChanges(TableMetadata meta) {
     ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
 
+    changes.add(new MetadataUpdate.AssignUUID(meta.uuid()));
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();
@@ -709,10 +747,24 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return newSession(tableConf, tableConf, parent);
   }
 
-  private static ConfigResponse fetchConfig(RESTClient client, Map<String, String> headers) {
+  private static ConfigResponse fetchConfig(
+      RESTClient client, Map<String, String> headers, Map<String, String> properties) {
+    // send the client's warehouse location to the service to keep in sync
+    // this is needed for cases where the warehouse is configured client side, but may be used on
+    // the server side,
+    // like the Hive Metastore, where both client and service hive-site.xml may have a warehouse
+    // location.
+    ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
+    if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
+      queryParams.put(
+          CatalogProperties.WAREHOUSE_LOCATION,
+          properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    }
+
     ConfigResponse configResponse =
         client.get(
             ResourcePaths.config(),
+            queryParams.build(),
             ConfigResponse.class,
             headers,
             ErrorHandlers.defaultErrorHandler());

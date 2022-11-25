@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
@@ -37,6 +37,14 @@ public class PropertyUtil {
       return Boolean.parseBoolean(value);
     }
     return defaultValue;
+  }
+
+  public static Boolean propertyAsNullableBoolean(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+    return null;
   }
 
   public static double propertyAsDouble(
@@ -57,6 +65,14 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static Integer propertyAsNullableInt(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Integer.parseInt(value);
+    }
+    return null;
+  }
+
   public static long propertyAsLong(
       Map<String, String> properties, String property, long defaultValue) {
     String value = properties.get(property);
@@ -64,6 +80,14 @@ public class PropertyUtil {
       return Long.parseLong(value);
     }
     return defaultValue;
+  }
+
+  public static Long propertyAsNullableLong(Map<String, String> properties, String property) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Long.parseLong(value);
+    }
+    return null;
   }
 
   public static String propertyAsString(
@@ -86,7 +110,7 @@ public class PropertyUtil {
   public static Map<String, String> propertiesWithPrefix(
       Map<String, String> properties, String prefix) {
     if (properties == null || properties.isEmpty()) {
-      return ImmutableMap.of();
+      return Collections.emptyMap();
     }
 
     Preconditions.checkArgument(prefix != null, "Invalid prefix: null");

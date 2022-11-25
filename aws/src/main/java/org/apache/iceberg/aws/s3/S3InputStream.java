@@ -68,7 +68,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.awsProperties = awsProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }

@@ -27,11 +27,13 @@ on:
     - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
+    - '.github/ISSUE_TEMPLATE/iceberg_bug_report.yml'
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.gitignore'
+    - '.asf.yml'
     - 'dev/**'
     - 'python/**'
     - 'python_legacy/**'
@@ -64,9 +66,11 @@ jobs:
         java-version: ${{ matrix.jvm }}
     - uses: actions/cache@v3
       with:
-        path: ~/.gradle/caches
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-        restore-keys: ${{ runner.os }}-gradle
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc 
     - uses: actions/upload-artifact@v3
@@ -84,7 +88,7 @@ jobs:
       with:
         distribution: zulu
         java-version: 8
-    - run: ./gradlew -DflinkVersions=1.13,1.14,1.15 -DsparkVersions=2.4,3.0,3.1,3.2,3.3 -DhiveVersions=2,3 build -x test -x javadoc -x integrationTest
+    - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-20.04

@@ -79,6 +79,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
   private PartitionSpec unpartitionedSpec;
   private PartitionSpec partitionedSpec;
 
+  @Override
   protected abstract FileFormat fileFormat();
 
   @Setup

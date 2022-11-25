@@ -41,6 +41,15 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
    */
   MigrateTable tableProperty(String name, String value);
 
+  /**
+   * Drops the backup of the original table after a successful migration
+   *
+   * @return this for method chaining
+   */
+  default MigrateTable dropBackup() {
+    throw new UnsupportedOperationException("Dropping a backup is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */

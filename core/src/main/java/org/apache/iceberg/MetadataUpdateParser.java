@@ -126,7 +126,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
           .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
-          .build();
+          .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
     return toJson(metadataUpdate, false);
@@ -342,11 +342,7 @@ public class MetadataUpdateParser {
   // handles one value.
   private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshot update, JsonGenerator gen)
       throws IOException {
-    gen.writeArrayFieldStart(SNAPSHOT_IDS);
-    for (long snapshotId : ImmutableSet.of(update.snapshotId())) {
-      gen.writeNumber(snapshotId);
-    }
-    gen.writeEndArray();
+    JsonUtil.writeLongArray(SNAPSHOT_IDS, ImmutableSet.of(update.snapshotId()), gen);
   }
 
   private static void writeSetSnapshotRef(MetadataUpdate.SetSnapshotRef update, JsonGenerator gen)
@@ -461,8 +457,7 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {
     String refName = JsonUtil.getString(REF_NAME, node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type =
-        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type = SnapshotRefType.fromString(JsonUtil.getString(TYPE, node));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);

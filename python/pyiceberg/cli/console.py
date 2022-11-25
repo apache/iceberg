@@ -24,7 +24,6 @@ from click import Context
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
-from pyiceberg.io import load_file_io
 
 
 def catch_exception():
@@ -65,12 +64,7 @@ def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[st
         ctx.obj["output"] = JsonOutput(verbose=verbose)
 
     try:
-        try:
-            ctx.obj["catalog"] = load_catalog(catalog, **properties)
-        except ValueError as exc:
-            raise ValueError(
-                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
-            ) from exc
+        ctx.obj["catalog"] = load_catalog(catalog, **properties)
     except Exception as e:
         ctx.obj["output"].exception(e)
         ctx.exit(1)
@@ -147,8 +141,7 @@ def files(ctx: Context, identifier: str, history: bool):
     catalog, output = _catalog_and_output(ctx)
 
     catalog_table = catalog.load_table(identifier)
-    io = load_file_io({**catalog.properties, **catalog_table.metadata.properties})
-    output.files(catalog_table, io, history)
+    output.files(catalog_table, history)
 
 
 @run.command()

@@ -67,26 +67,6 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
     appender.add(row);
   }
 
-  /**
-   * Writes equality deletes.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(Iterable)} instead.
-   */
-  @Deprecated
-  public void deleteAll(Iterable<T> rows) {
-    appender.addAll(rows);
-  }
-
-  /**
-   * Writes an equality delete.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(Object)} instead.
-   */
-  @Deprecated
-  public void delete(T row) {
-    appender.add(row);
-  }
-
   @Override
   public long length() {
     return appender.length();

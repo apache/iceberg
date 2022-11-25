@@ -31,6 +31,7 @@ import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -91,27 +92,27 @@ public class TestTableMetadata {
   @Test
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             7,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -241,27 +242,27 @@ public class TestTableMetadata {
     Schema schema = new Schema(TableMetadata.INITIAL_SCHEMA_ID, TEST_SCHEMA.columns());
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+            manifestList);
 
     TableMetadata expected =
         new TableMetadata(
@@ -362,29 +363,30 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testInvalidMainBranch() {
+  public void testInvalidMainBranch() throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
+
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             7,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -432,18 +434,13 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testMainWithoutCurrent() {
+  public void testMainWithoutCurrent() throws IOException {
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
-        new BaseSnapshot(
-            snapshotId,
-            null,
-            snapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new BaseSnapshot(0, snapshotId, null, snapshotId, null, null, null, manifestList);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -539,11 +536,7 @@ public class TestTableMetadata {
       generator.writeFieldName(PARTITION_SPEC);
       PartitionSpecParser.toJsonFields(metadata.spec(), generator);
 
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-        generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
       generator.writeNumberField(
           CURRENT_SNAPSHOT_ID,
@@ -568,27 +561,27 @@ public class TestTableMetadata {
   @Test
   public void testJsonWithPreviousMetadataLog() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -630,29 +623,29 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testAddPreviousMetadataRemoveNone() {
+  public void testAddPreviousMetadataRemoveNone() throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
     long currentSnapshotId = System.currentTimeMillis();
+
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -714,29 +707,29 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testAddPreviousMetadataRemoveOne() {
+  public void testAddPreviousMetadataRemoveOne() throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -816,29 +809,29 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testAddPreviousMetadataRemoveMultiple() {
+  public void testAddPreviousMetadataRemoveMultiple() throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestList =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            previousSnapshotId,
-            null,
-            previousSnapshotId,
-            null,
-            null,
-            null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+
     long currentSnapshotId = System.currentTimeMillis();
+    manifestList =
+        createManifestListWithManifestFile(
+            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
         new BaseSnapshot(
+            0,
             currentSnapshotId,
             previousSnapshotId,
             currentSnapshotId,
             null,
             null,
             null,
-            ImmutableList.of(
-                new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+            manifestList);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -1388,7 +1381,7 @@ public class TestTableMetadata {
         twoSchemasTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id", 2, twoSchemasTable.lastColumnId());
 
-    // update schema with the the same schema and last column ID as current shouldn't cause change
+    // update schema with the same schema and last column ID as current shouldn't cause change
     Schema sameSchema2 =
         new Schema(
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
@@ -1396,7 +1389,7 @@ public class TestTableMetadata {
     TableMetadata sameSchemaTable = twoSchemasTable.updateSchema(sameSchema2, 2);
     Assert.assertSame("Should return same table metadata", twoSchemasTable, sameSchemaTable);
 
-    // update schema with the the same schema and different last column ID as current should create
+    // update schema with the same schema and different last column ID as current should create
     // a new table
     TableMetadata differentColumnIdTable = sameSchemaTable.updateSchema(sameSchema2, 3);
     Assert.assertEquals(
@@ -1567,5 +1560,19 @@ public class TestTableMetadata {
                 "/tmp",
                 ImmutableMap.of(TableProperties.UUID, "uuid"),
                 1));
+  }
+
+  private String createManifestListWithManifestFile(
+      long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
+    File manifestList = temp.newFile("manifests" + UUID.randomUUID());
+    manifestList.deleteOnExit();
+
+    try (ManifestListWriter writer =
+        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+      writer.addAll(
+          ImmutableList.of(new GenericManifestFile(localInput(manifestFile), SPEC_5.specId())));
+    }
+
+    return localInput(manifestList).location();
   }
 }

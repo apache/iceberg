@@ -101,7 +101,11 @@ public class TestManifestWriterVersions {
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+    checkEntry(
+        readManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA);
   }
 
   @Test
@@ -119,7 +123,7 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, 0L);
 
     // v1 should be read using sequence number 0 because it was missing from the manifest list file
-    checkEntry(readManifest(manifest), 0L, FileContent.DATA);
+    checkEntry(readManifest(manifest), 0L, 0L, FileContent.DATA);
   }
 
   @Test
@@ -127,7 +131,11 @@ public class TestManifestWriterVersions {
     ManifestFile manifest = writeManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+    checkEntry(
+        readManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA);
   }
 
   @Test
@@ -137,7 +145,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, FileContent.DATA);
+    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, SEQUENCE_NUMBER, FileContent.DATA);
   }
 
   @Test
@@ -146,7 +154,10 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
     checkEntry(
-        readDeleteManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.EQUALITY_DELETES);
+        readDeleteManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.EQUALITY_DELETES);
   }
 
   @Test
@@ -156,7 +167,11 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readDeleteManifest(manifest), SEQUENCE_NUMBER, FileContent.EQUALITY_DELETES);
+    checkEntry(
+        readDeleteManifest(manifest),
+        SEQUENCE_NUMBER,
+        SEQUENCE_NUMBER,
+        FileContent.EQUALITY_DELETES);
   }
 
   @Test
@@ -171,7 +186,7 @@ public class TestManifestWriterVersions {
     checkManifest(manifest2, 0L);
 
     // should not inherit the v2 sequence number because it was a rewrite
-    checkEntry(readManifest(manifest2), 0L, FileContent.DATA);
+    checkEntry(readManifest(manifest2), 0L, 0L, FileContent.DATA);
   }
 
   @Test
@@ -194,10 +209,18 @@ public class TestManifestWriterVersions {
     checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA);
   }
 
-  void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content) {
+  void checkEntry(
+      ManifestEntry<?> entry,
+      Long expectedDataSequenceNumber,
+      Long expectedFileSequenceNumber,
+      FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
-    Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
+    Assert.assertEquals(
+        "Data sequence number", expectedDataSequenceNumber, entry.dataSequenceNumber());
+    Assert.assertEquals("Sequence number", expectedDataSequenceNumber, entry.sequenceNumber());
+    Assert.assertEquals(
+        "File sequence number", expectedFileSequenceNumber, entry.fileSequenceNumber());
     checkDataFile(entry.file(), content);
   }
 
@@ -205,6 +228,7 @@ public class TestManifestWriterVersions {
       ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
+    Assert.assertEquals("Data sequence number", expectedSequenceNumber, entry.dataSequenceNumber());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }

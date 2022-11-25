@@ -37,7 +37,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -82,7 +82,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final FileType content;
-  private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
@@ -93,12 +92,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
-  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.noop();
+  private ScanMetrics scanMetrics = ScanMetrics.noop();
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
+  /**
+   * @deprecated Will be removed in 1.2.0, use {@link ManifestReader#ManifestReader(InputFile, int,
+   *     Map, InheritableMetadata, FileType)}.
+   */
+  @Deprecated
   protected ManifestReader(
       InputFile file,
       Map<Integer, PartitionSpec> specsById,
@@ -108,18 +112,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     this.inheritableMetadata = inheritableMetadata;
     this.content = content;
 
-    try {
-      try (AvroIterable<ManifestEntry<F>> headerReader =
-          Avro.read(file)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .classLoader(GenericManifestEntry.class.getClassLoader())
-              .build()) {
-        this.metadata = headerReader.getMetadata();
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
-
+    Map<String, String> metadata = readMetadata(file);
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
     if (specProperty != null) {
@@ -135,6 +128,54 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     }
 
     this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      FileType content) {
+    this.file = file;
+    this.inheritableMetadata = inheritableMetadata;
+    this.content = content;
+
+    if (specsById != null) {
+      this.spec = specsById.get(specId);
+    } else {
+      this.spec = readPartitionSpec(file);
+    }
+
+    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  }
+
+  private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
+    Map<String, String> metadata = readMetadata(inputFile);
+
+    int specId = TableMetadata.INITIAL_SPEC_ID;
+    String specProperty = metadata.get("partition-spec-id");
+    if (specProperty != null) {
+      specId = Integer.parseInt(specProperty);
+    }
+
+    Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+    return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+  }
+
+  private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    Map<String, String> metadata;
+    try {
+      try (AvroIterable<ManifestEntry<T>> headerReader =
+          Avro.read(inputFile)
+              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+              .classLoader(GenericManifestEntry.class.getClassLoader())
+              .build()) {
+        metadata = headerReader.getMetadata();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+    return metadata;
   }
 
   public boolean isDeleteManifestReader() {
@@ -188,7 +229,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return this;
   }
 
-  ManifestReader<F> scanMetrics(ScanReport.ScanMetrics newScanMetrics) {
+  ManifestReader<F> scanMetrics(ScanMetrics newScanMetrics) {
     this.scanMetrics = newScanMetrics;
     return this;
   }
@@ -268,8 +309,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
-    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats(columns)))
-        .iterator();
+    boolean dropStats = dropStats(columns);
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
   private static Schema projection(

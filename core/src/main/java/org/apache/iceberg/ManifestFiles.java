@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
@@ -25,15 +27,22 @@ import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ManifestFiles {
   private ManifestFiles() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestFiles.class);
 
   private static final org.apache.avro.Schema MANIFEST_AVRO_SCHEMA =
       AvroSchemaUtil.convert(
@@ -43,6 +52,36 @@ public class ManifestFiles {
               GenericManifestFile.class.getName(),
               ManifestFile.PARTITION_SUMMARY_TYPE,
               GenericPartitionFieldSummary.class.getName()));
+
+  @VisibleForTesting
+  static Caffeine<Object, Object> newManifestCacheBuilder() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .softValues()
+        .maximumSize(maxFileIO())
+        .removalListener(
+            (io, contentCache, cause) ->
+                LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
+        .recordStats();
+  }
+
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
+      newManifestCacheBuilder().build();
+
+  @VisibleForTesting
+  static ContentCache contentCache(FileIO io) {
+    return CONTENT_CACHES.get(
+        io,
+        fileIO ->
+            new ContentCache(
+                cacheDurationMs(fileIO), cacheTotalBytes(fileIO), cacheMaxContentLength(fileIO)));
+  }
+
+  /** Drop manifest file cache object for a FileIO if exists. */
+  public static synchronized void dropCache(FileIO fileIO) {
+    CONTENT_CACHES.invalidate(fileIO);
+    CONTENT_CACHES.cleanUp();
+  }
 
   /**
    * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
@@ -86,9 +125,10 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
         manifest);
-    InputFile file = io.newInputFile(manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
-    return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
+    return new ManifestReader<>(
+        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
   }
 
   /**
@@ -140,9 +180,10 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s",
         manifest);
-    InputFile file = io.newInputFile(manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
-    return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
+    return new ManifestReader<>(
+        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
 
   /**
@@ -209,6 +250,7 @@ public class ManifestFiles {
 
   static ManifestFile copyAppendManifest(
       int formatVersion,
+      int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       OutputFile outputFile,
@@ -217,7 +259,7 @@ public class ManifestFiles {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           reader,
@@ -232,6 +274,7 @@ public class ManifestFiles {
 
   static ManifestFile copyRewriteManifest(
       int formatVersion,
+      int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       OutputFile outputFile,
@@ -241,7 +284,7 @@ public class ManifestFiles {
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           reader,
@@ -299,5 +342,68 @@ public class ManifestFiles {
     }
 
     return writer.toManifestFile();
+  }
+
+  private static InputFile newInputFile(FileIO io, String path, long length) {
+    boolean enabled;
+
+    try {
+      enabled = cachingEnabled(io);
+    } catch (UnsupportedOperationException e) {
+      // There is an issue reading io.properties(). Disable caching.
+      enabled = false;
+    }
+
+    if (enabled) {
+      ContentCache cache = contentCache(io);
+      Preconditions.checkNotNull(
+          cache,
+          "ContentCache creation failed. Check that all manifest caching configurations has valid value.");
+      LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
+      return cache.tryCache(io, path, length);
+    }
+
+    // caching is not enable for this io or caught RuntimeException.
+    return io.newInputFile(path, length);
+  }
+
+  private static int maxFileIO() {
+    String value = System.getProperty(SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO);
+    if (value != null) {
+      try {
+        return Integer.parseUnsignedInt(value);
+      } catch (NumberFormatException e) {
+        // will return the default
+      }
+    }
+    return SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
+  }
+
+  static boolean cachingEnabled(FileIO io) {
+    return PropertyUtil.propertyAsBoolean(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_ENABLED,
+        CatalogProperties.IO_MANIFEST_CACHE_ENABLED_DEFAULT);
+  }
+
+  static long cacheDurationMs(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS,
+        CatalogProperties.IO_MANIFEST_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+  }
+
+  static long cacheTotalBytes(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES,
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_TOTAL_BYTES_DEFAULT);
+  }
+
+  static long cacheMaxContentLength(FileIO io) {
+    return PropertyUtil.propertyAsLong(
+        io.properties(),
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH,
+        CatalogProperties.IO_MANIFEST_CACHE_MAX_CONTENT_LENGTH_DEFAULT);
   }
 }

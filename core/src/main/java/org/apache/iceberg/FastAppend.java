@@ -133,11 +133,25 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
+        manifest.partitionSpecId(),
         toCopy,
         current.specsById(),
         newManifestPath,
         snapshotId(),
         summaryBuilder);
+  }
+
+  /**
+   * Apply the update's changes to the base table metadata and return the new manifest list.
+   *
+   * @param base the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
+   * @deprecated Will be removed in 1.2.0, use {@link FastAppend#apply(TableMetadata, Snapshot)}.
+   */
+  @Deprecated
+  @Override
+  public List<ManifestFile> apply(TableMetadata base) {
+    return super.apply(base);
   }
 
   @Override
@@ -197,7 +211,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifest == null && newFiles.size() > 0) {
-      ManifestWriter writer = newManifestWriter(spec);
+      ManifestWriter<DataFile> writer = newManifestWriter(spec);
       try {
         writer.addAll(newFiles);
       } finally {

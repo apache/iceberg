@@ -260,6 +260,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
+        manifest.partitionSpecId(),
         toCopy,
         current.specsById(),
         newManifestPath,
@@ -755,6 +756,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT,
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
     return summaryBuilder.build();
+  }
+
+  /**
+   * Apply the update's changes to the base table metadata and return the new manifest list.
+   *
+   * @param base the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
+   * @deprecated Will be removed in 1.2.0, use {@link MergingSnapshotProducer#apply(TableMetadata,
+   *     Snapshot)}.
+   */
+  @Deprecated
+  @Override
+  public List<ManifestFile> apply(TableMetadata base) {
+    return super.apply(base);
   }
 
   @Override

@@ -144,7 +144,7 @@ public abstract class BaseTestIceberg {
     if (null != hash) {
       options.put("ref.hash", hash);
     }
-    newCatalog.initialize("nessie", options.build());
+    newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;
   }
 

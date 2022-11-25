@@ -82,7 +82,8 @@ subprojects {
           '-Xep:TypeParameterUnusedInFormals:OFF',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
           // Enforce hashCode over hash
-          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR'
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:PreferSafeLogger:OFF',
       )
     }
   }
