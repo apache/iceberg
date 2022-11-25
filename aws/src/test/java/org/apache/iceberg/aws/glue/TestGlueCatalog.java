@@ -167,7 +167,8 @@ public class TestGlueCatalog {
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     catalogWithCustomCatalogId.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
     Mockito.verify(glue)
-        .getDatabase(Mockito.argThat((GetDatabaseRequest req) -> req.catalogId() == catalogId));
+        .getDatabase(
+            Mockito.argThat((GetDatabaseRequest req) -> req.catalogId().equals(catalogId)));
   }
 
   @Test
