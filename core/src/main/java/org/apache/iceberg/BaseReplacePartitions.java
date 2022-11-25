@@ -79,20 +79,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
     return this;
   }
 
-  /**
-   * Validate the current metadata.
-   *
-   * <p>Child operations can override this to add custom validation.
-   *
-   * @param currentMetadata current table metadata to validate
-   * @deprecated Will be removed in 1.2.0, use {@link SnapshotProducer#validate(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  public void validate(TableMetadata currentMetadata) {
-    super.validate(currentMetadata);
-  }
-
   @Override
   public void validate(TableMetadata currentMetadata, Snapshot snapshot) {
     if (validateConflictingData) {
@@ -112,20 +98,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
         validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
       }
     }
-  }
-
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param base the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   * @deprecated Will be removed in 1.2.0, use {@link BaseReplacePartitions#apply(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    return super.apply(base);
   }
 
   @Override

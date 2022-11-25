@@ -104,27 +104,6 @@ interface ManifestEntry<F extends ContentFile<F>> {
   void setDataSequenceNumber(long dataSequenceNumber);
 
   /**
-   * Returns the data sequence number of the file if the entry status is ADDED or EXISTING.
-   * Otherwise, returns the sequence number of the snapshot in which the file was removed.
-   *
-   * <p>Note that usage of this method should be avoided as it behaves inconsistently for different
-   * entry statutes. Use {@link #dataSequenceNumber()} instead.
-   *
-   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #dataSequenceNumber()} instead.
-   */
-  @Deprecated
-  Long sequenceNumber();
-
-  /**
-   * Set the sequence number for this manifest entry.
-   *
-   * @param sequenceNumber a sequence number
-   * @deprecated since 1.0.0, will be removed in 1.1.0; use the data sequence number instead.
-   */
-  @Deprecated
-  void setSequenceNumber(long sequenceNumber);
-
-  /**
    * Returns the file sequence number.
    *
    * <p>The file sequence number represents the sequence number of the snapshot in which the
