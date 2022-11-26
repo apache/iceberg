@@ -407,6 +407,10 @@ class DecimalLiteral(Literal[Decimal]):
     def _(self, _: IntegerType) -> Literal[int]:
         return LongLiteral(int(self.value.to_integral_value()))
 
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return LongLiteral(int(self.value.to_integral_value()))
+
     @to.register(FloatType)
     def _(self, _: FloatType):
         return FloatLiteral(float(self.value))
