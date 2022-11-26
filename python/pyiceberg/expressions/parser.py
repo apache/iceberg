@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from pyparsing import (
     CaselessKeyword,
+    Group,
     ParserElement,
     ParseResults,
     Suppress,
@@ -33,6 +34,8 @@ from pyparsing import (
 from pyparsing.common import pyparsing_common as common
 
 from pyiceberg.expressions import (
+    AlwaysFalse,
+    AlwaysTrue,
     And,
     BooleanExpression,
     EqualTo,
@@ -57,6 +60,7 @@ from pyiceberg.expressions.literals import (
     LongLiteral,
     StringLiteral,
 )
+from pyiceberg.typedef import L
 
 ParserElement.enablePackrat()
 
@@ -77,11 +81,20 @@ def _(result: ParseResults):
     return Reference(result.column[0])
 
 
-string = sgl_quoted_string.copy().set_results_name("raw_quoted_string")
-decimal = common.real().copy().set_results_name("decimal")
-integer = common.signed_integer().copy().set_results_name("integer")
-literal = (string | decimal | integer).set_results_name("literal")
-literal_set = (delimited_list(string) | delimited_list(decimal) | delimited_list(integer)).set_results_name("literal_set")
+boolean = one_of(["true", "false"], caseless=True).set_results_name("boolean")
+string = sgl_quoted_string.set_results_name("raw_quoted_string")
+decimal = common.real().set_results_name("decimal")
+integer = common.signed_integer().set_results_name("integer")
+literal = Group(string | decimal | integer).set_results_name("literal")
+literal_set = Group(delimited_list(string) | delimited_list(decimal) | delimited_list(integer)).set_results_name("literal_set")
+
+
+@boolean.set_parse_action
+def _(result: ParseResults) -> BooleanExpression:
+    if "true" == result.boolean.lower():
+        return AlwaysTrue()
+    else:
+        return AlwaysFalse()
 
 
 @string.set_parse_action
@@ -97,6 +110,16 @@ def _(result: ParseResults) -> Literal[Decimal]:
 @integer.set_parse_action
 def _(result: ParseResults) -> Literal[int]:
     return LongLiteral(int(result.integer))
+
+
+@literal.set_parse_action
+def _(result: ParseResults) -> Literal[L]:
+    return result[0][0]
+
+
+@literal_set.set_parse_action
+def _(result: ParseResults) -> Literal[L]:
+    return result[0]
 
 
 comparison_op = one_of(["<", "<=", ">", ">=", "=", "==", "!=", "<>"], caseless=True).set_results_name("op")
@@ -184,7 +207,7 @@ def _(result: ParseResults) -> BooleanExpression:
     return NotIn(result.column, result.literal_set)
 
 
-predicate = (comparison | in_check | null_check | nan_check).set_results_name("predicate")
+predicate = (comparison | in_check | null_check | nan_check | boolean).set_results_name("predicate")
 
 
 def handle_not(result: ParseResults) -> Not:

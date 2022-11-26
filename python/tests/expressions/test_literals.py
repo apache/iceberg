@@ -667,10 +667,6 @@ def test_invalid_decimal_conversions():
         literal(Decimal("34.11")),
         [
             BooleanType(),
-            IntegerType(),
-            LongType(),
-            FloatType(),
-            DoubleType(),
             DateType(),
             TimeType(),
             TimestampType(),
