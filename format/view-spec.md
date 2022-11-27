@@ -36,7 +36,7 @@ Each compute engine stores the metadata of the view in its proprietary format in
 ## Overview
 
 View metadata storage mirrors how Iceberg table metadata is stored and retrieved. View metadata is maintained in metadata files. All changes to view state create a new view metadata file and completely replace the old metadata using an atomic swap. Like Iceberg tables, this atomic swap is delegated to the metastore that tracks tables and/or views by name. The view metadata file tracks the view schema, custom properties, current and past versions, as well as other metadata.
-Each metadata file is self-sufficient. It contains the history of the last few operations performed on the view. The view can be roll back to a previous version using these version ids.
+Each metadata file is self-sufficient. It contains the history of the last few operations performed on the view and can be used to roll back the view to a previous version.
 
 ### Metadata Location
 
@@ -58,7 +58,7 @@ The view version metadata file has the following fields:
 | Required/Optional | Field Name | Description |
 |-------------------|------------|-------------|
 | Required | format-version | An integer version number for the view format. Currently, this must be 1. Implementations must throw an exception if the view's version is higher than the supported version. |
-| Required | location | The view's base location. This is used to determine where to store the view metadata files. |
+| Required | location | The view's base location. This is used to determine where to store view metadata files. |
 | Required | current-version-id | Current version of the view. Set to ‘1’ when the view is first created. |
 | Optional | properties | A string to string map of view properties. This is used for metadata such as "comment" and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata. |
 | Required | versions | An array of structs describing the known versions of the view. The number of versions to retain is controlled by the table property: “version.history.num-entries”. See section [Versions](#versions). |
