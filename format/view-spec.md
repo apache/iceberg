@@ -32,9 +32,6 @@ Each compute engine stores the metadata of the view in its proprietary format in
 ## Goals
 
 * A common metadata format for view metadata, similar to how Iceberg supports a common table format for tables.
-* The view metadata format specification
-  * Includes storage format as well as APIs to write/read the metadata.
-  * Supports versioning of views to track how a view evolved over time.
 
 ## Overview
 
@@ -61,10 +58,10 @@ The view version metadata file has the following fields:
 | Required/Optional | Field Name | Description |
 |-------------------|------------|-------------|
 | Required | format-version | An integer version number for the view format. Currently, this must be 1. Implementations must throw an exception if the view's version is higher than the supported version. |
-| Required | location | The view's base location. This is used to determine where to store manifest files and view metadata files. |
+| Required | location | The view's base location. This is used to determine where to store view metadata files. |
 | Required | current-version-id | Current version of the view. Set to ‘1’ when the view is first created. |
 | Optional | properties | A string to string map of view properties. This is used for metadata such as "comment" and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata. |
-| Required | versions | An array of structs describing the last known versions of the view. Controlled by the table property: “version.history.num-entries”. See section [Versions](#versions). |
+| Required | versions | An array of structs describing the known versions of the view. The number of versions to retain is controlled by the table property: “version.history.num-entries”. See section [Versions](#versions). |
 | Required | version-log | A list of timestamp and version ID pairs that encodes changes to the current version for the view. Each time the current-version-id is changed, a new entry should be added with the last-updated-ms and the new current-version-id. |
 | Optional | schemas | A list of schemas, the same as the ‘schemas’ field from Iceberg table spec. |
 | Optional | current-schema-id | ID of the current schema of the view |
@@ -102,7 +99,6 @@ Field “summary” is a string map with the following keys. Only `operation` is
 
 Each representation is stored as an object with only one common field "type".
 The rest of the fields are interpreted based on the type.
-There is only one type of representation defined in the spec.
 
 ##### Original View Definition in SQL
 
