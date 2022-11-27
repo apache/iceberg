@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from io import SEEK_SET
+from io import SEEK_SET, BufferedReader
 from typing import Optional, Type
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
@@ -131,7 +131,7 @@ class AvroFile:
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = self.input_file.open()
+        self.input_stream = BufferedReader(self.input_file.open())
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
