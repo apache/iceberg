@@ -29,7 +29,12 @@ from typing import (
     Union,
 )
 
-from pyiceberg.expressions.literals import Literal, literal
+from pyiceberg.expressions.literals import (
+    AboveMax,
+    BelowMin,
+    Literal,
+    literal,
+)
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.typedef import L, StructProtocol
 from pyiceberg.types import DoubleType, FloatType, NestedField
@@ -608,7 +613,20 @@ class LiteralPredicate(UnboundPredicate[L], ABC):
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundLiteralPredicate[L]:
         bound_term = self.term.bind(schema, case_sensitive)
-        return self.as_bound(bound_term, self.literal.to(bound_term.ref().field.field_type))
+        lit = self.literal.to(bound_term.ref().field.field_type)
+
+        if isinstance(lit, AboveMax):
+            if isinstance(self, (LessThan, LessThanOrEqual, NotEqualTo)):
+                return AlwaysTrue()  # type: ignore
+            elif isinstance(self, (GreaterThan, GreaterThanOrEqual, EqualTo)):
+                return AlwaysFalse()  # type: ignore
+        elif isinstance(lit, BelowMin):
+            if isinstance(self, (GreaterThan, GreaterThanOrEqual, NotEqualTo)):
+                return AlwaysTrue()  # type: ignore
+            elif isinstance(self, (LessThan, LessThanOrEqual, EqualTo)):
+                return AlwaysFalse()  # type: ignore
+
+        return self.as_bound(bound_term, lit)
 
     def __eq__(self, other):
         if isinstance(other, LiteralPredicate):
