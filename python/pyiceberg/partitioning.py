@@ -141,7 +141,7 @@ class PartitionSpec(IcebergBaseModel):
         return source_id_to_fields_map
 
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self.source_id_to_fields_map[field_id]
+        return self.source_id_to_fields_map.get(field_id, [])
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """

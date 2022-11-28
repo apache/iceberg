@@ -17,6 +17,7 @@
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
+    Any,
     Callable,
     Generic,
     List,
@@ -689,3 +690,66 @@ def manifest_evaluator(
     partition_schema = Schema(*partition_type.fields)
     evaluator = _ManifestEvalVisitor(partition_schema, partition_filter, case_sensitive)
     return evaluator.eval
+
+
+class ProjectionEvaluator(BooleanExpressionVisitor[BooleanExpression], ABC):
+    schema: Schema
+    spec: PartitionSpec
+    case_sensitive: bool
+
+    def __init__(self, schema: Schema, spec: PartitionSpec, case_sensitive: bool):
+        self.schema = schema
+        self.spec = spec
+        self.case_sensitive = case_sensitive
+
+    def project(self, expr: BooleanExpression) -> BooleanExpression:
+        #  projections assume that there are no NOT nodes in the expression tree. to ensure that this
+        #  is the case, the expression is rewritten to push all NOT nodes down to the expression
+        #  leaf nodes.
+        #  this is necessary to ensure that the default expression returned when a predicate can't be
+        #  projected is correct.
+        return visit(bind(self.schema, rewrite_not(expr), self.case_sensitive), self)
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        raise ValueError(f"Cannot project not expression, should be rewritten: {child_result}")
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left_result, right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left_result, right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
+        raise ValueError(f"Cannot project unbound predicate: {predicate}")
+
+
+class InclusiveProjection(ProjectionEvaluator):
+    def visit_bound_predicate(self, predicate: BoundPredicate[Any]) -> BooleanExpression:
+        parts = self.spec.fields_by_source_id(predicate.term.ref().field.field_id)
+
+        result: BooleanExpression = AlwaysTrue()
+        for part in parts:
+            # consider (d = 2019-01-01) with bucket(7, d) and bucket(5, d)
+            # projections: b1 = bucket(7, '2019-01-01') = 5, b2 = bucket(5, '2019-01-01') = 0
+            # any value where b1 != 5 or any value where b2 != 0 cannot be the '2019-01-01'
+            #
+            # similarly, if partitioning by day(ts) and hour(ts), the more restrictive
+            # projection should be used. ts = 2019-01-01T01:00:00 produces day=2019-01-01 and
+            # hour=2019-01-01-01. the value will be in 2019-01-01-01 and not in 2019-01-01-02.
+            incl_projection = part.transform.project(name=part.name, pred=predicate)
+            if incl_projection is not None:
+                result = And(result, incl_projection)
+
+        return result
+
+
+def inclusive_projection(
+    schema: Schema, spec: PartitionSpec, case_sensitive: bool = True
+) -> Callable[[BooleanExpression], BooleanExpression]:
+    return InclusiveProjection(schema, spec, case_sensitive).project

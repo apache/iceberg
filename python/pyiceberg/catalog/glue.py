@@ -38,7 +38,7 @@ from pyiceberg.catalog import (
     METADATA_LOCATION,
     PREVIOUS_METADATA,
     TABLE_TYPE,
-    WAREHOUSE,
+    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -191,7 +191,7 @@ class GlueCatalog(Catalog):
             database_location = database_location.rstrip("/")
             return f"{database_location}/{table_name}"
 
-        if warehouse_path := self.properties.get(WAREHOUSE):
+        if warehouse_path := self.properties.get(WAREHOUSE_LOCATION):
             warehouse_path = warehouse_path.rstrip("/")
             return f"{warehouse_path}/{database_name}.db/{table_name}"
 

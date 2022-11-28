@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
@@ -36,6 +37,7 @@ enum Timestamps implements Transform<Long, Integer> {
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
+  @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit granularity;
 
@@ -66,7 +68,7 @@ enum Timestamps implements Transform<Long, Integer> {
 
   private final ChronoUnit granularity;
   private final String name;
-  private final SerializableFunction<Long, Integer> apply;
+  private final Apply apply;
 
   Timestamps(ChronoUnit granularity, String name) {
     this.granularity = granularity;

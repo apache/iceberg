@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
@@ -35,6 +36,7 @@ enum Dates implements Transform<Integer, Integer> {
   MONTH(ChronoUnit.MONTHS, "month"),
   DAY(ChronoUnit.DAYS, "day");
 
+  @Immutable
   static class Apply implements SerializableFunction<Integer, Integer> {
     private final ChronoUnit granularity;
 
