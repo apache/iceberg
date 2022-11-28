@@ -156,7 +156,11 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private void addColumn(int parentId, Types.NestedField field) {
     String parentName = partnerSchema.findColumnName(parentId);
-    api.addColumn(parentName, field.name(), field.type(), field.doc());
+    if (field.isOptional()) {
+      api.addColumn(parentName, field.name(), field.type(), field.doc());
+    } else {
+      api.addRequiredColumn(parentName, field.name(), field.type(), field.doc());
+    }
   }
 
   private void updateColumn(Types.NestedField field, Types.NestedField existingField) {
