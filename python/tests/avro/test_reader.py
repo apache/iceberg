@@ -71,7 +71,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
         "name": "manifest_entry",
         "fields": [
             {"field-id": 0, "name": "status", "type": "int"},
-            {"field-id": 1, "default": "null", "name": "snapshot_id", "type": ["null", "long"]},
+            {"field-id": 1, "default": None, "name": "snapshot_id", "type": ["null", "long"]},
             {
                 "field-id": 2,
                 "name": "data_file",
@@ -92,7 +92,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"field-id": 1000, "default": "null", "name": "VendorID", "type": ["null", "int"]}],
+                                "fields": [{"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]}],
                             },
                         },
                         {"field-id": 103, "doc": "Number of records in the file", "name": "record_count", "type": "long"},
@@ -101,7 +101,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 108,
                             "doc": "Map of column id to total size on disk",
-                            "default": "null",
+                            "default": None,
                             "name": "column_sizes",
                             "type": [
                                 "null",
@@ -122,7 +122,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 109,
                             "doc": "Map of column id to total count, including null and NaN",
-                            "default": "null",
+                            "default": None,
                             "name": "value_counts",
                             "type": [
                                 "null",
@@ -143,7 +143,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 110,
                             "doc": "Map of column id to null value count",
-                            "default": "null",
+                            "default": None,
                             "name": "null_value_counts",
                             "type": [
                                 "null",
@@ -164,7 +164,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 137,
                             "doc": "Map of column id to number of NaN values in the column",
-                            "default": "null",
+                            "default": None,
                             "name": "nan_value_counts",
                             "type": [
                                 "null",
@@ -185,7 +185,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 125,
                             "doc": "Map of column id to lower bound",
-                            "default": "null",
+                            "default": None,
                             "name": "lower_bounds",
                             "type": [
                                 "null",
@@ -206,7 +206,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 128,
                             "doc": "Map of column id to upper bound",
-                            "default": "null",
+                            "default": None,
                             "name": "upper_bounds",
                             "type": [
                                 "null",
@@ -227,21 +227,21 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 131,
                             "doc": "Encryption key metadata blob",
-                            "default": "null",
+                            "default": None,
                             "name": "key_metadata",
                             "type": ["null", "bytes"],
                         },
                         {
                             "field-id": 132,
                             "doc": "Splittable offsets",
-                            "default": "null",
+                            "default": None,
                             "name": "split_offsets",
                             "type": ["null", {"element-id": 133, "type": "array", "items": "long"}],
                         },
                         {
                             "field-id": 140,
                             "doc": "Sort order ID",
-                            "default": "null",
+                            "default": None,
                             "name": "sort_order_id",
                             "type": ["null", "int"],
                         },
