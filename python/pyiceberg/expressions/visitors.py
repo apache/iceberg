@@ -710,7 +710,7 @@ class ProjectionEvaluator(BooleanExpressionVisitor[BooleanExpression], ABC):
         #  leaf nodes.
         #  this is necessary to ensure that the default expression returned when a predicate can't be
         #  projected is correct.
-        return rewrite_not(expr)
+        return visit(bind(self.schema, rewrite_not(expr), self.case_sensitive), self)
 
     def visit_true(self) -> BooleanExpression:
         return AlwaysTrue()
@@ -719,7 +719,7 @@ class ProjectionEvaluator(BooleanExpressionVisitor[BooleanExpression], ABC):
         return AlwaysFalse()
 
     def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
-        raise NotImplementedError(f"Should not happen as the expression is rewritten: {child_result}")
+        raise ValueError(f"Cannot project not expression, should be rewritten: {child_result}")
 
     def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         return And(left_result, right_result)
@@ -728,9 +728,7 @@ class ProjectionEvaluator(BooleanExpressionVisitor[BooleanExpression], ABC):
         return Or(left_result, right_result)
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
-        partition_type = self.spec.partition_type(self.schema)
-        partition_schema = Schema(*partition_type.fields)
-        return predicate.bind(schema=partition_schema, case_sensitive=self.case_sensitive)
+        raise ValueError(f"Cannot project unbound predicate: {predicate}")
 
 
 class InclusiveProjection(ProjectionEvaluator):
@@ -754,6 +752,6 @@ class InclusiveProjection(ProjectionEvaluator):
 
 
 def inclusive_projection(
-    expr: BooleanExpression, schema: Schema, spec: PartitionSpec, case_sensitive: bool = True
-) -> BooleanExpression:
-    return visit(expr, InclusiveProjection(schema, spec, case_sensitive))
+    schema: Schema, spec: PartitionSpec, case_sensitive: bool = True
+) -> Callable[[BooleanExpression], BooleanExpression]:
+    return InclusiveProjection(schema, spec, case_sensitive).project

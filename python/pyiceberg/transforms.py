@@ -534,12 +534,12 @@ class IdentityTransform(Transform[S, S]):
             return _project_transform_predicate(self, name, pred)
         elif isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
-        elif isinstance(pred, BoundEqualTo):
+        elif isinstance(pred, BoundLiteralPredicate):
             return pred.as_unbound(Reference(name), pred.literal)
         elif isinstance(pred, (BoundIn, BoundNotIn)):
             return pred.as_unbound(Reference(name), pred.literals)
         else:
-            raise ValueError(f"Could not project: {self}")
+            raise ValueError(f"Could not project: {pred}")
 
     @property
     def preserves_order(self) -> bool:
@@ -600,16 +600,14 @@ class TruncateTransform(Transform[S, S]):
 
         if isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundIn):
+            return _set_apply_transform(name, pred, self.transform(field_type))
         elif isinstance(field_type, (IntegerType, LongType, DecimalType)):
             if isinstance(pred, BoundLiteralPredicate):
                 return _truncate_number(name, pred, self.transform(field_type))
-            elif isinstance(pred, BoundIn):
-                return _set_apply_transform(name, pred, self.transform(field_type))
         elif isinstance(field_type, (BinaryType, StringType)):
             if isinstance(pred, BoundLiteralPredicate):
                 return _truncate_array(name, pred, self.transform(field_type))
-            elif isinstance(pred, BoundIn):
-                return _set_apply_transform(name, pred, self.transform(field_type))
         return None
 
     @property
