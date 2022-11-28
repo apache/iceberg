@@ -20,7 +20,6 @@ package org.apache.iceberg.orc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +30,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestORCFileIOProxies {
@@ -45,12 +45,13 @@ public class TestORCFileIOProxies {
     assertNotNull(is);
 
     // Cannot use the filesystem for any other operation
-    assertThrows(
-        UnsupportedOperationException.class,
-        () -> ifs.getFileStatus(new Path(localFile.location())));
+    Assertions.assertThatThrownBy(() -> ifs.getFileStatus(new Path(localFile.location())))
+        .isInstanceOf(UnsupportedOperationException.class);
 
     // Cannot use the filesystem for any other path
-    assertThrows(IllegalArgumentException.class, () -> ifs.open(new Path("/tmp/dummy")));
+    Assertions.assertThatThrownBy(() -> ifs.open(new Path("/tmp/dummy")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Input /tmp/dummy does not equal expected");
   }
 
   @Test
@@ -66,10 +67,12 @@ public class TestORCFileIOProxies {
       os.write('C');
     }
     // No other operation is supported
-    assertThrows(
-        UnsupportedOperationException.class, () -> ofs.open(new Path(outputFile.location())));
+    Assertions.assertThatThrownBy(() -> ofs.open(new Path(outputFile.location())))
+        .isInstanceOf(UnsupportedOperationException.class);
     // No other path is supported
-    assertThrows(IllegalArgumentException.class, () -> ofs.create(new Path("/tmp/dummy")));
+    Assertions.assertThatThrownBy(() -> ofs.create(new Path("/tmp/dummy")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Input /tmp/dummy does not equal expected");
 
     FileSystem ifs = new ORC.InputFileSystem(outputFile.toInputFile());
     try (InputStream is = ifs.open(new Path(outputFile.location()))) {

@@ -48,11 +48,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
 import org.apache.orc.StripeInformation;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
 public class TestOrcDataWriter {
@@ -137,23 +137,14 @@ public class TestOrcDataWriter {
   }
 
   @Test
-  public void testNoSupportForDummyScheme() throws IOException {
-    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
-    Assertions.assertThrows(
-        RuntimeIOException.class,
-        () -> HadoopOutputFile.fromPath(new Path(outFile.location()), new Configuration()),
-        "No FileSystem for scheme \"dummy\"");
-  }
-
-  @Test
   public void testUsingFileIO() throws IOException {
     // Show that FileSystem access is not possible for the file we are supplying as the scheme
     // dummy is not handled
     ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
-    Assertions.assertThrows(
-        RuntimeIOException.class,
-        () -> HadoopOutputFile.fromPath(new Path(outFile.location()), new Configuration()),
-        "No FileSystem for scheme \"dummy\"");
+    Assertions.assertThatThrownBy(
+            () -> HadoopOutputFile.fromPath(new Path(outFile.location()), new Configuration()))
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageStartingWith("Failed to get file system for path: dummy");
 
     // We are creating the proxy
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
