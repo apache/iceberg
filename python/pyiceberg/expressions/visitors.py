@@ -506,7 +506,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: List[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True):
+    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive):
         self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
 
     def eval(self, manifest: ManifestFile) -> bool:
