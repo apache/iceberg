@@ -185,7 +185,7 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
-def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool = True) -> BooleanExpression:
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
     """Travers over an expression to bind the predicates to the schema
 
     Args:
@@ -213,7 +213,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     schema: Schema
     case_sensitive: bool
 
-    def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
+    def __init__(self, schema: Schema, case_sensitive: bool) -> None:
         self.schema = schema
         self.case_sensitive = case_sensitive
 
@@ -420,9 +420,7 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return predicate
 
 
-def expression_evaluator(
-    schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True
-) -> Callable[[StructProtocol], bool]:
+def expression_evaluator(schema: Schema, unbound: BooleanExpression, case_sensitive: bool) -> Callable[[StructProtocol], bool]:
     return _ExpressionEvaluator(schema, unbound, case_sensitive).eval
 
 
@@ -430,7 +428,7 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
     bound: BooleanExpression
     struct: StructProtocol
 
-    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True):
+    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool):
         self.bound = bind(schema, unbound, case_sensitive)
 
     def eval(self, struct: StructProtocol) -> bool:

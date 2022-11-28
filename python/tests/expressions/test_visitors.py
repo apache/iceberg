@@ -289,7 +289,7 @@ def test_bind_visitor_already_bound(table_schema_simple: Schema):
         literal=literal("hello"),
     )
     with pytest.raises(TypeError) as exc_info:
-        visit(bound, visitor=BindVisitor(schema=table_schema_simple))
+        visit(bound, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert (
         "Found already bound predicate: BoundEqualTo(term=BoundReference(field=NestedField(field_id=1, name='foo', field_type=StringType(), required=False), accessor=Accessor(position=0,inner=None)), literal=literal('hello'))"
         == str(exc_info.value)
@@ -305,28 +305,28 @@ def test_visit_bound_visitor_unknown_predicate():
 def test_always_true_expression_binding(table_schema_simple: Schema):
     """Test that visiting an always-true expression returns always-true"""
     unbound_expression = AlwaysTrue()
-    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysTrue()
 
 
 def test_always_false_expression_binding(table_schema_simple: Schema):
     """Test that visiting an always-false expression returns always-false"""
     unbound_expression = AlwaysFalse()
-    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysFalse()
 
 
 def test_always_false_and_always_true_expression_binding(table_schema_simple: Schema):
     """Test that visiting both an always-true AND always-false expression returns always-false"""
     unbound_expression = And(AlwaysTrue(), AlwaysFalse())
-    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysFalse()
 
 
 def test_always_false_or_always_true_expression_binding(table_schema_simple: Schema):
     """Test that visiting always-true OR always-false expression returns always-true"""
     unbound_expression = Or(AlwaysTrue(), AlwaysFalse())
-    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysTrue()
 
 
@@ -397,7 +397,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
 )
 def test_and_expression_binding(unbound_and_expression, expected_bound_expression, table_schema_simple):
     """Test that visiting an unbound AND expression with a bind-visitor returns the expected bound expression"""
-    bound_expression = visit(unbound_and_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_and_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
 
 
@@ -489,7 +489,7 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
 )
 def test_or_expression_binding(unbound_or_expression, expected_bound_expression, table_schema_simple):
     """Test that visiting an unbound OR expression with a bind-visitor returns the expected bound expression"""
-    bound_expression = visit(unbound_or_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_or_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
 
 
@@ -533,7 +533,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
 )
 def test_in_expression_binding(unbound_in_expression, expected_bound_expression, table_schema_simple):
     """Test that visiting an unbound IN expression with a bind-visitor returns the expected bound expression"""
-    bound_expression = visit(unbound_in_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_in_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
 
 
@@ -582,7 +582,7 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
 )
 def test_not_expression_binding(unbound_not_expression, expected_bound_expression, table_schema_simple):
     """Test that visiting an unbound NOT expression with a bind-visitor returns the expected bound expression"""
-    bound_expression = visit(unbound_not_expression, visitor=BindVisitor(schema=table_schema_simple))
+    bound_expression = visit(unbound_not_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
 
 
