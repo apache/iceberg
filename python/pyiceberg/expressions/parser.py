@@ -77,7 +77,7 @@ column = delimited_list(identifier, delim=".", combine=True).set_results_name("c
 
 
 @column.set_parse_action
-def _(result: ParseResults) -> Reference[Any]:
+def _(result: ParseResults) -> Reference:
     return Reference(result.column[0])
 
 
