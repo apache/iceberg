@@ -155,7 +155,7 @@ def _(result: ParseResults) -> BooleanExpression:
         return LessThan(result.column, result.literal)
     elif result.op == ">=":
         return LessThanOrEqual(result.column, result.literal)
-    if result.op in ("=", "=="):
+    elif result.op in ("=", "=="):
         return EqualTo(result.column, result.literal)
     if result.op in ("!=", "<>"):
         return NotEqualTo(result.column, result.literal)
