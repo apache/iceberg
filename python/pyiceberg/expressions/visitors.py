@@ -214,7 +214,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     schema: Schema
     case_sensitive: bool
 
-    def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
+    def __init__(self, schema: Schema, case_sensitive: bool) -> None:
         self.schema = schema
         self.case_sensitive = case_sensitive
 
@@ -421,9 +421,7 @@ class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return predicate
 
 
-def expression_evaluator(
-    schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True
-) -> Callable[[StructProtocol], bool]:
+def expression_evaluator(schema: Schema, unbound: BooleanExpression, case_sensitive: bool) -> Callable[[StructProtocol], bool]:
     return _ExpressionEvaluator(schema, unbound, case_sensitive).eval
 
 
@@ -431,7 +429,7 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
     bound: BooleanExpression
     struct: StructProtocol
 
-    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool = True):
+    def __init__(self, schema: Schema, unbound: BooleanExpression, case_sensitive: bool):
         self.bound = bind(schema, unbound, case_sensitive)
 
     def eval(self, struct: StructProtocol) -> bool:
@@ -507,7 +505,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: List[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool = True):
+    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive):
         self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
 
     def eval(self, manifest: ManifestFile) -> bool:
