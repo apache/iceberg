@@ -357,7 +357,7 @@ class DataScan(TableScan["DataScan"]):
 
         pyarrow_filter = None
         if self.row_filter is not AlwaysTrue():
-            bound_row_filter = bind(self.table.schema(), self.row_filter)
+            bound_row_filter = bind(self.table.schema(), self.row_filter, case_sensitive=self.case_sensitive)
             pyarrow_filter = expression_to_pyarrow(bound_row_filter)
 
         from pyarrow.dataset import dataset

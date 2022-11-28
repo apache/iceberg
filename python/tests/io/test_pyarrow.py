@@ -442,7 +442,7 @@ def bound_reference(table_schema_simple: Schema) -> BoundReference[str]:
 
 
 @pytest.fixture
-def bound_double_reference(table_schema_simple: Schema) -> BoundReference[float]:
+def bound_double_reference() -> BoundReference[float]:
     schema = Schema(
         NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
         schema_id=1,
@@ -465,7 +465,7 @@ def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
     assert (
         repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression is_null(foo, {nan_is_null=true})>"
+        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
     )
 
 
