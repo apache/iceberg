@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
@@ -588,8 +587,8 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(required(1, "a1", BooleanType.get()));
     SchemaUpdate schemaUpdate = new SchemaUpdate(new Schema(), 0);
     Assertions.assertThatThrownBy(() -> schemaUpdate.unionByNameWith(newSchema).apply())
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Incompatible");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Incompatible");
   }
 
   @Test
