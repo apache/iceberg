@@ -135,11 +135,19 @@ def literal(value: L) -> Literal[L]:
 
 
 class AboveMax(Literal[L]):
-    ...
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+    def __str__(self) -> str:
+        return self.__class__.__name__
 
 
 class BelowMin(Literal[L]):
-    ...
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+    def __str__(self) -> str:
+        return self.__class__.__name__
 
 
 class FloatAboveMax(AboveMax[float], Singleton):
@@ -154,12 +162,6 @@ class FloatAboveMax(AboveMax[float], Singleton):
     def _(self, _: FloatType) -> Literal[float]:
         return self
 
-    def __repr__(self) -> str:
-        return "FloatAboveMax()"
-
-    def __str__(self) -> str:
-        return "FloatAboveMax"
-
 
 class FloatBelowMin(BelowMin[float], Singleton):
     def __init__(self):
@@ -172,12 +174,6 @@ class FloatBelowMin(BelowMin[float], Singleton):
     @to.register(FloatType)
     def _(self, _: FloatType) -> Literal[float]:
         return self
-
-    def __repr__(self) -> str:
-        return "FloatBelowMin()"
-
-    def __str__(self) -> str:
-        return "FloatBelowMin"
 
 
 class IntAboveMax(AboveMax[int], Singleton):
@@ -192,12 +188,6 @@ class IntAboveMax(AboveMax[int], Singleton):
     def _(self, _: IntegerType) -> Literal[int]:
         return self
 
-    def __repr__(self) -> str:
-        return "IntAboveMax()"
-
-    def __str__(self) -> str:
-        return "IntAboveMax"
-
 
 class IntBelowMin(BelowMin[int], Singleton):
     def __init__(self):
@@ -211,11 +201,31 @@ class IntBelowMin(BelowMin[int], Singleton):
     def _(self, _: IntegerType) -> Literal[int]:
         return self
 
-    def __repr__(self) -> str:
-        return "IntBelowMin()"
 
-    def __str__(self) -> str:
-        return "IntBelowMin"
+class LongAboveMax(AboveMax[int], Singleton):
+    def __init__(self):
+        super().__init__(LongType.max, int)
+
+    @singledispatchmethod
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
+        raise TypeError("Cannot change the type of IntAboveMax")
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return self
+
+
+class LongBelowMin(BelowMin[int], Singleton):
+    def __init__(self):
+        super().__init__(LongType.min, int)
+
+    @singledispatchmethod
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
+        raise TypeError("Cannot change the type of IntBelowMin")
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return self
 
 
 class BooleanLiteral(Literal[bool]):
@@ -247,7 +257,12 @@ class LongLiteral(Literal[int]):
 
     @to.register(LongType)
     def _(self, _: LongType) -> Literal[int]:
-        return self
+        if LongType.max < self.value:
+            return LongAboveMax()
+        elif LongType.min > self.value:
+            return LongBelowMin()
+        else:
+            return self
 
     @to.register(IntegerType)
     def _(self, _: IntegerType) -> Literal[int]:
@@ -458,7 +473,13 @@ class StringLiteral(Literal[str]):
     @to.register(LongType)
     def _(self, type_var: LongType) -> Literal[int]:
         try:
-            return LongLiteral(int(float(self.value)))
+            long_value = int(float(self.value))
+            if LongType.max < long_value:
+                return LongAboveMax()
+            elif LongType.min > long_value:
+                return LongBelowMin()
+            else:
+                return LongLiteral(long_value)
         except (TypeError, ValueError) as e:
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
