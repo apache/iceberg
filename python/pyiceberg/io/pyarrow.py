@@ -391,7 +391,7 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).isin(literals)
 
-    def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[pc.Expression]) -> pc.Expression:
+    def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
         return ~pc.field(term.ref().field.name).isin(literals)
 
     def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
@@ -399,7 +399,8 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
         return ref.is_null(nan_is_null=True) & ref.is_valid()
 
     def visit_not_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
-        return ~pc.field(term.ref().field.name).is_null(nan_is_null=True)
+        ref = pc.field(term.ref().field.name)
+        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
 
     def visit_is_null(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)
