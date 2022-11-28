@@ -20,7 +20,7 @@ exclude: ^python/vendor/
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: v4.4.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -43,22 +43,22 @@ repos:
       - id: mypy
         args: [ --install-types, --non-interactive, --config=python/pyproject.toml]
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.1.1
+    rev: v2.1.2
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.0.0
+    rev: v3.2.2
     hooks:
       - id: pyupgrade
         args: [ --py38-plus, --keep-runtime-typing ]
   - repo: https://github.com/pycqa/pylint
-    rev: v2.15.3
+    rev: v2.15.6
     hooks:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
   - repo: https://github.com/pycqa/flake8
-    rev: '5.0.4'
+    rev: '6.0.0'
     hooks:
       - id: flake8
         args: [ "--ignore=E501,W503,E203,B024" ]
