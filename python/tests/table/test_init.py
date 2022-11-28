@@ -199,19 +199,8 @@ def test_table_scan_select(table: Table):
 def test_table_scan_row_filter(table: Table):
     scan = table.scan()
     assert scan.row_filter == AlwaysTrue()
-    assert scan.filter_rows(EqualTo("x", 10)).row_filter == EqualTo("x", 10)
-    assert scan.filter_rows(EqualTo("x", 10)).filter_rows(In("y", (10, 11))).row_filter == And(
-        EqualTo("x", 10), In("y", (10, 11))
-    )
-
-
-def test_table_scan_partition_filter(table: Table):
-    scan = table.scan()
-    assert scan.row_filter == AlwaysTrue()
-    assert scan.filter_partitions(EqualTo("x", 10)).partition_filter == EqualTo("x", 10)
-    assert scan.filter_partitions(EqualTo("x", 10)).filter_partitions(In("y", (10, 11))).partition_filter == And(
-        EqualTo("x", 10), In("y", (10, 11))
-    )
+    assert scan.filter(EqualTo("x", 10)).row_filter == EqualTo("x", 10)
+    assert scan.filter(EqualTo("x", 10)).filter(In("y", (10, 11))).row_filter == And(EqualTo("x", 10), In("y", (10, 11)))
 
 
 def test_table_scan_ref(table: Table):

@@ -34,7 +34,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.internal.SQLConf;
 
 public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
@@ -60,12 +59,8 @@ public class SparkBinPackStrategy extends BinPackStrategy {
       tableCache.add(groupID, table);
       manager.stageTasks(table, groupID, filesToRewrite);
 
-      // Disable Adaptive Query Execution as this may change the output partitioning of our write
-      SparkSession cloneSession = spark.cloneSession();
-      cloneSession.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-
       Dataset<Row> scanDF =
-          cloneSession
+          spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)

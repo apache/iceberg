@@ -55,7 +55,7 @@ Iceberg supports multiple concurrent writes using optimistic concurrency.
 
 Each writer assumes that no other writers are operating and writes out new table metadata for an operation. Then, the writer attempts to commit by atomically swapping the new table metadata file for the existing metadata file.
 
-If the atomic swap fails because another writer has committed, the failed writer retries by writing a new metadata tree based on the the new current table state.
+If the atomic swap fails because another writer has committed, the failed writer retries by writing a new metadata tree based on the new current table state.
 
 ### Cost of retries
 
