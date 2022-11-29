@@ -183,11 +183,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
                 .flatMap(zOrder -> zOrder.refs().stream().map(NamedReference::name))
                 .toArray(String[]::new);
         return action.zOrder(columnNames);
-      } else {
-        if (sortOrderFields.isEmpty()) {
-          return action.sort();
-        }
+      } else if (!sortOrderFields.isEmpty()) {
         return action.sort(buildSortOrder(sortOrderFields, schema));
+      } else {
+        return action.sort();
       }
     }
     if (strategy.equalsIgnoreCase("binpack")) {
