@@ -54,7 +54,7 @@ class InMemoryCatalog(Catalog):
     __tables: Dict[Identifier, Table]
     __namespaces: Dict[Identifier, Properties]
 
-    def __init__(self, name: str, **properties: str):
+    def __init__(self, name: str, **properties: str) -> None:
         super().__init__(name, **properties)
         self.__tables = {}
         self.__namespaces = {}
@@ -210,7 +210,7 @@ def given_catalog_has_a_table(catalog: InMemoryCatalog) -> Table:
     )
 
 
-def test_namespace_from_tuple():
+def test_namespace_from_tuple() -> None:
     # Given
     identifier = ("com", "organization", "department", "my_table")
     # When
@@ -219,7 +219,7 @@ def test_namespace_from_tuple():
     assert namespace_from == ("com", "organization", "department")
 
 
-def test_namespace_from_str():
+def test_namespace_from_str() -> None:
     # Given
     identifier = "com.organization.department.my_table"
     # When
@@ -228,7 +228,7 @@ def test_namespace_from_str():
     assert namespace_from == ("com", "organization", "department")
 
 
-def test_name_from_tuple():
+def test_name_from_tuple() -> None:
     # Given
     identifier = ("com", "organization", "department", "my_table")
     # When
@@ -237,7 +237,7 @@ def test_name_from_tuple():
     assert name_from == "my_table"
 
 
-def test_name_from_str():
+def test_name_from_str() -> None:
     # Given
     identifier = "com.organization.department.my_table"
     # When
@@ -246,7 +246,7 @@ def test_name_from_str():
     assert name_from == "my_table"
 
 
-def test_create_table(catalog: InMemoryCatalog):
+def test_create_table(catalog: InMemoryCatalog) -> None:
     table = catalog.create_table(
         identifier=TEST_TABLE_IDENTIFIER,
         schema=TEST_TABLE_SCHEMA,
@@ -257,7 +257,7 @@ def test_create_table(catalog: InMemoryCatalog):
     assert catalog.load_table(TEST_TABLE_IDENTIFIER) == table
 
 
-def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCatalog):
+def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     # When
@@ -268,7 +268,7 @@ def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCa
         )
 
 
-def test_load_table(catalog: InMemoryCatalog):
+def test_load_table(catalog: InMemoryCatalog) -> None:
     # Given
     given_table = given_catalog_has_a_table(catalog)
     # When
@@ -277,12 +277,12 @@ def test_load_table(catalog: InMemoryCatalog):
     assert table == given_table
 
 
-def test_table_raises_error_on_table_not_found(catalog: InMemoryCatalog):
+def test_table_raises_error_on_table_not_found(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
-def test_drop_table(catalog: InMemoryCatalog):
+def test_drop_table(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     # When
@@ -292,12 +292,12 @@ def test_drop_table(catalog: InMemoryCatalog):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
-def test_drop_table_that_does_not_exist_raise_error(catalog: InMemoryCatalog):
+def test_drop_table_that_does_not_exist_raise_error(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
-def test_purge_table(catalog: InMemoryCatalog):
+def test_purge_table(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     # When
@@ -307,7 +307,7 @@ def test_purge_table(catalog: InMemoryCatalog):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
-def test_rename_table(catalog: InMemoryCatalog):
+def test_rename_table(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
 
@@ -330,7 +330,7 @@ def test_rename_table(catalog: InMemoryCatalog):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
-def test_create_namespace(catalog: InMemoryCatalog):
+def test_create_namespace(catalog: InMemoryCatalog) -> None:
     # When
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
@@ -339,7 +339,7 @@ def test_create_namespace(catalog: InMemoryCatalog):
     assert TEST_TABLE_PROPERTIES == catalog.load_namespace_properties(TEST_TABLE_NAMESPACE)
 
 
-def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCatalog):
+def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCatalog) -> None:
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
@@ -347,12 +347,12 @@ def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCa
         catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
 
-def test_get_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
+def test_get_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.load_namespace_properties(TEST_TABLE_NAMESPACE)
 
 
-def test_list_namespaces(catalog: InMemoryCatalog):
+def test_list_namespaces(catalog: InMemoryCatalog) -> None:
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
@@ -361,7 +361,7 @@ def test_list_namespaces(catalog: InMemoryCatalog):
     assert TEST_TABLE_NAMESPACE in namespaces
 
 
-def test_drop_namespace(catalog: InMemoryCatalog):
+def test_drop_namespace(catalog: InMemoryCatalog) -> None:
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
@@ -370,12 +370,12 @@ def test_drop_namespace(catalog: InMemoryCatalog):
     assert TEST_TABLE_NAMESPACE not in catalog.list_namespaces()
 
 
-def test_drop_namespace_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
+def test_drop_namespace_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.drop_namespace(TEST_TABLE_NAMESPACE)
 
 
-def test_drop_namespace_raises_error_when_namespace_not_empty(catalog: InMemoryCatalog):
+def test_drop_namespace_raises_error_when_namespace_not_empty(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     # When
@@ -383,7 +383,7 @@ def test_drop_namespace_raises_error_when_namespace_not_empty(catalog: InMemoryC
         catalog.drop_namespace(TEST_TABLE_NAMESPACE)
 
 
-def test_list_tables(catalog: InMemoryCatalog):
+def test_list_tables(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     # When
@@ -393,7 +393,7 @@ def test_list_tables(catalog: InMemoryCatalog):
     assert TEST_TABLE_IDENTIFIER in tables
 
 
-def test_list_tables_under_a_namespace(catalog: InMemoryCatalog):
+def test_list_tables_under_a_namespace(catalog: InMemoryCatalog) -> None:
     # Given
     given_catalog_has_a_table(catalog)
     new_namespace = ("new", "namespace")
@@ -407,7 +407,7 @@ def test_list_tables_under_a_namespace(catalog: InMemoryCatalog):
     assert new_namespace_tables == []
 
 
-def test_update_namespace_metadata(catalog: InMemoryCatalog):
+def test_update_namespace_metadata(catalog: InMemoryCatalog) -> None:
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
@@ -421,7 +421,7 @@ def test_update_namespace_metadata(catalog: InMemoryCatalog):
     assert summary == PropertiesUpdateSummary(removed=[], updated=["key3", "key4"], missing=[])
 
 
-def test_update_namespace_metadata_removals(catalog: InMemoryCatalog):
+def test_update_namespace_metadata_removals(catalog: InMemoryCatalog) -> None:
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
@@ -437,6 +437,6 @@ def test_update_namespace_metadata_removals(catalog: InMemoryCatalog):
     assert summary == PropertiesUpdateSummary(removed=["key1"], updated=["key3", "key4"], missing=[])
 
 
-def test_update_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
+def test_update_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog) -> None:
     with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, updates=TEST_TABLE_PROPERTIES)

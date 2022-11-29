@@ -42,7 +42,7 @@ from pyiceberg.types import (
 )
 
 
-def test_resolver():
+def test_resolver() -> None:
     write_schema = Schema(
         NestedField(1, "id", LongType()),
         NestedField(2, "data", StringType()),
@@ -90,7 +90,7 @@ def test_resolver():
     )
 
 
-def test_resolver_new_required_field():
+def test_resolver_new_required_field() -> None:
     write_schema = Schema(
         NestedField(1, "id", LongType()),
         schema_id=1,
@@ -107,7 +107,7 @@ def test_resolver_new_required_field():
     assert "2: data: required string is non-optional, and not part of the file schema" in str(exc_info.value)
 
 
-def test_resolver_invalid_evolution():
+def test_resolver_invalid_evolution() -> None:
     write_schema = Schema(
         NestedField(1, "id", LongType()),
         schema_id=1,
@@ -123,7 +123,7 @@ def test_resolver_invalid_evolution():
     assert "Cannot promote long to double" in str(exc_info.value)
 
 
-def test_resolver_promotion_string_to_binary():
+def test_resolver_promotion_string_to_binary() -> None:
     write_schema = Schema(
         NestedField(1, "id", StringType()),
         schema_id=1,
@@ -135,7 +135,7 @@ def test_resolver_promotion_string_to_binary():
     resolve(write_schema, read_schema)
 
 
-def test_resolver_promotion_binary_to_string():
+def test_resolver_promotion_binary_to_string() -> None:
     write_schema = Schema(
         NestedField(1, "id", BinaryType()),
         schema_id=1,
@@ -147,7 +147,7 @@ def test_resolver_promotion_binary_to_string():
     resolve(write_schema, read_schema)
 
 
-def test_resolver_change_type():
+def test_resolver_change_type() -> None:
     write_schema = Schema(
         NestedField(1, "properties", ListType(2, StringType())),
         schema_id=1,
@@ -163,61 +163,61 @@ def test_resolver_change_type():
     assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
 
 
-def test_promote_int_to_long():
+def test_promote_int_to_long() -> None:
     assert promote(IntegerType(), LongType()) == IntegerReader()
 
 
-def test_promote_float_to_double():
+def test_promote_float_to_double() -> None:
     # We should still read floats, because it is encoded in 4 bytes
     assert promote(FloatType(), DoubleType()) == FloatReader()
 
 
-def test_promote_decimal_to_decimal():
+def test_promote_decimal_to_decimal() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
     assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
 
 
-def test_struct_not_aligned():
+def test_struct_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(StructType(), StringType())
 
 
-def test_map_not_aligned():
+def test_map_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
 
 
-def test_primitive_not_aligned():
+def test_primitive_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
 
 
-def test_integer_not_aligned():
+def test_integer_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(IntegerType(), StringType())
 
 
-def test_float_not_aligned():
+def test_float_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(FloatType(), StringType())
 
 
-def test_string_not_aligned():
+def test_string_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(StringType(), FloatType())
 
 
-def test_binary_not_aligned():
+def test_binary_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(BinaryType(), FloatType())
 
 
-def test_decimal_not_aligned():
+def test_decimal_not_aligned() -> None:
     with pytest.raises(ResolveException):
         assert promote(DecimalType(22, 19), StringType())
 
 
-def test_promote_decimal_to_decimal_reduce_precision():
+def test_promote_decimal_to_decimal_reduce_precision() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
     with pytest.raises(ResolveException) as exc_info:
         _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)

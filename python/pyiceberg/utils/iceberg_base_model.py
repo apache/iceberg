@@ -15,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 from functools import cached_property
-from typing import Optional, Set
+from typing import (
+    Any,
+    Dict,
+    Optional,
+    Set,
+)
 
 from pydantic import BaseModel
 
@@ -48,10 +53,10 @@ class IcebergBaseModel(BaseModel):
             {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, exclude or set()
         )
 
-    def dict(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, **kwargs):
+    def dict(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, **kwargs: Any) -> Dict[str, Any]:
         return super().dict(exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), **kwargs)
 
-    def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs):
+    def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any) -> str:
         return super().json(
             exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
         )

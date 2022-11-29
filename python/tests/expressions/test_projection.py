@@ -105,7 +105,7 @@ def id_and_bucket_spec() -> PartitionSpec:
     )
 
 
-def test_identity_projection(schema: Schema, id_spec: PartitionSpec):
+def test_identity_projection(schema: Schema, id_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("id"),
         IsNull("id"),
@@ -138,7 +138,7 @@ def test_identity_projection(schema: Schema, id_spec: PartitionSpec):
         assert expected[index] == expr
 
 
-def test_bucket_projection(schema: Schema, bucket_spec: PartitionSpec):
+def test_bucket_projection(schema: Schema, bucket_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("data"),
         IsNull("data"),
@@ -171,7 +171,7 @@ def test_bucket_projection(schema: Schema, bucket_spec: PartitionSpec):
         assert expected[index] == expr
 
 
-def test_hour_projection(schema: Schema, hour_spec: PartitionSpec):
+def test_hour_projection(schema: Schema, hour_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("event_ts"),
         IsNull("event_ts"),
@@ -204,7 +204,7 @@ def test_hour_projection(schema: Schema, hour_spec: PartitionSpec):
         assert expected[index] == expr, predicate
 
 
-def test_day_projection(schema: Schema, day_spec: PartitionSpec):
+def test_day_projection(schema: Schema, day_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("event_ts"),
         IsNull("event_ts"),
@@ -237,7 +237,7 @@ def test_day_projection(schema: Schema, day_spec: PartitionSpec):
         assert expected[index] == expr, predicate
 
 
-def test_date_day_projection(schema: Schema, day_spec: PartitionSpec):
+def test_date_day_projection(schema: Schema, day_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("event_date"),
         IsNull("event_date"),
@@ -270,7 +270,7 @@ def test_date_day_projection(schema: Schema, day_spec: PartitionSpec):
         assert expected[index] == expr, predicate
 
 
-def test_string_truncate_projection(schema: Schema, truncate_str_spec: PartitionSpec):
+def test_string_truncate_projection(schema: Schema, truncate_str_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("data"),
         IsNull("data"),
@@ -303,7 +303,7 @@ def test_string_truncate_projection(schema: Schema, truncate_str_spec: Partition
         assert expected[index] == expr, predicate
 
 
-def test_int_truncate_projection(schema: Schema, truncate_int_spec: PartitionSpec):
+def test_int_truncate_projection(schema: Schema, truncate_int_spec: PartitionSpec) -> None:
     predicates = [
         NotNull("id"),
         IsNull("id"),
@@ -336,43 +336,43 @@ def test_int_truncate_projection(schema: Schema, truncate_int_spec: PartitionSpe
         assert expected[index] == expr, predicate
 
 
-def test_projection_case_sensitive(schema: Schema, id_spec: PartitionSpec):
+def test_projection_case_sensitive(schema: Schema, id_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_spec)
     with pytest.raises(ValueError) as exc_info:
         project(NotNull("ID"))
         assert str(exc_info) == "Could not find field with name ID, case_sensitive=True"
 
 
-def test_projection_case_insensitive(schema: Schema, id_spec: PartitionSpec):
+def test_projection_case_insensitive(schema: Schema, id_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_spec, case_sensitive=False)
     assert NotNull("id_part") == project(NotNull("ID"))
 
 
-def test_projection_empty_spec(schema: Schema, empty_spec: PartitionSpec):
+def test_projection_empty_spec(schema: Schema, empty_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, empty_spec)
     assert AlwaysTrue() == project(And(LessThan("id", 5), NotNull("data")))
 
 
-def test_and_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec):
+def test_and_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_and_bucket_spec)
     assert project(And(LessThan("id", 5), In("data", {"a", "b", "c"}))) == And(
         LessThan("id_part", 5), In("data_bucket", {2, 3, 15})
     )
 
 
-def test_or_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec):
+def test_or_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_and_bucket_spec)
     assert project(Or(LessThan("id", 5), In("data", {"a", "b", "c"}))) == Or(
         LessThan("id_part", 5), In("data_bucket", {2, 3, 15})
     )
 
 
-def test_not_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec):
+def test_not_projection_multiple_projected_fields(schema: Schema, id_and_bucket_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_and_bucket_spec)
     # Not causes In to be rewritten to NotIn, which cannot be projected
     assert project(Not(Or(LessThan("id", 5), In("data", {"a", "b", "c"})))) == GreaterThanOrEqual("id_part", 5)
 
 
-def test_projection_partial_projected_fields(schema: Schema, id_spec: PartitionSpec):
+def test_projection_partial_projected_fields(schema: Schema, id_spec: PartitionSpec) -> None:
     project = inclusive_projection(schema, id_spec)
     assert project(And(LessThan("id", 5), In("data", {"a", "b", "c"}))) == LessThan("id_part", 5)

@@ -58,7 +58,7 @@ def _lowercase_dictionary_keys(input_dict: RecursiveDict) -> RecursiveDict:
 class Config:
     config: RecursiveDict
 
-    def __init__(self):
+    def __init__(self) -> None:
         config = self._from_configuration_files() or {}
         config = merge_config(config, self._from_environment_variables(config))
         self.config = FrozenDict(**config)
@@ -101,7 +101,7 @@ class Config:
             Amended configuration
         """
 
-        def set_property(_config: RecursiveDict, path: List[str], config_value: str):
+        def set_property(_config: RecursiveDict, path: List[str], config_value: str) -> None:
             while len(path) > 0:
                 element = path.pop(0)
                 if len(path) == 0:

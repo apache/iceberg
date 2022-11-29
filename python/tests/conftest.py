@@ -31,6 +31,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Type,
     Union,
 )
 from unittest.mock import MagicMock
@@ -55,6 +56,7 @@ from pyiceberg.io import (
     OutputStream,
     fsspec,
 )
+from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
@@ -73,7 +75,7 @@ from tests.catalog.test_base import InMemoryCatalog
 from tests.io.test_io import LocalInputFile
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
@@ -86,18 +88,20 @@ def pytest_addoption(parser):
 class FooStruct:
     """An example of an object that abides by StructProtocol"""
 
-    def __init__(self):
+    content: Dict[int, Any]
+
+    def __init__(self) -> None:
         self.content = {}
 
     def get(self, pos: int) -> Any:
         return self.content[pos]
 
-    def set(self, pos: int, value) -> None:
+    def set(self, pos: int, value: Any) -> None:
         self.content[pos] = value
 
 
 @pytest.fixture(scope="session")
-def table_schema_simple():
+def table_schema_simple() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -108,7 +112,7 @@ def table_schema_simple():
 
 
 @pytest.fixture(scope="session")
-def table_schema_nested():
+def table_schema_nested() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -159,7 +163,7 @@ def table_schema_nested():
 
 
 @pytest.fixture(scope="session")
-def foo_struct():
+def foo_struct() -> FooStruct:
     return FooStruct()
 
 
@@ -882,7 +886,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def simple_struct():
+def simple_struct() -> StructType:
     return StructType(
         NestedField(id=1, name="required_field", field_type=StringType(), required=True, doc="this is a doc"),
         NestedField(id=2, name="optional_field", field_type=IntegerType()),
@@ -890,19 +894,19 @@ def simple_struct():
 
 
 @pytest.fixture(scope="session")
-def simple_list():
+def simple_list() -> ListType:
     return ListType(element_id=22, element=StringType(), element_required=True)
 
 
 @pytest.fixture(scope="session")
-def simple_map():
+def simple_map() -> MapType:
     return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)
 
 
 class LocalOutputFile(OutputFile):
     """An OutputFile implementation for local files (for test use only)"""
 
-    def __init__(self, location: str):
+    def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
         if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
@@ -912,38 +916,38 @@ class LocalOutputFile(OutputFile):
         super().__init__(location=location)
         self._path = parsed_location.path
 
-    def __len__(self):
+    def __len__(self) -> int:
         return os.path.getsize(self._path)
 
-    def exists(self):
+    def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self):
+    def to_input_file(self) -> LocalInputFile:
         return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self._path, "wb" if overwrite else "xb")
         if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
-        return output_file
+        return output_file  # type: ignore
 
 
 class LocalFileIO(FileIO):
     """A FileIO implementation for local files (for test use only)"""
 
-    def new_input(self, location: str):
+    def new_input(self, location: str) -> LocalInputFile:
         return LocalInputFile(location=location)
 
-    def new_output(self, location: str):
+    def new_output(self, location: str) -> LocalOutputFile:
         return LocalOutputFile(location=location)
 
-    def delete(self, location: Union[str, InputFile, OutputFile]):
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         os.remove(location)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture():
+def LocalFileIOFixture() -> Type[LocalFileIO]:
     return LocalFileIO
 
 
@@ -1146,7 +1150,7 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 
 @pytest.fixture
-def fsspec_fileio(request):
+def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     properties = {
         "s3.endpoint": request.config.getoption("--s3.endpoint"),
         "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
@@ -1161,7 +1165,7 @@ class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def __init__(self, response: botocore.awsrequest.AWSResponse):
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
         self._moto_response = response
         self.status_code = response.status_code
         self.raw = MockHttpClientResponse(response)
@@ -1180,8 +1184,8 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def __init__(self, response: botocore.awsrequest.AWSResponse):
-        async def read(*_) -> bytes:
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
+        async def read(*_: Any) -> bytes:
             # streaming/range requests. used by s3fs
             return response.content
 
@@ -1195,14 +1199,14 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
         return {k.encode("utf-8"): str(v).encode("utf-8") for k, v in self.response.headers.items()}.items()
 
 
-def patch_aiobotocore():
+def patch_aiobotocore() -> None:
     """
     Patch aiobotocore to work with moto
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def factory(original: Callable) -> Callable:
-        def patched_convert_to_response_dict(
+    def factory(original: Callable) -> Callable:  # type: ignore
+        def patched_convert_to_response_dict(  # type: ignore
             http_response: botocore.awsrequest.AWSResponse, operation_model: botocore.model.OperationModel
         ):
             return original(MockAWSResponse(http_response), operation_model)
@@ -1213,7 +1217,7 @@ def patch_aiobotocore():
 
 
 @pytest.fixture(name="_patch_aiobotocore")
-def fixture_aiobotocore():
+def fixture_aiobotocore():  # type: ignore
     """
     Patch aiobotocore to work with moto
     pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
@@ -1224,7 +1228,7 @@ def fixture_aiobotocore():
     aiobotocore.endpoint.convert_to_response_dict = stored_method
 
 
-def aws_credentials():
+def aws_credentials() -> None:
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
@@ -1233,9 +1237,9 @@ def aws_credentials():
 
 
 @pytest.fixture(name="_aws_credentials")
-def fixture_aws_credentials():
+def fixture_aws_credentials() -> Generator[None, None, None]:
     """Mocked AWS Credentials for moto."""
-    yield aws_credentials()
+    yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
     os.environ.pop("AWS_SECURITY_TOKEN")
@@ -1244,14 +1248,14 @@ def fixture_aws_credentials():
 
 
 @pytest.fixture(name="_s3")
-def fixture_s3(_aws_credentials):
+def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked S3 client"""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
-def fixture_glue(_aws_credentials):
+def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
