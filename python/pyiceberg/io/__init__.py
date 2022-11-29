@@ -27,7 +27,7 @@ from __future__ import annotations
 import importlib
 import logging
 from abc import ABC, abstractmethod
-from io import SEEK_SET, BufferedReader
+from io import SEEK_SET
 from types import TracebackType
 from typing import (
     Dict,
@@ -96,7 +96,7 @@ class OutputStream(Protocol):  # pragma: no cover
         ...
 
     @abstractmethod
-    def __enter__(self) -> BufferedReader:
+    def __enter__(self) -> OutputStream:
         ...
 
     @abstractmethod

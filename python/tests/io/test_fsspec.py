@@ -171,14 +171,14 @@ def test_closing_a_file(fsspec_fileio: FsspecFileIO) -> None:
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
     with output_file.create() as write_file:
         write_file.write(b"foo")
-        assert not write_file.closed
-    assert write_file.closed
+        assert not write_file.closed  # type: ignore
+    assert write_file.closed  # type: ignore
 
-    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")  # type: ignore
+    input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
-    assert not f.closed
+    assert not f.closed  # type: ignore
     f.close()
-    assert f.closed
+    assert f.closed  # type: ignore
 
     fsspec_fileio.delete(f"s3://warehouse/{filename}")
 

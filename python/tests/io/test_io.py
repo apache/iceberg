@@ -111,7 +111,7 @@ class LocalOutputFile(OutputFile):
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
         if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
-        return output_file  # type: ignore
+        return output_file
 
 
 class LocalFileIO(FileIO):
