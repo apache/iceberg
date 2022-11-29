@@ -21,17 +21,14 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
-import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
-import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
@@ -42,7 +39,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
-import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -51,8 +47,39 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import scala.runtime.BoxedUnit;
 
+/**
+ * A procedure that creates a view for changed rows.
+ *
+ * <p>The procedure computes updated rows and removes the carry-over rows by default. You can
+ * disable them through parameters to get better performance. A pair of carry-over rows exist due to
+ * an unchanged row is rewritten by Iceberg. Their values are the same except one is marked as
+ * deleted and the other is marked as inserted.
+ *
+ * <p>Identifier columns are needed for updated rows computation. You can either set Identifier
+ * Field IDs as the table properties or input them as the procedure parameters.
+ */
 public class GenerateChangesProcedure extends BaseProcedure {
+  private static final Logger LOG = LoggerFactory.getLogger(GenerateChangesProcedure.class);
+
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("table_change_view", DataTypes.StringType),
+        ProcedureParameter.optional("options", STRING_MAP),
+        ProcedureParameter.optional("compute_updated_row", DataTypes.BooleanType),
+        ProcedureParameter.optional("remove_carried_over_row", DataTypes.BooleanType),
+        ProcedureParameter.optional("identifier_columns", DataTypes.StringType),
+      };
+
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("view_name", DataTypes.StringType, false, Metadata.empty())
+          });
 
   public static SparkProcedures.ProcedureBuilder builder() {
     return new BaseProcedure.Builder<GenerateChangesProcedure>() {
@@ -62,24 +89,6 @@ public class GenerateChangesProcedure extends BaseProcedure {
       }
     };
   }
-
-  private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        // the snapshot ids input are ignored when the start/end timestamps are provided
-        ProcedureParameter.optional("start_snapshot_id_exclusive", DataTypes.LongType),
-        ProcedureParameter.optional("end_snapshot_id_inclusive", DataTypes.LongType),
-        ProcedureParameter.optional("table_change_view", DataTypes.StringType),
-        ProcedureParameter.optional("identifier_columns", DataTypes.StringType),
-        ProcedureParameter.optional("start_timestamp", DataTypes.TimestampType),
-        ProcedureParameter.optional("end_timestamp", DataTypes.TimestampType),
-      };
-
-  private static final StructType OUTPUT_TYPE =
-      new StructType(
-          new StructField[] {
-            new StructField("view_name", DataTypes.StringType, false, Metadata.empty())
-          });
 
   private GenerateChangesProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -102,12 +111,25 @@ public class GenerateChangesProcedure extends BaseProcedure {
     // Read data from the table.changes
     Dataset<Row> df = changelogRecords(tableName, args);
 
-    // Compute the pre-image and post-images if the identifier columns are provided.
-    if (!args.isNullAt(4)) {
-      String[] identifierColumns = args.getString(4).split(",");
-      if (identifierColumns.length > 0) {
-        df = withUpdate(df, identifierColumns);
+    boolean removeCarryoverRow = args.isNullAt(4) ? true : args.getBoolean(4);
+    boolean computeUpdatedRow = args.isNullAt(3) ? true : args.getBoolean(3);
+
+    if (computeUpdatedRow) {
+      if (hasIdentifierColumns(args)) {
+        String[] identifierColumns = args.getString(5).split(",");
+
+        if (identifierColumns.length > 0) {
+          Column[] partitionSpec = getPartitionSpec(df, identifierColumns);
+          df = tranform(df, partitionSpec, false);
+        }
+      } else {
+        LOG.warn("Cannot compute the updated rows because identifier columns are not set");
+        if (removeCarryoverRow) {
+          df = removeCarryoverRows(df);
+        }
       }
+    } else if (removeCarryoverRow) {
+      df = removeCarryoverRows(df);
     }
 
     String viewName = viewName(args, tableName);
@@ -118,75 +140,47 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return toOutputRows(viewName);
   }
 
+  private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
+    Column[] partitionSpec =
+        Arrays.stream(df.columns())
+            .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
+            .map(df::col)
+            .toArray(Column[]::new);
+    df = tranform(df, partitionSpec, true);
+    return df;
+  }
+
+  private boolean hasIdentifierColumns(InternalRow args) {
+    return !args.isNullAt(5) && !args.getString(5).isEmpty();
+  }
+
   private Dataset<Row> changelogRecords(String tableName, InternalRow args) {
-    Long[] snapshotIds = getSnapshotIds(tableName, args);
-
-    // we don't have to validate the snapshot ids here because the reader will do it for us.
+    // no need to validate the read options here since the reader will validate them
     DataFrameReader reader = spark().read();
-    if (snapshotIds[0] != null) {
-      reader = reader.option(SparkReadOptions.START_SNAPSHOT_ID, snapshotIds[0]);
-    }
-
-    if (snapshotIds[1] != null) {
-      reader = reader.option(SparkReadOptions.END_SNAPSHOT_ID, snapshotIds[1]);
-    }
-
+    reader.options(readOptions(args));
     return reader.table(tableName + "." + SparkChangelogTable.TABLE_NAME);
   }
 
-  @NotNull
-  private Long[] getSnapshotIds(String tableName, InternalRow args) {
-    Long[] snapshotIds = new Long[] {null, null};
+  private Map<String, String> readOptions(InternalRow args) {
+    Map<String, String> options = Maps.newHashMap();
 
-    Long startTimestamp = args.isNullAt(5) ? null : DateTimeUtil.microsToMillis(args.getLong(5));
-    Long endTimestamp = args.isNullAt(6) ? null : DateTimeUtil.microsToMillis(args.getLong(6));
-
-    if (startTimestamp == null && endTimestamp == null) {
-      snapshotIds[0] = args.isNullAt(1) ? null : args.getLong(1);
-      snapshotIds[1] = args.isNullAt(2) ? null : args.getLong(2);
-    } else {
-      Identifier tableIdent = toIdentifier(tableName, PARAMETERS[0].name());
-      Table table = loadSparkTable(tableIdent).table();
-      Snapshot[] snapshots = snapshotsFromTimestamp(startTimestamp, endTimestamp, table);
-
-      if (snapshots != null) {
-        snapshotIds[0] = snapshots[0].parentId();
-        snapshotIds[1] = snapshots[1].snapshotId();
-      }
-    }
-    return snapshotIds;
-  }
-
-  private Snapshot[] snapshotsFromTimestamp(Long startTimestamp, Long endTimestamp, Table table) {
-    Snapshot[] snapshots = new Snapshot[] {null, null};
-
-    if (startTimestamp != null && endTimestamp != null && startTimestamp > endTimestamp) {
-      throw new IllegalArgumentException(
-          "Start timestamp must be less than or equal to end timestamp");
+    if (!args.isNullAt(2)) {
+      args.getMap(2)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                options.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
     }
 
-    if (startTimestamp == null) {
-      snapshots[0] = SnapshotUtil.oldestAncestor(table);
-    } else {
-      snapshots[0] = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
-    }
-
-    if (endTimestamp == null) {
-      snapshots[1] = table.currentSnapshot();
-    } else {
-      snapshots[1] = table.snapshot(SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp));
-    }
-
-    if (snapshots[0] == null || snapshots[1] == null) {
-      return null;
-    }
-
-    return snapshots;
+    return options;
   }
 
   @NotNull
   private static String viewName(InternalRow args, String tableName) {
-    String viewName = args.isNullAt(3) ? null : args.getString(3);
+    String viewName = args.isNullAt(1) ? null : args.getString(1);
     if (viewName == null) {
       String shortTableName =
           tableName.contains(".") ? tableName.substring(tableName.lastIndexOf(".") + 1) : tableName;
@@ -195,8 +189,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return viewName;
   }
 
-  private Dataset<Row> withUpdate(Dataset<Row> df, String[] identifiers) {
-    Column[] partitionSpec = getPartitionSpec(df, identifiers);
+  private Dataset<Row> tranform(
+      Dataset<Row> df, Column[] partitionSpec, boolean partitionSpecIncludeAllColumns) {
     Column[] sortSpec = sortSpec(df, partitionSpec);
 
     int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
@@ -208,7 +202,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return df.repartition(partitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
-            processRowsWithinTask(changeTypeIdx, partitionIdx), RowEncoder.apply(df.schema()));
+            processRowsWithinTask(changeTypeIdx, partitionIdx, partitionSpecIncludeAllColumns),
+            RowEncoder.apply(df.schema()));
   }
 
   @NotNull
@@ -235,7 +230,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
   }
 
   private static MapPartitionsFunction<Row, Row> processRowsWithinTask(
-      int changeTypeIndex, List<Integer> partitionIdx) {
+      int changeTypeIndex, List<Integer> partitionIdx, boolean partitionSpecIncludeAllColumns) {
     return rowIterator -> {
       Iterator<Row> iterator =
           new Iterator<Row>() {
@@ -272,24 +267,30 @@ public class GenerateChangesProcedure extends BaseProcedure {
                     && currentRow.getString(changeTypeIndex).equals(delete)
                     && nextRow.getString(changeTypeIndex).equals(insert)) {
 
-                  GenericInternalRow deletedRow =
-                      new GenericInternalRow(((GenericRowWithSchema) currentRow).values());
-                  GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-
-                  // set the change_type to the same value
-                  deletedRow.update(changeTypeIndex, "");
-                  insertedRow.update(changeTypeIndex, "");
-
-                  if (deletedRow.equals(insertedRow)) {
+                  if (partitionSpecIncludeAllColumns) {
                     // remove two carry-over rows
                     currentRow = null;
                     this.nextRow = null;
                   } else {
-                    deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-                    currentRow = RowFactory.create(deletedRow.values());
+                    GenericInternalRow deletedRow =
+                        new GenericInternalRow(((GenericRowWithSchema) currentRow).values());
+                    GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
 
-                    insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-                    this.nextRow = RowFactory.create(insertedRow.values());
+                    // set the change_type to the same value
+                    deletedRow.update(changeTypeIndex, "");
+                    insertedRow.update(changeTypeIndex, "");
+
+                    if (deletedRow.equals(insertedRow)) {
+                      // remove two carry-over rows
+                      currentRow = null;
+                      this.nextRow = null;
+                    } else {
+                      deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
+                      currentRow = RowFactory.create(deletedRow.values());
+
+                      insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+                      this.nextRow = RowFactory.create(insertedRow.values());
+                    }
                   }
                 } else {
                   this.nextRow = nextRow;
