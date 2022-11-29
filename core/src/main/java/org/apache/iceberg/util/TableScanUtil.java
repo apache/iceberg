@@ -160,13 +160,14 @@ public class TableScanUtil {
 
     for (T task : tasks) {
       PartitionSpec spec = task.spec();
+      StructLike partition = task.partition();
       StructProjection groupingKeyProjection =
           groupingKeyProjectionsBySpec.computeIfAbsent(
               spec.specId(),
               specId -> StructProjection.create(spec.partitionType(), groupingKeyType));
       List<T> groupingKeyTasks =
           tasksByGroupingKey.computeIfAbsent(
-              projectGroupingKey(groupingKeyProjection, groupingKeyType, task),
+              projectGroupingKey(groupingKeyProjection, groupingKeyType, partition),
               groupingKey -> Lists.newArrayList());
       if (task instanceof SplittableScanTask<?>) {
         ((SplittableScanTask<? extends T>) task).split(splitSize).forEach(groupingKeyTasks::add);
@@ -191,11 +192,11 @@ public class TableScanUtil {
   private static StructLike projectGroupingKey(
       StructProjection groupingKeyProjection,
       Types.StructType groupingKeyType,
-      PartitionScanTask task) {
+      StructLike partition) {
 
     PartitionData groupingKey = new PartitionData(groupingKeyType);
 
-    groupingKeyProjection.wrap(task.partition());
+    groupingKeyProjection.wrap(partition);
 
     for (int pos = 0; pos < groupingKeyProjection.size(); pos++) {
       Class<?> javaClass = groupingKey.getType(pos).typeId().javaClass();
