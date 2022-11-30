@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -49,6 +51,27 @@ public class Accessors {
       return ((PositionAccessor) accessor).position();
     }
     throw new IllegalArgumentException("Cannot convert nested accessor to position");
+  }
+
+  public static Integer[] toPositions(Accessor<StructLike> accessor) {
+    List<Integer> positions = Lists.newArrayList();
+
+    if (accessor instanceof WrappedPositionAccessor) {
+      int position = ((WrappedPositionAccessor) accessor).position;
+      positions.add(position);
+      positions.addAll(Arrays.asList(toPositions(((WrappedPositionAccessor) accessor).accessor)));
+    } else if (accessor instanceof PositionAccessor) {
+      int position = ((PositionAccessor) accessor).position;
+      positions.add(position);
+    } else if (accessor instanceof Position2Accessor) {
+      positions.add(((Position2Accessor) accessor).p0);
+      positions.add(((Position2Accessor) accessor).p1);
+    } else if (accessor instanceof Position3Accessor) {
+      positions.add(((Position3Accessor) accessor).p0);
+      positions.add(((Position3Accessor) accessor).p1);
+      positions.add(((Position3Accessor) accessor).p2);
+    }
+    return positions.toArray(new Integer[] {});
   }
 
   static Map<Integer, Accessor<StructLike>> forSchema(Schema schema) {

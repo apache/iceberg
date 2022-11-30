@@ -55,6 +55,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
       Schema tableSchema,
       FileIO io,
       EncryptionManager encryption,
+      int[][] nestProjectedFields,
       ScanContext context) {
     this.tableLoader = tableLoader;
     this.io = io;
@@ -62,7 +63,11 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     this.context = context;
     this.rowDataReader =
         new RowDataFileScanTaskReader(
-            tableSchema, context.project(), context.nameMapping(), context.caseSensitive());
+            tableSchema,
+            context.project(),
+            context.nameMapping(),
+            context.caseSensitive(),
+            nestProjectedFields);
   }
 
   @VisibleForTesting

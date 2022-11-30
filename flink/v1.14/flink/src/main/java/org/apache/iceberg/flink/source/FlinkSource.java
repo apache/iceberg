@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -30,6 +31,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Accessors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -41,6 +43,8 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +80,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
+    private int[][] projectedFields;
     private ReadableConfig readableConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private Boolean exposeLocality;
@@ -102,6 +107,11 @@ public class FlinkSource {
 
     public Builder project(TableSchema schema) {
       this.projectedSchema = schema;
+      return this;
+    }
+
+    public Builder projectFields(int[][] newProjectFields) {
+      this.projectedFields = newProjectFields;
       return this;
     }
 
@@ -210,6 +220,12 @@ public class FlinkSource {
 
       if (projectedSchema == null) {
         contextBuilder.project(icebergSchema);
+      } else if (projectedFields != null) {
+        // Push down the nested projection so that don't need to get extra fields when get data from
+        // files.
+        Schema icebergProjectionSchema = projectSchema(icebergSchema);
+        contextBuilder.project(icebergProjectionSchema);
+        projectedFields = mappingNestProjectedFields(icebergProjectionSchema);
       } else {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
@@ -220,7 +236,7 @@ public class FlinkSource {
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
       return new FlinkInputFormat(
-          tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+          tableLoader, icebergSchema, io, encryption, projectedFields, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
@@ -229,7 +245,8 @@ public class FlinkSource {
 
       ScanContext context = contextBuilder.build();
       TypeInformation<RowData> typeInfo =
-          FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(context.project()));
+          FlinkCompatibilityUtil.toTypeInfo(
+              FlinkSchemaUtil.convert(FlinkSchemaUtil.convert(projectedSchema)));
 
       if (!context.isStreaming()) {
         int parallelism =
@@ -257,6 +274,36 @@ public class FlinkSource {
         return env.addSource(function, monitorFunctionName)
             .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
+    }
+
+    private Schema projectSchema(Schema tableSchema) {
+      List<String> fieldNames = Lists.newArrayListWithCapacity(projectedFields.length);
+      for (int[] indexPath : projectedFields) {
+        Types.NestedField nestedField = tableSchema.columns().get(indexPath[0]);
+        StringBuilder builder = new StringBuilder(nestedField.name());
+        for (int index = 1; index < indexPath.length; index++) {
+          Types.NestedField nestedFieldTemp =
+              nestedField.type().asStructType().fields().get(indexPath[index]);
+          builder.append(".").append(nestedFieldTemp.name());
+        }
+        fieldNames.add(builder.toString());
+      }
+      return tableSchema.select(fieldNames);
+    }
+
+    public int[][] mappingNestProjectedFields(Schema icebergSchema) {
+      int[][] mappingNestProjectedFields = new int[projectedSchema.getFieldCount()][];
+
+      String[] fieldNames = projectedSchema.getFieldNames();
+      for (int i = 0; i < fieldNames.length; i++) {
+        String fieldName = fieldNames[i];
+        Integer[] positions =
+            Accessors.toPositions(
+                icebergSchema.accessorForField(icebergSchema.findField(fieldName).fieldId()));
+        mappingNestProjectedFields[i] = Arrays.stream(positions).mapToInt(l -> l).toArray();
+      }
+
+      return mappingNestProjectedFields;
     }
   }
 

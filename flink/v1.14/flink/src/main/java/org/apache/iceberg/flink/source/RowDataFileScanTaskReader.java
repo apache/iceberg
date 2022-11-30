@@ -54,13 +54,24 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final int[][] projectedFields;
 
   public RowDataFileScanTaskReader(
       Schema tableSchema, Schema projectedSchema, String nameMapping, boolean caseSensitive) {
+    this(tableSchema, projectedSchema, nameMapping, caseSensitive, null);
+  }
+
+  public RowDataFileScanTaskReader(
+      Schema tableSchema,
+      Schema projectedSchema,
+      String nameMapping,
+      boolean caseSensitive,
+      int[][] projectedFields) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    this.projectedFields = projectedFields;
   }
 
   @Override
@@ -86,6 +97,12 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
               deletes.requiredRowType(),
               deletes.requiredSchema().asStruct(),
               projectedSchema.asStruct());
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
+    }
+
+    if (projectedFields != null) {
+      RowDataProjection rowDataProjection =
+          RowDataProjection.create(deletes.requiredSchema(), projectedSchema, projectedFields);
       iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
     }
 
