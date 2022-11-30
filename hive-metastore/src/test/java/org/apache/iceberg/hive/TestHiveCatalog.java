@@ -63,6 +63,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -323,6 +324,140 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       Assert.assertEquals(
           SortOrderParser.toJson(table.sortOrder()), hmsTableParameters().get(DEFAULT_SORT_ORDER));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testAlterTableOwner() throws IOException, TException {
+    alterTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_alter_owner_1",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_other_owner"),
+        "some_owner",
+        "some_other_owner");
+    alterTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_alter_owner_2",
+        ImmutableMap.of(),
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "another_owner"),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        "another_owner");
+    alterTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_alter_owner_noop_1",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableMap.of(),
+        "some_owner",
+        "some_owner");
+    alterTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_alter_owner_noop_2",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableMap.of("unrelated_prop", "val"),
+        "some_owner",
+        "some_owner");
+    alterTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_alter_owner_noop_3",
+        ImmutableMap.of(),
+        ImmutableMap.of(),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        UserGroupInformation.getCurrentUser().getUserName());
+  }
+
+  private void alterTableAndVerifyOwner(
+      String db,
+      String tbl,
+      Map<String, String> properties,
+      Map<String, String> updates,
+      String expectedOwnerPostCreate,
+      String expectedOwnerPostAlter)
+      throws IOException, TException {
+    Schema schema = getTestSchema();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
+    TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
+    String location = temp.newFolder(tbl).toString();
+    try {
+      Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
+      Assert.assertEquals(expectedOwnerPostCreate, hmsTable.getOwner());
+      Assert.assertFalse(hmsTable.getParameters().containsKey(HiveCatalog.HMS_TABLE_OWNER));
+      UpdateProperties updateOps = table.updateProperties();
+      updates.forEach(updateOps::set);
+      updateOps.commit();
+      hmsTable = metastoreClient.getTable(db, tbl);
+      Assert.assertEquals(expectedOwnerPostAlter, hmsTable.getOwner());
+      Assert.assertFalse(hmsTable.getParameters().containsKey(HiveCatalog.HMS_TABLE_OWNER));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testRemoveTableOwner() throws IOException, TException {
+    removeTableOwnerAndVerify(
+        DB_NAME,
+        "tbl_remove_owner_1",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableSet.of(HiveCatalog.HMS_TABLE_OWNER),
+        "some_owner",
+        UserGroupInformation.getCurrentUser().getUserName());
+    removeTableOwnerAndVerify(
+        DB_NAME,
+        "tbl_remove_owner_noop_1",
+        ImmutableMap.of(),
+        ImmutableSet.of(HiveCatalog.HMS_TABLE_OWNER),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        UserGroupInformation.getCurrentUser().getUserName());
+    removeTableOwnerAndVerify(
+        DB_NAME,
+        "tbl_remove_owner_noop_2",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableSet.of(),
+        "some_owner",
+        "some_owner");
+    removeTableOwnerAndVerify(
+        DB_NAME,
+        "tbl_remove_owner_noop_3",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        ImmutableSet.of("unrelated_prop"),
+        "some_owner",
+        "some_owner");
+    removeTableOwnerAndVerify(
+        DB_NAME,
+        "tbl_remove_owner_noop_4",
+        ImmutableMap.of(),
+        ImmutableSet.of(),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        UserGroupInformation.getCurrentUser().getUserName());
+  }
+
+  private void removeTableOwnerAndVerify(
+      String db,
+      String tbl,
+      Map<String, String> properties,
+      Set<String> removals,
+      String expectedOwnerPostCreate,
+      String expectedOwnerPostRemoval)
+      throws IOException, TException {
+    Schema schema = getTestSchema();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
+    TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
+    String location = temp.newFolder(tbl).toString();
+    try {
+      Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
+      Assert.assertEquals(expectedOwnerPostCreate, hmsTable.getOwner());
+      Assert.assertFalse(hmsTable.getParameters().containsKey(HiveCatalog.HMS_TABLE_OWNER));
+      UpdateProperties updateOps = table.updateProperties();
+      removals.forEach(updateOps::remove);
+      updateOps.commit();
+      hmsTable = metastoreClient.getTable(db, tbl);
+      Assert.assertEquals(expectedOwnerPostRemoval, hmsTable.getOwner());
+      Assert.assertFalse(hmsTable.getParameters().containsKey(HiveCatalog.HMS_TABLE_OWNER));
     } finally {
       catalog.dropTable(tableIdent);
     }

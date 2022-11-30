@@ -494,6 +494,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
 
+    // altering owner
+    if (metadata.properties().get(HiveCatalog.HMS_TABLE_OWNER) != null) {
+      tbl.setOwner(metadata.properties().get(HiveCatalog.HMS_TABLE_OWNER));
+    }
+
+    // dropping owner: instead of leaving the owner blank/null, the owner will be
+    // default to whoever is making the current drop operation
+    if (obsoleteProps.contains(HiveCatalog.HMS_TABLE_OWNER)) {
+      tbl.setOwner(HiveHadoopUtil.currentUser());
+    }
+
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
 
