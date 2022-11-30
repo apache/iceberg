@@ -65,6 +65,12 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
+  "1.1.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.addedToInterface"
+      new : "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::forPositionDelete(\
+      java.util.Map<java.lang.String, java.lang.String>)"
+      justification: "add new interface for flink metrics config"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

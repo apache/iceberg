@@ -108,6 +108,30 @@ public final class MetricsConfig implements Serializable {
   }
 
   /**
+   * Creates a metrics config for a position delete file.
+   *
+   * @param props table configuration
+   */
+  public static MetricsConfig forPositionDelete(Map<String, String> props) {
+    ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
+
+    columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
+    columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
+
+    MetricsConfig tableConfig = from(props, null, null);
+
+    MetricsMode defaultMode = tableConfig.defaultMode;
+    tableConfig.columnModes.forEach(
+        (columnAlias, mode) -> {
+          String positionDeleteColumnAlias =
+              DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
+          columnModes.put(positionDeleteColumnAlias, mode);
+        });
+
+    return new MetricsConfig(columnModes.build(), defaultMode);
+  }
+
+  /**
    * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
    *
    * @param props will be read for metrics overrides (write.metadata.metrics.column.*) and default
