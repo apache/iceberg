@@ -148,6 +148,11 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
               result.splits().size(),
               result.fromPosition(),
               result.toPosition());
+        } else {
+          LOG.info(
+              "No new splits discovered between ({}, {}]",
+              result.fromPosition(),
+              result.toPosition());
         }
         // update the enumerator position even if there is no split discovered
         // or the toPosition is empty (e.g. for empty table).

@@ -18,31 +18,31 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import java.util.Arrays;
 import javax.annotation.concurrent.ThreadSafe;
-import org.apache.iceberg.relocated.com.google.common.collect.EvictingQueue;
 
-/**
- * This enumeration history is used for split discovery throttling. It wraps Guava {@link
- * EvictingQueue} to provide thread safety.
- */
+/** This enumeration history is used for split discovery throttling. */
 @ThreadSafe
 class EnumerationHistory {
 
-  // EvictingQueue is not thread safe.
-  private final EvictingQueue<Integer> enumerationSplitCountHistory;
+  private final int[] enumerationSplitCountHistory;
+  // int (2B) should be enough without overflow for enumeration history
+  private int count;
 
   EnumerationHistory(int maxHistorySize) {
-    this.enumerationSplitCountHistory = EvictingQueue.create(maxHistorySize);
+    this.enumerationSplitCountHistory = new int[maxHistorySize];
   }
 
   /** Add the split count from the last enumeration result. */
   synchronized void add(int splitCount) {
-    enumerationSplitCountHistory.add(splitCount);
+    int pos = count % enumerationSplitCountHistory.length;
+    enumerationSplitCountHistory[pos] = splitCount;
+    count += 1;
   }
 
   /** @return true if split discovery should pause because assigner has too many splits already. */
   synchronized boolean shouldPauseSplitDiscovery(int pendingSplitCountFromAssigner) {
-    if (enumerationSplitCountHistory.remainingCapacity() > 0) {
+    if (count < enumerationSplitCountHistory.length) {
       // only check throttling when full history is obtained.
       return false;
     } else {
@@ -51,7 +51,7 @@ class EnumerationHistory {
       // splits tracked in assigner shouldn't be more than 15 snapshots worth of splits.
       // Split discovery pauses when reaching that threshold.
       int totalSplitCountFromRecentDiscovery =
-          enumerationSplitCountHistory.stream().reduce(0, Integer::sum);
+          Arrays.stream(enumerationSplitCountHistory).reduce(0, Integer::sum);
       return pendingSplitCountFromAssigner >= totalSplitCountFromRecentDiscovery;
     }
   }

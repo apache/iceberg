@@ -534,38 +534,45 @@ public class TestContinuousSplitPlannerImpl {
     Assert.assertEquals(0, initialResult.splits().size());
 
     ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
-    Assert.assertNull(secondResult.fromPosition().snapshotId());
-    Assert.assertNull(secondResult.fromPosition().snapshotTimestampMs());
-    Assert.assertEquals(snapshot1.snapshotId(), secondResult.toPosition().snapshotId().longValue());
-    Assert.assertEquals(
-        snapshot1.timestampMillis(), secondResult.toPosition().snapshotTimestampMs().longValue());
-    IcebergSourceSplit splitSecond = Iterables.getOnlyElement(secondResult.splits());
-    Assert.assertEquals(1, splitSecond.task().files().size());
-    Set<String> discoveredFilesSecond =
-        splitSecond.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
-            .collect(Collectors.toSet());
     // should discover dataFile1 appended in snapshot1
-    Set<String> expectedFilesSecond = ImmutableSet.of(dataFile1.path().toString());
-    Assert.assertEquals(expectedFilesSecond, discoveredFilesSecond);
+    verifyMaxPlanningSnapshotCountResult(
+        secondResult, null, snapshot1, ImmutableSet.of(dataFile1.path().toString()));
 
     ContinuousEnumerationResult thirdResult = splitPlanner.planSplits(secondResult.toPosition());
+    // should discover dataFile2 appended in snapshot2
+    verifyMaxPlanningSnapshotCountResult(
+        thirdResult, snapshot1, snapshot2, ImmutableSet.of(dataFile2.path().toString()));
+  }
+
+  private void verifyMaxPlanningSnapshotCountResult(
+      ContinuousEnumerationResult result,
+      Snapshot fromSnapshotExclusive,
+      Snapshot toSnapshotInclusive,
+      Set<String> expectedFiles) {
+    if (fromSnapshotExclusive == null) {
+      Assert.assertNull(result.fromPosition().snapshotId());
+      Assert.assertNull(result.fromPosition().snapshotTimestampMs());
+    } else {
+      Assert.assertEquals(
+          fromSnapshotExclusive.snapshotId(), result.fromPosition().snapshotId().longValue());
+      Assert.assertEquals(
+          fromSnapshotExclusive.timestampMillis(),
+          result.fromPosition().snapshotTimestampMs().longValue());
+    }
     Assert.assertEquals(
-        snapshot1.snapshotId(), thirdResult.fromPosition().snapshotId().longValue());
+        toSnapshotInclusive.snapshotId(), result.toPosition().snapshotId().longValue());
     Assert.assertEquals(
-        snapshot1.timestampMillis(), thirdResult.fromPosition().snapshotTimestampMs().longValue());
-    Assert.assertEquals(snapshot2.snapshotId(), thirdResult.toPosition().snapshotId().longValue());
-    Assert.assertEquals(
-        snapshot2.timestampMillis(), thirdResult.toPosition().snapshotTimestampMs().longValue());
-    IcebergSourceSplit splitThird = Iterables.getOnlyElement(thirdResult.splits());
-    Assert.assertEquals(1, splitThird.task().files().size());
-    Set<String> discoveredFilesThird =
-        splitThird.task().files().stream()
+        toSnapshotInclusive.timestampMillis(),
+        result.toPosition().snapshotTimestampMs().longValue());
+    // should only have one split with one data file, because split discover is limited to
+    // one snapshot and each snapshot has only one data file appended.
+    IcebergSourceSplit split = Iterables.getOnlyElement(result.splits());
+    Assert.assertEquals(1, split.task().files().size());
+    Set<String> discoveredFiles =
+        split.task().files().stream()
             .map(fileScanTask -> fileScanTask.file().path().toString())
             .collect(Collectors.toSet());
-    // should discover dataFile2 appended in snapshot2
-    Set<String> expectedFilesThird = ImmutableSet.of(dataFile2.path().toString());
-    Assert.assertEquals(expectedFilesThird, discoveredFilesThird);
+    Assert.assertEquals(expectedFiles, discoveredFiles);
   }
 
   private Snapshot appendSnapshot(long seed, int numRecords) throws Exception {
