@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -57,6 +58,7 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.PartitionSpecParser;
@@ -446,20 +448,29 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     Preconditions.checkNotNull(metadata, "'metadata' parameter can't be null");
     final long currentTimeMillis = System.currentTimeMillis();
 
-    Table newTable =
-        new Table(
-            tableName,
-            database,
-            metadata.property(HiveCatalog.HMS_TABLE_OWNER, System.getProperty("user.name")),
-            (int) currentTimeMillis / 1000,
-            (int) currentTimeMillis / 1000,
-            Integer.MAX_VALUE,
-            null,
-            Collections.emptyList(),
-            Maps.newHashMap(),
-            null,
-            null,
-            TableType.EXTERNAL_TABLE.toString());
+    Table newTable;
+    try {
+      newTable =
+          new Table(
+              tableName,
+              database,
+              metadata.property(
+                  HiveCatalog.HMS_TABLE_OWNER, UserGroupInformation.getCurrentUser().getUserName()),
+              (int) currentTimeMillis / 1000,
+              (int) currentTimeMillis / 1000,
+              Integer.MAX_VALUE,
+              null,
+              Collections.emptyList(),
+              Maps.newHashMap(),
+              null,
+              null,
+              TableType.EXTERNAL_TABLE.toString());
+    } catch (IOException e) {
+      throw new RuntimeException(
+          String.format(
+              "Fail to obtain default (UGI) user when creating table %s.%s", database, tableName),
+          e);
+    }
 
     newTable
         .getParameters()
@@ -493,6 +504,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
+
+    if (metadata.property(HiveCatalog.HMS_TABLE_OWNER, null) != null) {
+      tbl.setOwner(metadata.property(HiveCatalog.HMS_TABLE_OWNER, null));
+    }
+
+    if (obsoleteProps.contains(HiveCatalog.HMS_TABLE_OWNER)) {
+      try {
+        tbl.setOwner(UserGroupInformation.getCurrentUser().getUserName());
+      } catch (IOException e) {
+        throw new RuntimeException(
+            String.format(
+                "Fail to obtain default (UGI) user when removing owner from table %s.%s",
+                tbl.getDbName(), tbl.getTableName()),
+            e);
+      }
+    }
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);

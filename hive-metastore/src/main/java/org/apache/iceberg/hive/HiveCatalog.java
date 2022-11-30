@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +34,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
@@ -567,8 +569,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         });
 
     if (database.getOwnerName() == null) {
-      database.setOwnerName(System.getProperty("user.name"));
-      database.setOwnerType(PrincipalType.USER);
+      try {
+        database.setOwnerName(UserGroupInformation.getCurrentUser().getUserName());
+        database.setOwnerType(PrincipalType.USER);
+      } catch (IOException e) {
+        throw new RuntimeException(
+            String.format("Fail to obtain default (UGI) user for database %s", database), e);
+      }
     }
 
     database.setParameters(parameter);
