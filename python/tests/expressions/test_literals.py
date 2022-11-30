@@ -492,9 +492,7 @@ def test_above_max_float():
     assert repr(a) == "FloatAboveMax()"
     assert a.value == FloatType.max
     assert a == eval(repr(a))
-    with pytest.raises(TypeError) as e:
-        a.to(IntegerType())
-    assert "Cannot change the type of FloatAboveMax" in str(e.value)
+    assert a.to(FloatType()) == FloatAboveMax()
 
 
 def test_below_min_float():
@@ -505,9 +503,7 @@ def test_below_min_float():
     assert repr(b) == "FloatBelowMin()"
     assert b == eval(repr(b))
     assert b.value == FloatType.min
-    with pytest.raises(TypeError) as e:
-        b.to(IntegerType())
-    assert "Cannot change the type of FloatBelowMin" in str(e.value)
+    assert b.to(FloatType()) == FloatBelowMin()
 
 
 def test_above_max_int():
@@ -518,9 +514,7 @@ def test_above_max_int():
     assert repr(a) == "IntAboveMax()"
     assert a.value == IntegerType.max
     assert a == eval(repr(a))
-    with pytest.raises(TypeError) as e:
-        a.to(IntegerType())
-    assert "Cannot change the type of IntAboveMax" in str(e.value)
+    assert a.to(IntegerType()) == IntAboveMax()
 
 
 def test_below_min_int():
@@ -530,10 +524,7 @@ def test_below_min_int():
     assert str(b) == "IntBelowMin"
     assert repr(b) == "IntBelowMin()"
     assert b == eval(repr(b))
-    assert b.value == IntegerType.min
-    with pytest.raises(TypeError) as e:
-        b.to(IntegerType())
-    assert "Cannot change the type of IntBelowMin" in str(e.value)
+    assert b.to(IntegerType()) == IntBelowMin()
 
 
 def test_invalid_boolean_conversions():
@@ -667,10 +658,6 @@ def test_invalid_decimal_conversions():
         literal(Decimal("34.11")),
         [
             BooleanType(),
-            IntegerType(),
-            LongType(),
-            FloatType(),
-            DoubleType(),
             DateType(),
             TimeType(),
             TimestampType(),

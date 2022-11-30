@@ -62,6 +62,8 @@ def test_partition_spec_init():
     assert partition_spec1 != partition_spec2
     assert partition_spec1.compatible_with(partition_spec2)
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
+    # Does not exist
+    assert partition_spec1.fields_by_source_id(1925) == []
 
 
 def test_partition_compatible_with():

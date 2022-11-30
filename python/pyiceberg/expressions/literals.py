@@ -86,6 +86,8 @@ class Literal(Generic[L], ABC):
         return hash(self.value)
 
     def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Literal):
+            return False
         return self.value == other.value
 
     def __ne__(self, other) -> bool:
@@ -134,60 +136,98 @@ def literal(value: L) -> Literal[L]:
         raise TypeError(f"Invalid literal value: {repr(value)}")
 
 
-class FloatAboveMax(Literal[float], Singleton):
+class AboveMax(Literal[L]):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+    def __str__(self) -> str:
+        return self.__class__.__name__
+
+
+class BelowMin(Literal[L]):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+    def __str__(self) -> str:
+        return self.__class__.__name__
+
+
+class FloatAboveMax(AboveMax[float], Singleton):
     def __init__(self):
         super().__init__(FloatType.max, float)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of FloatAboveMax")
 
-    def __repr__(self) -> str:
-        return "FloatAboveMax()"
-
-    def __str__(self) -> str:
-        return "FloatAboveMax"
+    @to.register(FloatType)
+    def _(self, _: FloatType) -> Literal[float]:
+        return self
 
 
-class FloatBelowMin(Literal[float], Singleton):
+class FloatBelowMin(BelowMin[float], Singleton):
     def __init__(self):
         super().__init__(FloatType.min, float)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of FloatBelowMin")
 
-    def __repr__(self) -> str:
-        return "FloatBelowMin()"
-
-    def __str__(self) -> str:
-        return "FloatBelowMin"
+    @to.register(FloatType)
+    def _(self, _: FloatType) -> Literal[float]:
+        return self
 
 
-class IntAboveMax(Literal[int]):
+class IntAboveMax(AboveMax[int], Singleton):
     def __init__(self):
         super().__init__(IntegerType.max, int)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of IntAboveMax")
 
-    def __repr__(self) -> str:
-        return "IntAboveMax()"
-
-    def __str__(self) -> str:
-        return "IntAboveMax"
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return self
 
 
-class IntBelowMin(Literal[int]):
+class IntBelowMin(BelowMin[int], Singleton):
     def __init__(self):
         super().__init__(IntegerType.min, int)
 
+    @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError("Cannot change the type of IntBelowMin")
 
-    def __repr__(self) -> str:
-        return "IntBelowMin()"
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        return self
 
-    def __str__(self) -> str:
-        return "IntBelowMin"
+
+class LongAboveMax(AboveMax[int], Singleton):
+    def __init__(self):
+        super().__init__(LongType.max, int)
+
+    @singledispatchmethod
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
+        raise TypeError("Cannot change the type of IntAboveMax")
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return self
+
+
+class LongBelowMin(BelowMin[int], Singleton):
+    def __init__(self):
+        super().__init__(LongType.min, int)
+
+    @singledispatchmethod
+    def to(self, type_var: IcebergType) -> Literal:  # type: ignore
+        raise TypeError("Cannot change the type of IntBelowMin")
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        return self
 
 
 class BooleanLiteral(Literal[bool]):
@@ -219,7 +259,12 @@ class LongLiteral(Literal[int]):
 
     @to.register(LongType)
     def _(self, _: LongType) -> Literal[int]:
-        return self
+        if LongType.max < self.value:
+            return LongAboveMax()
+        elif LongType.min > self.value:
+            return LongBelowMin()
+        else:
+            return self
 
     @to.register(IntegerType)
     def _(self, _: IntegerType) -> Literal[int]:
@@ -401,6 +446,40 @@ class DecimalLiteral(Literal[Decimal]):
             return self
         raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
+    @to.register(IntegerType)
+    def _(self, _: IntegerType) -> Literal[int]:
+        value_int = int(self.value.to_integral_value())
+        if value_int > IntegerType.max:
+            return IntAboveMax()
+        elif value_int < IntegerType.min:
+            return IntBelowMin()
+        else:
+            return LongLiteral(value_int)
+
+    @to.register(LongType)
+    def _(self, _: LongType) -> Literal[int]:
+        value_int = int(self.value.to_integral_value())
+        if value_int > LongType.max:
+            return IntAboveMax()
+        elif value_int < LongType.min:
+            return IntBelowMin()
+        else:
+            return LongLiteral(value_int)
+
+    @to.register(FloatType)
+    def _(self, _: FloatType):
+        value_float = float(self.value)
+        if value_float > FloatType.max:
+            return FloatAboveMax()
+        elif value_float < FloatType.min:
+            return FloatBelowMin()
+        else:
+            return FloatLiteral(value_float)
+
+    @to.register(DoubleType)
+    def _(self, _: DoubleLiteral):
+        return DoubleLiteral(float(self.value))
+
 
 class StringLiteral(Literal[str]):
     def __init__(self, value: str):
@@ -430,7 +509,13 @@ class StringLiteral(Literal[str]):
     @to.register(LongType)
     def _(self, type_var: LongType) -> Literal[int]:
         try:
-            return LongLiteral(int(float(self.value)))
+            long_value = int(float(self.value))
+            if LongType.max < long_value:
+                return LongAboveMax()
+            elif LongType.min > long_value:
+                return LongBelowMin()
+            else:
+                return LongLiteral(long_value)
         except (TypeError, ValueError) as e:
             raise ValueError(f"Could not convert {self.value} into a {type_var}") from e
 
