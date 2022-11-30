@@ -146,8 +146,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    df = tranform(df, partitionSpec, true);
-    return df;
+    return tranform(df, partitionSpec, true);
   }
 
   private boolean hasIdentifierColumns(InternalRow args) {
