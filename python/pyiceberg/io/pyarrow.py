@@ -23,7 +23,7 @@ with the pyarrow library.
 """
 
 import os
-from functools import lru_cache, singledispatch
+from functools import lru_cache
 from typing import (
     Any,
     Callable,
@@ -54,7 +54,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType, visit
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -69,12 +69,12 @@ from pyiceberg.types import (
     LongType,
     MapType,
     NestedField,
-    PrimitiveType,
     StringType,
     StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
 
 
@@ -288,7 +288,21 @@ def schema_to_pyarrow(schema: Schema) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
-class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
+class UuidType(pa.PyExtensionType):
+    """Custom type for UUID
+
+    For more information:
+    https://arrow.apache.org/docs/python/extending_types.html#defining-extension-types-user-defined-types
+    """
+
+    def __init__(self):
+        pa.PyExtensionType.__init__(self, pa.binary(16))
+
+    def __reduce__(self):
+        return UuidType, ()
+
+
+class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType]):
     def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
         return pa.schema(list(struct_result))
 
@@ -309,82 +323,50 @@ class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
     def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
         return pa.map_(key_type=key_result, item_type=value_result)
 
-    def primitive(self, primitive: PrimitiveType) -> pa.DataType:
-        return _iceberg_to_pyarrow_type(primitive)
+    def visit_fixed(self, fixed_type: FixedType) -> pa.DataType:
+        return pa.binary(len(fixed_type))
 
+    def visit_decimal(self, decimal_type: DecimalType) -> pa.DataType:
+        return pa.decimal128(decimal_type.precision, decimal_type.scale)
 
-@singledispatch
-def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
-    raise ValueError(f"Unknown type: {primitive}")
+    def visit_boolean(self, _: BooleanType) -> pa.DataType:
+        return pa.bool_()
 
+    def visit_integer(self, _: IntegerType) -> pa.DataType:
+        return pa.int32()
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: FixedType) -> pa.DataType:
-    return pa.binary(len(primitive))
+    def visit_long(self, _: LongType) -> pa.DataType:
+        return pa.int64()
 
+    def visit_float(self, _: FloatType) -> pa.DataType:
+        # 32-bit IEEE 754 floating point
+        return pa.float32()
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: DecimalType) -> pa.DataType:
-    return pa.decimal128(primitive.precision, primitive.scale)
+    def visit_double(self, _: DoubleType) -> pa.DataType:
+        # 64-bit IEEE 754 floating point
+        return pa.float64()
 
+    def visit_date(self, _: DateType) -> pa.DataType:
+        # Date encoded as an int
+        return pa.date32()
 
-@_iceberg_to_pyarrow_type.register
-def _(_: BooleanType) -> pa.DataType:
-    return pa.bool_()
+    def visit_time(self, _: TimeType) -> pa.DataType:
+        return pa.time64("us")
 
+    def visit_timestamp(self, _: TimestampType) -> pa.DataType:
+        return pa.timestamp(unit="us")
 
-@_iceberg_to_pyarrow_type.register
-def _(_: IntegerType) -> pa.DataType:
-    return pa.int32()
+    def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
+        return pa.timestamp(unit="us", tz="+00:00")
 
+    def visit_string(self, _: StringType) -> pa.DataType:
+        return pa.string()
 
-@_iceberg_to_pyarrow_type.register
-def _(_: LongType) -> pa.DataType:
-    return pa.int64()
+    def visit_uuid(self, _: UUIDType) -> pa.DataType:
+        return UuidType()
 
-
-@_iceberg_to_pyarrow_type.register
-def _(_: FloatType) -> pa.DataType:
-    # 32-bit IEEE 754 floating point
-    return pa.float32()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: DoubleType) -> pa.DataType:
-    # 64-bit IEEE 754 floating point
-    return pa.float64()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: DateType) -> pa.DataType:
-    # Date encoded as an int
-    return pa.date32()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimeType) -> pa.DataType:
-    return pa.time64("us")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestampType) -> pa.DataType:
-    return pa.timestamp(unit="us")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestamptzType) -> pa.DataType:
-    return pa.timestamp(unit="us", tz="+00:00")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: StringType) -> pa.DataType:
-    return pa.string()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: BinaryType) -> pa.DataType:
-    # Variable length by default
-    return pa.binary()
+    def visit_binary(self, _: BinaryType) -> pa.DataType:
+        return pa.binary()
 
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
