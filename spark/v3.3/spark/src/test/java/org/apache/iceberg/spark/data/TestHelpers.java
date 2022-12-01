@@ -47,18 +47,12 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.MetadataTableUtils;
-import org.apache.iceberg.MetricsUtil;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -823,91 +817,6 @@ public class TestHelpers {
         .flatMap(s -> s.allManifests(table.io()).stream())
         .map(ManifestFile::path)
         .collect(Collectors.toSet());
-  }
-
-  public static GenericData.Record asMetadataRecordWithMetrics(
-      Table dataTable, GenericData.Record file) {
-    return asMetadataRecordWithMetrics(dataTable, file, FileContent.DATA);
-  }
-
-  @SuppressWarnings("unchecked")
-  public static GenericData.Record asMetadataRecordWithMetrics(
-      Table dataTable, GenericData.Record file, FileContent content) {
-
-    Table filesTable =
-        MetadataTableUtils.createMetadataTableInstance(dataTable, MetadataTableType.FILES);
-
-    GenericData.Record record =
-        new GenericData.Record(AvroSchemaUtil.convert(filesTable.schema(), "dummy"));
-    boolean isPartitioned = Partitioning.partitionType(dataTable).fields().size() != 0;
-    int filesFields = isPartitioned ? 17 : 16;
-    for (int i = 0; i < filesFields; i++) {
-      if (i == 0) {
-        record.put(0, content.id());
-      } else if (i == 3) {
-        record.put(3, 0); // spec id
-      } else {
-        record.put(i, file.get(i));
-      }
-    }
-    record.put(
-        isPartitioned ? 17 : 16,
-        expectedReadableMetrics(
-            dataTable.schema(),
-            filesTable.schema(),
-            (Map<Integer, Long>) file.get("column_sizes"),
-            (Map<Integer, Long>) file.get("value_counts"),
-            (Map<Integer, Long>) file.get("null_value_counts"),
-            (Map<Integer, Long>) file.get("nan_value_counts"),
-            (Map<Integer, ByteBuffer>) file.get("lower_bounds"),
-            (Map<Integer, ByteBuffer>) file.get("upper_bounds")));
-    return record;
-  }
-
-  public static GenericData.Record expectedReadableMetrics(
-      Schema dataTableSchema,
-      Schema filesTableSchema,
-      Map<Integer, Long> columnSizes,
-      Map<Integer, Long> valueCounts,
-      Map<Integer, Long> nullValueCounts,
-      Map<Integer, Long> nanValueCounts,
-      Map<Integer, ByteBuffer> lowerBounds,
-      Map<Integer, ByteBuffer> upperBounds) {
-    Types.StructType readableMetricsType =
-        filesTableSchema.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
-    GenericData.Record result = new GenericData.Record(AvroSchemaUtil.convert(readableMetricsType));
-    Map<Integer, String> nameById = dataTableSchema.idToName();
-    for (int columnId : nameById.keySet()) {
-      String colName = nameById.get(columnId);
-      Types.StructType readableMetricColSchema =
-          filesTableSchema
-              .findField(MetricsUtil.READABLE_METRICS)
-              .type()
-              .asStructType()
-              .field(colName)
-              .type()
-              .asStructType();
-      GenericData.Record record =
-          new GenericData.Record(AvroSchemaUtil.convert(readableMetricColSchema));
-      record.put(0, columnSizes == null ? null : columnSizes.get(columnId));
-      record.put(1, valueCounts == null ? null : valueCounts.get(columnId));
-      record.put(2, nullValueCounts == null ? null : nullValueCounts.get(columnId));
-      record.put(3, nanValueCounts == null ? null : nanValueCounts.get(columnId));
-      record.put(
-          4,
-          lowerBounds == null
-              ? null
-              : Conversions.fromByteBuffer(
-                  dataTableSchema.findType(columnId), lowerBounds.get(columnId)));
-      record.put(
-          5,
-          upperBounds == null
-              ? null
-              : Conversions.fromByteBuffer(
-                  dataTableSchema.findType(columnId), upperBounds.get(columnId)));
-      result.put(nameById.get(columnId), record);
-    }
-    return result;
   }
 
   public static void asMetadataRecord(GenericData.Record file) {

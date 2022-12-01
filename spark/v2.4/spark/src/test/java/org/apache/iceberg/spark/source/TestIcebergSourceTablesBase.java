@@ -25,10 +25,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,11 +38,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.MetadataTableUtils;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
@@ -74,16 +68,17 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkException;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -453,8 +448,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // delete the first file to test that only live files are listed
     table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
 
-    List<Row> actual =
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+    StructField[] fields = filesTableDs.schema().fields();
+    Dataset<Row> nonDerivedFilesDs =
+        filesTableDs.select(
+            Stream.of(fields)
+                .filter(f -> !f.name().equals("readable_metrics")) // derived field
+                .map(f -> new Column(f.name()))
+                .toArray(Column[]::new));
+    List<Row> actual = nonDerivedFilesDs.collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
@@ -464,8 +467,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            GenericData.Record expectedRecord = asMetadataRecordWithMetrics(table, file);
-            expected.add(expectedRecord);
+            asMetadataRecord(file);
+            expected.add(file);
           }
         }
       }
@@ -473,7 +476,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(
+        SparkSchemaUtil.convert(nonDerivedFilesDs.schema()).asStruct(),
+        expected.get(0),
+        actual.get(0));
   }
 
   @Test
@@ -511,12 +517,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           table,
           stagingLocation);
 
-      List<Row> actual =
-          spark
-              .read()
-              .format("iceberg")
-              .load(loadLocation(tableIdentifier, "files"))
-              .collectAsList();
+      Dataset<Row> filesTableDs =
+          spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+      StructField[] fields = filesTableDs.schema().fields();
+      Dataset<Row> nonDerivedFilesTableDs =
+          filesTableDs.select(
+              Stream.of(fields)
+                  .filter(f -> !f.name().equals("readable_metrics")) // derived field
+                  .map(f -> new Column(f.name()))
+                  .toArray(Column[]::new));
+      List<Row> actual = nonDerivedFilesTableDs.collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
       for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
@@ -525,16 +535,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            GenericData.Record expectedRecord = asMetadataRecordWithMetrics(table, file);
-            expected.add(expectedRecord);
+            asMetadataRecord(file);
+            expected.add(file);
           }
         }
       }
 
+      Types.StructType struct = SparkSchemaUtil.convert(nonDerivedFilesTableDs.schema()).asStruct();
       Assert.assertEquals("Files table should have one row", 2, expected.size());
       Assert.assertEquals("Actual results should have one row", 2, actual.size());
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(1), actual.get(1));
+      TestHelpers.assertEqualsSafe(struct, expected.get(0), actual.get(0));
+      TestHelpers.assertEqualsSafe(struct, expected.get(1), actual.get(1));
     } finally {
       spark.sql("DROP TABLE parquet_table");
     }
@@ -624,8 +635,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // delete the first file to test that only live files are listed
     table.newDelete().deleteFile(toDelete).commit();
 
-    List<Row> actual =
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+    StructField[] fields = filesTableDs.schema().fields();
+    Dataset<Row> nonDerivedFilesTableDs =
+        filesTableDs.select(
+            Stream.of(fields)
+                .filter(f -> !f.name().equals("readable_metrics")) // derived field
+                .map(f -> new Column(f.name()))
+                .toArray(Column[]::new));
+    List<Row> actual = nonDerivedFilesTableDs.collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
@@ -635,8 +654,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            GenericData.Record expectedRecord = asMetadataRecordWithMetrics(table, file);
-            expected.add(expectedRecord);
+            asMetadataRecord(file);
+            expected.add(file);
           }
         }
       }
@@ -644,7 +663,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(
+        SparkSchemaUtil.convert(nonDerivedFilesTableDs.schema()).asStruct(),
+        expected.get(0),
+        actual.get(0));
   }
 
   @Test
@@ -733,13 +755,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // ensure table data isn't stale
     table.refresh();
 
-    List<Row> actual =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "all_data_files"))
-            .orderBy("file_path")
-            .collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_data_files"));
+    StructField[] fields = filesTableDs.schema().fields();
+    Dataset<Row> nonDerivedFilesTableDs =
+        filesTableDs
+            .select(
+                Stream.of(fields)
+                    .filter(f -> !f.name().equals("readable_metrics")) // derived field
+                    .map(f -> new Column(f.name()))
+                    .toArray(Column[]::new))
+            .orderBy("file_path");
+    List<Row> actual = nonDerivedFilesTableDs.collectAsList();
     actual.sort(Comparator.comparing(o -> o.getString(1)));
 
     List<GenericData.Record> expected = Lists.newArrayList();
@@ -753,8 +780,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            GenericData.Record expectedRecord = asMetadataRecordWithMetrics(table, file);
-            expected.add(expectedRecord);
+            asMetadataRecord(file);
+            expected.add(file);
           }
         }
       }
@@ -765,7 +792,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Files table should have two rows", 2, expected.size());
     Assert.assertEquals("Actual results should have two rows", 2, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(i), actual.get(i));
+      TestHelpers.assertEqualsSafe(
+          SparkSchemaUtil.convert(nonDerivedFilesTableDs.schema()).asStruct(),
+          expected.get(i),
+          actual.get(i));
     }
   }
 
@@ -1764,90 +1794,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                         .build()))
         .set("reference_snapshot_id", referenceSnapshotId)
         .build();
-  }
-
-  public static GenericData.Record asMetadataRecordWithMetrics(
-      Table dataTable, GenericData.Record file) {
-    return asMetadataRecordWithMetrics(dataTable, file, FileContent.DATA);
-  }
-
-  public static GenericData.Record asMetadataRecordWithMetrics(
-      Table dataTable, GenericData.Record file, FileContent content) {
-
-    Table filesTable =
-        MetadataTableUtils.createMetadataTableInstance(dataTable, MetadataTableType.FILES);
-
-    GenericData.Record record =
-        new GenericData.Record(AvroSchemaUtil.convert(filesTable.schema(), "dummy"));
-    boolean isPartitioned = Partitioning.partitionType(dataTable).fields().size() != 0;
-    int filesFields = isPartitioned ? 17 : 16;
-    for (int i = 0; i < filesFields; i++) {
-      if (i == 0) {
-        record.put(0, content.id());
-      } else if (i == 3) {
-        record.put(3, 0); // spec id
-      } else {
-        record.put(i, file.get(i));
-      }
-    }
-    record.put(
-        isPartitioned ? 17 : 16,
-        expectedReadableMetrics(
-            dataTable.schema(),
-            filesTable.schema(),
-            (Map<Integer, Long>) file.get("column_sizes"),
-            (Map<Integer, Long>) file.get("value_counts"),
-            (Map<Integer, Long>) file.get("null_value_counts"),
-            (Map<Integer, Long>) file.get("nan_value_counts"),
-            (Map<Integer, ByteBuffer>) file.get("lower_bounds"),
-            (Map<Integer, ByteBuffer>) file.get("upper_bounds")));
-    return record;
-  }
-
-  public static GenericData.Record expectedReadableMetrics(
-      Schema dataTableSchema,
-      Schema filesTableSchema,
-      Map<Integer, Long> columnSizes,
-      Map<Integer, Long> valueCounts,
-      Map<Integer, Long> nullValueCounts,
-      Map<Integer, Long> nanValueCounts,
-      Map<Integer, ByteBuffer> lowerBounds,
-      Map<Integer, ByteBuffer> upperBounds) {
-    Types.StructType readableMetricsType =
-        filesTableSchema.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
-    GenericData.Record result = new GenericData.Record(AvroSchemaUtil.convert(readableMetricsType));
-    Map<Integer, String> nameById = dataTableSchema.idToName();
-    for (int columnId : nameById.keySet()) {
-      String colName = nameById.get(columnId);
-      Types.StructType readableMetricColSchema =
-          filesTableSchema
-              .findField(MetricsUtil.READABLE_METRICS)
-              .type()
-              .asStructType()
-              .field(colName)
-              .type()
-              .asStructType();
-      GenericData.Record record =
-          new GenericData.Record(AvroSchemaUtil.convert(readableMetricColSchema));
-      record.put(0, columnSizes == null ? null : columnSizes.get(columnId));
-      record.put(1, valueCounts == null ? null : valueCounts.get(columnId));
-      record.put(2, nullValueCounts == null ? null : nullValueCounts.get(columnId));
-      record.put(3, nanValueCounts == null ? null : nanValueCounts.get(columnId));
-      record.put(
-          4,
-          lowerBounds == null
-              ? null
-              : Conversions.fromByteBuffer(
-                  dataTableSchema.findType(columnId), lowerBounds.get(columnId)));
-      record.put(
-          5,
-          upperBounds == null
-              ? null
-              : Conversions.fromByteBuffer(
-                  dataTableSchema.findType(columnId), upperBounds.get(columnId)));
-      result.put(nameById.get(columnId), record);
-    }
-    return result;
   }
 
   public static void asMetadataRecord(GenericData.Record file) {
