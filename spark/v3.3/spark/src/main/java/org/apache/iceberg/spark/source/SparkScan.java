@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -104,11 +103,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected abstract List<CombinedScanTask> tasks();
+  protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema, hashCode());
+    return new SparkBatch(sparkContext, table, readConf, taskGroups(), expectedSchema, hashCode());
   }
 
   @Override
@@ -149,7 +148,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
-    long rowsCount = tasks().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount);
   }
