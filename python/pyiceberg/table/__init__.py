@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
@@ -335,6 +336,10 @@ class DataScan(TableScan["DataScan"]):
 
     def to_arrow(self):
         from pyiceberg.io.pyarrow import PyArrowFileIO
+
+        warnings.warn(
+            "Projection is currently done by name instead of Field ID, this can lead to incorrect results in some cases."
+        )
 
         fs = None
         if isinstance(self.table.io, PyArrowFileIO):
