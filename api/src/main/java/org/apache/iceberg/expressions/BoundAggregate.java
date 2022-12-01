@@ -29,7 +29,8 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
   @Override
   public C eval(StructLike struct) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement eval");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement eval.");
   }
 
   @Override
@@ -40,15 +41,23 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   public Types.NestedField nestedField(int index) {
     if (op() == Operation.COUNT_STAR) {
       return Types.NestedField.required(index, "COUNT(*)", Types.LongType.get());
-    } else if (op() == Operation.COUNT) {
-      return Types.NestedField.required(
-          index, "COUNT(" + term().ref().name() + ")", Types.LongType.get());
-    } else if (op() == Operation.MAX) {
-      return Types.NestedField.required(index, "MAX(" + term().ref().name() + ")", term().type());
-    } else if (op() == Operation.MIN) {
-      return Types.NestedField.required(index, "MIN(" + term().ref().name() + ")", term().type());
     } else {
-      throw new UnsupportedOperationException();
+      if (term() instanceof BoundReference) {
+        if (op() == Operation.COUNT) {
+          return Types.NestedField.required(
+              index, "COUNT(" + term().ref().name() + ")", Types.LongType.get());
+        } else if (op() == Operation.MAX) {
+          return Types.NestedField.required(
+              index, "MAX(" + term().ref().name() + ")", term().type());
+        } else if (op() == Operation.MIN) {
+          return Types.NestedField.required(
+              index, "MIN(" + term().ref().name() + ")", term().type());
+        } else {
+          throw new UnsupportedOperationException(op() + " is not supported.");
+        }
+      } else {
+        throw new UnsupportedOperationException("Aggregate BoundTransform is not supported.");
+      }
     }
   }
 

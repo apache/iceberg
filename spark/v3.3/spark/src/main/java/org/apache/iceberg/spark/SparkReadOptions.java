@@ -85,5 +85,5 @@ public class SparkReadOptions {
 
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
-  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregatePushdown";
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregatePushDownEnabled";
 }
