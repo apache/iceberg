@@ -124,11 +124,11 @@ public abstract class SparkTestBase {
     return rowsToJava(rows);
   }
 
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
+  public static List<Object[]> rowsToJava(List<Row> rows) {
+    return rows.stream().map(SparkTestBase::toJava).collect(Collectors.toList());
   }
 
-  private Object[] toJava(Row row) {
+  private static Object[] toJava(Row row) {
     return IntStream.range(0, row.size())
         .mapToObj(
             pos -> {
@@ -162,7 +162,7 @@ public abstract class SparkTestBase {
     return values;
   }
 
-  protected void assertEquals(
+  public static void assertEquals(
       String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
     Assert.assertEquals(
         context + ": number of results should match", expectedRows.size(), actualRows.size());
@@ -177,7 +177,7 @@ public abstract class SparkTestBase {
     }
   }
 
-  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
+  private static void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
     Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
     for (int col = 0; col < actualRow.length; col += 1) {
       Object expectedValue = expectedRow[col];
