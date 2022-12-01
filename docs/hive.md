@@ -43,6 +43,8 @@ the Iceberg integration when using HiveCatalog supports the following additional
 
 * Altering a table with expiring snapshots.
 * Create a table like an existing table (CTLT table)
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
+* Altering a table metadata location
 
 With Hive version 4.0.0-alpha-1 and above,
 the Iceberg integration when using HiveCatalog supports the following additional features:
@@ -296,7 +298,10 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
 
 `CREATE TABLE LIKE TABLE` operation 
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
-// Todo: finish this.
+
+```sql
+CREATE TABLE target LIKE source STORED BY ICEBERG;
+```
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
 tables are created using either a [`Catalog`](../../../javadoc/{{% icebergVersion
@@ -440,6 +445,15 @@ Tables can be dropped using the `DROP TABLE` command:
 
 ```sql
 DROP TABLE [IF EXISTS] table_name [PURGE];
+```
+
+### METADATA LOCATION
+
+The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json. 
+It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step. 
+
+```sql
+ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-a1ada2b8-fc86-4b5b-8c91-400b6b46d0f2.metadata.json');
 ```
 
 ## DML Commands
