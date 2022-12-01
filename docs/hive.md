@@ -298,12 +298,11 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
 
 ### CREATE TABLE LIKE TABLE
 
-`CREATE TABLE LIKE TABLE` operation 
-### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
-
 ```sql
 CREATE TABLE target LIKE source STORED BY ICEBERG;
 ```
+ 
+### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
 tables are created using either a [`Catalog`](../../../javadoc/{{% icebergVersion
