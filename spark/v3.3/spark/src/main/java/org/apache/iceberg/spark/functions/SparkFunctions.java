@@ -35,6 +35,7 @@ public class SparkFunctions {
           "years", new YearsFunction(),
           "months", new MonthsFunction(),
           "days", new DaysFunction(),
+          "hours", new HoursFunction(),
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 
