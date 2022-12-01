@@ -45,6 +45,8 @@ the Iceberg integration when using HiveCatalog supports the following additional
 * Create a table like an existing table (CTLT table)
 * Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
 * Altering a table metadata location
+* Supporting table rollback
+* Honours sort orders on existing tables when writing a table [Sort orders specification](https://iceberg.apache.org/spec/#sort-orders)
 
 With Hive version 4.0.0-alpha-1 and above,
 the Iceberg integration when using HiveCatalog supports the following additional features:
@@ -540,7 +542,7 @@ Enter a query to expire snapshots having the following timestamp: `2021-12-09 05
 ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
 ```
 
-## Type compatibility
+### Type compatibility
 
 Hive and Iceberg support different set of types. Iceberg can perform type conversion automatically, but not for all
 combinations, so you may want to understand the type conversion in Iceberg in prior to design the types of columns in
@@ -578,3 +580,18 @@ creating Iceberg table and writing to Iceberg table via Hive.
 | list             | list                    |       |
 | map              | map                     |       |
 | union            |                         | not supported |
+
+### Table rollback
+
+Rolling back iceberg table's data to the state at an older table snapshot.
+
+Rollback to the last snapshot before a specific timestamp
+
+```sql
+ALTER TABLE ice_t EXECUTE ROLLBACK('2022-05-12 00:00:00')
+```
+
+Rollback to a specific snapshot ID
+```sql
+ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
+```
