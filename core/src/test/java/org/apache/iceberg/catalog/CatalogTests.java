@@ -25,6 +25,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
@@ -35,11 +36,13 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -2246,6 +2249,55 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         afterSecondReplace.sortOrder().fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
+  }
+
+  @Test
+  public void testMetadataFileLocationsRemovalAfterCommit() {
+    C catalog = catalog();
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.updateSchema().addColumn("a", Types.LongType.get()).commit();
+    table.updateSchema().addColumn("b", Types.LongType.get()).commit();
+    table.updateSchema().addColumn("c", Types.LongType.get()).commit();
+
+    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
+    Assertions.assertThat(metadataFileLocations).hasSize(4);
+
+    int maxPreviousVersionsToKeep = 2;
+    table
+        .updateProperties()
+        .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
+        .set(
+            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX,
+            Integer.toString(maxPreviousVersionsToKeep))
+        .commit();
+
+    metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
+    Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
+
+    // for each new commit, the amount of metadata files should stay the same and old files should
+    // be deleted
+    for (int i = 1; i <= 5; i++) {
+      table.updateSchema().addColumn("d" + i, Types.LongType.get()).commit();
+      metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
+      Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
+    }
+
+    maxPreviousVersionsToKeep = 4;
+    table
+        .updateProperties()
+        .set(
+            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX,
+            Integer.toString(maxPreviousVersionsToKeep))
+        .commit();
+
+    // for each new commit, the amount of metadata files should stay the same and old files should
+    // be deleted
+    for (int i = 1; i <= 10; i++) {
+      table.updateSchema().addColumn("e" + i, Types.LongType.get()).commit();
+      metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
+      Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
+    }
   }
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {
