@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -69,6 +71,24 @@ public class FlinkSchemaUtil {
   }
 
   private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
+    // Locate the identifier field id list.
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    if (schema.getPrimaryKey().isPresent()) {
+      for (String column : schema.getPrimaryKey().get().getColumns()) {
+        Types.NestedField field = iSchema.findField(column);
+        Preconditions.checkNotNull(
+            field,
+            "Cannot find field ID for the primary key column %s in schema %s",
+            column,
+            iSchema);
+        identifierFieldIds.add(field.fieldId());
+      }
+    }
+
+    return new Schema(iSchema.schemaId(), iSchema.asStruct().fields(), identifierFieldIds);
+  }
+
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
     if (schema.getPrimaryKey().isPresent()) {
@@ -174,5 +194,57 @@ public class FlinkSchemaUtil {
     }
 
     return builder.build();
+  }
+
+  /**
+   * Convert a {@link RowType} to a {@link ResolvedSchema}.
+   *
+   * @param rowType a RowType
+   * @return Flink ResolvedSchema
+   */
+  public static ResolvedSchema toResolvedSchema(RowType rowType) {
+    List<Column> columns = Lists.newArrayList();
+    for (RowType.RowField field : rowType.getFields()) {
+      Column.PhysicalColumn physicalColumn =
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      columns.add(physicalColumn);
+    }
+    return ResolvedSchema.of(columns);
+  }
+
+  /**
+   * Convert a Flink {@link TableSchema} to a {@link Schema} based on the given schema.
+   *
+   * <p>This conversion does not assign new ids; it uses ids from the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the Flink type. This conversion may
+   * return a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param flinkSchema a Flink ResolvedSchema
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
+    // convert to a type with fresh ids
+    Types.StructType struct = convert(flinkSchema).asStruct();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // fix types that can't be represented in Flink (UUID)
+    Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
+    return freshIdentifierFieldIds(fixedSchema, flinkSchema);
+  }
+
+  /** Convert the flink resolved table schema to apache iceberg schema. */
+  public static Schema convert(ResolvedSchema schema) {
+    LogicalType schemaType = schema.toPhysicalRowDataType().getLogicalType();
+    Preconditions.checkArgument(
+        schemaType instanceof RowType, "Schema logical type should be RowType.");
+
+    RowType root = (RowType) schemaType;
+    Type converted = root.accept(new FlinkTypeToType(root));
+
+    Schema iSchema = new Schema(converted.asStructType().fields());
+    return freshIdentifierFieldIds(iSchema, schema);
   }
 }

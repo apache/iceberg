@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
@@ -125,6 +127,39 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             FlinkSource.forRowData()
                 .tableLoader(tableLoader())
                 .project(projectedSchema)
+                .buildFormat());
+
+    List<Row> expected = Lists.newArrayList();
+    for (Record record : writeRecords) {
+      expected.add(Row.of(record.get(0), record.get(1)));
+    }
+
+    TestHelpers.assertRows(result, expected);
+  }
+
+  @Test
+  public void testBasicProjectionWithResolvedSchema() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()),
+            Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
+
+    Table table =
+        catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
+
+    List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+
+    ResolvedSchema projectedResolvedSchema =
+        ResolvedSchema.of(
+            Column.physical("id", DataTypes.BIGINT()), Column.physical("data", DataTypes.STRING()));
+
+    List<Row> result =
+        runFormat(
+            FlinkSource.forRowData()
+                .tableLoader(tableLoader())
+                .project(projectedResolvedSchema)
                 .buildFormat());
 
     List<Row> expected = Lists.newArrayList();

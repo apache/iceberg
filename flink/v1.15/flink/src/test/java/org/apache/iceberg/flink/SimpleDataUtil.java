@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -83,6 +85,10 @@ public class SimpleDataUtil {
       TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
 
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
+
+  public static final ResolvedSchema FLINK_RESOLVED_SCHEMA =
+      ResolvedSchema.of(
+          Column.physical("id", DataTypes.INT()), Column.physical("data", DataTypes.STRING()));
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
 

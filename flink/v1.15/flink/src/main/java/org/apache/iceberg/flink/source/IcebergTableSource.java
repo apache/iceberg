@@ -29,7 +29,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
@@ -63,7 +63,7 @@ public class IcebergTableSource
   private List<Expression> filters;
 
   private final TableLoader loader;
-  private final TableSchema schema;
+  private final ResolvedSchema schema;
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
@@ -81,7 +81,7 @@ public class IcebergTableSource
 
   public IcebergTableSource(
       TableLoader loader,
-      TableSchema schema,
+      ResolvedSchema schema,
       Map<String, String> properties,
       ReadableConfig readableConfig) {
     this(loader, schema, properties, null, false, -1, ImmutableList.of(), readableConfig);
@@ -89,7 +89,7 @@ public class IcebergTableSource
 
   private IcebergTableSource(
       TableLoader loader,
-      TableSchema schema,
+      ResolvedSchema schema,
       Map<String, String> properties,
       int[] projectedFields,
       boolean isLimitPushDown,
@@ -150,17 +150,16 @@ public class IcebergTableSource
     return stream;
   }
 
-  private TableSchema getProjectedSchema() {
+  private ResolvedSchema getProjectedSchema() {
     if (projectedFields == null) {
       return schema;
     } else {
-      String[] fullNames = schema.getFieldNames();
-      DataType[] fullTypes = schema.getFieldDataTypes();
-      return TableSchema.builder()
-          .fields(
-              Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
-              Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new))
-          .build();
+      List<String> fullNames = schema.getColumnNames();
+      List<DataType> fullTypes = schema.getColumnDataTypes();
+
+      return ResolvedSchema.physical(
+          Arrays.stream(projectedFields).mapToObj(fullNames::get).toArray(String[]::new),
+          Arrays.stream(projectedFields).mapToObj(fullTypes::get).toArray(DataType[]::new));
     }
   }
 

@@ -37,6 +37,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
@@ -211,6 +212,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     // optional
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
+    private ResolvedSchema projectedResolvedSchema;
     private Boolean exposeLocality;
 
     Builder() {}
@@ -310,6 +312,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder project(ResolvedSchema schema) {
+      this.projectedResolvedSchema = schema;
+      return this;
+    }
+
     public Builder<T> filters(List<Expression> newFilters) {
       this.contextBuilder.filters(newFilters);
       return this;
@@ -350,7 +357,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       }
 
       Schema icebergSchema = table.schema();
-      if (projectedFlinkSchema != null) {
+
+      if (projectedResolvedSchema != null) {
+        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedResolvedSchema));
+      } else if (projectedFlinkSchema != null) {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
       }
 
