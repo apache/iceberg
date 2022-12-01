@@ -64,7 +64,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
-  private final Scan<?, ?, ?> scan;
+  private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -80,7 +80,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   SparkBatchQueryScan(
       SparkSession spark,
       Table table,
-      Scan<?, ?, ?> scan,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {

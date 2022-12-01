@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -104,7 +103,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected abstract List<? extends ScanTaskGroup<? extends ScanTask>> taskGroups();
+  protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {

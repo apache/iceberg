@@ -213,55 +213,62 @@ public class SparkScanBuilder
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.START_SNAPSHOT_ID);
 
+    if (startSnapshotId != null) {
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+    } else {
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+    }
+  }
+
+  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    if (startSnapshotId == null) {
-      BatchScan scan =
-          table
-              .newBatchScan()
-              .caseSensitive(caseSensitive)
-              .filter(filterExpression())
-              .project(expectedSchema);
+    BatchScan scan =
+        table
+            .newBatchScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
 
-      if (snapshotId != null) {
-        scan = scan.useSnapshot(snapshotId);
-      }
-
-      if (asOfTimestamp != null) {
-        scan = scan.asOfTime(asOfTimestamp);
-      }
-
-      if (branch != null) {
-        scan = scan.useRef(branch);
-      }
-
-      if (tag != null) {
-        scan = scan.useRef(tag);
-      }
-
-      scan = configureSplitPlanning(scan);
-
-      return new SparkBatchQueryScan(
-          spark, table, scan, readConf, expectedSchema, filterExpressions);
-
-    } else {
-      IncrementalAppendScan scan =
-          table
-              .newIncrementalAppendScan()
-              .fromSnapshotExclusive(startSnapshotId)
-              .caseSensitive(caseSensitive)
-              .filter(filterExpression())
-              .project(expectedSchema);
-
-      if (endSnapshotId != null) {
-        scan = scan.toSnapshot(endSnapshotId);
-      }
-
-      scan = configureSplitPlanning(scan);
-
-      return new SparkBatchQueryScan(
-          spark, table, scan, readConf, expectedSchema, filterExpressions);
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
     }
+
+    if (asOfTimestamp != null) {
+      scan = scan.asOfTime(asOfTimestamp);
+    }
+
+    if (branch != null) {
+      scan = scan.useRef(branch);
+    }
+
+    if (tag != null) {
+      scan = scan.useRef(tag);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalAppendScan scan =
+        table
+            .newIncrementalAppendScan()
+            .fromSnapshotExclusive(startSnapshotId)
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
   public Scan buildChangelogScan() {

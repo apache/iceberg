@@ -42,7 +42,7 @@ class SparkBatch implements Batch {
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
-  private final List<? extends ScanTaskGroup<? extends ScanTask>> taskGroups;
+  private final List<? extends ScanTaskGroup<?>> taskGroups;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
@@ -52,7 +52,7 @@ class SparkBatch implements Batch {
       JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
-      List<? extends ScanTaskGroup<? extends ScanTask>> taskGroups,
+      List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
       int scanHashCode) {
     this.sparkContext = sparkContext;
