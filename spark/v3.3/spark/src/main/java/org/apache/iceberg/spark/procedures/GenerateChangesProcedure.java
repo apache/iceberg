@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -34,11 +33,8 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -120,7 +116,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
 
         if (identifierColumns.length > 0) {
           Column[] partitionSpec = getPartitionSpec(df, identifierColumns);
-          df = tranform(df, partitionSpec, false);
+          df = transform(df, partitionSpec, false);
         }
       } else {
         LOG.warn("Cannot compute the updated rows because identifier columns are not set");
@@ -146,7 +142,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    return tranform(df, partitionSpec, true);
+    return transform(df, partitionSpec, true);
   }
 
   private boolean hasIdentifierColumns(InternalRow args) {
@@ -188,8 +184,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return viewName;
   }
 
-  private Dataset<Row> tranform(
-      Dataset<Row> df, Column[] partitionSpec, boolean partitionSpecIncludeAllColumns) {
+  private Dataset<Row> transform(
+      Dataset<Row> df, Column[] partitionSpec, boolean partitionedByAllColumns) {
     Column[] sortSpec = sortSpec(df, partitionSpec);
 
     int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
@@ -201,7 +197,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return df.repartition(partitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
-            processRowsWithinTask(changeTypeIdx, partitionIdx, partitionSpecIncludeAllColumns),
+            processRowsWithinTask(changeTypeIdx, partitionIdx, partitionedByAllColumns),
             RowEncoder.apply(df.schema()));
   }
 
@@ -228,98 +224,12 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return sortSpec;
   }
 
-  private static MapPartitionsFunction<Row, Row> processRowsWithinTask(
-      int changeTypeIndex, List<Integer> partitionIdx, boolean partitionSpecIncludeAllColumns) {
+  private MapPartitionsFunction<Row, Row> processRowsWithinTask(
+      int changeTypeIndex, List<Integer> partitionIdx, boolean partitionedByAllColumns) {
     return rowIterator -> {
       Iterator<Row> iterator =
-          new Iterator<Row>() {
-            private Row nextRow = null;
-
-            @Override
-            public boolean hasNext() {
-              if (nextRow != null) {
-                return true;
-              }
-              return rowIterator.hasNext();
-            }
-
-            @Override
-            public Row next() {
-              String delete = ChangelogOperation.DELETE.name();
-              String insert = ChangelogOperation.INSERT.name();
-
-              // if the next row is cached and changed, return it directly
-              if (nextRow != null
-                  && !nextRow.getString(changeTypeIndex).equals(delete)
-                  && !nextRow.getString(changeTypeIndex).equals(insert)) {
-                Row row = nextRow;
-                nextRow = null;
-                return row;
-              }
-
-              Row currentRow = currentRow();
-
-              if (rowIterator.hasNext()) {
-                GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
-
-                if (withinPartition(currentRow, nextRow)
-                    && currentRow.getString(changeTypeIndex).equals(delete)
-                    && nextRow.getString(changeTypeIndex).equals(insert)) {
-
-                  if (partitionSpecIncludeAllColumns) {
-                    // remove two carry-over rows
-                    currentRow = null;
-                    this.nextRow = null;
-                  } else {
-                    GenericInternalRow deletedRow =
-                        new GenericInternalRow(((GenericRowWithSchema) currentRow).values());
-                    GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-
-                    // set the change_type to the same value
-                    deletedRow.update(changeTypeIndex, "");
-                    insertedRow.update(changeTypeIndex, "");
-
-                    if (deletedRow.equals(insertedRow)) {
-                      // remove two carry-over rows
-                      currentRow = null;
-                      this.nextRow = null;
-                    } else {
-                      deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-                      currentRow = RowFactory.create(deletedRow.values());
-
-                      insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
-                      this.nextRow = RowFactory.create(insertedRow.values());
-                    }
-                  }
-                } else {
-                  this.nextRow = nextRow;
-                }
-              }
-
-              return currentRow;
-            }
-
-            private Row currentRow() {
-              if (nextRow != null) {
-                Row row = nextRow;
-                nextRow = null;
-                return row;
-              } else {
-                return rowIterator.next();
-              }
-            }
-
-            private boolean withinPartition(Row currentRow, Row nextRow) {
-              for (int i = 0; i < partitionIdx.size(); i++) {
-                int idx = partitionIdx.get(i);
-                if (!nextRow.get(idx).equals(currentRow.get(idx))) {
-                  return false;
-                }
-              }
-              return true;
-            }
-          };
-
+          new ChangelogIterator(
+              rowIterator, changeTypeIndex, partitionIdx, partitionedByAllColumns);
       return Iterators.filter(iterator, Objects::nonNull);
     };
   }

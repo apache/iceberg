@@ -55,19 +55,18 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     Snapshot snap2 = table.currentSnapshot();
 
-    List<Object[]> returns =
-        sql(
-            "CALL %s.system.generate_changes("
-                + "table => '%s',"
-                + "options => map('%s','%s','%s','%s'),"
-                + "table_change_view => '%s')",
-            catalogName,
-            tableName,
-            SparkReadOptions.START_SNAPSHOT_ID,
-            snap1.snapshotId(),
-            SparkReadOptions.END_SNAPSHOT_ID,
-            snap2.snapshotId(),
-            "cdc_view");
+    sql(
+        "CALL %s.system.generate_changes("
+            + "table => '%s',"
+            + "options => map('%s','%s','%s','%s'),"
+            + "table_change_view => '%s')",
+        catalogName,
+        tableName,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        snap1.snapshotId(),
+        SparkReadOptions.END_SNAPSHOT_ID,
+        snap2.snapshotId(),
+        "cdc_view");
 
     long rowCount = sql("select * from %s", "cdc_view").stream().count();
     Assert.assertEquals(2, rowCount);
