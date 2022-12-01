@@ -819,6 +819,11 @@ public class TestHelpers {
         .collect(Collectors.toSet());
   }
 
+  public static void asMetadataRecord(GenericData.Record file, FileContent content) {
+    file.put(0, content);
+    file.put(3, 0); // specId
+  }
+
   public static void asMetadataRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
     file.put(3, 0); // specId

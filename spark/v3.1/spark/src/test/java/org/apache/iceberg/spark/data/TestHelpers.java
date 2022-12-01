@@ -39,7 +39,6 @@ import java.util.UUID;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
@@ -767,10 +766,5 @@ public class TestHelpers {
           expectedValues.isNullAt(i) ? null : expectedValues.get(i, valueType),
           actualValues.isNullAt(i) ? null : actualValues.get(i, valueType));
     }
-  }
-
-  public static void asMetadataRecord(GenericData.Record file) {
-    file.put(0, FileContent.DATA.id());
-    file.put(3, 0); // specId
   }
 }

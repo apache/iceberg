@@ -36,6 +36,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -177,7 +178,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             row.put(2, 0L); // data sequence number
             row.put(3, 0L); // file sequence number
             GenericData.Record file = (GenericData.Record) row.get("data_file");
-            TestHelpers.asMetadataRecord(file);
+            asMetadataRecord(file);
             expected.add(row);
           });
     }
@@ -371,7 +372,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
               row.put(2, 0L); // data sequence number
               row.put(3, 0L); // file sequence number
               GenericData.Record file = (GenericData.Record) row.get("data_file");
-              TestHelpers.asMetadataRecord(file);
+              asMetadataRecord(file);
               expected.add(row);
             });
       }
@@ -422,7 +423,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -464,7 +464,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            TestHelpers.asMetadataRecord(file);
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -487,7 +487,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     spark.sql(
         String.format(
@@ -532,7 +531,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            TestHelpers.asMetadataRecord(file);
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -605,7 +604,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -651,7 +649,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            TestHelpers.asMetadataRecord(file);
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -777,7 +775,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            TestHelpers.asMetadataRecord(file);
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -1859,5 +1857,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
 
     return positionDeleteWriter.toDeleteFile();
+  }
+
+  private static void asMetadataRecord(GenericData.Record file) {
+    file.put(0, FileContent.DATA.id());
+    file.put(3, 0); // specId
   }
 }

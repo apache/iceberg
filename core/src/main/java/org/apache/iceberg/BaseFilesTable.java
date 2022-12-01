@@ -53,9 +53,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
-    return TypeUtil.join(
-        schema,
-        MetricsUtil.readableMetricsSchema(table().schema(), schema, DataFile.NEXT_ID_TO_ASSIGN));
+    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
   }
 
   private static CloseableIterable<FileScanTask> planFiles(

@@ -103,7 +103,7 @@ public interface DataFile extends ContentFile<DataFile> {
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
 
-  int NEXT_ID_TO_ASSIGN = 142;
+  // NEXT ID TO ASSIGN: 142
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry

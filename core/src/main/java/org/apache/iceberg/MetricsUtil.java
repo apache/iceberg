@@ -20,10 +20,12 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -243,32 +245,14 @@ public class MetricsUtil {
    *
    * @param dataTableSchema schema of data table
    * @param metadataTableSchema schema of existing metadata table (to ensure id uniqueness)
-   * @param baseId first id to assign. This algorithm assigns field ids by incrementing this value
-   *     and avoiding conflict with existing metadata table schema
    * @return schema of readable_metrics struct
    */
-  public static Schema readableMetricsSchema(
-      Schema dataTableSchema, Schema metadataTableSchema, int baseId) {
+  public static Schema readableMetricsSchema(Schema dataTableSchema, Schema metadataTableSchema) {
     List<Types.NestedField> fields = Lists.newArrayList();
-    Set<Integer> usedIds = metadataTableSchema.idToName().keySet();
-
-    class NextFieldId {
-      private int next;
-
-      NextFieldId() {
-        this.next = baseId;
-      }
-
-      int next() {
-        do {
-          next++;
-        } while (usedIds.contains(next));
-        return next;
-      }
-    }
-    NextFieldId next = new NextFieldId();
-
     Map<Integer, String> idToName = dataTableSchema.idToName();
+    AtomicInteger nextId =
+        new AtomicInteger(Collections.max(metadataTableSchema.idToName().keySet()));
+
     for (int id : idToName.keySet()) {
       Types.NestedField field = dataTableSchema.findField(id);
 
@@ -277,12 +261,15 @@ public class MetricsUtil {
 
         fields.add(
             Types.NestedField.of(
-                next.next(),
+                nextId.incrementAndGet(),
                 true,
                 colName,
                 Types.StructType.of(
                     READABLE_COL_METRICS.stream()
-                        .map(m -> optional(next.next(), m.name(), m.type(field), m.doc()))
+                        .map(
+                            m ->
+                                optional(
+                                    nextId.incrementAndGet(), m.name(), m.type(field), m.doc()))
                         .collect(Collectors.toList())),
                 String.format("Metrics for column %s", colName)));
       }
@@ -291,7 +278,7 @@ public class MetricsUtil {
     fields.sort(Comparator.comparing(Types.NestedField::name));
     return new Schema(
         optional(
-            next.next(),
+            nextId.incrementAndGet(),
             "readable_metrics",
             Types.StructType.of(fields),
             "Column metrics in readable form"));

@@ -422,7 +422,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -605,7 +604,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
