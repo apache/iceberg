@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -46,7 +47,7 @@ import org.apache.spark.sql.types.StructType;
 
 class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
-  private final SparkSession spark;
+  private final JavaSparkContext sparkContext;
   private final Table table;
   private final IncrementalChangelogScan scan;
   private final SparkReadConf readConf;
@@ -70,7 +71,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
-    this.spark = spark;
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.scan = scan;
     this.readConf = readConf;
@@ -103,8 +104,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    return new SparkChangelogBatch(
-        spark, table, readConf, taskGroups(), expectedSchema, hashCode());
+    return new SparkBatch(sparkContext, table, readConf, taskGroups(), expectedSchema, hashCode());
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
