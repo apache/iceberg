@@ -34,6 +34,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -95,11 +96,16 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
+  protected Types.StructType groupingKeyType() {
+    return Types.StructType.of();
+  }
+
   protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, taskGroups(), expectedSchema, hashCode());
+    return new SparkBatch(
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
   }
 
   @Override

@@ -355,6 +355,19 @@ public class TestPartitioning {
   }
 
   @Test
+  public void testGroupingKeyTypeWithProjectedSchema() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_CATEGORY_DATA_SPEC, V1_FORMAT_VERSION);
+
+    Schema projectedSchema = table.schema().select("id", "data");
+
+    StructType expectedType =
+        StructType.of(NestedField.optional(1001, "data", Types.StringType.get()));
+    StructType actualType = Partitioning.groupingKeyType(projectedSchema, table.specs().values());
+    Assert.assertEquals("Types must match", expectedType, actualType);
+  }
+
+  @Test
   public void testGroupingKeyTypeWithIncompatibleSpecEvolution() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);

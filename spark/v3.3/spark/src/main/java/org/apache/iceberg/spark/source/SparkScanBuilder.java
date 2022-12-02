@@ -29,7 +29,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
@@ -421,9 +420,9 @@ public class SparkScanBuilder
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan =
+    BatchScan scan =
         table
-            .newScan()
+            .newBatchScan()
             .useSnapshot(snapshot.snapshotId())
             .ignoreResiduals()
             .caseSensitive(caseSensitive)

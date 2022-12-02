@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
@@ -255,6 +256,21 @@ public class Spark3Util {
     return sparkTable.table();
   }
 
+  public static Transform[] toTransforms(Schema schema, List<PartitionField> fields) {
+    SpecTransformToSparkTransform visitor = new SpecTransformToSparkTransform(schema);
+
+    List<Transform> transforms = Lists.newArrayList();
+
+    for (PartitionField field : fields) {
+      Transform transform = PartitionSpecVisitor.visit(schema, field, visitor);
+      if (transform != null) {
+        transforms.add(transform);
+      }
+    }
+
+    return transforms.toArray(new Transform[0]);
+  }
+
   /**
    * Converts a PartitionSpec to Spark transforms.
    *
@@ -262,67 +278,68 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
-    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
-    List<Transform> transforms =
-        PartitionSpecVisitor.visit(
-            spec,
-            new PartitionSpecVisitor<Transform>() {
-              @Override
-              public Transform identity(String sourceName, int sourceId) {
-                return Expressions.identity(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform bucket(String sourceName, int sourceId, int numBuckets) {
-                return Expressions.bucket(numBuckets, quotedName(sourceId));
-              }
-
-              @Override
-              public Transform truncate(String sourceName, int sourceId, int width) {
-                return Expressions.apply(
-                    "truncate",
-                    Expressions.column(quotedName(sourceId)),
-                    Expressions.literal(width));
-              }
-
-              @Override
-              public Transform year(String sourceName, int sourceId) {
-                return Expressions.years(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform month(String sourceName, int sourceId) {
-                return Expressions.months(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform day(String sourceName, int sourceId) {
-                return Expressions.days(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform hour(String sourceName, int sourceId) {
-                return Expressions.hours(quotedName(sourceId));
-              }
-
-              @Override
-              public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
-                // do nothing for alwaysNull, it doesn't need to be converted to a transform
-                return null;
-              }
-
-              @Override
-              public Transform unknown(
-                  int fieldId, String sourceName, int sourceId, String transform) {
-                return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
-              }
-
-              private String quotedName(int id) {
-                return quotedNameById.get(id);
-              }
-            });
-
+    SpecTransformToSparkTransform visitor = new SpecTransformToSparkTransform(spec.schema());
+    List<Transform> transforms = PartitionSpecVisitor.visit(spec, visitor);
     return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
+  }
+
+  private static class SpecTransformToSparkTransform implements PartitionSpecVisitor<Transform> {
+    private final Map<Integer, String> quotedNameById;
+
+    SpecTransformToSparkTransform(Schema schema) {
+      this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
+    }
+
+    @Override
+    public Transform identity(String sourceName, int sourceId) {
+      return Expressions.identity(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform bucket(String sourceName, int sourceId, int numBuckets) {
+      return Expressions.bucket(numBuckets, quotedName(sourceId));
+    }
+
+    @Override
+    public Transform truncate(String sourceName, int sourceId, int width) {
+      NamedReference column = Expressions.column(quotedName(sourceId));
+      return Expressions.apply("truncate", Expressions.literal(width), column);
+    }
+
+    @Override
+    public Transform year(String sourceName, int sourceId) {
+      return Expressions.years(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform month(String sourceName, int sourceId) {
+      return Expressions.months(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform day(String sourceName, int sourceId) {
+      return Expressions.days(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform hour(String sourceName, int sourceId) {
+      return Expressions.hours(quotedName(sourceId));
+    }
+
+    @Override
+    public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
+      // do nothing for alwaysNull, it doesn't need to be converted to a transform
+      return null;
+    }
+
+    @Override
+    public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
+      return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
+    }
+
+    private String quotedName(int id) {
+      return quotedNameById.get(id);
+    }
   }
 
   public static NamedReference toNamedReference(String name) {
