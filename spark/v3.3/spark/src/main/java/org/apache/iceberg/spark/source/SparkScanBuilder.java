@@ -166,13 +166,13 @@ public class SparkScanBuilder
     }
 
     List<BoundAggregate> boundExpressions =
-            Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
+        Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
     for (AggregateFunc aggregate : aggregation.aggregateExpressions()) {
       Expression expr = SparkAggregates.convert(aggregate);
       if (expr != null) {
         try {
           boundExpressions.add(
-                  (BoundAggregate) Binder.bind(schema.asStruct(), expr, caseSensitive));
+              (BoundAggregate) Binder.bind(schema.asStruct(), expr, caseSensitive));
         } catch (ValidationException e) {
           // binding to the table schema failed, so this expression cannot be pushed down
           // disable aggregate push down
@@ -187,7 +187,7 @@ public class SparkScanBuilder
     }
 
     if (!SparkPushedDownAggregateUtil.metricsModeSupportsAggregatePushDown(
-            table, boundExpressions)) {
+        table, boundExpressions)) {
       LOG.info("The MetricsMode doesn't support aggregate push down.");
       return false;
     }
@@ -220,13 +220,13 @@ public class SparkScanBuilder
 
         aggFields.add(field);
         aggregateIndexInTableSchema.add(
-                AggregateUtil.columnIndexInTableSchema(aggregate, table, caseSensitive));
+            AggregateUtil.columnIndexInTableSchema(aggregate, table, caseSensitive));
       }
 
       pushedAggregateSchema = SparkSchemaUtil.convert(new Schema(aggFields));
       this.pushedAggregateRows =
-              SparkPushedDownAggregateUtil.constructInternalRowForPushedDownAggregate(
-                      spark, table, boundExpressions, aggregateIndexInTableSchema);
+          SparkPushedDownAggregateUtil.constructInternalRowForPushedDownAggregate(
+              spark, table, boundExpressions, aggregateIndexInTableSchema);
     } catch (Exception e) {
       LOG.info("Aggregate can't be pushed down", e.getMessage());
       return false;
@@ -250,7 +250,7 @@ public class SparkScanBuilder
       // if there are row-level deletes in current snapshot, the statics
       // maybe changed, so disable push down aggregate.
       if (Integer.parseInt(map.getOrDefault("total-position-deletes", "0")) > 0
-              || Integer.parseInt(map.getOrDefault("total-equality-deletes", "0")) > 0) {
+          || Integer.parseInt(map.getOrDefault("total-equality-deletes", "0")) > 0) {
         LOG.info("Cannot push down aggregate (row-level deletes might change the statistics.)");
         return false;
       }
