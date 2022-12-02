@@ -97,6 +97,9 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
           insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
           this.cachedRow = RowFactory.create(insertedRow.values());
         } else {
+          // recover the values of change type
+          deletedRow.update(changeTypeIndex, DELETE);
+          insertedRow.update(changeTypeIndex, INSERT);
           this.cachedRow = nextRow;
         }
 
