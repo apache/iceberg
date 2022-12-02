@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -285,6 +286,34 @@ public class SparkScanBuilder
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+
+    Preconditions.checkArgument(
+        startSnapshotId != null || startTimestamp != null,
+        "Cannot set neither %s nor %s for changelogs",
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.START_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        endSnapshotId != null || endTimestamp != null,
+        "Cannot set neither %s nor %s for changelogs",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.END_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        startTimestamp != null && endTimestamp != null && startTimestamp < endTimestamp,
+        "Cannot set %s to be greater than %s for changelogs",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP);
+
+    if (startTimestamp != null) {
+      startSnapshotId = SnapshotUtil.oldestAncestorAfter(table, startTimestamp).snapshotId();
+    }
+
+    if (endTimestamp != null) {
+      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+    }
 
     Schema expectedSchema = schemaWithMetadataColumns();
 

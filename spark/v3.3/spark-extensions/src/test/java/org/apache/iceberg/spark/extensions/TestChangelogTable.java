@@ -39,7 +39,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized.Parameters;
 
-public class TestChangelogBatchReads extends SparkExtensionsTestBase {
+public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
   public static Object[][] parameters() {
@@ -61,7 +61,7 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
   private final int formatVersion;
 
-  public TestChangelogBatchReads(
+  public TestChangelogTable(
       int formatVersion, String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
     this.formatVersion = formatVersion;
@@ -135,6 +135,38 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
             row(2, "b", "DELETE", 0, snap3.snapshotId()),
             row(-2, "b", "INSERT", 0, snap3.snapshotId())),
         changelogRecords(snap2, snap3));
+  }
+
+  @Test
+  public void testQueryWithTimeRange() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES ( "
+            + " '%s' = '%d' "
+            + ")",
+        tableName, FORMAT_VERSION, formatVersion);
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(snap2.timestampMillis(), snap3.timestampMillis()));
   }
 
   @Test
@@ -234,6 +266,20 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
     if (endSnapshot != null) {
       reader = reader.option(SparkReadOptions.END_SNAPSHOT_ID, endSnapshot.snapshotId());
+    }
+
+    return rowsToJava(collect(reader));
+  }
+
+  private List<Object[]> changelogRecords(Long startTimestamp, Long endTimeStamp) {
+    DataFrameReader reader = spark.read();
+
+    if (startTimestamp != null) {
+      reader = reader.option(SparkReadOptions.START_TIMESTAMP, startTimestamp);
+    }
+
+    if (endTimeStamp != null) {
+      reader = reader.option(SparkReadOptions.END_TIMESTAMP, endTimeStamp);
     }
 
     return rowsToJava(collect(reader));

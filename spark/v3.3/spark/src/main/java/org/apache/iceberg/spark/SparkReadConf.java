@@ -228,4 +228,12 @@ public class SparkReadConf {
         .defaultValue(Long.MIN_VALUE)
         .parse();
   }
+
+  public Long startTimestamp() {
+    return confParser.longConf().option(SparkReadOptions.START_TIMESTAMP).parseOptional();
+  }
+
+  public Long endTimestamp() {
+    return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
+  }
 }
