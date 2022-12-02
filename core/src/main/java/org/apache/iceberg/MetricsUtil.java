@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,12 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MetricsUtil {
-
-  private static final Logger LOG = LoggerFactory.getLogger(MetricsUtil.class);
 
   private MetricsUtil() {}
 
@@ -75,75 +70,97 @@ public class MetricsUtil {
     return metricsConfig.columnMode(columnName);
   }
 
-  public static final List<ReadableMetricCol> READABLE_COL_METRICS =
+  public static final List<ReadableMetricColDefinition> READABLE_METRIC_COLS =
       ImmutableList.of(
-          new ReadableMetricCol("column_size", f -> Types.LongType.get(), "Total size on disk"),
-          new ReadableMetricCol(
-              "value_count", f -> Types.LongType.get(), "Total count, including null and NaN"),
-          new ReadableMetricCol("null_value_count", f -> Types.LongType.get(), "Null value count"),
-          new ReadableMetricCol("nan_value_count", f -> Types.LongType.get(), "NaN value count"),
-          new ReadableMetricCol("lower_bound", Types.NestedField::type, "Lower bound"),
-          new ReadableMetricCol("upper_bound", Types.NestedField::type, "Upper bound"));
+          new ReadableMetricColDefinition(
+              DataFile.COLUMN_SIZES,
+              field -> Types.LongType.get(),
+              (file, field) -> file.columnSizes().get(field.fieldId())),
+          new ReadableMetricColDefinition(
+              DataFile.VALUE_COUNTS,
+              field -> Types.LongType.get(),
+              (file, field) -> file.valueCounts().get(field.fieldId())),
+          new ReadableMetricColDefinition(
+              DataFile.NULL_VALUE_COUNTS,
+              field -> Types.LongType.get(),
+              (file, field) -> file.nullValueCounts().get(field.fieldId())),
+          new ReadableMetricColDefinition(
+              DataFile.NAN_VALUE_COUNTS,
+              field -> Types.LongType.get(),
+              (file, field) -> file.nanValueCounts().get(field.fieldId())),
+          new ReadableMetricColDefinition(
+              DataFile.LOWER_BOUNDS,
+              Types.NestedField::type,
+              (file, field) ->
+                  Conversions.fromByteBuffer(
+                      field.type(), file.lowerBounds().get(field.fieldId()))),
+          new ReadableMetricColDefinition(
+              DataFile.UPPER_BOUNDS,
+              Types.NestedField::type,
+              (file, field) ->
+                  Conversions.fromByteBuffer(
+                      field.type(), file.upperBounds().get(field.fieldId()))));
 
   public static final String READABLE_METRICS = "readable_metrics";
 
-  public static class ReadableMetricCol {
-    private final String name;
-    private final Function<Types.NestedField, Type> typeFunction;
-    private final String doc;
+  /**
+   * Fixed definition of a readable metric column, ie a mapping of a raw metric to a readable metric
+   */
+  public static class ReadableMetricColDefinition {
+    private final Types.NestedField originalCol;
+    private final TypeFunction typeFunction;
+    private final MetricFunction metricFunction;
 
-    ReadableMetricCol(String name, Function<Types.NestedField, Type> typeFunction, String doc) {
-      this.name = name;
+    public interface TypeFunction {
+      Type type(Types.NestedField dataField);
+    }
+
+    public interface MetricFunction {
+      Object metric(ContentFile<?> file, Types.NestedField dataField);
+    }
+
+    /**
+     * @param originalCol original (raw) metric column field on metadata table
+     * @param typeFunction function that returns the readable metric column type from original field
+     *     type
+     * @param metricFunction function that returns readable metric from data file
+     */
+    ReadableMetricColDefinition(
+        Types.NestedField originalCol, TypeFunction typeFunction, MetricFunction metricFunction) {
+      this.originalCol = originalCol;
       this.typeFunction = typeFunction;
-      this.doc = doc;
+      this.metricFunction = metricFunction;
     }
 
-    String name() {
-      return name;
+    Type colType(Types.NestedField field) {
+      return typeFunction.type(field);
     }
 
-    Type type(Types.NestedField field) {
-      return typeFunction.apply(field);
+    String colName() {
+      return originalCol.name();
     }
 
-    String doc() {
-      return doc;
+    String colDoc() {
+      return originalCol.doc();
+    }
+
+    Object value(ContentFile<?> dataFile, Types.NestedField dataField) {
+      return dataFile == null ? null : metricFunction.metric(dataFile, dataField);
     }
   }
 
-  /**
-   * Represents a struct of metrics for a primitive column
-   *
-   * @param <T> primitive column type
-   */
-  public static class ReadableColMetricsStruct<T> implements StructLike {
+  /** A struct of readable metric values for a primitive column */
+  public static class ReadableColMetricsStruct implements StructLike {
 
     private final String columnName;
-    private final Long columnSize;
-    private final Long valueCount;
-    private final Long nullValueCount;
-    private final Long nanValueCount;
-    private final T lowerBound;
-    private final T upperBound;
     private final Map<Integer, Integer> projectionMap;
+    private final Object[] metrics;
 
     public ReadableColMetricsStruct(
-        String columnName,
-        Long columnSize,
-        Long valueCount,
-        Long nullValueCount,
-        Long nanValueCount,
-        T lowerBound,
-        T upperBound,
-        Types.NestedField projection) {
+        String columnName, Types.NestedField projection, Object... metrics) {
       this.columnName = columnName;
-      this.columnSize = columnSize;
-      this.valueCount = valueCount;
-      this.nullValueCount = nullValueCount;
-      this.nanValueCount = nanValueCount;
-      this.lowerBound = lowerBound;
-      this.upperBound = upperBound;
       this.projectionMap = readableMetricsProjection(projection);
+      this.metrics = metrics;
     }
 
     @Override
@@ -164,23 +181,7 @@ public class MetricsUtil {
 
     private Object get(int pos) {
       int projectedPos = projectionMap.get(pos);
-      switch (projectedPos) {
-        case 0:
-          return columnSize;
-        case 1:
-          return valueCount;
-        case 2:
-          return nullValueCount;
-        case 3:
-          return nanValueCount;
-        case 4:
-          return lowerBound;
-        case 5:
-          return upperBound;
-        default:
-          throw new IllegalArgumentException(
-              String.format("Invalid projected pos %d", projectedPos));
-      }
+      return metrics[projectedPos];
     }
 
     /** Returns map of projected position to actual position of this struct's fields */
@@ -194,10 +195,10 @@ public class MetricsUtil {
                   .collect(Collectors.toSet()));
 
       int projectedIndex = 0;
-      for (int fieldIndex = 0; fieldIndex < READABLE_COL_METRICS.size(); fieldIndex++) {
-        ReadableMetricCol readableMetric = READABLE_COL_METRICS.get(fieldIndex);
+      for (int fieldIndex = 0; fieldIndex < READABLE_METRIC_COLS.size(); fieldIndex++) {
+        ReadableMetricColDefinition readableMetric = READABLE_METRIC_COLS.get(fieldIndex);
 
-        if (projectedFields.contains(readableMetric.name())) {
+        if (projectedFields.contains(readableMetric.colName())) {
           result.put(projectedIndex, fieldIndex);
           projectedIndex++;
         }
@@ -211,8 +212,8 @@ public class MetricsUtil {
   }
 
   /**
-   * Represents a struct, consisting of all {@link ReadableColMetricsStruct} for all primitive
-   * columns of the table
+   * A struct, consisting of all {@link ReadableColMetricsStruct} for all primitive columns of the
+   * table
    */
   public static class ReadableMetricsStruct implements StructLike {
 
@@ -265,11 +266,14 @@ public class MetricsUtil {
                 true,
                 colName,
                 Types.StructType.of(
-                    READABLE_COL_METRICS.stream()
+                    READABLE_METRIC_COLS.stream()
                         .map(
                             m ->
                                 optional(
-                                    nextId.incrementAndGet(), m.name(), m.type(field), m.doc()))
+                                    nextId.incrementAndGet(),
+                                    m.colName(),
+                                    m.colType(field),
+                                    m.colDoc()))
                         .collect(Collectors.toList())),
                 String.format("Metrics for column %s", colName)));
       }
@@ -295,29 +299,23 @@ public class MetricsUtil {
   public static ReadableMetricsStruct readableMetricsStruct(
       Schema schema, ContentFile<?> file, Types.StructType projectedSchema) {
     Map<Integer, String> idToName = schema.idToName();
-    List<ReadableColMetricsStruct<?>> colMetrics = Lists.newArrayList();
+    List<ReadableColMetricsStruct> colMetrics = Lists.newArrayList();
 
     for (int id : idToName.keySet()) {
       String qualifiedName = idToName.get(id);
       Types.NestedField field = schema.findField(id);
 
-      if (field.type().isPrimitiveType()
-          && // Iceberg stores metrics only for primitive types
-          projectedSchema.field(qualifiedName) != null) { // User has requested this column metric
+      Object[] metrics =
+          READABLE_METRIC_COLS.stream()
+              .map(readableMetric -> readableMetric.value(file, field))
+              .toArray();
+
+      if (field.type().isPrimitiveType() // Iceberg stores metrics only for primitive types
+          && projectedSchema.field(qualifiedName)
+              != null) { // User has requested this column metric
         colMetrics.add(
             new ReadableColMetricsStruct(
-                qualifiedName,
-                file.columnSizes() == null ? null : file.columnSizes().get(id),
-                file.valueCounts() == null ? null : file.valueCounts().get(id),
-                file.nullValueCounts() == null ? null : file.nullValueCounts().get(id),
-                file.nanValueCounts() == null ? null : file.nanValueCounts().get(id),
-                file.lowerBounds() == null
-                    ? null
-                    : Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(id)),
-                file.upperBounds() == null
-                    ? null
-                    : Conversions.fromByteBuffer(field.type(), file.upperBounds().get(id)),
-                projectedSchema.field(qualifiedName)));
+                qualifiedName, projectedSchema.field(qualifiedName), metrics));
       }
     }
 

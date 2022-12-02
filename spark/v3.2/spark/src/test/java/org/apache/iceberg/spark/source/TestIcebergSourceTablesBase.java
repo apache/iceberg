@@ -622,14 +622,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> filesTableDs =
         spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
-    StructField[] fields = filesTableDs.schema().fields();
-    Dataset<Row> nonDerivedFilesTableDs =
-        filesTableDs.select(
-            Stream.of(fields)
-                .filter(f -> !f.name().equals("readable_metrics")) // derived field
-                .map(f -> new Column(f.name()))
-                .toArray(Column[]::new));
-    List<Row> actual = nonDerivedFilesTableDs.collectAsList();
+    List<Row> actual = TestHelpers.selectNonDerived(filesTableDs).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
@@ -649,7 +642,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(
-        SparkSchemaUtil.convert(nonDerivedFilesTableDs.schema()).asStruct(),
+        TestHelpers.nonDerivedSchema(filesTableDs),
         expected.get(0),
         actual.get(0));
   }
