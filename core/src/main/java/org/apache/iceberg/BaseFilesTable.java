@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -143,15 +144,6 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
 
-    private static final Schema PROJECTION_FOR_READABLE_METRICS =
-        new Schema(
-            DataFile.COLUMN_SIZES,
-            DataFile.VALUE_COUNTS,
-            DataFile.NULL_VALUE_COUNTS,
-            DataFile.NAN_VALUE_COUNTS,
-            DataFile.LOWER_BOUNDS,
-            DataFile.UPPER_BOUNDS);
-
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
@@ -185,8 +177,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
         Schema fileProjection = TypeUtil.selectNot(projection, readableMetricsIds);
 
-        Schema projectionForMetrics =
-            TypeUtil.join(fileProjection, PROJECTION_FOR_READABLE_METRICS);
+        Schema projectionForReadableMetrics =
+            new Schema(
+                MetricsUtil.READABLE_METRIC_COLS.stream()
+                    .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
+                    .collect(Collectors.toList()));
+
+        Schema projectionForMetrics = TypeUtil.join(fileProjection, projectionForReadableMetrics);
         return CloseableIterable.transform(files(projectionForMetrics), this::withReadableMetrics);
       }
     }
