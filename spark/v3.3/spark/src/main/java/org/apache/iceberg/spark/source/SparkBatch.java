@@ -28,7 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -92,16 +91,16 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(batchSize());
-  }
-
-  private int batchSize() {
     if (useParquetBatchReads()) {
-      return readConf.parquetBatchSize();
+      int batchSize = readConf.parquetBatchSize();
+      return new SparkColumnarReaderFactory(batchSize);
+
     } else if (useOrcBatchReads()) {
-      return readConf.orcBatchSize();
+      int batchSize = readConf.orcBatchSize();
+      return new SparkColumnarReaderFactory(batchSize);
+
     } else {
-      return 0;
+      return new SparkRowReaderFactory();
     }
   }
 
