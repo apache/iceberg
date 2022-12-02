@@ -396,10 +396,12 @@ def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name).isin(literals)
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return pc.field(term.ref().field.name).isin(pyarrow_literals)
 
     def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        return ~pc.field(term.ref().field.name).isin(literals)
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
 
     def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
