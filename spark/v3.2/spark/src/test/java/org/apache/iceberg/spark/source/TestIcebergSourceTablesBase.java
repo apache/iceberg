@@ -642,9 +642,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(
-        TestHelpers.nonDerivedSchema(filesTableDs),
-        expected.get(0),
-        actual.get(0));
+        TestHelpers.nonDerivedSchema(filesTableDs), expected.get(0), actual.get(0));
   }
 
   @Test
