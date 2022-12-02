@@ -505,14 +505,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
       Dataset<Row> filesTableDs =
           spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
-      StructField[] fields = filesTableDs.schema().fields();
-      Dataset<Row> nonDerivedFilesDs =
-          filesTableDs.select(
-              Stream.of(fields)
-                  .filter(f -> !f.name().equals("readable_metrics")) // derived field
-                  .map(f -> new Column(f.name()))
-                  .toArray(Column[]::new));
-      List<Row> actual = nonDerivedFilesDs.collectAsList();
+      List<Row> actual = selectNonDerived(filesTableDs).collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
       for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
