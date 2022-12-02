@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -289,8 +288,7 @@ public class MetricsUtil {
   public static Schema readableMetricsSchema(Schema dataTableSchema, Schema metadataTableSchema) {
     List<Types.NestedField> fields = Lists.newArrayList();
     Map<Integer, String> idToName = dataTableSchema.idToName();
-    AtomicInteger nextId =
-        new AtomicInteger(Collections.max(metadataTableSchema.idToName().keySet()));
+    AtomicInteger nextId = new AtomicInteger(metadataTableSchema.highestFieldId());
 
     for (int id : idToName.keySet()) {
       Types.NestedField field = dataTableSchema.findField(id);

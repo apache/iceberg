@@ -529,55 +529,85 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @Test
   public void testFilesTableReadableMetricsSchema() {
-
     Table filesTable = new FilesTable(table.ops(), table);
     Types.StructType actual = filesTable.newScan().schema().select("readable_metrics").asStruct();
+    int highestId = filesTable.schema().highestFieldId();
 
     Types.StructType expected =
         Types.StructType.of(
             optional(
-                1015,
+                highestId,
                 "readable_metrics",
                 Types.StructType.of(
                     Types.NestedField.optional(
-                        1001,
+                        highestId - 14,
                         "data",
                         Types.StructType.of(
                             Types.NestedField.optional(
-                                1002, "column_size", Types.LongType.get(), "Total size on disk"),
+                                highestId - 13,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
                             Types.NestedField.optional(
-                                1003,
+                                highestId - 12,
                                 "value_count",
                                 Types.LongType.get(),
                                 "Total count, including null and NaN"),
                             Types.NestedField.optional(
-                                1004, "null_value_count", Types.LongType.get(), "Null value count"),
+                                highestId - 11,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
                             Types.NestedField.optional(
-                                1005, "nan_value_count", Types.LongType.get(), "NaN value count"),
+                                highestId - 10,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
                             Types.NestedField.optional(
-                                1006, "lower_bound", Types.StringType.get(), "Lower bound"),
+                                highestId - 9,
+                                "lower_bound",
+                                Types.StringType.get(),
+                                "Lower bound"),
                             Types.NestedField.optional(
-                                1007, "upper_bound", Types.StringType.get(), "Upper bound")),
+                                highestId - 8,
+                                "upper_bound",
+                                Types.StringType.get(),
+                                "Upper bound")),
                         "Metrics for column data"),
                     Types.NestedField.optional(
-                        1008,
+                        highestId - 7,
                         "id",
                         Types.StructType.of(
                             Types.NestedField.optional(
-                                1009, "column_size", Types.LongType.get(), "Total size on disk"),
+                                highestId - 6,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
                             Types.NestedField.optional(
-                                1010,
+                                highestId - 5,
                                 "value_count",
                                 Types.LongType.get(),
                                 "Total count, including null and NaN"),
                             Types.NestedField.optional(
-                                1011, "null_value_count", Types.LongType.get(), "Null value count"),
+                                highestId - 4,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
                             Types.NestedField.optional(
-                                1012, "nan_value_count", Types.LongType.get(), "NaN value count"),
+                                highestId - 3,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
                             Types.NestedField.optional(
-                                1013, "lower_bound", Types.IntegerType.get(), "Lower bound"),
+                                highestId - 2,
+                                "lower_bound",
+                                Types.IntegerType.get(),
+                                "Lower bound"),
                             Types.NestedField.optional(
-                                1014, "upper_bound", Types.IntegerType.get(), "Upper bound")),
+                                highestId - 1,
+                                "upper_bound",
+                                Types.IntegerType.get(),
+                                "Upper bound")),
                         "Metrics for column id")),
                 "Column metrics in readable form"));
 
