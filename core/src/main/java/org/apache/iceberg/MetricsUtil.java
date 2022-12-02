@@ -77,41 +77,53 @@ public class MetricsUtil {
               "Total size on disk",
               DataFile.COLUMN_SIZES,
               field -> Types.LongType.get(),
-              (file, field) -> file.columnSizes().get(field.fieldId())),
+              (file, field) ->
+                  file.columnSizes() == null ? null : file.columnSizes().get(field.fieldId())),
           new ReadableMetricColDefinition(
               "value_count",
               "Total count, including null and NaN",
               DataFile.VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) -> file.valueCounts().get(field.fieldId())),
+              (file, field) ->
+                  file.valueCounts() == null ? null : file.valueCounts().get(field.fieldId())),
           new ReadableMetricColDefinition(
               "null_value_count",
               "Null value count",
               DataFile.NULL_VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) -> file.nullValueCounts().get(field.fieldId())),
+              (file, field) ->
+                  file.nullValueCounts() == null
+                      ? null
+                      : file.nullValueCounts().get(field.fieldId())),
           new ReadableMetricColDefinition(
               "nan_value_count",
               "NaN value count",
               DataFile.NAN_VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) -> file.nanValueCounts().get(field.fieldId())),
+              (file, field) ->
+                  file.nanValueCounts() == null
+                      ? null
+                      : file.nanValueCounts().get(field.fieldId())),
           new ReadableMetricColDefinition(
               "lower_bound",
               "Lower bound",
               DataFile.LOWER_BOUNDS,
               Types.NestedField::type,
               (file, field) ->
-                  Conversions.fromByteBuffer(
-                      field.type(), file.lowerBounds().get(field.fieldId()))),
+                  file.lowerBounds() == null
+                      ? null
+                      : Conversions.fromByteBuffer(
+                          field.type(), file.lowerBounds().get(field.fieldId()))),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
               Types.NestedField::type,
               (file, field) ->
-                  Conversions.fromByteBuffer(
-                      field.type(), file.upperBounds().get(field.fieldId()))));
+                  file.upperBounds() == null
+                      ? null
+                      : Conversions.fromByteBuffer(
+                          field.type(), file.upperBounds().get(field.fieldId()))));
 
   public static final String READABLE_METRICS = "readable_metrics";
 
@@ -171,7 +183,7 @@ public class MetricsUtil {
     }
 
     Object value(ContentFile<?> dataFile, Types.NestedField dataField) {
-      return dataFile == null ? null : metricFunction.metric(dataFile, dataField);
+      return metricFunction.metric(dataFile, dataField);
     }
   }
 
