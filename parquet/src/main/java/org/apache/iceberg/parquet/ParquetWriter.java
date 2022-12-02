@@ -82,6 +82,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long nextCheckRecordCount = 10;
   private boolean closed;
   private ParquetFileWriter writer;
+  private Schema schema;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
@@ -110,6 +111,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.writeMode = writeMode;
     this.output = output;
     this.conf = conf;
+    this.schema = schema;
 
     startRowGroup();
   }
@@ -144,7 +146,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
+      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig, schema);
     }
     return EMPTY_METRICS;
   }
