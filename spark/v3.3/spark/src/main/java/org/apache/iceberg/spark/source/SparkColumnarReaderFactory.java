@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -27,32 +26,17 @@ import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class SparkPartitionReaderFactory implements PartitionReaderFactory {
+class SparkColumnarReaderFactory implements PartitionReaderFactory {
   private final int batchSize;
 
-  SparkPartitionReaderFactory(int batchSize) {
+  SparkColumnarReaderFactory(int batchSize) {
+    Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
     this.batchSize = batchSize;
   }
 
   @Override
   public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
-    Preconditions.checkArgument(
-        inputPartition instanceof SparkInputPartition,
-        "Unknown input partition type: %s",
-        inputPartition.getClass().getName());
-
-    SparkInputPartition partition = (SparkInputPartition) inputPartition;
-
-    if (partition.allTasksOfType(FileScanTask.class)) {
-      return new RowDataReader(partition);
-
-    } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
-      return new ChangelogRowReader(partition);
-
-    } else {
-      throw new UnsupportedOperationException(
-          "Unsupported task group for row-based reads: " + partition.taskGroup());
-    }
+    throw new UnsupportedOperationException("Row-based reads are not supported");
   }
 
   @Override
@@ -69,12 +53,12 @@ class SparkPartitionReaderFactory implements PartitionReaderFactory {
 
     } else {
       throw new UnsupportedOperationException(
-          "Unsupported task group for batch reads: " + partition.taskGroup());
+          "Unsupported task group for columnar reads: " + partition.taskGroup());
     }
   }
 
   @Override
   public boolean supportColumnarReads(InputPartition inputPartition) {
-    return batchSize > 1;
+    return true;
   }
 }

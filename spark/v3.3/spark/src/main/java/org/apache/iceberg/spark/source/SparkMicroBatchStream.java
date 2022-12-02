@@ -171,7 +171,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new SparkPartitionReaderFactory(0);
+    return new SparkRowReaderFactory();
   }
 
   @Override
