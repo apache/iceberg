@@ -150,7 +150,7 @@ public class SnapshotUtil {
 
   /**
    * Traverses the history of the table's current snapshot and finds the first snapshot committed
-   * after the given time.
+   * after the given time(inclusive).
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds

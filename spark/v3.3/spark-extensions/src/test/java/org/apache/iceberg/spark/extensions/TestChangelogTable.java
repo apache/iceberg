@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
@@ -162,11 +163,37 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     Snapshot snap3 = table.currentSnapshot();
 
     assertEquals(
-        "Rows should match",
+        "Should have expected changed rows only from snapshot 3",
         ImmutableList.of(
             row(2, "b", "DELETE", 0, snap3.snapshotId()),
             row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(snap2.timestampMillis() + 1, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 2 and 3",
+        ImmutableList.of(
+            row(2, "b", "INSERT", 0, snap2.snapshotId()),
+            row(2, "b", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 1, snap3.snapshotId())),
         changelogRecords(snap2.timestampMillis(), snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows up to the current snapshot",
+        ImmutableList.of(
+            row(2, "b", "INSERT", 0, snap2.snapshotId()),
+            row(2, "b", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(snap2.timestampMillis(), null));
+
+    assertThrows(
+        "Should fail if start time is after end time",
+        IllegalArgumentException.class,
+        () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()));
+
+    assertThrows(
+        "Should fail if start time is after the current snapshot",
+        IllegalArgumentException.class,
+        () -> changelogRecords(snap3.timestampMillis() + 1, null));
   }
 
   @Test

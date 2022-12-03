@@ -290,25 +290,27 @@ public class SparkScanBuilder
     Long endTimestamp = readConf.endTimestamp();
 
     Preconditions.checkArgument(
-        startSnapshotId != null || startTimestamp != null,
+        !(startSnapshotId != null && startTimestamp != null),
         "Cannot set neither %s nor %s for changelogs",
         SparkReadOptions.START_SNAPSHOT_ID,
         SparkReadOptions.START_TIMESTAMP);
 
     Preconditions.checkArgument(
-        endSnapshotId != null || endTimestamp != null,
+        !(endSnapshotId != null && endTimestamp != null),
         "Cannot set neither %s nor %s for changelogs",
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.END_TIMESTAMP);
 
-    Preconditions.checkArgument(
-        startTimestamp != null && endTimestamp != null && startTimestamp < endTimestamp,
-        "Cannot set %s to be greater than %s for changelogs",
-        SparkReadOptions.START_TIMESTAMP,
-        SparkReadOptions.END_TIMESTAMP);
+    if (startTimestamp != null && endTimestamp != null) {
+      Preconditions.checkArgument(
+          startTimestamp < endTimestamp,
+          "Cannot set %s to be greater than %s for changelogs",
+          SparkReadOptions.START_TIMESTAMP,
+          SparkReadOptions.END_TIMESTAMP);
+    }
 
     if (startTimestamp != null) {
-      startSnapshotId = SnapshotUtil.oldestAncestorAfter(table, startTimestamp).snapshotId();
+      startSnapshotId = getStartSnapshotId(startTimestamp);
     }
 
     if (endTimestamp != null) {
@@ -335,6 +337,17 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  private Long getStartSnapshotId(Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    return oldestSnapshotAfter.parentId();
   }
 
   public Scan buildMergeOnReadScan() {
