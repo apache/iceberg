@@ -33,8 +33,12 @@ import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetReader.class);
+
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
@@ -68,7 +72,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private ReadConf<T> init() {
     if (conf == null) {
-      ReadConf<T> readConf =
+      try (ReadConf<T> readConf =
           new ReadConf<>(
               input,
               options,
@@ -79,9 +83,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               nameMapping,
               reuseContainers,
               caseSensitive,
-              null);
-      this.conf = readConf.copy();
-      return readConf;
+              null)) {
+        this.conf = readConf.copy();
+      } catch (IOException e) {
+        LOG.warn("Failed to close ReadConf", e);
+      }
     }
     return conf;
   }
@@ -94,6 +100,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
+    private final ReadConf readConf;
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
@@ -107,6 +114,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private T last = null;
 
     FileIterator(ReadConf<T> conf) {
+      this.readConf = conf;
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
@@ -158,6 +166,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public void close() throws IOException {
+      readConf.close();
       reader.close();
     }
   }

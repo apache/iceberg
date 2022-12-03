@@ -46,7 +46,7 @@ import org.apache.parquet.schema.MessageType;
  *
  * @param <T> type of value to read
  */
-class ReadConf<T> {
+class ReadConf<T> implements AutoCloseable {
   private final ParquetFileReader reader;
   private final InputFile file;
   private final ParquetReadOptions options;
@@ -256,5 +256,12 @@ class ReadConf<T> {
       }
     }
     return listBuilder.build();
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (reader != null) {
+      reader.close();
+    }
   }
 }
