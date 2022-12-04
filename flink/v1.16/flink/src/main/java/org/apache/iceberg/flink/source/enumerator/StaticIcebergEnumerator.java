@@ -18,11 +18,8 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
@@ -30,19 +27,11 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 @Internal
 public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {
   private final SplitAssigner assigner;
-  private final Table table;
-  private final ScanContext scanContext;
 
   public StaticIcebergEnumerator(
-      SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
-      SplitAssigner assigner,
-      Table table,
-      ScanContext scanContext,
-      @Nullable IcebergEnumeratorState enumState) {
+      SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext, SplitAssigner assigner) {
     super(enumeratorContext, assigner);
     this.assigner = assigner;
-    this.table = table;
-    this.scanContext = scanContext;
   }
 
   @Override
@@ -57,6 +46,6 @@ public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {
 
   @Override
   public IcebergEnumeratorState snapshotState(long checkpointId) {
-    return new IcebergEnumeratorState(null, assigner.state());
+    return new IcebergEnumeratorState(null, assigner.state(), new int[0]);
   }
 }

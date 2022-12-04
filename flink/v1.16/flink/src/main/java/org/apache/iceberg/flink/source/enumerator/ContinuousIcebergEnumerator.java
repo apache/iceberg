@@ -98,7 +98,8 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   @Override
   public IcebergEnumeratorState snapshotState(long checkpointId) {
-    return new IcebergEnumeratorState(enumeratorPosition.get(), assigner.state());
+    return new IcebergEnumeratorState(
+        enumeratorPosition.get(), assigner.state(), enumerationHistory.snapshot());
   }
 
   /** This method is executed in an IO thread pool. */

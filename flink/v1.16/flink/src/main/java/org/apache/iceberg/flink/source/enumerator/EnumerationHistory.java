@@ -20,38 +20,76 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.Arrays;
 import javax.annotation.concurrent.ThreadSafe;
+import org.apache.flink.annotation.VisibleForTesting;
 
-/** This enumeration history is used for split discovery throttling. */
+/**
+ * This enumeration history is used for split discovery throttling. It tracks the discovered split
+ * count per every non-empty enumeration.
+ */
 @ThreadSafe
 class EnumerationHistory {
 
-  private final int[] enumerationSplitCountHistory;
+  private final int[] history;
   // int (2B) should be enough without overflow for enumeration history
   private int count;
 
   EnumerationHistory(int maxHistorySize) {
-    this.enumerationSplitCountHistory = new int[maxHistorySize];
+    this.history = new int[maxHistorySize];
+  }
+
+  synchronized void restore(int[] restoredHistory) {
+    int startingOffset = 0;
+    int restoreSize = restoredHistory.length;
+
+    if (restoredHistory.length > history.length) {
+      // keep the newest history
+      startingOffset = restoredHistory.length - history.length;
+      // only restore the latest history up to maxHistorySize
+      restoreSize = history.length;
+    }
+
+    System.arraycopy(restoredHistory, startingOffset, history, 0, restoreSize);
+    count = restoreSize;
+  }
+
+  synchronized int[] snapshot() {
+    int len = history.length;
+    if (count > len) {
+      int[] copy = new int[len];
+      // this is like a circular buffer
+      int indexForOldest = count % len;
+      System.arraycopy(history, indexForOldest, copy, 0, len - indexForOldest);
+      System.arraycopy(history, 0, copy, len - indexForOldest, indexForOldest);
+      return copy;
+    } else {
+      return Arrays.copyOfRange(history, 0, count);
+    }
   }
 
   /** Add the split count from the last enumeration result. */
   synchronized void add(int splitCount) {
-    int pos = count % enumerationSplitCountHistory.length;
-    enumerationSplitCountHistory[pos] = splitCount;
+    int pos = count % history.length;
+    history[pos] = splitCount;
     count += 1;
+  }
+
+  @VisibleForTesting
+  synchronized boolean hasFullHistory() {
+    return count >= history.length;
   }
 
   /** @return true if split discovery should pause because assigner has too many splits already. */
   synchronized boolean shouldPauseSplitDiscovery(int pendingSplitCountFromAssigner) {
-    if (count < enumerationSplitCountHistory.length) {
+    if (count < history.length) {
       // only check throttling when full history is obtained.
       return false;
     } else {
-      // if ScanContext#maxPlanningSnapshotCount() is 5, each split enumeration can
-      // discovery splits up to 6 snapshots. if maxHistorySize is 3, the max number of
-      // splits tracked in assigner shouldn't be more than 15 snapshots worth of splits.
-      // Split discovery pauses when reaching that threshold.
-      int totalSplitCountFromRecentDiscovery =
-          Arrays.stream(enumerationSplitCountHistory).reduce(0, Integer::sum);
+      // if ScanContext#maxPlanningSnapshotCount() is 10, each split enumeration can
+      // discovery splits up to 10 snapshots. if maxHistorySize is 3, the max number of
+      // splits tracked in assigner shouldn't be more than 10 * (3 + 1) snapshots
+      // worth of splits. +1 because there could be another enumeration when the
+      // pending splits fall just below the 10 * 3.
+      int totalSplitCountFromRecentDiscovery = Arrays.stream(history).reduce(0, Integer::sum);
       return pendingSplitCountFromAssigner >= totalSplitCountFromRecentDiscovery;
     }
   }
