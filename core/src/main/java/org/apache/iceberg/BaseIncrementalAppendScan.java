@@ -32,19 +32,14 @@ class BaseIncrementalAppendScan
     extends BaseIncrementalScan<IncrementalAppendScan, FileScanTask, CombinedScanTask>
     implements IncrementalAppendScan {
 
-  BaseIncrementalAppendScan(TableOperations ops, Table table) {
-    this(ops, table, table.schema(), new TableScanContext());
-  }
-
-  BaseIncrementalAppendScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  BaseIncrementalAppendScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   @Override
   protected IncrementalAppendScan newRefinedScan(
-      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext) {
-    return new BaseIncrementalAppendScan(newOps, newTable, newSchema, newContext);
+      Table newTable, Schema newSchema, TableScanContext newContext) {
+    return new BaseIncrementalAppendScan(newTable, newSchema, newContext);
   }
 
   @Override
@@ -79,7 +74,7 @@ class BaseIncrementalAppendScan
             .toSet();
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(tableOps().io(), manifests)
+        new ManifestGroup(table().io(), manifests)
             .caseSensitive(isCaseSensitive())
             .select(scanColumns())
             .filterData(filter())
@@ -87,7 +82,7 @@ class BaseIncrementalAppendScan
                 manifestEntry ->
                     snapshotIds.contains(manifestEntry.snapshotId())
                         && manifestEntry.status() == ManifestEntry.Status.ADDED)
-            .specsById(tableOps().current().specsById())
+            .specsById(table().specs())
             .ignoreDeleted();
 
     if (context().ignoreResiduals()) {

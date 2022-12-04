@@ -25,14 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
-
-  public DataTableScan(TableOperations ops, Table table) {
-    super(ops, table, table.schema());
-  }
-
-  protected DataTableScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  protected DataTableScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   @Override
@@ -42,7 +36,6 @@ public class DataTableScan extends BaseTableScan {
         "Cannot enable incremental scan, scan-snapshot set to id=%s",
         snapshotId());
     return new IncrementalDataTableScan(
-        tableOps(),
         table(),
         schema(),
         context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
@@ -64,14 +57,12 @@ public class DataTableScan extends BaseTableScan {
     // we do not use its return value
     super.useSnapshot(scanSnapshotId);
     Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
-    return newRefinedScan(
-        tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
+    return newRefinedScan(table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
-  protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new DataTableScan(ops, table, schema, context);
+  protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+    return new DataTableScan(table, schema, context);
   }
 
   @Override
