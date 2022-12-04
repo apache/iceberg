@@ -332,10 +332,10 @@ public class TypeUtil {
 
     switch (from.typeId()) {
       case INTEGER:
-        return to == Types.LongType.get();
+        return to.typeId() == Type.TypeID.LONG;
 
       case FLOAT:
-        return to == Types.DoubleType.get();
+        return to.typeId() == Type.TypeID.DOUBLE;
 
       case DECIMAL:
         Types.DecimalType fromDecimal = (Types.DecimalType) from;
