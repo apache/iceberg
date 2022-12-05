@@ -213,7 +213,7 @@ public class MetricsUtil {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("ReadableMetricsStruct is read only");
+      throw new UnsupportedOperationException("ReadableColMetricsStruct is read only");
     }
 
     private Object get(int pos) {
