@@ -142,9 +142,21 @@ public class TypeUtil {
   }
 
   public static Schema join(Schema left, Schema right) {
-    List<Types.NestedField> joinedColumns = Lists.newArrayList();
-    joinedColumns.addAll(left.columns());
-    joinedColumns.addAll(right.columns());
+    List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
+    for (Types.NestedField rightColumn : right.columns()) {
+      Types.NestedField leftColumn = left.findField(rightColumn.fieldId());
+
+      if (leftColumn == null) {
+        joinedColumns.add(rightColumn);
+      } else {
+        Preconditions.checkArgument(
+            leftColumn.equals(rightColumn),
+            "Schemas have different columns with same id: %s, %s",
+            leftColumn,
+            rightColumn);
+      }
+    }
+
     return new Schema(joinedColumns);
   }
 
