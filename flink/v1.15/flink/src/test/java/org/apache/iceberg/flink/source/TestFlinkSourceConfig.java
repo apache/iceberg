@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.util.List;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestFlinkSourceConfig extends TestFlinkTableSource {
@@ -30,10 +33,16 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
     AssertHelpers.assertThrows(
         "Should throw exception because of cannot set snapshot-id option for streaming reader",
         IllegalArgumentException.class,
-        "Cannot set snapshot-id option for streaming reader",
+        "Cannot set as-of-timestamp option for streaming reader",
         () -> {
-          exec("SELECT * FROM %s /*+ OPTIONS('snapshot-id'='1')*/", TABLE);
+          sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE);
           return null;
         });
+
+    List<Row> result =
+        sql(
+            "SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='%d','streaming'='false')*/",
+            TABLE, System.currentTimeMillis());
+    Assert.assertEquals(3, result.size());
   }
 }

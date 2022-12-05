@@ -43,6 +43,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -356,7 +357,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> planParallelism(int planParallelism) {
-      this.contextBuilder.planParallelism(planParallelism);
+      readOptions.put(
+          FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.key(),
+          Integer.toString(planParallelism));
       return this;
     }
 
@@ -383,10 +386,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    /**
-     * Set the read properties for Flink source. View the supported properties in {@link
-     * FlinkReadOptions}
-     */
+    /** @deprecated Use {@link #setAll} instead. */
+    @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
       readOptions.putAll(properties);
       return this;
@@ -401,7 +402,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         throw new UncheckedIOException(e);
       }
 
-      contextBuilder.fromProperties(table, readOptions, flinkConfig);
+      contextBuilder.settleConfig(table, readOptions, flinkConfig);
 
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {

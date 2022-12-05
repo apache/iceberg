@@ -152,7 +152,11 @@ public class FlinkReadConf {
   }
 
   public long limit() {
-    return confParser.longConf().option(FlinkReadOptions.LIMIT.key()).parse();
+    return confParser
+        .longConf()
+        .option(FlinkReadOptions.LIMIT.key())
+        .defaultValue(FlinkReadOptions.LIMIT.defaultValue())
+        .parse();
   }
 
   public int workerPoolSize() {

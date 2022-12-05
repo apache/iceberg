@@ -240,7 +240,7 @@ public class FlinkSource {
       contextBuilder.planParallelism(
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
-      contextBuilder.fromProperties(table, readOptions, readableConfig);
+      contextBuilder.settleConfig(table, readOptions, readableConfig);
 
       return new FlinkInputFormat(
           tableLoader, icebergSchema, io, encryption, contextBuilder.build());

@@ -386,9 +386,9 @@ public class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder fromProperties(
-        Table table, Map<String, String> properties, ReadableConfig readableConfig) {
-      FlinkReadConf flinkReadConf = new FlinkReadConf(table, properties, readableConfig);
+    public Builder settleConfig(
+        Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
+      FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
 
       return this.useSnapshotId(flinkReadConf.snapshotId())
           .caseSensitive(flinkReadConf.caseSensitive())
@@ -404,6 +404,7 @@ public class ScanContext implements Serializable {
           .monitorInterval(flinkReadConf.monitorInterval())
           .nameMapping(flinkReadConf.nameMapping())
           .limit(flinkReadConf.limit())
+          .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount());
     }
