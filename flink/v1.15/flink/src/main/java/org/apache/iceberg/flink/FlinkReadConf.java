@@ -151,6 +151,10 @@ public class FlinkReadConf {
     return confParser.stringConf().option(DEFAULT_NAME_MAPPING).parseOptional();
   }
 
+  public long limit() {
+    return confParser.longConf().option(FlinkReadOptions.LIMIT.key()).parse();
+  }
+
   public int workerPoolSize() {
     return confParser
         .intConf()

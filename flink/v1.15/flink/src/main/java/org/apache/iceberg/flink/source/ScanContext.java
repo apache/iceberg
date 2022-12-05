@@ -276,7 +276,7 @@ public class ScanContext implements Serializable {
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
-    private long limit = -1L;
+    private long limit = FlinkReadOptions.LIMIT.defaultValue();
     private boolean includeColumnStats = FlinkReadOptions.INCLUDE_COLUMN_STATS.defaultValue();
     private boolean exposeLocality;
     private Integer planParallelism =
@@ -403,6 +403,7 @@ public class ScanContext implements Serializable {
           .streaming(flinkReadConf.streaming())
           .monitorInterval(flinkReadConf.monitorInterval())
           .nameMapping(flinkReadConf.nameMapping())
+          .limit(flinkReadConf.limit())
           .includeColumnStats(flinkReadConf.includeColumnStats())
           .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount());
     }

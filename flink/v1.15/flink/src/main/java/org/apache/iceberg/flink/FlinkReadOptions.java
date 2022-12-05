@@ -37,7 +37,7 @@ public class FlinkReadOptions {
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);
 
   public static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY =
-      ConfigOptions.key("starting-strategy")
+      ConfigOptions.key("connector.iceberg.starting-strategy")
           .enumType(StreamingStartingStrategy.class)
           .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT);
 
@@ -51,15 +51,17 @@ public class FlinkReadOptions {
       ConfigOptions.key("end-snapshot-id").longType().defaultValue(null);
 
   public static final ConfigOption<Long> SPLIT_SIZE =
-      ConfigOptions.key("split-size").longType().defaultValue(TableProperties.SPLIT_SIZE_DEFAULT);
+      ConfigOptions.key("connector.iceberg.split-size")
+          .longType()
+          .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT);
 
   public static final ConfigOption<Integer> SPLIT_LOOKBACK =
-      ConfigOptions.key("split-lookback")
+      ConfigOptions.key("connector.iceberg.split-lookback")
           .intType()
           .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
   public static final ConfigOption<Long> SPLIT_FILE_OPEN_COST =
-      ConfigOptions.key("split-file-open-cost")
+      ConfigOptions.key("connector.iceberg.split-file-open-cost")
           .longType()
           .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
@@ -67,11 +69,16 @@ public class FlinkReadOptions {
       ConfigOptions.key("streaming").booleanType().defaultValue(false);
 
   public static final ConfigOption<String> MONITOR_INTERVAL =
-      ConfigOptions.key("monitor-interval").stringType().defaultValue("10s");
+      ConfigOptions.key("monitor-interval").stringType().defaultValue("60s");
 
   public static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS =
-      ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
+      ConfigOptions.key("connector.iceberg.include-column-stats").booleanType().defaultValue(false);
 
   public static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
-      ConfigOptions.key("max-planning-snapshot-count").intType().defaultValue(Integer.MAX_VALUE);
+      ConfigOptions.key("connector.iceberg.max-planning-snapshot-count")
+          .intType()
+          .defaultValue(Integer.MAX_VALUE);
+
+  public static final ConfigOption<Integer> LIMIT =
+      ConfigOptions.key("connector.iceberg.limit").intType().defaultValue(-1);
 }
