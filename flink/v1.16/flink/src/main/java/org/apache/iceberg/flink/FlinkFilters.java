@@ -31,9 +31,11 @@ import java.util.regex.Pattern;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.expressions.TypeLiteralExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
@@ -246,18 +248,73 @@ public class FlinkFilters {
     org.apache.flink.table.expressions.Expression left = args.get(0);
     org.apache.flink.table.expressions.Expression right = args.get(1);
 
-    if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
+    if (left instanceof FieldReferenceExpression) {
+      Optional<Object> lit = Optional.empty();
       String name = ((FieldReferenceExpression) left).getName();
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
+      if (right instanceof ValueLiteralExpression) {
+        lit = convertLiteral((ValueLiteralExpression) right);
+      } else if (right instanceof CallExpression) {
+        lit = convertCallExpression((CallExpression) right);
+      }
+
       if (lit.isPresent()) {
         return Optional.of(convertLR.apply(name, lit.get()));
       }
-    } else if (left instanceof ValueLiteralExpression
-        && right instanceof FieldReferenceExpression) {
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
+    } else if (right instanceof FieldReferenceExpression) {
+      Optional<Object> lit = Optional.empty();
       String name = ((FieldReferenceExpression) right).getName();
+      if (left instanceof ValueLiteralExpression) {
+        lit = convertLiteral((ValueLiteralExpression) left);
+
+      } else if (left instanceof CallExpression) {
+        lit = convertCallExpression((CallExpression) left);
+      }
+
       if (lit.isPresent()) {
         return Optional.of(convertRL.apply(name, lit.get()));
+      }
+    }
+
+    return Optional.empty();
+  }
+
+  private static Optional<Object> convertCallExpression(CallExpression call) {
+    if (!BuiltInFunctionDefinitions.CAST.equals(call.getFunctionDefinition())) {
+      return Optional.empty();
+    }
+
+    List<ResolvedExpression> args = call.getResolvedChildren();
+    if (args.size() != 2) {
+      return Optional.empty();
+    }
+
+    org.apache.flink.table.expressions.Expression left = args.get(0);
+    org.apache.flink.table.expressions.Expression right = args.get(1);
+
+    if (left instanceof ValueLiteralExpression && right instanceof TypeLiteralExpression) {
+      ValueLiteralExpression value = (ValueLiteralExpression) left;
+      TypeLiteralExpression type = (TypeLiteralExpression) right;
+
+      LogicalType logicalType = type.getOutputDataType().getLogicalType();
+
+      Optional<?> result = value.getValueAs(logicalType.getDefaultConversion());
+      if (result.isPresent()) {
+        return Optional.of(result.get());
+      }
+
+      switch (logicalType.getTypeRoot()) {
+        case DOUBLE:
+          Optional<String> strValue = value.getValueAs(String.class);
+          if (strValue.isPresent()) {
+            return Optional.of(Double.valueOf(strValue.get()));
+          }
+          break;
+        case FLOAT:
+          Optional<String> valueAs = value.getValueAs(String.class);
+          if (valueAs.isPresent()) {
+            return Optional.of(Double.valueOf(valueAs.get()));
+          }
+          break;
       }
     }
 
