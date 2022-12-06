@@ -454,29 +454,29 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       defaultUser = UserGroupInformation.getCurrentUser().getUserName();
     } catch (IOException e) {
       throw new UncheckedIOException(
-              String.format(
-                      "Fail to obtain default (UGI) user when creating table %s.%s", database, tableName),
-              e);
+          String.format(
+              "Fail to obtain default (UGI) user when creating table %s.%s", database, tableName),
+          e);
     }
 
     Table newTable =
-            new Table(
-                    tableName,
-                    database,
-                    metadata.property(HiveCatalog.HMS_TABLE_OWNER, defaultUser),
-                    (int) currentTimeMillis / 1000,
-                    (int) currentTimeMillis / 1000,
-                    Integer.MAX_VALUE,
-                    null,
-                    Collections.emptyList(),
-                    Maps.newHashMap(),
-                    null,
-                    null,
-                    TableType.EXTERNAL_TABLE.toString());
+        new Table(
+            tableName,
+            database,
+            metadata.property(HiveCatalog.HMS_TABLE_OWNER, defaultUser),
+            (int) currentTimeMillis / 1000,
+            (int) currentTimeMillis / 1000,
+            Integer.MAX_VALUE,
+            null,
+            Collections.emptyList(),
+            Maps.newHashMap(),
+            null,
+            null,
+            TableType.EXTERNAL_TABLE.toString());
 
     newTable
-            .getParameters()
-            .put("EXTERNAL", "TRUE"); // using the external table type also requires this
+        .getParameters()
+        .put("EXTERNAL", "TRUE"); // using the external table type also requires this
     return newTable;
   }
 
