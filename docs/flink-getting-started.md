@@ -820,7 +820,7 @@ SELECT * FROM prod.db.table$history;
 | 2019-02-09 19:49:16.343 | 6536733823181975045 | 8924558786060583479 | true                |
 
 {{< hint info >}}
-**This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
+**This shows a commit that was rolled back.** In this example, snapshot 296410040247533544 and 2999875608062437330 have the same parent snapshot 5179299526185056830. Snapshot 296410040247533544 was rolled back and is *not* an ancestor of the current table state.
 {{< /hint >}}
 
 ### Metadata Log Entries

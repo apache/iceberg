@@ -24,11 +24,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -41,10 +38,8 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -179,12 +174,7 @@ public class StructRowData implements RowData {
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
     long timeLong = getLong(pos);
-    if (precision == 6) {
-      int nanosOfMillisecond = (int) (timeLong % 1000);
-      return TimestampData.fromEpochMillis(timeLong / 1000, nanosOfMillisecond);
-    } else {
-      return TimestampData.fromEpochMillis(timeLong);
-    }
+    return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
   }
 
   @Override
@@ -213,46 +203,20 @@ public class StructRowData implements RowData {
 
   @Override
   public ArrayData getArray(int pos) {
-    return isNullAt(pos) ? null : getArrayInternal(pos);
-  }
-
-  private ArrayData getArrayInternal(int pos) {
-    return collectionToArrayData(
-        type.fields().get(pos).type().asListType().elementType(),
-        struct.get(pos, List.class));
+    return isNullAt(pos)
+        ? null
+        : (ArrayData)
+            covertFromStructToRowData(
+                type.fields().get(pos).type().asListType(), struct.get(pos, List.class));
   }
 
   @Override
   public MapData getMap(int pos) {
-    return isNullAt(pos) ? null : getMapInternal(pos);
-  }
-
-  private MapData getMapInternal(int pos) {
-    Types.MapType mapType = type.fields().get(pos).type().asMapType();
-    // make a defensive copy to ensure entries do not change
-    List<Map.Entry<?, ?>> entries =
-        ImmutableList.copyOf(((Map<?, ?>) struct.get(pos, Map.class)).entrySet());
-
-    ArrayData keyArray =
-        collectionToArrayData(mapType.keyType(), Lists.transform(entries, Map.Entry::getKey));
-
-    ArrayData valueArray =
-        collectionToArrayData(mapType.valueType(), Lists.transform(entries, Map.Entry::getValue));
-
-    ArrayData.ElementGetter keyGetter =
-        ArrayData.createElementGetter(FlinkSchemaUtil.convert(mapType.keyType()));
-    ArrayData.ElementGetter valueGetter =
-        ArrayData.createElementGetter(FlinkSchemaUtil.convert(mapType.valueType()));
-
-    int length = keyArray.size();
-    Map<Object, Object> result = Maps.newHashMap();
-    for (int pos1 = 0; pos1 < length; pos1++) {
-      final Object keyValue = keyGetter.getElementOrNull(keyArray, pos1);
-      final Object valueValue = valueGetter.getElementOrNull(valueArray, pos1);
-
-      result.put(keyValue, valueValue);
-    }
-    return new GenericMapData(result);
+    return isNullAt(pos)
+        ? null
+        : (MapData)
+            covertFromStructToRowData(
+                type.fields().get(pos).type().asMapType(), struct.get(pos, Map.class));
   }
 
   @Override
@@ -265,76 +229,58 @@ public class StructRowData implements RowData {
         type.fields().get(pos).type().asStructType(), struct.get(pos, StructLike.class));
   }
 
-  private ArrayData collectionToArrayData(Type elementType, Collection<?> values) {
+  private Object covertFromStructToRowData(Type elementType, Object value) {
     switch (elementType.typeId()) {
       case BOOLEAN:
       case INTEGER:
       case DATE:
       case TIME:
       case LONG:
-      case TIMESTAMP:
       case FLOAT:
       case DOUBLE:
-        return fillArray(values, array -> (pos, value) -> array[pos] = value);
+      case DECIMAL:
+        return value;
+      case TIMESTAMP:
+        return TimestampData.fromEpochMillis(
+            (Long) value / 1000, (int) ((Long) value % 1000) * 1000);
       case STRING:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, CharSequence>)
-                    (pos, seq) -> array[pos] = StringData.fromString(seq.toString()));
+        return StringData.fromString(value.toString());
       case FIXED:
       case BINARY:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, ByteBuffer>)
-                    (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
-      case DECIMAL:
-        return fillArray(
-            values, array -> (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = dec);
+        return ByteBuffers.toByteArray((ByteBuffer) value);
       case STRUCT:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, StructLike>)
-                    (pos, tuple) ->
-                        array[pos] = new StructRowData(elementType.asStructType(), tuple));
+        return new StructRowData(elementType.asStructType(), (StructLike) value);
       case LIST:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, Collection<?>>)
-                    (pos, list) ->
-                        array[pos] =
-                            collectionToArrayData(elementType.asListType().elementType(), list));
+        List<?> list = (List<?>) value;
+        Object[] array = new Object[list.size()];
+
+        int index = 0;
+        for (Object element : list) {
+          if (element == null) {
+            array[index] = null;
+          } else {
+            array[index] =
+                covertFromStructToRowData(elementType.asListType().elementType(), element);
+          }
+
+          index += 1;
+        }
+        return new GenericArrayData(array);
       case MAP:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, Map<?, ?>>)
-                    (pos, map) -> array[pos] = new GenericMapData(map));
+        Types.MapType mapType = elementType.asMapType();
+        // make a defensive copy to ensure entries do not change
+        List<Map.Entry<?, ?>> entries = ImmutableList.copyOf(((Map<?, ?>) value).entrySet());
+
+        Map<Object, Object> result = Maps.newHashMap();
+        for (Map.Entry<?, ?> entry : entries) {
+          final Object keyValue = covertFromStructToRowData(mapType.keyType(), entry.getKey());
+          final Object valueValue =
+              covertFromStructToRowData(mapType.valueType(), entry.getValue());
+          result.put(keyValue, valueValue);
+        }
+        return new GenericMapData(result);
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> GenericArrayData fillArray(
-      Collection<?> values, Function<Object[], BiConsumer<Integer, T>> makeSetter) {
-    Object[] array = new Object[values.size()];
-    BiConsumer<Integer, T> setter = makeSetter.apply(array);
-
-    int index = 0;
-    for (Object value : values) {
-      if (value == null) {
-        array[index] = null;
-      } else {
-        setter.accept(index, (T) value);
-      }
-
-      index += 1;
-    }
-
-    return new GenericArrayData(array);
   }
 }

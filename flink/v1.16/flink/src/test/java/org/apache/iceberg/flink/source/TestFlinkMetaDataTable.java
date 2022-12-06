@@ -476,7 +476,8 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
         filesTableSchema, expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
 
     // Check all files table
-    List<Row> actualFiles = sql("SELECT * FROM %s$all_files ORDER BY content", TABLE_NAME);
+    List<Row> actualFiles =
+        sql("SELECT * FROM %s$all_files ORDER BY content, record_count asc", TABLE_NAME);
     List<GenericData.Record> expectedFiles =
         ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
