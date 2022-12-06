@@ -125,6 +125,7 @@ public class SimpleDataUtil {
   }
 
   public static DataFile writeFile(
+      Table table,
       Schema schema,
       PartitionSpec spec,
       Configuration conf,

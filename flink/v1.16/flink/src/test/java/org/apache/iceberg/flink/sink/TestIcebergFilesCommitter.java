@@ -807,7 +807,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(
+    return SimpleDataUtil.writeFile(table,
         table.schema(), table.spec(), CONF, table.location(), format.addExtension(filename), rows);
   }
 

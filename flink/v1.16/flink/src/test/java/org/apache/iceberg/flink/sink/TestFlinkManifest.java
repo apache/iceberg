@@ -254,6 +254,7 @@ public class TestFlinkManifest {
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(
+        table,
         table.schema(),
         table.spec(),
         CONF,
