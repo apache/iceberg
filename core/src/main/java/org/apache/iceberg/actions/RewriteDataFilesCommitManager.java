@@ -225,24 +225,39 @@ public class RewriteDataFilesCommitManager {
       LOG.info("Closing commit service for {}", table);
       committerService.shutdown();
 
+      boolean timeout = false;
+      int waitTime;
       try {
         // All rewrites have completed and all new files have been created, we are now waiting for
         // the commit
-        // pool to finish doing it's commits to Iceberg State. In the case of partial progress this
+        // pool to finish doing its commits to Iceberg State. In the case of partial progress this
         // should
         // have been occurring simultaneously with rewrites, if not there should be only a single
         // commit operation.
-        // In either case this should take much less than 10 minutes to actually complete.
-        if (!committerService.awaitTermination(10, TimeUnit.MINUTES)) {
+        // We will wait 10 minutes plus 5 more minutes for each commit left to perform due to the
+        // time required for writing manifests
+        waitTime = 10 + (completedRewrites.size() / rewritesPerCommit) * 5;
+        if (!committerService.awaitTermination(waitTime, TimeUnit.MINUTES)) {
           LOG.warn(
-              "Commit operation did not complete within 10 minutes of the files being written. This may mean "
-                  + "that changes were not successfully committed to the the Iceberg table.");
+              "Commit operation did not complete within {} (10 + 5 * commitsRemaining) minutes of the all files "
+                  + "being rewritten. This may mean that changes were not successfully committed to the the "
+                  + "Iceberg catalog.",
+              waitTime);
+          timeout = true;
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new RuntimeException(
             "Cannot complete commit for rewrite, commit service interrupted", e);
       }
+
+      Preconditions.checkArgument(
+          !timeout && completedRewrites.isEmpty(),
+          "Timeout ({} minutes) occurred when waiting for commits to complete. "
+              + "{} file groups committed. {} file groups remain uncommitted.",
+          waitTime,
+          committedRewrites.size(),
+          completedRewrites.size());
 
       Preconditions.checkState(
           completedRewrites.isEmpty(),
