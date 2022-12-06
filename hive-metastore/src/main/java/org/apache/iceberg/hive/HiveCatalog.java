@@ -19,6 +19,7 @@
 package org.apache.iceberg.hive;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -573,7 +574,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         database.setOwnerName(UserGroupInformation.getCurrentUser().getUserName());
         database.setOwnerType(PrincipalType.USER);
       } catch (IOException e) {
-        throw new RuntimeException(
+        throw new UncheckedIOException(
             String.format("Fail to obtain default (UGI) user for database %s", database), e);
       }
     }
