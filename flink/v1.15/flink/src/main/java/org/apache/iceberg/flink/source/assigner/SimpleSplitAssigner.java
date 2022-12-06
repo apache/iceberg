@@ -51,7 +51,7 @@ public class SimpleSplitAssigner implements SplitAssigner {
   }
 
   @Override
-  public GetSplitResult getNext(@Nullable String hostname) {
+  public synchronized GetSplitResult getNext(@Nullable String hostname) {
     if (pendingSplits.isEmpty()) {
       return GetSplitResult.unavailable();
     } else {
@@ -70,7 +70,7 @@ public class SimpleSplitAssigner implements SplitAssigner {
     addSplits(splits);
   }
 
-  private void addSplits(Collection<IcebergSourceSplit> splits) {
+  private synchronized void addSplits(Collection<IcebergSourceSplit> splits) {
     if (!splits.isEmpty()) {
       pendingSplits.addAll(splits);
       // only complete pending future if new splits are discovered
@@ -80,7 +80,7 @@ public class SimpleSplitAssigner implements SplitAssigner {
 
   /** Simple assigner only tracks unassigned splits */
   @Override
-  public Collection<IcebergSourceSplitState> state() {
+  public synchronized Collection<IcebergSourceSplitState> state() {
     return pendingSplits.stream()
         .map(split -> new IcebergSourceSplitState(split, IcebergSourceSplitStatus.UNASSIGNED))
         .collect(Collectors.toList());
@@ -92,6 +92,11 @@ public class SimpleSplitAssigner implements SplitAssigner {
       availableFuture = new CompletableFuture<>();
     }
     return availableFuture;
+  }
+
+  @Override
+  public synchronized int pendingSplitCount() {
+    return pendingSplits.size();
   }
 
   private synchronized void completeAvailableFuturesIfNeeded() {

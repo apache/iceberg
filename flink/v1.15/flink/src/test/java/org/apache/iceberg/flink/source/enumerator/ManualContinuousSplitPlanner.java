@@ -19,31 +19,70 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
-  private final ArrayDeque<IcebergSourceSplit> splits = new ArrayDeque<>();
-  private IcebergEnumeratorPosition latestPosition;
+  private final int maxPlanningSnapshotCount;
+  // track splits per snapshot
+  private final NavigableMap<Long, List<IcebergSourceSplit>> splits;
+  private long latestSnapshotId;
+
+  ManualContinuousSplitPlanner(ScanContext scanContext) {
+    this.maxPlanningSnapshotCount = scanContext.maxPlanningSnapshotCount();
+    this.splits = new TreeMap<>();
+    this.latestSnapshotId = 0L;
+  }
 
   @Override
-  public ContinuousEnumerationResult planSplits(IcebergEnumeratorPosition lastPosition) {
+  public synchronized ContinuousEnumerationResult planSplits(
+      IcebergEnumeratorPosition lastPosition) {
+    long fromSnapshotIdExclusive = 0;
+    if (lastPosition != null && lastPosition.snapshotId() != null) {
+      fromSnapshotIdExclusive = lastPosition.snapshotId();
+    }
+
+    Preconditions.checkArgument(
+        fromSnapshotIdExclusive <= latestSnapshotId,
+        "last enumerated snapshotId is greater than the latestSnapshotId");
+    if (fromSnapshotIdExclusive == latestSnapshotId) {
+      // already discovered everything.
+      return new ContinuousEnumerationResult(Lists.newArrayList(), lastPosition, lastPosition);
+    }
+
+    // find the subset of snapshots to return discovered splits
+    long toSnapshotIdInclusive;
+    if (latestSnapshotId - fromSnapshotIdExclusive > maxPlanningSnapshotCount) {
+      toSnapshotIdInclusive = fromSnapshotIdExclusive + maxPlanningSnapshotCount;
+    } else {
+      toSnapshotIdInclusive = latestSnapshotId;
+    }
+
+    List<IcebergSourceSplit> discoveredSplits = Lists.newArrayList();
+    NavigableMap<Long, List<IcebergSourceSplit>> discoveredView =
+        splits.subMap(fromSnapshotIdExclusive, false, toSnapshotIdInclusive, true);
+    discoveredView.forEach((snapshotId, snapshotSplits) -> discoveredSplits.addAll(snapshotSplits));
     ContinuousEnumerationResult result =
-        new ContinuousEnumerationResult(Lists.newArrayList(splits), lastPosition, latestPosition);
+        new ContinuousEnumerationResult(
+            discoveredSplits,
+            lastPosition,
+            // use the snapshot Id as snapshot timestamp.
+            IcebergEnumeratorPosition.of(toSnapshotIdInclusive, toSnapshotIdInclusive));
     return result;
   }
 
-  /** Add new splits to the collection */
-  public void addSplits(List<IcebergSourceSplit> newSplits, IcebergEnumeratorPosition newPosition) {
-    splits.addAll(newSplits);
-    this.latestPosition = newPosition;
-  }
-
-  /** Clear the splits collection */
-  public void clearSplits() {
-    splits.clear();
+  /**
+   * Add a collection of new splits. A monotonically increased snapshotId is assigned to each batch
+   * of splits added by this method.
+   */
+  public synchronized void addSplits(List<IcebergSourceSplit> newSplits) {
+    latestSnapshotId += 1;
+    splits.put(latestSnapshotId, newSplits);
   }
 
   @Override
