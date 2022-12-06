@@ -31,9 +31,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
@@ -516,6 +519,39 @@ public class TestORCSchemaUtil {
         ORCSchemaUtil.buildOrcProjection(mappingSchema, typeDescriptionWithIdsFromNameMapping);
     assertTrue(
         "Schema should be the prunned by projection", equalsWithIds(expected, projectedOrcSchema));
+  }
+
+  @Test
+  public void testRemoveConstantsAndMetadataFields() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                MetadataColumns.FILE_PATH,
+                required(1, "id", Types.LongType.get()),
+                required(
+                    2,
+                    "location",
+                    Types.StructType.of(
+                        required(3, "lat", Types.DoubleType.get()),
+                        required(4, "long", Types.DoubleType.get())))));
+
+    // should remove constant fields and metadata fields
+    Schema expectedConstantsAndMetadataFieldsRemoved =
+        new Schema(
+            required(
+                2, "location", Types.StructType.of(required(4, "long", Types.DoubleType.get()))));
+    assertEquals(
+        expectedConstantsAndMetadataFieldsRemoved.asStruct(),
+        ORCSchemaUtil.removeConstantsAndMetadataFields(schema, Sets.newHashSet(1, 3)).asStruct());
+
+    // should not remove empty structs if their elements are removed
+    Schema expectedPreserveEmptyStructElements =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of()));
+    assertEquals(
+        expectedPreserveEmptyStructElements.asStruct(),
+        ORCSchemaUtil.removeConstantsAndMetadataFields(schema, Sets.newHashSet(3, 4)).asStruct());
   }
 
   private static boolean equalsWithIds(TypeDescription first, TypeDescription second) {

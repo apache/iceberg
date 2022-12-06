@@ -23,7 +23,6 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
@@ -41,9 +40,9 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -170,8 +169,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       Map<Integer, ?> idToConstant,
       InputFilesDecryptor inputFilesDecryptor) {
     Schema readSchemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(
-            schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+        ORCSchemaUtil.removeConstantsAndMetadataFields(schema, idToConstant.keySet());
 
     ORC.ReadBuilder builder =
         ORC.read(inputFilesDecryptor.getInputFile(task))

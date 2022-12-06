@@ -19,9 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -30,11 +28,10 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -105,12 +102,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       long length,
       Expression residual,
       Map<Integer, ?> idToConstant) {
-    Set<Integer> constantFieldIds = idToConstant.keySet();
-    Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
-    Sets.SetView<Integer> constantAndMetadataFieldIds =
-        Sets.union(constantFieldIds, metadataFieldIds);
     Schema schemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(expectedSchema(), constantAndMetadataFieldIds);
+        ORCSchemaUtil.removeConstantsAndMetadataFields(expectedSchema(), idToConstant.keySet());
 
     return ORC.read(inputFile)
         .project(schemaWithoutConstantAndMetadataFields)

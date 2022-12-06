@@ -293,6 +293,46 @@ public class TestIcebergInputFormats {
     validateIdentityPartitionProjections(withColumns("message", "level", "date"), inputRecords);
   }
 
+  private static final Schema NESTED_LOG_SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "date", Types.StringType.get()),
+          Types.NestedField.optional(
+              3,
+              "struct",
+              Types.StructType.of(
+                  Types.NestedField.optional(4, "level", Types.StringType.get()),
+                  Types.NestedField.optional(5, "message", Types.StringType.get()))));
+
+  private static final PartitionSpec NESTED_IDENTITY_PARTITION_SPEC =
+      PartitionSpec.builderFor(NESTED_LOG_SCHEMA).identity("date").identity("struct.level").build();
+
+  @Test
+  public void testNestedIdentityPartitionProjections() throws Exception {
+    helper.createTable(NESTED_LOG_SCHEMA, NESTED_IDENTITY_PARTITION_SPEC);
+    List<Record> inputRecords = helper.generateRandomRecords(10, 0L);
+
+    Integer idx = 0;
+    AppendFiles append = helper.table().newAppend();
+    for (Record record : inputRecords) {
+      record.set(1, "2020-03-2" + idx);
+      record.get(2, Record.class).set(0, idx.toString());
+      append.appendFile(
+          helper.writeFile(Row.of("2020-03-2" + idx, idx.toString()), ImmutableList.of(record)));
+      idx += 1;
+    }
+    append.commit();
+
+    builder.project(NESTED_LOG_SCHEMA.select("struct.level"));
+    List<Record> actualRecords = testInputFormat.create(builder.conf()).getRecords();
+
+    for (int pos = 0; pos < inputRecords.size(); pos++) {
+      Assert.assertEquals(
+          String.valueOf(pos),
+          ((Record) actualRecords.get(pos).getField("struct")).getField("level"));
+    }
+  }
+
   private static Schema withColumns(String... names) {
     Map<String, Integer> indexByName = TypeUtil.indexByName(LOG_SCHEMA.asStruct());
     Set<Integer> projectedIds = Sets.newHashSet();

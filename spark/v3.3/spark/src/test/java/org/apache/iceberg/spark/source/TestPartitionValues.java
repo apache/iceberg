@@ -54,7 +54,6 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -453,8 +452,6 @@ public class TestPartitionValues {
 
   @Test
   public void testReadPartitionColumn() throws Exception {
-    Assume.assumeTrue("Temporary skip ORC", !"orc".equals(format));
-
     Schema nestedSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),

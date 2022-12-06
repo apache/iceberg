@@ -38,7 +38,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -71,9 +70,9 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -435,8 +434,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Map<Integer, ?> idToConstant =
           constantsMap(task, IdentityPartitionConverters::convertConstant);
       Schema readSchemaWithoutConstantAndMetadataFields =
-          TypeUtil.selectNot(
-              readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+          ORCSchemaUtil.removeConstantsAndMetadataFields(readSchema, idToConstant.keySet());
 
       CloseableIterable<T> orcIterator = null;
       // ORC does not support reuse containers yet

@@ -45,9 +45,11 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -524,6 +526,17 @@ public class TestLocalScan {
 
   private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
       throws IOException {
+    return writeFile(location, filename, schema, records, PartitionSpec.unpartitioned(), null);
+  }
+
+  private DataFile writeFile(
+      String location,
+      String filename,
+      Schema schema,
+      List<Record> records,
+      PartitionSpec spec,
+      StructLike partition)
+      throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
@@ -534,10 +547,16 @@ public class TestLocalScan {
       appender.addAll(records);
     }
 
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(HadoopInputFile.fromPath(path, CONF))
-        .withMetrics(fileAppender.metrics())
-        .build();
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withInputFile(HadoopInputFile.fromPath(path, CONF))
+            .withMetrics(fileAppender.metrics());
+
+    if (spec.isUnpartitioned()) {
+      return builder.build();
+    } else {
+      return builder.withPartition(partition).build();
+    }
   }
 
   @Test
@@ -581,6 +600,46 @@ public class TestLocalScan {
       Record readRecord = filterResult.iterator().next();
       Assert.assertEquals(
           r.getField("timestamp_with_zone"), readRecord.getField("timestamp_with_zone"));
+    }
+  }
+
+  @Test
+  public void testProjectNestedIdentityPartitionColumn() throws IOException {
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "innerId", Types.LongType.get()),
+                    Types.NestedField.optional(4, "innerName", Types.StringType.get()))));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
+
+    File tableLocation = temp.newFolder("project_nested_partition_column_table");
+    Assert.assertTrue(tableLocation.delete());
+
+    Table table =
+        TABLES.create(
+            nestedSchema,
+            spec,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+            tableLocation.getAbsolutePath());
+
+    List<Record> data = RandomGenericData.generate(nestedSchema, 10, 435691832918L);
+    DataFile file =
+        writeFile(
+            tableLocation.toString(),
+            format.addExtension("record-file"),
+            nestedSchema,
+            data,
+            spec,
+            Row.of("partitionValue"));
+    table.newFastAppend().appendFile(file).commit();
+
+    for (Record r : IcebergGenerics.read(table).select("struct.innerName").build()) {
+      Assert.assertEquals("partitionValue", ((Record) r.getField("struct")).getField("innerName"));
     }
   }
 

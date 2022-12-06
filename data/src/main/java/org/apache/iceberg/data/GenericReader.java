@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
@@ -38,10 +37,9 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
@@ -129,8 +127,7 @@ class GenericReader implements Serializable {
 
       case ORC:
         Schema projectionWithoutConstantAndMetadataFields =
-            TypeUtil.selectNot(
-                fileProjection, Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
+            ORCSchemaUtil.removeConstantsAndMetadataFields(fileProjection, partition.keySet());
         ORC.ReadBuilder orc =
             ORC.read(input)
                 .project(projectionWithoutConstantAndMetadataFields)

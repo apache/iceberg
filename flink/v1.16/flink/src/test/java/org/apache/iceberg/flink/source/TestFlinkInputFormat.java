@@ -28,7 +28,6 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -41,7 +40,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assume;
 import org.junit.Test;
 
 /** Test {@link FlinkInputFormat}. */
@@ -142,8 +140,6 @@ public class TestFlinkInputFormat extends TestFlinkSource {
 
   @Test
   public void testReadPartitionColumn() throws Exception {
-    Assume.assumeTrue("Temporary skip ORC", FileFormat.ORC != fileFormat);
-
     Schema nestedSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
