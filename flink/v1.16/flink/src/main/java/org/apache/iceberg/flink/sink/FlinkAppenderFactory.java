@@ -30,6 +30,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -55,13 +56,14 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
+  private final Table table;
 
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
 
   public FlinkAppenderFactory(
       Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
-    this(schema, flinkSchema, props, spec, null, null, null);
+    this(null, schema, flinkSchema, props, spec, null, null, null);
   }
 
   public FlinkAppenderFactory(
@@ -72,6 +74,27 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
+    this(
+        null,
+        schema,
+        flinkSchema,
+        props,
+        spec,
+        equalityFieldIds,
+        eqDeleteRowSchema,
+        posDeleteRowSchema);
+  }
+
+  public FlinkAppenderFactory(
+      Table table,
+      Schema schema,
+      RowType flinkSchema,
+      Map<String, String> props,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema,
+      Schema posDeleteRowSchema) {
+    this.table = table;
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.props = props;
@@ -99,7 +122,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:
@@ -160,7 +184,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:
@@ -216,7 +241,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   @Override
   public PositionDeleteWriter<RowData> newPosDeleteWriter(
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(props);
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:

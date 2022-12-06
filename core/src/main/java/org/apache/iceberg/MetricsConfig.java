@@ -89,26 +89,15 @@ public final class MetricsConfig implements Serializable {
    * @param table an Iceberg table
    */
   public static MetricsConfig forPositionDelete(Table table) {
-    return forPositionDelete(forTable(table));
-  }
-
-  /**
-   * Creates a metrics config for a position delete file.
-   *
-   * @param props table properties
-   */
-  public static MetricsConfig forPositionDelete(Map<String, String> props) {
-    return forPositionDelete(from(props, null, null));
-  }
-
-  private static MetricsConfig forPositionDelete(MetricsConfig config) {
     ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
 
     columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
     columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
 
-    MetricsMode defaultMode = config.defaultMode;
-    config.columnModes.forEach(
+    MetricsConfig tableConfig = forTable(table);
+
+    MetricsMode defaultMode = tableConfig.defaultMode;
+    tableConfig.columnModes.forEach(
         (columnAlias, mode) -> {
           String positionDeleteColumnAlias =
               DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
