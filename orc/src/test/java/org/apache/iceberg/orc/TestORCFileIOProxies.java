@@ -40,7 +40,7 @@ public class TestORCFileIOProxies {
     inputFile.deleteOnExit();
 
     InputFile localFile = Files.localInput(inputFile);
-    ORC.InputFileSystem ifs = new ORC.InputFileSystem(localFile);
+    FileIOFSUtil.InputFileSystem ifs = new FileIOFSUtil.InputFileSystem(localFile);
     InputStream is = ifs.open(new Path(localFile.location()));
     assertNotNull(is);
 
@@ -60,7 +60,7 @@ public class TestORCFileIOProxies {
     localFile.deleteOnExit();
 
     OutputFile outputFile = Files.localOutput(localFile);
-    FileSystem ofs = new ORC.OutputFileSystem(outputFile);
+    FileSystem ofs = new FileIOFSUtil.OutputFileSystem(outputFile);
     try (OutputStream os = ofs.create(new Path(outputFile.location()))) {
       os.write('O');
       os.write('R');
@@ -74,7 +74,7 @@ public class TestORCFileIOProxies {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Input /tmp/dummy does not equal expected");
 
-    FileSystem ifs = new ORC.InputFileSystem(outputFile.toInputFile());
+    FileSystem ifs = new FileIOFSUtil.InputFileSystem(outputFile.toInputFile());
     try (InputStream is = ifs.open(new Path(outputFile.location()))) {
       assertEquals('O', is.read());
       assertEquals('R', is.read());

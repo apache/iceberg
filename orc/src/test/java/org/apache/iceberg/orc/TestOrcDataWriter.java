@@ -138,24 +138,25 @@ public class TestOrcDataWriter {
 
   @Test
   public void testUsingFileIO() throws IOException {
-    // Show that FileSystem access is not possible for the file we are supplying as the scheme
-    // dummy is not handled
+    // When files other than HadoopInputFile and HadoopOutputFile are supplied the location
+    // is used to determine the corresponding FileSystem class based on the scheme in case of
+    // local files that would be the LocalFileSystem. To prevent this we use the Proxy classes to
+    // use a scheme `dummy` that is not handled.
     ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
     Assertions.assertThatThrownBy(
             () -> HadoopOutputFile.fromPath(new Path(outFile.location()), new Configuration()))
         .isInstanceOf(RuntimeIOException.class)
         .hasMessageStartingWith("Failed to get file system for path: dummy");
 
-    // We are creating the proxy
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
-
+    // Given that FileIO is now handled there is no determination of FileSystem based on scheme
+    // but instead operations are handled by the InputFileSystem and OutputFileSystem that wrap
+    // the InputFile and OutputFile correspondingly. Both write and read should be successful.
     DataWriter<Record> dataWriter =
         ORC.writeData(outFile)
             .schema(SCHEMA)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
-            .withSortOrder(sortOrder)
             .build();
 
     try {
@@ -169,15 +170,13 @@ public class TestOrcDataWriter {
     DataFile dataFile = dataWriter.toDataFile();
     OrcFile.ReaderOptions options =
         OrcFile.readerOptions(new Configuration())
-            .filesystem(new ORC.InputFileSystem(outFile.toInputFile()))
+            .filesystem(new FileIOFSUtil.InputFileSystem(outFile.toInputFile()))
             .maxLength(outFile.toInputFile().getLength());
     Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile, options));
     Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
     Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
     Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
     Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals(
-        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
     Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
 
     List<Record> writtenRecords;
