@@ -103,7 +103,7 @@ def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-buil
 @click.pass_context
 @catch_exception()
 def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str):
-    """Describes a namespace xor table"""
+    """Describes a namespace or a table"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -198,7 +198,7 @@ def drop():
 @click.pass_context
 @catch_exception()
 def table(ctx: Context, identifier: str):  # noqa: F811
-    """Drop table"""
+    """Drops a table"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_table(identifier)
@@ -210,7 +210,7 @@ def table(ctx: Context, identifier: str):  # noqa: F811
 @click.pass_context
 @catch_exception()
 def namespace(ctx, identifier: str):
-    """Drop namespace"""
+    """Drops a namespace"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_namespace(identifier)
@@ -296,7 +296,7 @@ def set():
 @click.pass_context
 @catch_exception()
 def namespace(ctx: Context, identifier: str, property_name: str, property_value: str):  # noqa: F811
-    """Sets a property of a namespace or table"""
+    """Sets a property on a namespace"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.update_namespace_properties(identifier, updates={property_name: property_value})
