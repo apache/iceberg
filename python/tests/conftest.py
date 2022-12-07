@@ -28,13 +28,24 @@ import os
 from tempfile import TemporaryDirectory
 from typing import (
     Any,
+    Callable,
     Dict,
     Generator,
     Union,
 )
+from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
+import aiobotocore.awsrequest
+import aiobotocore.endpoint
+import aiohttp
+import aiohttp.client_reqrep
+import aiohttp.typedefs
+import boto3
+import botocore.awsrequest
+import botocore.model
 import pytest
+from moto import mock_glue, mock_s3
 
 from pyiceberg import schema
 from pyiceberg.io import (
@@ -593,28 +604,28 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                 "name": "added_snapshot_id",
                 "type": ["null", "long"],
                 "doc": "Snapshot ID that added the manifest",
-                "default": "null",
+                "default": None,
                 "field-id": 503,
             },
             {
                 "name": "added_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Added entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 504,
             },
             {
                 "name": "existing_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Existing entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 505,
             },
             {
                 "name": "deleted_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Deleted entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 506,
             },
             {
@@ -637,21 +648,21 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                                     "name": "contains_nan",
                                     "type": ["null", "boolean"],
                                     "doc": "True if any file has a nan partition value",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 518,
                                 },
                                 {
                                     "name": "lower_bound",
                                     "type": ["null", "bytes"],
                                     "doc": "Partition lower bound for all files",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 510,
                                 },
                                 {
                                     "name": "upper_bound",
                                     "type": ["null", "bytes"],
                                     "doc": "Partition upper bound for all files",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 511,
                                 },
                             ],
@@ -660,22 +671,22 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                     },
                 ],
                 "doc": "Summary for each partition",
-                "default": "null",
+                "default": None,
                 "field-id": 507,
             },
-            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": "null", "field-id": 512},
+            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None, "field-id": 512},
             {
                 "name": "existing_rows_count",
                 "type": ["null", "long"],
                 "doc": "Existing rows count",
-                "default": "null",
+                "default": None,
                 "field-id": 513,
             },
             {
                 "name": "deleted_rows_count",
                 "type": ["null", "long"],
                 "doc": "Deleted rows count",
-                "default": "null",
+                "default": None,
                 "field-id": 514,
             },
         ],
@@ -689,7 +700,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
         "name": "manifest_entry",
         "fields": [
             {"name": "status", "type": "int", "field-id": 0},
-            {"name": "snapshot_id", "type": ["null", "long"], "default": "null", "field-id": 1},
+            {"name": "snapshot_id", "type": ["null", "long"], "default": None, "field-id": 1},
             {
                 "name": "data_file",
                 "type": {
@@ -708,7 +719,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": "null", "field-id": 1000}],
+                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
                             },
                             "field-id": 102,
                         },
@@ -733,7 +744,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to total size on disk",
-                            "default": "null",
+                            "default": None,
                             "field-id": 108,
                         },
                         {
@@ -754,7 +765,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to total count, including null and NaN",
-                            "default": "null",
+                            "default": None,
                             "field-id": 109,
                         },
                         {
@@ -775,7 +786,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to null value count",
-                            "default": "null",
+                            "default": None,
                             "field-id": 110,
                         },
                         {
@@ -796,7 +807,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to number of NaN values in the column",
-                            "default": "null",
+                            "default": None,
                             "field-id": 137,
                         },
                         {
@@ -817,7 +828,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to lower bound",
-                            "default": "null",
+                            "default": None,
                             "field-id": 125,
                         },
                         {
@@ -838,28 +849,28 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to upper bound",
-                            "default": "null",
+                            "default": None,
                             "field-id": 128,
                         },
                         {
                             "name": "key_metadata",
                             "type": ["null", "bytes"],
                             "doc": "Encryption key metadata blob",
-                            "default": "null",
+                            "default": None,
                             "field-id": 131,
                         },
                         {
                             "name": "split_offsets",
                             "type": ["null", {"type": "array", "items": "long", "element-id": 133}],
                             "doc": "Splittable offsets",
-                            "default": "null",
+                            "default": None,
                             "field-id": 132,
                         },
                         {
                             "name": "sort_order_id",
                             "type": ["null", "int"],
                             "doc": "Sort order ID",
-                            "default": "null",
+                            "default": None,
                             "field-id": 140,
                         },
                     ],
@@ -1142,3 +1153,105 @@ def fsspec_fileio(request):
         "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
     }
     return fsspec.FsspecFileIO(properties=properties)
+
+
+class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
+    """
+    A mocked aws response implementation (for test use only)
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def __init__(self, response: botocore.awsrequest.AWSResponse):
+        self._moto_response = response
+        self.status_code = response.status_code
+        self.raw = MockHttpClientResponse(response)
+
+    # adapt async methods to use moto's response
+    async def _content_prop(self) -> bytes:
+        return self._moto_response.content
+
+    async def _text_prop(self) -> str:
+        return self._moto_response.text
+
+
+class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
+    """
+    A mocked http client response implementation (for test use only)
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def __init__(self, response: botocore.awsrequest.AWSResponse):
+        async def read(*_) -> bytes:
+            # streaming/range requests. used by s3fs
+            return response.content
+
+        self.content = MagicMock(aiohttp.StreamReader)
+        self.content.read = read
+        self.response = response
+
+    @property
+    def raw_headers(self) -> aiohttp.typedefs.RawHeaders:
+        # Return the headers encoded the way that aiobotocore expects them
+        return {k.encode("utf-8"): str(v).encode("utf-8") for k, v in self.response.headers.items()}.items()
+
+
+def patch_aiobotocore():
+    """
+    Patch aiobotocore to work with moto
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def factory(original: Callable) -> Callable:
+        def patched_convert_to_response_dict(
+            http_response: botocore.awsrequest.AWSResponse, operation_model: botocore.model.OperationModel
+        ):
+            return original(MockAWSResponse(http_response), operation_model)
+
+        return patched_convert_to_response_dict
+
+    aiobotocore.endpoint.convert_to_response_dict = factory(aiobotocore.endpoint.convert_to_response_dict)
+
+
+@pytest.fixture(name="_patch_aiobotocore")
+def fixture_aiobotocore():
+    """
+    Patch aiobotocore to work with moto
+    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
+    """
+    stored_method = aiobotocore.endpoint.convert_to_response_dict
+    yield patch_aiobotocore()
+    # restore the changed method after the fixture is destroyed
+    aiobotocore.endpoint.convert_to_response_dict = stored_method
+
+
+def aws_credentials():
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"
+    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+
+@pytest.fixture(name="_aws_credentials")
+def fixture_aws_credentials():
+    """Mocked AWS Credentials for moto."""
+    yield aws_credentials()
+    os.environ.pop("AWS_ACCESS_KEY_ID")
+    os.environ.pop("AWS_SECRET_ACCESS_KEY")
+    os.environ.pop("AWS_SECURITY_TOKEN")
+    os.environ.pop("AWS_SESSION_TOKEN")
+    os.environ.pop("AWS_DEFAULT_REGION")
+
+
+@pytest.fixture(name="_s3")
+def fixture_s3(_aws_credentials):
+    """Mocked S3 client"""
+    with mock_s3():
+        yield boto3.client("s3", region_name="us-east-1")
+
+
+@pytest.fixture(name="_glue")
+def fixture_glue(_aws_credentials):
+    """Mocked glue client"""
+    with mock_glue():
+        yield boto3.client("glue", region_name="us-east-1")

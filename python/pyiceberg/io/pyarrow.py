@@ -25,14 +25,17 @@ with the pyarrow library.
 import os
 from functools import lru_cache, singledispatch
 from typing import (
+    Any,
     Callable,
     List,
+    Set,
     Tuple,
     Union,
 )
 from urllib.parse import urlparse
 
 import pyarrow as pa
+import pyarrow.compute as pc
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -41,6 +44,9 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
+from pyiceberg.expressions import BooleanExpression, BoundTerm, Literal
+from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor
+from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
     InputFile,
@@ -58,6 +64,7 @@ from pyiceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
@@ -198,7 +205,7 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     @staticmethod
@@ -379,3 +386,70 @@ def _(_: StringType) -> pa.DataType:
 def _(_: BinaryType) -> pa.DataType:
     # Variable length by default
     return pa.binary()
+
+
+def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
+    if not isinstance(iceberg_type, PrimitiveType):
+        raise ValueError(f"Expected primitive type, got: {iceberg_type}")
+    return pa.scalar(value).cast(_iceberg_to_pyarrow_type(iceberg_type))
+
+
+class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
+    def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ref.is_null(nan_is_null=True) & ref.is_valid()
+
+    def visit_not_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
+
+    def visit_is_null(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_null(nan_is_null=False)
+
+    def visit_not_null(self, term: BoundTerm[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_valid()
+
+    def visit_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) == _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_not_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) != _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) >= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) > _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) < _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_true(self) -> pc.Expression:
+        return pc.scalar(True)
+
+    def visit_false(self) -> pc.Expression:
+        return pc.scalar(False)
+
+    def visit_not(self, child_result: pc.Expression) -> pc.Expression:
+        return ~child_result
+
+    def visit_and(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result & right_result
+
+    def visit_or(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result | right_result
+
+
+def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
+    return boolean_expression_visit(expr, _ConvertToArrowExpression())

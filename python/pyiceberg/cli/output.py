@@ -23,9 +23,9 @@ from rich.console import Console
 from rich.table import Table as RichTable
 from rich.tree import Tree
 
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
-from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.typedef import Identifier, Properties
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -140,7 +140,7 @@ class ConsoleOutput(Output):
             manifest_list_str = f": {snapshot.manifest_list}" if snapshot.manifest_list else ""
             list_tree = snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}{manifest_list_str}")
 
-            manifest_list = snapshot.fetch_manifest_list(io)
+            manifest_list = snapshot.manifests(io)
             for manifest in manifest_list:
                 manifest_tree = list_tree.add(f"Manifest: {manifest.manifest_path}")
                 for manifest_entry in manifest.fetch_manifest_entry(io):

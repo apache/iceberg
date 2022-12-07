@@ -18,6 +18,7 @@
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from typing_extensions import assert_type
@@ -55,7 +56,7 @@ from pyiceberg.expressions import (
     Or,
     Reference,
 )
-from pyiceberg.expressions.literals import literal
+from pyiceberg.expressions.literals import Literal, literal
 from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
@@ -63,6 +64,7 @@ from pyiceberg.types import (
     FloatType,
     IntegerType,
     ListType,
+    LongType,
     NestedField,
     StringType,
 )
@@ -180,7 +182,7 @@ def test_notnan_bind_nonfloat():
 
 def test_ref_binding_case_sensitive(table_schema_simple: Schema):
     ref = Reference("foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=True) == bound
 
 
@@ -192,7 +194,7 @@ def test_ref_binding_case_sensitive_failure(table_schema_simple: Schema):
 
 def test_ref_binding_case_insensitive(table_schema_simple: Schema):
     ref = Reference("Foo")
-    bound = BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+    bound = BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
     assert ref.bind(table_schema_simple, case_sensitive=False) == bound
 
 
@@ -207,12 +209,12 @@ def test_in_to_eq():
 
 
 def test_empty_bind_in(table_schema_simple: Schema):
-    bound = BoundIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysFalse()
 
 
 def test_empty_bind_not_in(table_schema_simple: Schema):
-    bound = BoundNotIn(BoundReference[str](table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
+    bound = BoundNotIn(BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)), set())
     assert bound == AlwaysTrue()
 
 
@@ -257,7 +259,7 @@ def test_not_in_equal():
 
 
 def test_bind_in(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -265,29 +267,29 @@ def test_bind_in(table_schema_simple: Schema):
 
 
 def test_bind_in_invert(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
-    assert ~bound == BoundNotIn[str](
+    assert ~bound == BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
 
 
 def test_bind_not_in_invert(table_schema_simple: Schema):
-    bound = BoundNotIn[str](
+    bound = BoundNotIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
-    assert ~bound == BoundIn[str](
+    assert ~bound == BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
 
 
 def test_bind_dedup(table_schema_simple: Schema):
-    bound = BoundIn[str](
+    bound = BoundIn(
         BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         {literal("hello"), literal("world")},
     )
@@ -619,7 +621,7 @@ def accessor() -> Accessor:
 
 
 @pytest.fixture
-def term(field: NestedField, accessor: Accessor) -> BoundReference:
+def term(field: NestedField, accessor: Accessor) -> BoundReference[Any]:
     return BoundReference(
         field=field,
         accessor=accessor,
@@ -688,14 +690,14 @@ def test_bound_reference_field_property():
     assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
-def test_bound_is_null(term: BoundReference) -> None:
+def test_bound_is_null(term: BoundReference[Any]) -> None:
     bound_is_null = BoundIsNull(term)
     assert str(bound_is_null) == f"BoundIsNull(term={str(term)})"
     assert repr(bound_is_null) == f"BoundIsNull(term={repr(term)})"
     assert bound_is_null == eval(repr(bound_is_null))
 
 
-def test_bound_is_not_null(term: BoundReference) -> None:
+def test_bound_is_not_null(term: BoundReference[Any]) -> None:
     bound_not_null = BoundNotNull(term)
     assert str(bound_not_null) == f"BoundNotNull(term={str(term)})"
     assert repr(bound_not_null) == f"BoundNotNull(term={repr(term)})"
@@ -758,14 +760,14 @@ def test_not_nan() -> None:
     assert not_nan == eval(repr(not_nan))
 
 
-def test_bound_in(term: BoundReference) -> None:
+def test_bound_in(term: BoundReference[Any]) -> None:
     bound_in = BoundIn(term, {literal("a"), literal("b"), literal("c")})
     assert str(bound_in) == f"BoundIn({str(term)}, {{a, b, c}})"
     assert repr(bound_in) == f"BoundIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
     assert bound_in == eval(repr(bound_in))
 
 
-def test_bound_not_in(term: BoundReference) -> None:
+def test_bound_not_in(term: BoundReference[Any]) -> None:
     bound_not_in = BoundNotIn(term, {literal("a"), literal("b"), literal("c")})
     assert str(bound_not_in) == f"BoundNotIn({str(term)}, {{a, b, c}})"
     assert repr(bound_not_in) == f"BoundNotIn({repr(term)}, {{literal('a'), literal('b'), literal('c')}})"
@@ -788,42 +790,42 @@ def test_not_in() -> None:
     assert not_in == eval(repr(not_in))
 
 
-def test_bound_equal_to(term: BoundReference) -> None:
+def test_bound_equal_to(term: BoundReference[Any]) -> None:
     bound_equal_to = BoundEqualTo(term, literal("a"))
     assert str(bound_equal_to) == f"BoundEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_equal_to) == f"BoundEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_equal_to == eval(repr(bound_equal_to))
 
 
-def test_bound_not_equal_to(term: BoundReference) -> None:
+def test_bound_not_equal_to(term: BoundReference[Any]) -> None:
     bound_not_equal_to = BoundNotEqualTo(term, literal("a"))
     assert str(bound_not_equal_to) == f"BoundNotEqualTo(term={str(term)}, literal=literal('a'))"
     assert repr(bound_not_equal_to) == f"BoundNotEqualTo(term={repr(term)}, literal=literal('a'))"
     assert bound_not_equal_to == eval(repr(bound_not_equal_to))
 
 
-def test_bound_greater_than_or_equal_to(term: BoundReference) -> None:
+def test_bound_greater_than_or_equal_to(term: BoundReference[Any]) -> None:
     bound_greater_than_or_equal_to = BoundGreaterThanOrEqual(term, literal("a"))
     assert str(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than_or_equal_to) == f"BoundGreaterThanOrEqual(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than_or_equal_to == eval(repr(bound_greater_than_or_equal_to))
 
 
-def test_bound_greater_than(term: BoundReference) -> None:
+def test_bound_greater_than(term: BoundReference[Any]) -> None:
     bound_greater_than = BoundGreaterThan(term, literal("a"))
     assert str(bound_greater_than) == f"BoundGreaterThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_greater_than) == f"BoundGreaterThan(term={repr(term)}, literal=literal('a'))"
     assert bound_greater_than == eval(repr(bound_greater_than))
 
 
-def test_bound_less_than(term: BoundReference) -> None:
+def test_bound_less_than(term: BoundReference[Any]) -> None:
     bound_less_than = BoundLessThan(term, literal("a"))
     assert str(bound_less_than) == f"BoundLessThan(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than) == f"BoundLessThan(term={repr(term)}, literal=literal('a'))"
     assert bound_less_than == eval(repr(bound_less_than))
 
 
-def test_bound_less_than_or_equal(term: BoundReference) -> None:
+def test_bound_less_than_or_equal(term: BoundReference[Any]) -> None:
     bound_less_than_or_equal = BoundLessThanOrEqual(term, literal("a"))
     assert str(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={str(term)}, literal=literal('a'))"
     assert repr(bound_less_than_or_equal) == f"BoundLessThanOrEqual(term={repr(term)}, literal=literal('a'))"
@@ -912,6 +914,141 @@ def test_string_argument_unbound_literal():
 
 def test_string_argument_unbound_set():
     assert In("a", {"b", "c"}) == In(Reference("a"), {"b", "c"})
+
+
+@pytest.fixture
+def int_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="a", field_type=IntegerType(), required=False))
+
+
+@pytest.fixture
+def above_int_max() -> Literal[int]:
+    return literal(IntegerType.max + 1)
+
+
+@pytest.fixture
+def below_int_min() -> Literal[int]:
+    return literal(IntegerType.min - 1)
+
+
+def test_above_int_bounds_equal_to(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert EqualTo("a", above_int_max).bind(int_schema) is AlwaysFalse()
+    assert EqualTo("a", below_int_min).bind(int_schema) is AlwaysFalse()
+
+
+def test_above_int_bounds_not_equal_to(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert NotEqualTo("a", above_int_max).bind(int_schema) is AlwaysTrue()
+    assert NotEqualTo("a", below_int_min).bind(int_schema) is AlwaysTrue()
+
+
+def test_above_int_bounds_less_than(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert LessThan("a", above_int_max).bind(int_schema) is AlwaysTrue()
+    assert LessThan("a", below_int_min).bind(int_schema) is AlwaysFalse()
+
+
+def test_above_int_bounds_less_than_or_equal(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert LessThanOrEqual("a", above_int_max).bind(int_schema) is AlwaysTrue()
+    assert LessThanOrEqual("a", below_int_min).bind(int_schema) is AlwaysFalse()
+
+
+def test_above_int_bounds_greater_than(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert GreaterThan("a", above_int_max).bind(int_schema) is AlwaysFalse()
+    assert GreaterThan("a", below_int_min).bind(int_schema) is AlwaysTrue()
+
+
+def test_above_int_bounds_greater_than_or_equal(int_schema: Schema, above_int_max, below_int_min) -> None:
+    assert GreaterThanOrEqual("a", above_int_max).bind(int_schema) is AlwaysFalse()
+    assert GreaterThanOrEqual("a", below_int_min).bind(int_schema) is AlwaysTrue()
+
+
+@pytest.fixture
+def float_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="a", field_type=FloatType(), required=False))
+
+
+@pytest.fixture
+def above_float_max() -> Literal[float]:
+    return literal(FloatType.max * 2)
+
+
+@pytest.fixture
+def below_float_min() -> Literal[float]:
+    return literal(FloatType.min * 2)
+
+
+def test_above_float_bounds_equal_to(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert EqualTo("a", above_float_max).bind(float_schema) is AlwaysFalse()
+    assert EqualTo("a", below_float_min).bind(float_schema) is AlwaysFalse()
+
+
+def test_above_float_bounds_not_equal_to(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert NotEqualTo("a", above_float_max).bind(float_schema) is AlwaysTrue()
+    assert NotEqualTo("a", below_float_min).bind(float_schema) is AlwaysTrue()
+
+
+def test_above_float_bounds_less_than(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert LessThan("a", above_float_max).bind(float_schema) is AlwaysTrue()
+    assert LessThan("a", below_float_min).bind(float_schema) is AlwaysFalse()
+
+
+def test_above_float_bounds_less_than_or_equal(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert LessThanOrEqual("a", above_float_max).bind(float_schema) is AlwaysTrue()
+    assert LessThanOrEqual("a", below_float_min).bind(float_schema) is AlwaysFalse()
+
+
+def test_above_float_bounds_greater_than(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert GreaterThan("a", above_float_max).bind(float_schema) is AlwaysFalse()
+    assert GreaterThan("a", below_float_min).bind(float_schema) is AlwaysTrue()
+
+
+def test_above_float_bounds_greater_than_or_equal(float_schema: Schema, above_float_max, below_float_min) -> None:
+    assert GreaterThanOrEqual("a", above_float_max).bind(float_schema) is AlwaysFalse()
+    assert GreaterThanOrEqual("a", below_float_min).bind(float_schema) is AlwaysTrue()
+
+
+@pytest.fixture
+def long_schema() -> Schema:
+    return Schema(NestedField(field_id=1, name="a", field_type=LongType(), required=False))
+
+
+@pytest.fixture
+def above_long_max() -> Literal[float]:
+    return literal(LongType.max + 1)
+
+
+@pytest.fixture
+def below_long_min() -> Literal[float]:
+    return literal(LongType.min - 1)
+
+
+def test_above_long_bounds_equal_to(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert EqualTo("a", above_long_max).bind(long_schema) is AlwaysFalse()
+    assert EqualTo("a", below_long_min).bind(long_schema) is AlwaysFalse()
+
+
+def test_above_long_bounds_not_equal_to(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert NotEqualTo("a", above_long_max).bind(long_schema) is AlwaysTrue()
+    assert NotEqualTo("a", below_long_min).bind(long_schema) is AlwaysTrue()
+
+
+def test_above_long_bounds_less_than(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert LessThan("a", above_long_max).bind(long_schema) is AlwaysTrue()
+    assert LessThan("a", below_long_min).bind(long_schema) is AlwaysFalse()
+
+
+def test_above_long_bounds_less_than_or_equal(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert LessThanOrEqual("a", above_long_max).bind(long_schema) is AlwaysTrue()
+    assert LessThanOrEqual("a", below_long_min).bind(long_schema) is AlwaysFalse()
+
+
+def test_above_long_bounds_greater_than(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert GreaterThan("a", above_long_max).bind(long_schema) is AlwaysFalse()
+    assert GreaterThan("a", below_long_min).bind(long_schema) is AlwaysTrue()
+
+
+def test_above_long_bounds_greater_than_or_equal(long_schema: Schema, above_long_max, below_long_min) -> None:
+    assert GreaterThanOrEqual("a", above_long_max).bind(long_schema) is AlwaysFalse()
+    assert GreaterThanOrEqual("a", below_long_min).bind(long_schema) is AlwaysTrue()
 
 
 #   __  __      ___

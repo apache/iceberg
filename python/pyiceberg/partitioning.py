@@ -48,14 +48,14 @@ class PartitionField(IcebergBaseModel):
 
     source_id: int = Field(alias="source-id")
     field_id: int = Field(alias="field-id")
-    transform: Transform = Field()
+    transform: Transform[Any, Any] = Field()
     name: str = Field()
 
     def __init__(
         self,
         source_id: Optional[int] = None,
         field_id: Optional[int] = None,
-        transform: Optional[Transform] = None,
+        transform: Optional[Transform[Any, Any]] = None,
         name: Optional[str] = None,
         **data: Any,
     ):
@@ -141,7 +141,7 @@ class PartitionSpec(IcebergBaseModel):
         return source_id_to_fields_map
 
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self.source_id_to_fields_map[field_id]
+        return self.source_id_to_fields_map.get(field_id, [])
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """

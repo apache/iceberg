@@ -32,6 +32,7 @@ from pyiceberg import __version__
 from pyiceberg.catalog import (
     TOKEN,
     URI,
+    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -51,9 +52,9 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
     UnauthorizedError,
 )
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -172,7 +173,7 @@ class OAuthErrorResponse(IcebergBaseModel):
 class RestCatalog(Catalog):
     uri: str
     session: Session
-    properties: dict
+    properties: Properties
 
     def __init__(
         self,
@@ -198,9 +199,9 @@ class RestCatalog(Catalog):
         self.session = Session()
         # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
-            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
+            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
                 self.session.verify = ssl_ca_bundle
-            if ssl_client := ssl_config.get(CLIENT):
+            if ssl_client := ssl_config.get(CLIENT):  # type: ignore
                 if all(k in ssl_client for k in (CERT, KEY)):
                     self.session.cert = (ssl_client[CERT], ssl_client[KEY])
                 elif ssl_client_cert := ssl_client.get(CERT):
@@ -263,7 +264,11 @@ class RestCatalog(Catalog):
         return TokenResponse(**response.json()).access_token
 
     def _fetch_config(self, properties: Properties) -> Properties:
-        response = self.session.get(self.url(Endpoints.get_config, prefixed=False))
+        params = {}
+        if warehouse_location := properties.get(WAREHOUSE_LOCATION):
+            params[WAREHOUSE_LOCATION] = warehouse_location
+
+        response = self.session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
         try:
             response.raise_for_status()
         except HTTPError as exc:

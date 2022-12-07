@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.transforms import BucketTransform, TruncateTransform
 from pyiceberg.types import (
     IntegerType,
@@ -62,6 +62,8 @@ def test_partition_spec_init():
     assert partition_spec1 != partition_spec2
     assert partition_spec1.compatible_with(partition_spec2)
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
+    # Does not exist
+    assert partition_spec1.fields_by_source_id(1925) == []
 
 
 def test_partition_compatible_with():

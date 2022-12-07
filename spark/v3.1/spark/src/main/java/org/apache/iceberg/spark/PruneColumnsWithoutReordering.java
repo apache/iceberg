@@ -236,5 +236,5 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, StringType.class)
           .put(TypeID.FIXED, BinaryType.class)
           .put(TypeID.BINARY, BinaryType.class)
-          .build();
+          .buildOrThrow();
 }

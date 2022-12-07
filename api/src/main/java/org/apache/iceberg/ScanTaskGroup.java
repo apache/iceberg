@@ -26,6 +26,23 @@ import java.util.Collection;
  * @param <T> the type of scan tasks
  */
 public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
+  /**
+   * Returns a grouping key for this task group.
+   *
+   * <p>A grouping key is a set of values that are common amongst all rows produced by the tasks in
+   * this task group. The values may be the result of transforming the underlying data. For example,
+   * a grouping key can consist of a bucket ordinal computed by applying a bucket transform to a
+   * column of the underlying rows. The grouping key type is determined at planning time and is
+   * identical across all task groups produced by a scan.
+   *
+   * <p>Implementations should return an empty struct if the data grouping is random or unknown.
+   *
+   * @return a grouping key for this task group
+   */
+  default StructLike groupingKey() {
+    return EmptyStructLike.get();
+  }
+
   /** Returns scan tasks in this group. */
   Collection<T> tasks();
 

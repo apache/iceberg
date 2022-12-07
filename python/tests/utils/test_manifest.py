@@ -303,7 +303,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
-    manifest_list = snapshot.fetch_manifest_list(io)
+    manifest_list = snapshot.manifests(io)
 
     assert manifest_list == [
         ManifestFile(

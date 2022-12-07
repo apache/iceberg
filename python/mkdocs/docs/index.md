@@ -40,6 +40,7 @@ You can mix and match optional dependencies:
 | Key       | Description:                                                         |
 |-----------|----------------------------------------------------------------------|
 | hive      | Support for the Hive metastore                                       |
+| glue      | Support for AWS Glue                                                 |
 | pyarrow   | PyArrow as a FileIO implementation to interact with the object store |
 | s3fs      | S3FS as a FileIO implementation to interact with the object store    |
 | snappy    | Support for snappy Avro compression                                  |
@@ -99,6 +100,9 @@ catalog:
         cert: /absolute/path/to/client.crt
         key: /absolute/path/to/client.key
       cabundle: /absolute/path/to/cabundle.pem
+
+  glue:
+    type: glue
 ```
 
 Lastly, you can also set it using environment variables:
@@ -108,9 +112,14 @@ export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
 
 export PYICEBERG_CATALOG__REST__URI=http://rest-catalog/ws/
 export PYICEBERG_CATALOG__REST__CREDENTIAL=t-1234:secret
+
+export PYICEBERG_CATALOG__GLUE__TYPE=glue
 ```
 
 Where the structure is equivalent to the YAML. The levels are separated using a double underscore (`__`).
+
+If you want to use AWS Glue as the catalog, you can use the last two ways to configure the pyiceberg and refer
+[How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set your AWS account credentials locally.
 
 ## FileIO configuration
 
@@ -440,7 +449,7 @@ schema = Schema(
     NestedField(field_id=4, name="symbol", field_type=StringType(), required=False),
 )
 
-from pyiceberg.table.partitioning import PartitionSpec, PartitionField
+from pyiceberg.partitioning import PartitionSpec, PartitionField
 from pyiceberg.transforms import DayTransform
 
 partition_spec = PartitionSpec(
@@ -516,17 +525,21 @@ The goal is that the python library will provide a functional, performant subset
 
 ## Metadata
 
-| Operation               | Java  | Python |
-|:------------------------|:-----:|:------:|
-| Get Schema              |    X  |   X    |
-| Get Snapshots           |    X  |   X    |
-| Plan Scan               |    X  |        |
-| Plan Scan for Snapshot  |    X  |        |
-| Update Current Snapshot |    X  |        |
-| Set Table Properties    |    X  |   X    |
-| Create Table            |    X  |   X    |
-| Drop Table              |    X  |   X    |
-| Alter Table             |    X  |        |
+| Operation                | Java  | Python |
+|:-------------------------|:-----:|:------:|
+| Get Schema               |    X  |   X    |
+| Get Snapshots            |    X  |   X    |
+| Plan Scan                |    X  |   X    |
+| Plan Scan for Snapshot   |    X  |   X    |
+| Update Current Snapshot  |    X  |        |
+| Create Table             |    X  |   X    |
+| Rename Table             |    X  |   X    |
+| Drop Table               |    X  |   X    |
+| Alter Table              |    X  |        |
+| Set Table Properties     |    X  |        |
+| Create Namespace         |    X  |   X    |
+| Drop Namespace           |    X  |   X    |
+| Set Namespace Properties |    X  |   X    |
 
 ## Types
 

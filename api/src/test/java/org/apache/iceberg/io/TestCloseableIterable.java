@@ -202,6 +202,14 @@ public class TestCloseableIterable {
   }
 
   @Test
+  public void concatIterablesWithIterator() throws IOException {
+    CloseableIterable<Object> closeableIterable = CloseableIterable.concat(Collections.emptyList());
+    closeableIterable.iterator();
+    // shouldn't throw a NPE
+    closeableIterable.close();
+  }
+
+  @Test
   public void count() {
     Counter counter = new DefaultMetricsContext().counter("x");
     CloseableIterable<Integer> items =

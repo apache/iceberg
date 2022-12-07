@@ -45,6 +45,10 @@ from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 
 from pyiceberg.catalog import (
+    ICEBERG,
+    METADATA_LOCATION,
+    TABLE_TYPE,
+    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -53,16 +57,17 @@ from pyiceberg.catalog import (
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
+    NoSuchIcebergTableError,
     NoSuchNamespaceError,
     NoSuchTableError,
     TableAlreadyExistsError,
 )
 from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadata, new_table_metadata
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
@@ -104,11 +109,7 @@ hive_types = {
 
 COMMENT = "comment"
 OWNER = "owner"
-TABLE_TYPE = "table_type"
-METADATA_LOCATION = "metadata_location"
-ICEBERG = "iceberg"
 LOCATION = "location"
-WAREHOUSE = "warehouse"
 
 
 class _HiveClient:
@@ -246,7 +247,9 @@ class HiveCatalog(Catalog):
 
         table_type = properties[TABLE_TYPE]
         if table_type.lower() != ICEBERG:
-            raise NoSuchTableError(f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}")
+            raise NoSuchIcebergTableError(
+                f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}"
+            )
 
         if prop_metadata_location := properties.get(METADATA_LOCATION):
             metadata_location = prop_metadata_location
@@ -272,7 +275,7 @@ class HiveCatalog(Catalog):
                 database_location = database_location.rstrip("/")
                 return f"{database_location}/{table_name}"
 
-            if warehouse_location := self.properties.get(WAREHOUSE):
+            if warehouse_location := self.properties.get(WAREHOUSE_LOCATION):
                 warehouse_location = warehouse_location.rstrip("/")
                 return f"{warehouse_location}/{database_name}/{table_name}"
             raise ValueError("Cannot determine location from warehouse, please provide an explicit location")

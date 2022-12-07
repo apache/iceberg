@@ -25,17 +25,23 @@ from typing import (
     Iterable,
     Set,
     Type,
+    TypeVar,
     Union,
 )
 
-from pyiceberg.expressions.literals import Literal, literal
+from pyiceberg.expressions.literals import (
+    AboveMax,
+    BelowMin,
+    Literal,
+    literal,
+)
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.typedef import L, StructProtocol
 from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
 
 
-def _to_unbound_term(term: Union[str, UnboundTerm]) -> UnboundTerm:
+def _to_unbound_term(term: Union[str, UnboundTerm[Any]]) -> UnboundTerm[Any]:
     return Reference(term) if isinstance(term, str) else term
 
 
@@ -66,11 +72,14 @@ class Bound(ABC):
     """Represents a bound value expression"""
 
 
-class Unbound(ABC):
+B = TypeVar("B")
+
+
+class Unbound(Generic[B], ABC):
     """Represents an unbound value expression"""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> Bound:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> B:
         ...
 
     @property
@@ -126,15 +135,15 @@ class BoundReference(BoundTerm[L]):
         return self
 
 
-class UnboundTerm(Term, Unbound, ABC):
+class UnboundTerm(Term[Any], Unbound[BoundTerm[L]], ABC):
     """Represents an unbound term."""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundTerm[L]:
         ...
 
 
-class Reference(UnboundTerm):
+class Reference(UnboundTerm[Any]):
     """A reference not yet bound to a field in a schema
 
     Args:
@@ -170,10 +179,10 @@ class Reference(UnboundTerm):
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         accessor = schema.accessor_for_field(field.field_id)
-        return self.as_bound(field=field, accessor=accessor)
+        return self.as_bound(field=field, accessor=accessor)  # type: ignore
 
     @property
-    def as_bound(self) -> Type[BoundReference]:
+    def as_bound(self) -> Type[BoundReference[L]]:
         return BoundReference[L]
 
 
@@ -305,28 +314,33 @@ class BoundPredicate(Generic[L], Bound, BooleanExpression, ABC):
             return self.term == other.term
         return False
 
+    @property
+    @abstractmethod
+    def as_unbound(self) -> Type[UnboundPredicate[Any]]:
+        ...
 
-class UnboundPredicate(Generic[L], Unbound, BooleanExpression, ABC):
-    term: UnboundTerm
 
-    def __init__(self, term: Union[str, UnboundTerm]):
+class UnboundPredicate(Generic[L], Unbound[BooleanExpression], BooleanExpression, ABC):
+    term: UnboundTerm[Any]
+
+    def __init__(self, term: Union[str, UnboundTerm[Any]]):
         self.term = _to_unbound_term(term)
 
     def __eq__(self, other):
         return self.term == other.term if isinstance(other, UnboundPredicate) else False
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         ...
 
     @property
     @abstractmethod
-    def as_bound(self) -> Type[BoundPredicate]:
+    def as_bound(self) -> Type[BoundPredicate[L]]:
         ...
 
 
 class UnaryPredicate(UnboundPredicate[Any], ABC):
-    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundUnaryPredicate[Any]:
         bound_term = self.term.bind(schema, case_sensitive)
         return self.as_bound(bound_term)
 
@@ -335,13 +349,18 @@ class UnaryPredicate(UnboundPredicate[Any], ABC):
 
     @property
     @abstractmethod
-    def as_bound(self) -> Type[BoundUnaryPredicate[L]]:
+    def as_bound(self) -> Type[BoundUnaryPredicate[Any]]:
         ...
 
 
 class BoundUnaryPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)})"
+
+    @property
+    @abstractmethod
+    def as_unbound(self) -> Type[UnaryPredicate]:
+        ...
 
 
 class BoundIsNull(BoundUnaryPredicate[L]):
@@ -353,6 +372,10 @@ class BoundIsNull(BoundUnaryPredicate[L]):
     def __invert__(self) -> BoundNotNull[L]:
         return BoundNotNull(self.term)
 
+    @property
+    def as_unbound(self) -> Type[IsNull]:
+        return IsNull
+
 
 class BoundNotNull(BoundUnaryPredicate[L]):
     def __new__(cls, term: BoundTerm[L]):  # pylint: disable=W0221
@@ -360,8 +383,12 @@ class BoundNotNull(BoundUnaryPredicate[L]):
             return AlwaysTrue()
         return super().__new__(cls)
 
-    def __invert__(self) -> BoundIsNull:
+    def __invert__(self) -> BoundIsNull[L]:
         return BoundIsNull(self.term)
+
+    @property
+    def as_unbound(self) -> Type[NotNull]:
+        return NotNull
 
 
 class IsNull(UnaryPredicate):
@@ -392,6 +419,10 @@ class BoundIsNaN(BoundUnaryPredicate[L]):
     def __invert__(self) -> BoundNotNaN[L]:
         return BoundNotNaN(self.term)
 
+    @property
+    def as_unbound(self) -> Type[IsNaN]:
+        return IsNaN
+
 
 class BoundNotNaN(BoundUnaryPredicate[L]):
     def __new__(cls, term: BoundTerm[L]):  # pylint: disable=W0221
@@ -402,6 +433,10 @@ class BoundNotNaN(BoundUnaryPredicate[L]):
 
     def __invert__(self) -> BoundIsNaN[L]:
         return BoundIsNaN(self.term)
+
+    @property
+    def as_unbound(self) -> Type[NotNaN]:
+        return NotNaN
 
 
 class IsNaN(UnaryPredicate):
@@ -422,10 +457,10 @@ class NotNaN(UnaryPredicate):
         return BoundNotNaN[L]
 
 
-class SetPredicate(Generic[L], UnboundPredicate[L], ABC):
+class SetPredicate(UnboundPredicate[L], ABC):
     literals: Set[Literal[L]]
 
-    def __init__(self, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):
+    def __init__(self, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]):
         super().__init__(term)
         self.literals = _to_literal_set(literals)
 
@@ -473,6 +508,11 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
 
+    @property
+    @abstractmethod
+    def as_unbound(self) -> Type[SetPredicate[L]]:
+        ...
+
 
 class BoundIn(BoundSetPredicate[L]):
     def __new__(cls, term: BoundTerm[L], literals: Set[Literal[L]]):  # pylint: disable=W0221
@@ -489,6 +529,10 @@ class BoundIn(BoundSetPredicate[L]):
 
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundIn) else False
+
+    @property
+    def as_unbound(self) -> Type[In[L]]:
+        return In
 
 
 class BoundNotIn(BoundSetPredicate[L]):
@@ -508,9 +552,15 @@ class BoundNotIn(BoundSetPredicate[L]):
     def __invert__(self) -> BoundIn[L]:
         return BoundIn(self.term, self.literals)
 
+    @property
+    def as_unbound(self) -> Type[NotIn[L]]:
+        return NotIn
+
 
 class In(SetPredicate[L]):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
+    def __new__(
+        cls, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]
+    ):  # pylint: disable=W0221
         literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -529,7 +579,9 @@ class In(SetPredicate[L]):
 
 
 class NotIn(SetPredicate[L], ABC):
-    def __new__(cls, term: Union[str, UnboundTerm], literals: Union[Iterable[L], Iterable[Literal[L]]]):  # pylint: disable=W0221
+    def __new__(
+        cls, term: Union[str, UnboundTerm[Any]], literals: Union[Iterable[L], Iterable[Literal[L]]]
+    ):  # pylint: disable=W0221
         literals_set: Set[Literal[L]] = _to_literal_set(literals)
         count = len(literals_set)
         if count == 0:
@@ -552,16 +604,29 @@ class NotIn(SetPredicate[L], ABC):
         return BoundNotIn[L]
 
 
-class LiteralPredicate(Generic[L], UnboundPredicate[L], ABC):
+class LiteralPredicate(UnboundPredicate[L], ABC):
     literal: Literal[L]
 
-    def __init__(self, term: Union[str, UnboundTerm], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
+    def __init__(self, term: Union[str, UnboundTerm[Any]], literal: Union[L, Literal[L]]):  # pylint: disable=W0621
         super().__init__(term)
         self.literal = _to_literal(literal)  # pylint: disable=W0621
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundLiteralPredicate[L]:
         bound_term = self.term.bind(schema, case_sensitive)
-        return self.as_bound(bound_term, self.literal.to(bound_term.ref().field.field_type))
+        lit = self.literal.to(bound_term.ref().field.field_type)
+
+        if isinstance(lit, AboveMax):
+            if isinstance(self, (LessThan, LessThanOrEqual, NotEqualTo)):
+                return AlwaysTrue()  # type: ignore
+            elif isinstance(self, (GreaterThan, GreaterThanOrEqual, EqualTo)):
+                return AlwaysFalse()  # type: ignore
+        elif isinstance(lit, BelowMin):
+            if isinstance(self, (GreaterThan, GreaterThanOrEqual, NotEqualTo)):
+                return AlwaysTrue()  # type: ignore
+            elif isinstance(self, (LessThan, LessThanOrEqual, EqualTo)):
+                return AlwaysFalse()  # type: ignore
+
+        return self.as_bound(bound_term, lit)
 
     def __eq__(self, other):
         if isinstance(other, LiteralPredicate):
@@ -593,39 +658,68 @@ class BoundLiteralPredicate(BoundPredicate[L], ABC):
     def __repr__(self) -> str:
         return f"{str(self.__class__.__name__)}(term={repr(self.term)}, literal={repr(self.literal)})"
 
+    @property
+    @abstractmethod
+    def as_unbound(self) -> Type[LiteralPredicate[L]]:
+        ...
+
 
 class BoundEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundNotEqualTo[L]:
         return BoundNotEqualTo[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[EqualTo[L]]:
+        return EqualTo
 
 
 class BoundNotEqualTo(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundEqualTo[L]:
         return BoundEqualTo[L](self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[NotEqualTo[L]]:
+        return NotEqualTo
+
 
 class BoundGreaterThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThan[L]:
         return BoundLessThan[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[GreaterThanOrEqual[L]]:
+        return GreaterThanOrEqual[L]
 
 
 class BoundGreaterThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundLessThanOrEqual[L]:
         return BoundLessThanOrEqual(self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[GreaterThan[L]]:
+        return GreaterThan[L]
+
 
 class BoundLessThan(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThanOrEqual[L]:
         return BoundGreaterThanOrEqual[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[LessThan[L]]:
+        return LessThan[L]
 
 
 class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
     def __invert__(self) -> BoundGreaterThan[L]:
         return BoundGreaterThan[L](self.term, self.literal)
 
+    @property
+    def as_unbound(self) -> Type[LessThanOrEqual[L]]:
+        return LessThanOrEqual[L]
+
 
 class EqualTo(LiteralPredicate[L]):
-    def __invert__(self) -> NotEqualTo:
+    def __invert__(self) -> NotEqualTo[L]:
         return NotEqualTo[L](self.term, self.literal)
 
     @property

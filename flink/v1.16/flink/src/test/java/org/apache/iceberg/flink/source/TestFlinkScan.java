@@ -259,7 +259,7 @@ public abstract class TestFlinkScan {
             ImmutableMap.<String, String>builder()
                 .put("start-snapshot-id", Long.toString(snapshotId1))
                 .put("end-snapshot-id", Long.toString(snapshotId3))
-                .build()),
+                .buildOrThrow()),
         expected2,
         TestFixtures.SCHEMA);
   }

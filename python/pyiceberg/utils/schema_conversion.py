@@ -118,7 +118,9 @@ class AvroSchemaConversion:
         """
         return Schema(*[self._convert_field(field) for field in avro_schema["fields"]], schema_id=1)
 
-    def _resolve_union(self, type_union: Union[Dict, List, str]) -> Tuple[Union[str, Dict[str, Any]], bool]:
+    def _resolve_union(
+        self, type_union: Union[Dict[str, str], List[Union[str, Dict[str, str]]], str]
+    ) -> Tuple[Union[str, Dict[str, Any]], bool]:
         """
         Converts Unions into their type and resolves if the field is required
 
@@ -141,7 +143,7 @@ class AvroSchemaConversion:
         Raises:
             TypeError: In the case non-optional union types are encountered
         """
-        avro_types: Union[Dict, List]
+        avro_types: Union[Dict[str, str], List[Union[Dict[str, str], str]]]
         if isinstance(type_union, str):
             # It is a primitive and required
             return type_union, True

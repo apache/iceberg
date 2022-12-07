@@ -38,6 +38,16 @@ Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following feat
 DML operations work only with MapReduce execution engine.
 {{< /hint >}}
 
+With Hive version 4.0.0-alpha-2 and above,
+the Iceberg integration when using HiveCatalog supports the following additional features:
+
+* Altering a table with expiring snapshots.
+* Create a table like an existing table (CTLT table)
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
+* Altering a table metadata location
+* Supporting table rollback
+* Honours sort orders on existing tables when writing a table [Sort orders specification](https://iceberg.apache.org/spec/#sort-orders)
+
 With Hive version 4.0.0-alpha-1 and above,
 the Iceberg integration when using HiveCatalog supports the following additional features:
 
@@ -243,7 +253,7 @@ The result is:
 | j                                  | IDENTITY       | NULL
 
 You can create Iceberg partitions using the following Iceberg partition specification syntax
-(supported only in Hive 4.0.0-alpha-1):
+(supported only from Hive 4.0.0-alpha-1):
 
 ```sql
 CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED AS ICEBERG;
@@ -286,6 +296,12 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
     SELECT * FROM source;
 ```
 
+### CREATE TABLE LIKE TABLE
+
+```sql
+CREATE TABLE target LIKE source STORED BY ICEBERG;
+```
+ 
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
@@ -432,6 +448,15 @@ Tables can be dropped using the `DROP TABLE` command:
 DROP TABLE [IF EXISTS] table_name [PURGE];
 ```
 
+### METADATA LOCATION
+
+The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json. 
+It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step. 
+
+```sql
+ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-a1ada2b8-fc86-4b5b-8c91-400b6b46d0f2.metadata.json');
+```
+
 ## DML Commands
 
 ### SELECT
@@ -508,7 +533,15 @@ SELECT * FROM table_a FOR SYSTEM_TIME AS OF '2021-08-09 10:35:57';
 SELECT * FROM table_a FOR SYSTEM_VERSION AS OF 1234567;
 ```
 
-## Type compatibility
+You can expire snapshots of an Iceberg table using an ALTER TABLE query from Hive. You should periodically expire snapshots to delete data files that is no longer needed, and reduce the size of table metadata.
+
+Each write to an Iceberg table from Hive creates a new snapshot, or version, of a table. Snapshots can be used for time-travel queries, or the table can be rolled back to any valid snapshot. Snapshots accumulate until they are expired by the expire_snapshots operation.
+Enter a query to expire snapshots having the following timestamp: `2021-12-09 05:39:18.689000000`
+```sql
+ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
+```
+
+### Type compatibility
 
 Hive and Iceberg support different set of types. Iceberg can perform type conversion automatically, but not for all
 combinations, so you may want to understand the type conversion in Iceberg in prior to design the types of columns in
@@ -546,3 +579,18 @@ creating Iceberg table and writing to Iceberg table via Hive.
 | list             | list                    |       |
 | map              | map                     |       |
 | union            |                         | not supported |
+
+### Table rollback
+
+Rolling back iceberg table's data to the state at an older table snapshot.
+
+Rollback to the last snapshot before a specific timestamp
+
+```sql
+ALTER TABLE ice_t EXECUTE ROLLBACK('2022-05-12 00:00:00')
+```
+
+Rollback to a specific snapshot ID
+```sql
+ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
+```

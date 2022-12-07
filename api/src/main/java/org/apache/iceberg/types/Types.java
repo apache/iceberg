@@ -51,7 +51,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
-          .build();
+          .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[(\\d+)\\]");
   private static final Pattern DECIMAL = Pattern.compile("decimal\\((\\d+),\\s+(\\d+)\\)");

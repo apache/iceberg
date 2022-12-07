@@ -134,7 +134,7 @@ def test_fetch_manifest_list(generated_manifest_file_file: str):
         schema_id=3,
     )
     io = PyArrowFileIO()
-    actual = snapshot.fetch_manifest_list(io)
+    actual = snapshot.manifests(io)
     assert actual == [
         ManifestFile(
             manifest_path=actual[0].manifest_path,  # Is a temp path that changes every time

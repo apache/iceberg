@@ -141,6 +141,14 @@ def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
             yield ManifestEntry(**dict_repr)
 
 
+def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
+    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
+
+
+def files(input_file: InputFile) -> Iterator[DataFile]:
+    return (entry.data_file for entry in live_entries(input_file))
+
+
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
     with AvroFile(input_file) as reader:
         schema = reader.schema
@@ -187,7 +195,7 @@ def _(list_type: ListType, values: List[Any]) -> Any:
 
 
 @_convert_pos_to_dict.register
-def _(map_type: MapType, values: Dict) -> Dict:
+def _(map_type: MapType, values: Dict[Any, Any]) -> Dict[Any, Any]:
     """In the case of a map, we both traverse over the key and value to handle complex types"""
     return (
         {
@@ -200,5 +208,5 @@ def _(map_type: MapType, values: Dict) -> Dict:
 
 
 @_convert_pos_to_dict.register
-def _(primitive: PrimitiveType, value: Any) -> Any:  # pylint: disable=unused-argument
+def _(_: PrimitiveType, value: Any) -> Any:
     return value
