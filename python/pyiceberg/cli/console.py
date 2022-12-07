@@ -286,7 +286,7 @@ def get_table(ctx: Context, identifier: str, property_name: str):
 
 @properties.group()
 def set():
-    """Removes properties on tables/namespaces"""
+    """Sets a property on tables/namespaces"""
 
 
 @set.command()  # type: ignore
@@ -321,7 +321,7 @@ def table(ctx: Context, identifier: str, property_name: str, property_value: str
 
 @properties.group()
 def remove():
-    """Removes properties on tables/namespaces"""
+    """Removes a property from tables/namespaces"""
 
 
 @remove.command()  # type: ignore
