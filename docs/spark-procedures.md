@@ -493,7 +493,7 @@ CALL spark_catalog.system.add_files(
 )
 ```
 
-## `Metadata information`
+## Metadata information
 
 ### `ancestors_of`
 
