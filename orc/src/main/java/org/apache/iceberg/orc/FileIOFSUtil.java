@@ -122,8 +122,7 @@ public class FileIOFSUtil {
     public FSDataInputStream open(Path f) throws IOException {
       Preconditions.checkArgument(
           f.equals(inputPath), String.format("Input %s does not equal expected %s", f, inputPath));
-      return new FSDataInputStream(
-          new HadoopStreams.WrappedSeekableInputStream(inputFile.newStream()));
+      return new FSDataInputStream(HadoopStreams.wrap(inputFile.newStream()));
     }
 
     @Override

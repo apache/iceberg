@@ -67,6 +67,16 @@ public class HadoopStreams {
   }
 
   /**
+   * Wraps a {@link SeekableInputStream} in a {@link FSDataOutputStream} implementation for readers.
+   *
+   * @param stream a SeekableInputStream
+   * @return a FSDataOutputStream
+   */
+  public static FSInputStream wrap(SeekableInputStream stream) {
+    return new WrappedSeekableInputStream(stream);
+  }
+
+  /**
    * SeekableInputStream implementation for FSDataInputStream that implements ByteBufferReadable in
    * Hadoop 2.
    */
@@ -192,11 +202,11 @@ public class HadoopStreams {
     }
   }
 
-  public static class WrappedSeekableInputStream extends FSInputStream
+  private static class WrappedSeekableInputStream extends FSInputStream
       implements DelegatingInputStream {
     private final SeekableInputStream inputStream;
 
-    public WrappedSeekableInputStream(SeekableInputStream inputStream) {
+    private WrappedSeekableInputStream(SeekableInputStream inputStream) {
       this.inputStream = inputStream;
     }
 
