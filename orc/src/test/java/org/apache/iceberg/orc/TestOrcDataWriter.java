@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -34,8 +35,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.InputFile;
@@ -144,9 +143,9 @@ public class TestOrcDataWriter {
     // use a scheme `dummy` that is not handled.
     ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
     Assertions.assertThatThrownBy(
-            () -> HadoopOutputFile.fromPath(new Path(outFile.location()), new Configuration()))
-        .isInstanceOf(RuntimeIOException.class)
-        .hasMessageStartingWith("Failed to get file system for path: dummy");
+            () -> new Path(outFile.location()).getFileSystem(new Configuration()))
+        .isInstanceOf(UnsupportedFileSystemException.class)
+        .hasMessageStartingWith("No FileSystem for scheme \"dummy\"");
 
     // Given that FileIO is now handled there is no determination of FileSystem based on scheme
     // but instead operations are handled by the InputFileSystem and OutputFileSystem that wrap
