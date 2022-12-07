@@ -225,7 +225,7 @@ class FixedReader(Reader):
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip(len(self))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._len
 
 
@@ -332,7 +332,7 @@ class MapReader(Reader):
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        def skip():
+        def skip() -> None:
             self.key.skip(decoder)
             self.value.skip(decoder)
 
