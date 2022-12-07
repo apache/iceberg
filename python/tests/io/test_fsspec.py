@@ -21,11 +21,11 @@ from typing import Generator
 import pytest
 from botocore.awsrequest import AWSRequest
 from requests_mock import Mocker
-from tests.io.test_io import LocalInputFile
 
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec
 from pyiceberg.io.fsspec import FsspecFileIO, s3v4_rest_signer
+from tests.io.test_io import LocalInputFile
 
 
 @pytest.mark.s3

@@ -33,7 +33,6 @@ from hive_metastore.ttypes import (
     StorageDescriptor,
 )
 from hive_metastore.ttypes import Table as HiveTable
-from tests.conftest import LocalFileIO
 
 from pyiceberg.catalog import PropertiesUpdateSummary
 from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
@@ -69,6 +68,7 @@ from pyiceberg.types import (
     NestedField,
     StringType,
 )
+from tests.conftest import LocalFileIO
 
 HIVE_CATALOG_NAME = "hive"
 HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"

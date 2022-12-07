@@ -47,8 +47,6 @@ import botocore.awsrequest
 import botocore.model
 import pytest
 from moto import mock_glue, mock_s3
-from tests.catalog.test_base import InMemoryCatalog
-from tests.io.test_io import LocalInputFile
 
 from pyiceberg import schema
 from pyiceberg.io import (
@@ -73,6 +71,8 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from tests.catalog.test_base import InMemoryCatalog
+from tests.io.test_io import LocalInputFile
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
