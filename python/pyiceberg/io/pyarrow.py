@@ -70,6 +70,7 @@ from pyiceberg.types import (
     LongType,
     MapType,
     NestedField,
+    PrimitiveType,
     StringType,
     StructType,
     TimestampType,
@@ -77,6 +78,7 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.singleton import Singleton
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -303,7 +305,7 @@ class UuidType(pa.PyExtensionType):
         return UuidType, ()
 
 
-class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType]):
+class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleton):
     def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
         return pa.schema(list(struct_result))
 
@@ -373,16 +375,16 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType]):
 def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
     if not isinstance(iceberg_type, PrimitiveType):
         raise ValueError(f"Expected primitive type, got: {iceberg_type}")
-    return pa.scalar(value).cast(_iceberg_to_pyarrow_type(iceberg_type))
+    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
 
 
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
         return pc.field(term.ref().field.name).isin(pyarrow_literals)
 
     def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
         return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
 
     def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
