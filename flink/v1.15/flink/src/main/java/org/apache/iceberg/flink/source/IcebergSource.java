@@ -187,8 +187,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     } else {
       List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
       assigner.onDiscoveredSplits(splits);
-      return new StaticIcebergEnumerator(
-          enumContext, assigner, lazyTable(), scanContext, enumState);
+      return new StaticIcebergEnumerator(enumContext, assigner);
     }
   }
 

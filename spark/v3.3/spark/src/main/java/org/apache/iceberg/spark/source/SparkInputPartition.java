@@ -66,6 +66,10 @@ class SparkInputPartition implements InputPartition, Serializable {
     return (ScanTaskGroup<T>) taskGroup;
   }
 
+  public <T extends ScanTask> boolean allTasksOfType(Class<T> javaClass) {
+    return taskGroup.tasks().stream().allMatch(javaClass::isInstance);
+  }
+
   public Table table() {
     return tableBroadcast.value();
   }

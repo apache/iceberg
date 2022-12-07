@@ -25,7 +25,7 @@ First we're going to release a release candidate (RC) and publish it to the publ
 
 ## Running a release candidate
 
-Make sure that you're on the version that you want to release.
+Make sure that you're on the version that you want to release. And that the version is correct in `pyproject.toml` and `pyiceberg/__init__.py`. Correct means that it reflects the version that you want to release, and doesn't contain any additional modifiers, such as `dev0`.
 
 ```bash
 export RC=rc1

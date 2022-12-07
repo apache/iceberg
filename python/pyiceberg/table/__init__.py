@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
@@ -42,7 +43,6 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import bind, inclusive_projection
 from pyiceberg.io import FileIO
-from pyiceberg.io.pyarrow import expression_to_pyarrow, schema_to_pyarrow
 from pyiceberg.manifest import DataFile, ManifestFile, files
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -339,7 +339,11 @@ class DataScan(TableScan["DataScan"]):
             yield from (FileScanTask(file) for file in matching_partition_files)
 
     def to_arrow(self) -> pa.table:
-        from pyiceberg.io.pyarrow import PyArrowFileIO
+        from pyiceberg.io.pyarrow import PyArrowFileIO, expression_to_pyarrow, schema_to_pyarrow
+
+        warnings.warn(
+            "Projection is currently done by name instead of Field ID, this can lead to incorrect results in some cases."
+        )
 
         fs = None
         if isinstance(self.table.io, PyArrowFileIO):

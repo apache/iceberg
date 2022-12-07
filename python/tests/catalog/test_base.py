@@ -24,6 +24,7 @@ from typing import (
 )
 
 import pytest
+from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 from pyiceberg.catalog import (
     Catalog,
@@ -45,7 +46,6 @@ from pyiceberg.table import Table
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import IdentityTransform
 from pyiceberg.typedef import EMPTY_DICT
-from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 
 class InMemoryCatalog(Catalog):

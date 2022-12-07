@@ -664,8 +664,22 @@ public class TestMetadataUpdateParser {
             "prop1", "val1",
             "prop2", "val2");
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":\"val2\"}";
+
+    // make sure reading "updated" & "updates" both work
     String json = String.format("{\"action\":\"%s\",\"updated\":%s}", action, propsMap);
     MetadataUpdate expected = new MetadataUpdate.SetProperties(props);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+
+    json = String.format("{\"action\":\"%s\",\"updates\":%s}", action, propsMap);
+    expected = new MetadataUpdate.SetProperties(props);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+
+    // if "updated" & "updates" are defined, then "updates" takes precedence
+    json =
+        String.format(
+            "{\"action\":\"%s\",\"updates\":%s,\"updated\":{\"propX\":\"valX\"}}",
+            action, propsMap);
+    expected = new MetadataUpdate.SetProperties(props);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
@@ -692,7 +706,7 @@ public class TestMetadataUpdateParser {
             "prop1", "val1",
             "prop2", "val2");
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":\"val2\"}";
-    String expected = String.format("{\"action\":\"%s\",\"updated\":%s}", action, propsMap);
+    String expected = String.format("{\"action\":\"%s\",\"updates\":%s}", action, propsMap);
     MetadataUpdate update = new MetadataUpdate.SetProperties(props);
     String actual = MetadataUpdateParser.toJson(update);
     Assert.assertEquals(
@@ -705,8 +719,21 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_PROPERTIES;
     Set<String> toRemove = ImmutableSet.of("prop1", "prop2");
     String toRemoveAsJSON = "[\"prop1\",\"prop2\"]";
+
+    // make sure reading "removed" & "removals" both work
     String json = String.format("{\"action\":\"%s\",\"removed\":%s}", action, toRemoveAsJSON);
     MetadataUpdate expected = new MetadataUpdate.RemoveProperties(toRemove);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+
+    json = String.format("{\"action\":\"%s\",\"removals\":%s}", action, toRemoveAsJSON);
+    expected = new MetadataUpdate.RemoveProperties(toRemove);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+
+    // if "removed" & "removals" are defined, then "removals" takes precedence
+    json =
+        String.format(
+            "{\"action\":\"%s\",\"removals\":%s,\"removed\": [\"propX\"]}", action, toRemoveAsJSON);
+    expected = new MetadataUpdate.RemoveProperties(toRemove);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
@@ -715,7 +742,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_PROPERTIES;
     Set<String> toRemove = ImmutableSet.of("prop1", "prop2");
     String toRemoveAsJSON = "[\"prop1\",\"prop2\"]";
-    String expected = String.format("{\"action\":\"%s\",\"removed\":%s}", action, toRemoveAsJSON);
+    String expected = String.format("{\"action\":\"%s\",\"removals\":%s}", action, toRemoveAsJSON);
     MetadataUpdate update = new MetadataUpdate.RemoveProperties(toRemove);
     String actual = MetadataUpdateParser.toJson(update);
     Assert.assertEquals(

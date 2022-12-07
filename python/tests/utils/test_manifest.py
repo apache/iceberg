@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from tests.io.test_io import LocalInputFile
+
 from pyiceberg.io import load_file_io
 from pyiceberg.manifest import (
     DataFile,
@@ -30,7 +32,6 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
-from tests.io.test_io import LocalInputFile
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:

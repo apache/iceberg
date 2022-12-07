@@ -21,6 +21,8 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.conftest import FooStruct
+from tests.expressions.test_visitors import ExpressionA, ExpressionB
 from typing_extensions import assert_type
 
 from pyiceberg.expressions import (
@@ -70,8 +72,6 @@ from pyiceberg.types import (
     NestedField,
     StringType,
 )
-from tests.conftest import FooStruct
-from tests.expressions.test_visitors import ExpressionA, ExpressionB
 
 
 def test_isnull_inverse() -> None:
