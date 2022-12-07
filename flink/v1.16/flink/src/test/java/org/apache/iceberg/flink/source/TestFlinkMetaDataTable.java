@@ -40,6 +40,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -57,6 +58,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.After;
 import org.junit.Assert;
@@ -108,9 +110,7 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
       sql(
           "CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) PARTITIONED BY (data) WITH ('format-version'='2', 'write.format.default'='%s')",
           TABLE_NAME, format.name());
-
       sql("INSERT INTO %s VALUES (1,'a',10),(2,'a',20)", TABLE_NAME);
-
       sql("INSERT INTO %s VALUES (1,'b',10),(2,'b',20)", TABLE_NAME);
     } else {
       sql(
@@ -153,10 +153,6 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
           next.manifestListLocation());
       Assert.assertEquals("Should have expected summary", next.summary(), row.getField(5));
     }
-
-    sql = String.format("SELECT summary['flink.job-id'] FROM %s$snapshots ", TABLE_NAME);
-    result = sql(sql);
-    System.out.println(result.size());
   }
 
   @Test
@@ -280,46 +276,65 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
     Schema entriesTableSchema =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.from("entries"))
             .schema();
-    Schema filesTableSchema =
-        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.from("files"))
-            .schema();
 
     // check delete files table
-    Table deleteFilesTable =
+    Schema deleteFilesTableSchema =
         MetadataTableUtils.createMetadataTableInstance(
-            table, MetadataTableType.from("delete_files"));
-    Schema deleteFilesTableSchema = deleteFilesTable.schema();
+                table, MetadataTableType.from("delete_files"))
+            .schema();
 
-    List<Row> actualDeleteFiles = sql("SELECT * FROM %s$delete_files", TABLE_NAME);
+    List<String> deleteColumns =
+        deleteFilesTableSchema.columns().stream()
+            .map(Types.NestedField::name)
+            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .collect(Collectors.toList());
+    String deleteNames =
+        deleteColumns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
+
+    deleteFilesTableSchema = deleteFilesTableSchema.select(deleteColumns);
+
+    List<Row> actualDeleteFiles = sql("SELECT %s FROM %s$delete_files", deleteNames, TABLE_NAME);
     Assert.assertEquals("Metadata table should return 1 delete file", 1, actualDeleteFiles.size());
 
     List<GenericData.Record> expectedDeleteFiles =
         expectedEntries(
             table, FileContent.EQUALITY_DELETES, entriesTableSchema, expectedDeleteManifests, null);
     Assert.assertEquals("Should be 1 delete file manifest entry", 1, expectedDeleteFiles.size());
-    TestHelpers.assertEqualsSafe(
+    TestHelpers.assertEquals(
         deleteFilesTableSchema, expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
 
     // Check data files table
-    List<Row> actualDataFiles = sql("SELECT * FROM %s$data_files", TABLE_NAME);
+    Schema filesTableSchema =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.from("files"))
+            .schema();
+
+    List<String> columns =
+        filesTableSchema.columns().stream()
+            .map(Types.NestedField::name)
+            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .collect(Collectors.toList());
+    String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
+
+    filesTableSchema = filesTableSchema.select(columns);
+
+    List<Row> actualDataFiles = sql("SELECT %s FROM %s$data_files", names, TABLE_NAME);
     Assert.assertEquals("Metadata table should return 2 data file", 2, actualDataFiles.size());
 
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
     Assert.assertEquals("Should be 2 data file manifest entry", 2, expectedDataFiles.size());
-    TestHelpers.assertEqualsSafe(
-        filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
+    TestHelpers.assertEquals(filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
 
     // check all files table
-    List<Row> actualFiles = sql("SELECT * FROM %s$files ORDER BY content", TABLE_NAME);
+    List<Row> actualFiles = sql("SELECT %s FROM %s$files ORDER BY content", names, TABLE_NAME);
     Assert.assertEquals("Metadata table should return 3 files", 3, actualFiles.size());
 
     List<GenericData.Record> expectedFiles =
         Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
             .collect(Collectors.toList());
     Assert.assertEquals("Should have 3 files manifest entries", 3, expectedFiles.size());
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
   }
 
   @Test
@@ -368,6 +383,15 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
             table, MetadataTableType.from("delete_files"));
     Schema filesTableSchema = deleteFilesTable.schema();
 
+    List<String> columns =
+        filesTableSchema.columns().stream()
+            .map(Types.NestedField::name)
+            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .collect(Collectors.toList());
+    String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
+
+    filesTableSchema = filesTableSchema.select(columns);
+
     // Check delete files table
     List<GenericData.Record> expectedDeleteFiles =
         expectedEntries(
@@ -375,14 +399,12 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
     Assert.assertEquals(
         "Should have one delete file manifest entry", 1, expectedDeleteFiles.size());
 
-    List<Row> actualDeleteF = sql("SELECT * FROM %s$delete_files", TABLE_NAME);
-
     List<Row> actualDeleteFiles =
-        sql("SELECT * FROM %s$delete_files WHERE `partition`.`data`='a'", TABLE_NAME);
+        sql("SELECT %s FROM %s$delete_files WHERE `partition`.`data`='a'", names, TABLE_NAME);
 
     Assert.assertEquals(
         "Metadata table should return one delete file", 1, actualDeleteFiles.size());
-    TestHelpers.assertEqualsSafe(
+    TestHelpers.assertEquals(
         filesTableSchema, expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
 
     // Check data files table
@@ -391,10 +413,9 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have one data file manifest entry", 1, expectedDataFiles.size());
 
     List<Row> actualDataFiles =
-        sql("SELECT * FROM %s$data_files  WHERE `partition`.`data`='a'", TABLE_NAME);
+        sql("SELECT %s FROM %s$data_files  WHERE `partition`.`data`='a'", names, TABLE_NAME);
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
-    TestHelpers.assertEqualsSafe(
-        filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
+    TestHelpers.assertEquals(filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
 
     List<Row> actualPartitionsWithProjection =
         sql("SELECT file_count FROM %s$partitions ", TABLE_NAME);
@@ -413,10 +434,12 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have two file manifest entries", 2, expectedFiles.size());
 
     List<Row> actualFiles =
-        sql("SELECT * FROM %s$files  WHERE `partition`.`data`='a' ORDER BY content", TABLE_NAME);
+        sql(
+            "SELECT %s FROM %s$files WHERE `partition`.`data`='a' ORDER BY content",
+            names, TABLE_NAME);
     Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
   }
 
   @Test
@@ -454,35 +477,44 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
                 table, MetadataTableType.from("all_data_files"))
             .schema();
 
+    List<String> columns =
+        filesTableSchema.columns().stream()
+            .map(Types.NestedField::name)
+            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .collect(Collectors.toList());
+    String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
+
+    filesTableSchema = filesTableSchema.select(columns);
+
     // Check all data files table
     List<Row> actualDataFiles =
-        sql("SELECT * FROM %s$all_data_files order by record_count ", TABLE_NAME);
+        sql("SELECT %s FROM %s$all_data_files order by record_count ", names, TABLE_NAME);
 
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
     Assert.assertEquals("Should be 2 data file manifest entry", 2, expectedDataFiles.size());
     Assert.assertEquals("Metadata table should return 2 data file", 2, actualDataFiles.size());
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedDataFiles, actualDataFiles);
+    TestHelpers.assertEquals(filesTableSchema, expectedDataFiles, actualDataFiles);
 
     // Check all delete files table
-    List<Row> actualDeleteFiles = sql("SELECT * FROM %s$all_delete_files", TABLE_NAME);
+    List<Row> actualDeleteFiles = sql("SELECT %s FROM %s$all_delete_files", names, TABLE_NAME);
     List<GenericData.Record> expectedDeleteFiles =
         expectedEntries(
             table, FileContent.EQUALITY_DELETES, entriesTableSchema, expectedDeleteManifests, null);
     Assert.assertEquals("Should be one delete file manifest entry", 1, expectedDeleteFiles.size());
     Assert.assertEquals(
         "Metadata table should return one delete file", 1, actualDeleteFiles.size());
-    TestHelpers.assertEqualsSafe(
+    TestHelpers.assertEquals(
         filesTableSchema, expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
 
     // Check all files table
     List<Row> actualFiles =
-        sql("SELECT * FROM %s$all_files ORDER BY content, record_count asc", TABLE_NAME);
+        sql("SELECT %s FROM %s$all_files ORDER BY content, record_count asc", names, TABLE_NAME);
     List<GenericData.Record> expectedFiles =
         ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     Assert.assertEquals("Metadata table should return 3 files", 3, actualFiles.size());
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles, actualFiles);
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles, actualFiles);
   }
 
   @Test
@@ -529,36 +561,46 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
                 table, MetadataTableType.from("all_data_files"))
             .schema();
 
+    List<String> columns =
+        filesTableSchema.columns().stream()
+            .map(Types.NestedField::name)
+            .filter(c -> !c.equals(MetricsUtil.READABLE_METRICS))
+            .collect(Collectors.toList());
+    String names = columns.stream().map(n -> "`" + n + "`").collect(Collectors.joining(","));
+
+    filesTableSchema = filesTableSchema.select(columns);
+
     // Check all data files table
     List<Row> actualDataFiles =
-        sql("SELECT * FROM %s$all_data_files WHERE `partition`.`data`='a'", TABLE_NAME);
+        sql("SELECT %s FROM %s$all_data_files WHERE `partition`.`data`='a'", names, TABLE_NAME);
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, "a");
     Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
-    TestHelpers.assertEqualsSafe(
-        filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
+    TestHelpers.assertEquals(filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
 
     // Check all delete files table
     List<Row> actualDeleteFiles =
-        sql("SELECT * FROM %s$all_delete_files WHERE `partition`.`data`='a'", TABLE_NAME);
+        sql("SELECT %s FROM %s$all_delete_files WHERE `partition`.`data`='a'", names, TABLE_NAME);
     List<GenericData.Record> expectedDeleteFiles =
         expectedEntries(
             table, FileContent.EQUALITY_DELETES, entriesTableSchema, expectedDeleteManifests, "a");
     Assert.assertEquals("Should be one data file manifest entry", 1, expectedDeleteFiles.size());
     Assert.assertEquals("Metadata table should return one data file", 1, actualDeleteFiles.size());
 
-    TestHelpers.assertEqualsSafe(
+    TestHelpers.assertEquals(
         filesTableSchema, expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
 
     // Check all files table
     List<Row> actualFiles =
-        sql("SELECT * FROM %s$all_files WHERE `partition`.`data`='a' ORDER BY content", TABLE_NAME);
+        sql(
+            "SELECT %s FROM %s$all_files WHERE `partition`.`data`='a' ORDER BY content",
+            names, TABLE_NAME);
     List<GenericData.Record> expectedFiles =
         ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
-    TestHelpers.assertEqualsSafe(filesTableSchema, expectedFiles, actualFiles);
+    TestHelpers.assertEquals(filesTableSchema, expectedFiles, actualFiles);
   }
 
   @Test

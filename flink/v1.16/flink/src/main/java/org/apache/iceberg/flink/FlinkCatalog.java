@@ -162,14 +162,17 @@ public class FlinkCatalog extends AbstractCatalog {
   TableIdentifier toIdentifier(ObjectPath path) {
     String objectName = path.getObjectName();
     List<String> tableName = Splitter.on('$').splitToList(objectName);
-    if (tableName.size() == 2 && MetadataTableType.from(tableName.get(1)) != null) {
+
+    if (tableName.size() == 1) {
+      return TableIdentifier.of(
+          appendLevel(baseNamespace, path.getDatabaseName()), path.getObjectName());
+    } else if (tableName.size() == 2 && MetadataTableType.from(tableName.get(1)) != null) {
       return TableIdentifier.of(
           appendLevel(appendLevel(baseNamespace, path.getDatabaseName()), tableName.get(0)),
           tableName.get(1));
+    } else {
+      throw new IllegalArgumentException("Illegal table name");
     }
-
-    return TableIdentifier.of(
-        appendLevel(baseNamespace, path.getDatabaseName()), path.getObjectName());
   }
 
   @Override

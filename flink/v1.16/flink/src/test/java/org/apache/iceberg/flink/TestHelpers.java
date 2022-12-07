@@ -299,29 +299,30 @@ public class TestHelpers {
     }
   }
 
-  public static void assertEqualsSafe(
-      Schema schema, List<GenericData.Record> recs, List<Row> rows) {
+  public static void assertEquals(Schema schema, List<GenericData.Record> records, List<Row> rows) {
     Streams.forEachPair(
-        recs.stream(), rows.stream(), (rec, row) -> assertEqualsSafe(schema, rec, row));
+        records.stream(), rows.stream(), (record, row) -> assertEquals(schema, record, row));
   }
 
-  public static void assertEqualsSafe(Schema schema, GenericData.Record rec, Row row) {
+  public static void assertEquals(Schema schema, GenericData.Record record, Row row) {
     List<Types.NestedField> fields = schema.asStruct().fields();
+    Assert.assertEquals(fields.size(), record.getSchema().getFields().size());
+    Assert.assertEquals(fields.size(), row.getArity());
     RowType rowType = FlinkSchemaUtil.convert(schema);
-    for (int i = 0; i < fields.size(); i += 1) {
+    for (int i = 0; i < fields.size(); ++i) {
       Type fieldType = fields.get(i).type();
-      Object expectedValue = rec.get(i);
+      Object expectedValue = record.get(i);
       Object actualValue = row.getField(i);
       LogicalType logicalType = rowType.getTypeAt(i);
       assertAvroEquals(fieldType, logicalType, expectedValue, actualValue);
     }
   }
 
-  public static void assertEqualsSafe(Types.StructType struct, GenericData.Record rec, Row row) {
+  private static void assertEquals(Types.StructType struct, GenericData.Record record, Row row) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Type fieldType = fields.get(i).type();
-      Object expectedValue = rec.get(i);
+      Object expectedValue = record.get(i);
       Object actualValue = row.getField(i);
       assertAvroEquals(fieldType, null, expectedValue, actualValue);
     }
@@ -357,7 +358,7 @@ public class TestHelpers {
         Assertions.assertThat(expected)
             .as("Should expect a CharSequence")
             .isInstanceOf(CharSequence.class);
-        Assert.assertEquals("string should be equal", String.valueOf(expected), actual.toString());
+        Assert.assertEquals("string should be equal", expected.toString(), actual.toString());
         break;
       case DATE:
         Assertions.assertThat(expected).as("Should expect a Date").isInstanceOf(LocalDate.class);
@@ -435,7 +436,7 @@ public class TestHelpers {
         Assertions.assertThat(expected)
             .as("Should expect a Record")
             .isInstanceOf(GenericData.Record.class);
-        assertEqualsSafe(
+        assertEquals(
             type.asNestedType().asStructType(), (GenericData.Record) expected, (Row) actual);
         break;
       case UUID:

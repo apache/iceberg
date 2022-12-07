@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -39,7 +40,6 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -206,8 +206,7 @@ public class StructRowData implements RowData {
     return isNullAt(pos)
         ? null
         : (ArrayData)
-            covertFromStructToRowData(
-                type.fields().get(pos).type().asListType(), struct.get(pos, List.class));
+            coverValue(type.fields().get(pos).type().asListType(), struct.get(pos, List.class));
   }
 
   @Override
@@ -215,8 +214,7 @@ public class StructRowData implements RowData {
     return isNullAt(pos)
         ? null
         : (MapData)
-            covertFromStructToRowData(
-                type.fields().get(pos).type().asMapType(), struct.get(pos, Map.class));
+            coverValue(type.fields().get(pos).type().asMapType(), struct.get(pos, Map.class));
   }
 
   @Override
@@ -229,7 +227,7 @@ public class StructRowData implements RowData {
         type.fields().get(pos).type().asStructType(), struct.get(pos, StructLike.class));
   }
 
-  private Object covertFromStructToRowData(Type elementType, Object value) {
+  private Object coverValue(Type elementType, Object value) {
     switch (elementType.typeId()) {
       case BOOLEAN:
       case INTEGER:
@@ -241,8 +239,9 @@ public class StructRowData implements RowData {
       case DECIMAL:
         return value;
       case TIMESTAMP:
-        return TimestampData.fromEpochMillis(
-            (Long) value / 1000, (int) ((Long) value % 1000) * 1000);
+        long millisecond = (long) value / 1000;
+        int nanoOfMillisecond = (int) ((Long) value % 1000) * 1000;
+        return TimestampData.fromEpochMillis(millisecond, nanoOfMillisecond);
       case STRING:
         return StringData.fromString(value.toString());
       case FIXED:
@@ -259,8 +258,7 @@ public class StructRowData implements RowData {
           if (element == null) {
             array[index] = null;
           } else {
-            array[index] =
-                covertFromStructToRowData(elementType.asListType().elementType(), element);
+            array[index] = coverValue(elementType.asListType().elementType(), element);
           }
 
           index += 1;
@@ -268,19 +266,17 @@ public class StructRowData implements RowData {
         return new GenericArrayData(array);
       case MAP:
         Types.MapType mapType = elementType.asMapType();
-        // make a defensive copy to ensure entries do not change
-        List<Map.Entry<?, ?>> entries = ImmutableList.copyOf(((Map<?, ?>) value).entrySet());
-
+        Set<? extends Map.Entry<?, ?>> entries = ((Map<?, ?>) value).entrySet();
         Map<Object, Object> result = Maps.newHashMap();
         for (Map.Entry<?, ?> entry : entries) {
-          final Object keyValue = covertFromStructToRowData(mapType.keyType(), entry.getKey());
-          final Object valueValue =
-              covertFromStructToRowData(mapType.valueType(), entry.getValue());
+          final Object keyValue = coverValue(mapType.keyType(), entry.getKey());
+          final Object valueValue = coverValue(mapType.valueType(), entry.getValue());
           result.put(keyValue, valueValue);
         }
+
         return new GenericMapData(result);
       default:
-        throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
+        throw new UnsupportedOperationException("Unsupported element type: " + elementType);
     }
   }
 }

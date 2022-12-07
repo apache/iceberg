@@ -104,6 +104,9 @@ public class FlinkSchemaUtil {
     Types.StructType struct = convert(flinkSchema).asStruct();
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // reassign doc to match the base schema
+    schema = TypeUtil.reassignDoc(schema, baseSchema);
+
     // fix types that can't be represented in Flink (UUID)
     Schema fixedSchema = FlinkFixupTypes.fixup(schema, baseSchema);
     return freshIdentifierFieldIds(fixedSchema, flinkSchema);
