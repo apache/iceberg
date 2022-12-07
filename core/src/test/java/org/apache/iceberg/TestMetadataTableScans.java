@@ -528,6 +528,93 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @Test
+  public void testFilesTableReadableMetricsSchema() {
+    Table filesTable = new FilesTable(table.ops(), table);
+    Types.StructType actual = filesTable.newScan().schema().select("readable_metrics").asStruct();
+    int highestId = filesTable.schema().highestFieldId();
+
+    Types.StructType expected =
+        Types.StructType.of(
+            optional(
+                highestId,
+                "readable_metrics",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        highestId - 14,
+                        "data",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                highestId - 13,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
+                            Types.NestedField.optional(
+                                highestId - 12,
+                                "value_count",
+                                Types.LongType.get(),
+                                "Total count, including null and NaN"),
+                            Types.NestedField.optional(
+                                highestId - 11,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
+                            Types.NestedField.optional(
+                                highestId - 10,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
+                            Types.NestedField.optional(
+                                highestId - 9,
+                                "lower_bound",
+                                Types.StringType.get(),
+                                "Lower bound"),
+                            Types.NestedField.optional(
+                                highestId - 8,
+                                "upper_bound",
+                                Types.StringType.get(),
+                                "Upper bound")),
+                        "Metrics for column data"),
+                    Types.NestedField.optional(
+                        highestId - 7,
+                        "id",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                highestId - 6,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
+                            Types.NestedField.optional(
+                                highestId - 5,
+                                "value_count",
+                                Types.LongType.get(),
+                                "Total count, including null and NaN"),
+                            Types.NestedField.optional(
+                                highestId - 4,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
+                            Types.NestedField.optional(
+                                highestId - 3,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
+                            Types.NestedField.optional(
+                                highestId - 2,
+                                "lower_bound",
+                                Types.IntegerType.get(),
+                                "Lower bound"),
+                            Types.NestedField.optional(
+                                highestId - 1,
+                                "upper_bound",
+                                Types.IntegerType.get(),
+                                "Upper bound")),
+                        "Metrics for column id")),
+                "Column metrics in readable form"));
+
+    Assert.assertEquals("Dynamic schema for readable_metrics should match", actual, expected);
+  }
+
+  @Test
   public void testPartitionSpecEvolutionAdditive() {
     preparePartitionedTable();
 

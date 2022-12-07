@@ -21,12 +21,15 @@ package org.apache.iceberg.flink.source.enumerator;
 import java.io.Serializable;
 import java.util.Collection;
 import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
 /** Enumerator state for checkpointing */
+@Internal
 public class IcebergEnumeratorState implements Serializable {
   @Nullable private final IcebergEnumeratorPosition lastEnumeratedPosition;
   private final Collection<IcebergSourceSplitState> pendingSplits;
+  private int[] enumerationSplitCountHistory;
 
   public IcebergEnumeratorState(Collection<IcebergSourceSplitState> pendingSplits) {
     this(null, pendingSplits);
@@ -35,8 +38,16 @@ public class IcebergEnumeratorState implements Serializable {
   public IcebergEnumeratorState(
       @Nullable IcebergEnumeratorPosition lastEnumeratedPosition,
       Collection<IcebergSourceSplitState> pendingSplits) {
+    this(lastEnumeratedPosition, pendingSplits, new int[0]);
+  }
+
+  public IcebergEnumeratorState(
+      @Nullable IcebergEnumeratorPosition lastEnumeratedPosition,
+      Collection<IcebergSourceSplitState> pendingSplits,
+      int[] enumerationSplitCountHistory) {
     this.lastEnumeratedPosition = lastEnumeratedPosition;
     this.pendingSplits = pendingSplits;
+    this.enumerationSplitCountHistory = enumerationSplitCountHistory;
   }
 
   @Nullable
@@ -46,5 +57,9 @@ public class IcebergEnumeratorState implements Serializable {
 
   public Collection<IcebergSourceSplitState> pendingSplits() {
     return pendingSplits;
+  }
+
+  public int[] enumerationSplitCountHistory() {
+    return enumerationSplitCountHistory;
   }
 }

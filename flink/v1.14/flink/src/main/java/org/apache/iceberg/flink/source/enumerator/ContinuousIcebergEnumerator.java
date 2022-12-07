@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
@@ -34,6 +35,11 @@ import org.slf4j.LoggerFactory;
 public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   private static final Logger LOG = LoggerFactory.getLogger(ContinuousIcebergEnumerator.class);
+  /**
+   * This is hardcoded, as {@link ScanContext#maxPlanningSnapshotCount()} could be the knob to
+   * control the total number of snapshots worth of splits tracked by assigner.
+   */
+  private static final int ENUMERATION_SPLIT_COUNT_HISTORY_SIZE = 3;
 
   private final SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext;
   private final SplitAssigner assigner;
@@ -45,6 +51,9 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
    * this as the starting position.
    */
   private final AtomicReference<IcebergEnumeratorPosition> enumeratorPosition;
+
+  /** Track enumeration result history for split discovery throttling. */
+  private final EnumerationHistory enumerationHistory;
 
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
@@ -59,6 +68,8 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     this.scanContext = scanContext;
     this.splitPlanner = splitPlanner;
     this.enumeratorPosition = new AtomicReference<>();
+    this.enumerationHistory = new EnumerationHistory(ENUMERATION_SPLIT_COUNT_HISTORY_SIZE);
+
     if (enumState != null) {
       this.enumeratorPosition.set(enumState.lastEnumeratedPosition());
     }
@@ -87,12 +98,25 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   @Override
   public IcebergEnumeratorState snapshotState(long checkpointId) {
-    return new IcebergEnumeratorState(enumeratorPosition.get(), assigner.state());
+    return new IcebergEnumeratorState(
+        enumeratorPosition.get(), assigner.state(), enumerationHistory.snapshot());
   }
 
   /** This method is executed in an IO thread pool. */
   private ContinuousEnumerationResult discoverSplits() {
-    return splitPlanner.planSplits(enumeratorPosition.get());
+    int pendingSplitCountFromAssigner = assigner.pendingSplitCount();
+    if (enumerationHistory.shouldPauseSplitDiscovery(pendingSplitCountFromAssigner)) {
+      // If the assigner already has many pending splits, it is better to pause split discovery.
+      // Otherwise, eagerly discovering more splits will just increase assigner memory footprint
+      // and enumerator checkpoint state size.
+      LOG.info(
+          "Pause split discovery as the assigner already has too many pending splits: {}",
+          pendingSplitCountFromAssigner);
+      return new ContinuousEnumerationResult(
+          Collections.emptyList(), enumeratorPosition.get(), enumeratorPosition.get());
+    } else {
+      return splitPlanner.planSplits(enumeratorPosition.get());
+    }
   }
 
   /** This method is executed in a single coordinator thread. */
@@ -100,13 +124,10 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     if (error == null) {
       if (!Objects.equals(result.fromPosition(), enumeratorPosition.get())) {
         // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O
-        // thread pool.
-        // E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit tests) or the
-        // thread
-        // pool is busy and multiple discovery actions are executed concurrently. Discovery result
-        // should
-        // only be accepted if the starting position matches the enumerator position (like
-        // compare-and-swap).
+        // thread pool. E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit
+        // tests) or the thread pool is busy and multiple discovery actions are executed
+        // concurrently. Discovery result should only be accepted if the starting position
+        // matches the enumerator position (like compare-and-swap).
         LOG.info(
             "Skip {} discovered splits because the scan starting position doesn't match "
                 + "the current enumerator position: enumerator position = {}, scan starting position = {}",
@@ -114,12 +135,26 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
             enumeratorPosition.get(),
             result.fromPosition());
       } else {
-        assigner.onDiscoveredSplits(result.splits());
-        LOG.info(
-            "Added {} splits discovered between ({}, {}] to the assigner",
-            result.splits().size(),
-            result.fromPosition(),
-            result.toPosition());
+        // Sometimes, enumeration may yield no splits for a few reasons.
+        // - upstream paused or delayed streaming writes to the Iceberg table.
+        // - enumeration frequency is higher than the upstream write frequency.
+        if (!result.splits().isEmpty()) {
+          assigner.onDiscoveredSplits(result.splits());
+          // EnumerationHistory makes throttling decision on split discovery
+          // based on the total number of splits discovered in the last a few cycles.
+          // Only update enumeration history when there are some discovered splits.
+          enumerationHistory.add(result.splits().size());
+          LOG.info(
+              "Added {} splits discovered between ({}, {}] to the assigner",
+              result.splits().size(),
+              result.fromPosition(),
+              result.toPosition());
+        } else {
+          LOG.info(
+              "No new splits discovered between ({}, {}]",
+              result.fromPosition(),
+              result.toPosition());
+        }
         // update the enumerator position even if there is no split discovered
         // or the toPosition is empty (e.g. for empty table).
         enumeratorPosition.set(result.toPosition());

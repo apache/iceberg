@@ -21,12 +21,15 @@ package org.apache.iceberg.flink.source;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -34,9 +37,11 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.Assume;
 import org.junit.Test;
 
 /** Test {@link FlinkInputFormat}. */
@@ -130,6 +135,52 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     List<Row> expected = Lists.newArrayList();
     for (Record record : writeRecords) {
       expected.add(Row.of(record.get(0), record.get(1)));
+    }
+
+    TestHelpers.assertRows(result, expected);
+  }
+
+  @Test
+  public void testReadPartitionColumn() throws Exception {
+    Assume.assumeTrue("Temporary skip ORC", FileFormat.ORC != fileFormat);
+
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "innerId", Types.LongType.get()),
+                    Types.NestedField.optional(4, "innerName", Types.StringType.get()))));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
+
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
+    List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    for (Record record : records) {
+      org.apache.iceberg.TestHelpers.Row partition =
+          org.apache.iceberg.TestHelpers.Row.of(record.get(1, Record.class).get(1));
+      appender.appendToTable(partition, Collections.singletonList(record));
+    }
+
+    TableSchema projectedSchema =
+        TableSchema.builder()
+            .field("struct", DataTypes.ROW(DataTypes.FIELD("innerName", DataTypes.STRING())))
+            .build();
+    List<Row> result =
+        runFormat(
+            FlinkSource.forRowData()
+                .tableLoader(tableLoader())
+                .project(projectedSchema)
+                .buildFormat());
+
+    List<Row> expected = Lists.newArrayList();
+    for (Record record : records) {
+      Row nested = Row.of(((Record) record.get(1)).get(1));
+      expected.add(Row.of(nested));
     }
 
     TestHelpers.assertRows(result, expected);

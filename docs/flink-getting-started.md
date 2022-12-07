@@ -635,7 +635,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```
@@ -656,7 +656,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .overwrite(true)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```
@@ -675,7 +675,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .upsert(true)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```

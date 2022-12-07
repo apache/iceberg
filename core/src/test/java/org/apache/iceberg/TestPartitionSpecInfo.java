@@ -86,6 +86,33 @@ public class TestPartitionSpecInfo {
   }
 
   @Test
+  public void testColumnDropWithPartitionSpecEvolution() {
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
+
+    Assert.assertEquals(spec, table.spec());
+
+    TableMetadata base = TestTables.readMetadata("test");
+    PartitionSpec newSpec =
+        PartitionSpec.builderFor(table.schema()).identity("data").withSpecId(1).build();
+    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+
+    int initialColSize = table.schema().columns().size();
+    table.updateSchema().deleteColumn("id").commit();
+
+    final Schema expectedSchema = new Schema(required(2, "data", Types.StringType.get()));
+
+    Assert.assertEquals(newSpec, table.spec());
+    Assert.assertEquals(newSpec, table.specs().get(newSpec.specId()));
+    Assert.assertEquals(spec, table.specs().get(spec.specId()));
+    Assert.assertEquals(
+        ImmutableMap.of(spec.specId(), spec, newSpec.specId(), newSpec), table.specs());
+    Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
+    Assert.assertTrue(
+        "Schema must have only \"data\" column", table.schema().sameSchema(expectedSchema));
+  }
+
+  @Test
   public void testSpecInfoPartitionSpecEvolutionForV1Table() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 4).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
