@@ -388,7 +388,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
     PartitionSpec expectedSpec =
         PartitionSpec.builderFor(expectedSchema)
-            .alwaysNull("part", "part_1000")
+            .alwaysNull("part", "part_10000")
             .identity("part")
             .identity("id")
             .withSpecId(2) // The Spec is new

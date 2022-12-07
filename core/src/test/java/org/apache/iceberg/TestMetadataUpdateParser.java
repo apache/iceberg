@@ -168,12 +168,12 @@ public class TestMetadataUpdateParser {
             + "\"name\":\"id_bucket\","
             + "\"transform\":\"bucket[8]\","
             + "\"source-id\":1,"
-            + "\"field-id\":1000"
+            + "\"field-id\":10000"
             + "},{"
             + "\"name\":\"data_bucket\","
             + "\"transform\":\"bucket[16]\","
             + "\"source-id\":2,"
-            + "\"field-id\":1001"
+            + "\"field-id\":10001"
             + "}]"
             + "}";
 
@@ -197,8 +197,8 @@ public class TestMetadataUpdateParser {
 
   @Test
   public void testAddPartitionSpecFromJsonWithoutFieldId() {
-    // partition field ids are missing in old PartitionSpec, they always auto-increment from 1000 in
-    // declared order
+    // partition field ids are missing in old PartitionSpec, they always auto-increment from 10000
+    // in declared order
     String action = MetadataUpdateParser.ADD_PARTITION_SPEC;
     String specString =
         "{"
@@ -240,12 +240,12 @@ public class TestMetadataUpdateParser {
             + "\"name\":\"id_bucket\","
             + "\"transform\":\"bucket[8]\","
             + "\"source-id\":1,"
-            + "\"field-id\":1000"
+            + "\"field-id\":10000"
             + "},{"
             + "\"name\":\"data_bucket\","
             + "\"transform\":\"bucket[16]\","
             + "\"source-id\":2,"
-            + "\"field-id\":1001"
+            + "\"field-id\":10001"
             + "}]"
             + "}";
 

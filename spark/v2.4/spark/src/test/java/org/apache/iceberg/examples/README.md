@@ -111,7 +111,7 @@ The metadata file will contain things like the table location, the schema and th
     ...
     } ]
   } ],
-  "last-partition-id" : 1000,
+  "last-partition-id" : 10000,
   "properties" : { },
   "current-snapshot-id" : -1,
   "snapshots" : [ ],

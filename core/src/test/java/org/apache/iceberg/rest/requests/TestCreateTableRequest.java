@@ -61,7 +61,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
         "{\"name\":\"test_tbl\",\"location\":\"file://tmp/location/\",\"schema\":{\"type\":\"struct\","
             + "\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
             + "{\"id\":2,\"name\":\"data\",\"required\":false,\"type\":\"string\"}]},\"partition-spec\":{\"spec-id\":0,"
-            + "\"fields\":[{\"name\":\"id_bucket\",\"transform\":\"bucket[16]\",\"source-id\":1,\"field-id\":1000}]},"
+            + "\"fields\":[{\"name\":\"id_bucket\",\"transform\":\"bucket[16]\",\"source-id\":1,\"field-id\":10000}]},"
             + "\"write-order\":{\"order-id\":1,\"fields\":"
             + "[{\"transform\":\"identity\",\"source-id\":2,\"direction\":\"asc\",\"null-order\":\"nulls-last\"}]},"
             + "\"properties\":{\"owner\":\"Hank\"},\"stage-create\":false}";

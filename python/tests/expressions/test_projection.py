@@ -70,38 +70,38 @@ def empty_spec() -> PartitionSpec:
 
 @pytest.fixture
 def id_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(1, 1000, IdentityTransform(), "id_part"))
+    return PartitionSpec(PartitionField(1, 10000, IdentityTransform(), "id_part"))
 
 
 @pytest.fixture
 def bucket_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(2, 1000, BucketTransform(16), "data_bucket"))
+    return PartitionSpec(PartitionField(2, 10000, BucketTransform(16), "data_bucket"))
 
 
 @pytest.fixture
 def day_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(4, 1000, DayTransform(), "date"), PartitionField(3, 1000, DayTransform(), "ddate"))
+    return PartitionSpec(PartitionField(4, 10000, DayTransform(), "date"), PartitionField(3, 10000, DayTransform(), "ddate"))
 
 
 @pytest.fixture
 def hour_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(4, 1000, HourTransform(), "hour"))
+    return PartitionSpec(PartitionField(4, 10000, HourTransform(), "hour"))
 
 
 @pytest.fixture
 def truncate_str_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(2, 1000, TruncateTransform(2), "data_trunc"))
+    return PartitionSpec(PartitionField(2, 10000, TruncateTransform(2), "data_trunc"))
 
 
 @pytest.fixture
 def truncate_int_spec() -> PartitionSpec:
-    return PartitionSpec(PartitionField(1, 1000, TruncateTransform(10), "id_trunc"))
+    return PartitionSpec(PartitionField(1, 10000, TruncateTransform(10), "id_trunc"))
 
 
 @pytest.fixture
 def id_and_bucket_spec() -> PartitionSpec:
     return PartitionSpec(
-        PartitionField(1, 1000, IdentityTransform(), "id_part"), PartitionField(2, 1001, BucketTransform(16), "data_bucket")
+        PartitionField(1, 10000, IdentityTransform(), "id_part"), PartitionField(2, 1001, BucketTransform(16), "data_bucket")
     )
 
 

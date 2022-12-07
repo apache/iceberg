@@ -49,8 +49,8 @@ import org.apache.iceberg.types.Types.StructType;
  * represented by a named {@link PartitionField}.
  */
 public class PartitionSpec implements Serializable {
-  // IDs for partition fields start at 1000
-  private static final int PARTITION_DATA_ID_START = 1000;
+  // IDs for partition fields start at 10000
+  private static final int PARTITION_DATA_ID_START = 10000;
 
   private final Schema schema;
 
@@ -600,8 +600,8 @@ public class PartitionSpec implements Serializable {
   }
 
   static boolean hasSequentialIds(PartitionSpec spec) {
-    for (int i = 0; i < spec.fields.length; i += 1) {
-      if (spec.fields[i].fieldId() != PARTITION_DATA_ID_START + i) {
+    for (int i = 1; i < spec.fields.length; i += 1) {
+      if (spec.fields[i].fieldId() != spec.fields[i - 1].fieldId() + 1) {
         return false;
       }
     }

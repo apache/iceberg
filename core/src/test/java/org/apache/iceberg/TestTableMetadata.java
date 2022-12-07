@@ -1072,8 +1072,8 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(metadata.schema())
             .withSpecId(0)
-            .add(1, 1000, "x_partition", Transforms.bucket(4))
-            .add(3, 1001, "z_partition", Transforms.bucket(8))
+            .add(1, 10000, "x_partition", Transforms.bucket(4))
+            .add(3, 10001, "z_partition", Transforms.bucket(8))
             .build();
 
     Assert.assertEquals(expected, metadata.spec());
@@ -1081,12 +1081,16 @@ public class TestTableMetadata {
 
   @Test
   public void testInvalidUpdatePartitionSpecForV1Table() throws Exception {
-    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.required(2, "y", Types.LongType.get()));
 
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .withSpecId(5)
-            .add(1, 1005, "x_partition", Transforms.bucket(4))
+            .add(1, 10005, "x_partition", Transforms.bucket(4))
+            .add(2, 10008, "y_partition", Transforms.bucket(4))
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
@@ -1127,9 +1131,9 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(updated.schema())
             .withSpecId(1)
-            .add(1, 1000, "x", Transforms.identity())
-            .add(2, 1001, "y", Transforms.alwaysNull())
-            .add(3, 1002, "z_bucket", Transforms.bucket(8))
+            .add(1, 10000, "x", Transforms.identity())
+            .add(2, 10001, "y", Transforms.alwaysNull())
+            .add(3, 10002, "z_bucket", Transforms.bucket(8))
             .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
@@ -1163,8 +1167,8 @@ public class TestTableMetadata {
     PartitionSpec expected =
         PartitionSpec.builderFor(updated.schema())
             .withSpecId(1)
-            .add(3, 1002, "z_bucket", Transforms.bucket(8))
-            .add(1, 1000, "x", Transforms.identity())
+            .add(3, 10002, "z_bucket", Transforms.bucket(8))
+            .add(1, 10000, "x", Transforms.identity())
             .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",

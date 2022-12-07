@@ -213,8 +213,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     Assert.assertEquals(
         "Should have a day and an hour time field",
         ImmutableList.of(
-            new PartitionField(2, 1000, "ts_day", Transforms.day()),
-            new PartitionField(2, 1001, "ts_hour", Transforms.hour())),
+            new PartitionField(2, 10000, "ts_day", Transforms.day()),
+            new PartitionField(2, 10001, "ts_hour", Transforms.hour())),
         byHour.fields());
   }
 
@@ -253,8 +253,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("ts"), 1001, "ts_day", Transforms.day())
-            .add(id("id"), 1002, "shard", Transforms.bucket(16))
+            .add(id("ts"), 10001, "ts_day", Transforms.day())
+            .add(id("id"), 10002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -276,8 +276,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity())
-            .add(id("ts"), 1001, "ts_day", Transforms.day())
+            .add(id("category"), 10000, "category", Transforms.identity())
+            .add(id("ts"), 10001, "ts_day", Transforms.day())
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -301,8 +301,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("ts"), 1001, "ts_day", Transforms.day())
-            .add(id("id"), 1002, "shard", Transforms.bucket(16))
+            .add(id("ts"), 10001, "ts_day", Transforms.day())
+            .add(id("id"), 10002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -324,8 +324,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity())
-            .add(id("id"), 1002, "shard", Transforms.bucket(16))
+            .add(id("category"), 10000, "category", Transforms.identity())
+            .add(id("id"), 10002, "shard", Transforms.bucket(16))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -387,9 +387,9 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v2Expected =
         PartitionSpec.builderFor(SCHEMA)
-            .add(id("category"), 1000, "category", Transforms.identity())
-            .add(id("id"), 1002, "id_bucket", Transforms.bucket(16))
-            .add(id("data"), 1003, "prefix", Transforms.truncate(4))
+            .add(id("category"), 10000, "category", Transforms.identity())
+            .add(id("id"), 10002, "id_bucket", Transforms.bucket(16))
+            .add(id("data"), 10003, "prefix", Transforms.truncate(4))
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
@@ -699,7 +699,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
       Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
       Assert.assertEquals(
           "Should match expected field name",
-          "ts_transformed_1000",
+          "ts_transformed_10000",
           updated.fields().get(0).name());
       Assert.assertEquals(
           "Should match expected field name", "ts_transformed", updated.fields().get(1).name());

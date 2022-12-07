@@ -63,7 +63,7 @@
       ]
     }
   ],
-  "last-partition-id": 1000,
+  "last-partition-id": 10000,
   "default-sort-order-id": 3,
   "sort-orders": [
     {

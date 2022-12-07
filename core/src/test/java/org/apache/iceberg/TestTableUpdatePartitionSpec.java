@@ -46,7 +46,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   public void verifyInitialSpec() {
     PartitionSpec initialSpec = PartitionSpec.builderFor(table.schema()).bucket("data", 16).build();
     Assert.assertEquals("Should use the expected initial spec", initialSpec, table.spec());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10000, table.spec().lastAssignedFieldId());
     Assert.assertEquals(0, table.spec().specId());
   }
 
@@ -61,7 +61,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .bucket("id", 8, "id_bucket_8")
             .build();
     Assert.assertEquals("Should append a partition field to the spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
 
     table
         .updateSpec()
@@ -84,11 +84,11 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should hard delete id and data buckets",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
-            .add(2, 1002, "data_trunc_8", Transforms.truncate(8))
+            .add(2, 10002, "data_trunc_8", Transforms.truncate(8))
             .build(),
         table.spec());
 
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10002, table.spec().lastAssignedFieldId());
   }
 
   @Test
@@ -129,7 +129,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build();
 
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
 
     table
         .updateSpec()
@@ -146,7 +146,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build();
 
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10002, table.spec().lastAssignedFieldId());
   }
 
   @Test
@@ -160,7 +160,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build();
 
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10000, table.spec().lastAssignedFieldId());
   }
 
   @Test
@@ -180,11 +180,11 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should hard delete data bucket",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(1)
-            .add(1, 1001, "id_bucket_8", Transforms.bucket(8))
+            .add(1, 10001, "id_bucket_8", Transforms.bucket(8))
             .build(),
         table.spec());
 
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
   }
 
   @Test
@@ -203,10 +203,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should remove and then add a bucket field",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(1)
-            .add(2, 1001, "data_bucket_6", Transforms.bucket(6))
+            .add(2, 10001, "data_bucket_6", Transforms.bucket(6))
             .build(),
         table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
   }
 
   @Test
@@ -221,14 +221,14 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build(),
         table.spec());
     V1Assert.assertEquals(
-        "Should match the last assigned field id", 1000, table.spec().lastAssignedFieldId());
+        "Should match the last assigned field id", 10000, table.spec().lastAssignedFieldId());
     V2Assert.assertEquals(
         "Should add a new id bucket",
         PartitionSpec.builderFor(table.schema()).withSpecId(1).build(),
         table.spec());
     V2Assert.assertEquals(
-        "Should match the last assigned field id", 999, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1000, table.ops().current().lastAssignedPartitionId());
+        "Should match the last assigned field id", 9999, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10000, table.ops().current().lastAssignedPartitionId());
 
     table.updateSpec().addField(bucket("id", 8)).commit();
 
@@ -244,10 +244,10 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         "Should add a new id bucket",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
-            .add(1, 1001, "id_bucket_8", Transforms.bucket(8))
+            .add(1, 10001, "id_bucket_8", Transforms.bucket(8))
             .build(),
         table.spec());
-    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1001, table.ops().current().lastAssignedPartitionId());
+    Assert.assertEquals(10001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(10001, table.ops().current().lastAssignedPartitionId());
   }
 }

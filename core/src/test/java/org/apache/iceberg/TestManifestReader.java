@@ -93,7 +93,7 @@ public class TestManifestReader extends TableTestBase {
       List<Types.NestedField> fields =
           ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(1, fields.size());
-      Assert.assertEquals(1000, fields.get(0).fieldId());
+      Assert.assertEquals(10000, fields.get(0).fieldId());
       Assert.assertEquals("data_bucket", fields.get(0).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
     }
@@ -113,11 +113,11 @@ public class TestManifestReader extends TableTestBase {
       List<Types.NestedField> fields =
           ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(2, fields.size());
-      Assert.assertEquals(1000, fields.get(0).fieldId());
+      Assert.assertEquals(10000, fields.get(0).fieldId());
       Assert.assertEquals("id_bucket", fields.get(0).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
 
-      Assert.assertEquals(1001, fields.get(1).fieldId());
+      Assert.assertEquals(10001, fields.get(1).fieldId());
       Assert.assertEquals("data_bucket", fields.get(1).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
     }

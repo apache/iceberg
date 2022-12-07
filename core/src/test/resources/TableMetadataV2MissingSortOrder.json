@@ -40,12 +40,12 @@
           "name": "x",
           "transform": "identity",
           "source-id": 1,
-          "field-id": 1000
+          "field-id": 10000
         }
       ]
     }
   ],
-  "last-partition-id": 1000,
+  "last-partition-id": 10000,
   "properties": {},
   "current-snapshot-id": -1,
   "snapshots": [],

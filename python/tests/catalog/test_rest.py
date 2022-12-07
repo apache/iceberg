@@ -574,7 +574,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
         schema=table_schema_simple,
         location=None,
         partition_spec=PartitionSpec(
-            PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id"), spec_id=1
+            PartitionField(source_id=1, field_id=10000, transform=TruncateTransform(width=3), name="id"), spec_id=1
         ),
         sort_order=SortOrder(SortField(source_id=2, transform=IdentityTransform())),
         properties={"owner": "fokko"},
@@ -646,7 +646,7 @@ def test_create_table_409(rest_mock: Mocker, table_schema_simple: Schema) -> Non
             schema=table_schema_simple,
             location=None,
             partition_spec=PartitionSpec(
-                PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=3), name="id")
+                PartitionField(source_id=1, field_id=10000, transform=TruncateTransform(width=3), name="id")
             ),
             sort_order=SortOrder(SortField(source_id=2, transform=IdentityTransform())),
             properties={"owner": "fokko"},
