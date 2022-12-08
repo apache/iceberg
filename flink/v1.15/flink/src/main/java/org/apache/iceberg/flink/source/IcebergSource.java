@@ -400,7 +400,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         throw new UncheckedIOException(e);
       }
 
-      contextBuilder.settleConfig(table, readOptions, flinkConfig);
+      contextBuilder.resolveConfig(table, readOptions, flinkConfig);
 
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {

@@ -259,28 +259,31 @@ public class ScanContext implements Serializable {
   }
 
   public static class Builder {
-    private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE_DEFAULT;
+    private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue();
     private Long snapshotId = FlinkReadOptions.SNAPSHOT_ID.defaultValue();
-    private StreamingStartingStrategy startingStrategy = FlinkReadOptions.STARTING_STRATEGY_DEFAULT;
+    private StreamingStartingStrategy startingStrategy =
+        FlinkReadOptions.STARTING_STRATEGY_OPTION.defaultValue();
     private Long startSnapshotTimestamp = FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.defaultValue();
     private Long startSnapshotId = FlinkReadOptions.START_SNAPSHOT_ID.defaultValue();
     private Long endSnapshotId = FlinkReadOptions.END_SNAPSHOT_ID.defaultValue();
     private Long asOfTimestamp = FlinkReadOptions.AS_OF_TIMESTAMP.defaultValue();
-    private Long splitSize = FlinkReadOptions.SPLIT_SIZE_DEFAULT;
-    private Integer splitLookback = FlinkReadOptions.SPLIT_LOOKBACK_DEFAULT;
-    private Long splitOpenFileCost = FlinkReadOptions.SPLIT_FILE_OPEN_COST_DEFAULT;
-    private boolean isStreaming = FlinkReadOptions.STREAMING_DEFAULT;
+    private Long splitSize = FlinkReadOptions.SPLIT_SIZE_OPTION.defaultValue();
+    private Integer splitLookback = FlinkReadOptions.SPLIT_LOOKBACK_OPTION.defaultValue();
+    private Long splitOpenFileCost = FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION.defaultValue();
+    private boolean isStreaming = FlinkReadOptions.STREAMING_OPTION.defaultValue();
     private Duration monitorInterval =
-        TimeUtils.parseDuration(FlinkReadOptions.MONITOR_INTERVAL_DEFAULT);
+        TimeUtils.parseDuration(FlinkReadOptions.MONITOR_INTERVAL_OPTION.defaultValue());
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
-    private long limit = FlinkReadOptions.LIMIT_DEFAULT;
-    private boolean includeColumnStats = FlinkReadOptions.INCLUDE_COLUMN_STATS_DEFAULT;
+    private long limit = FlinkReadOptions.LIMIT_OPTION.defaultValue();
+    private boolean includeColumnStats =
+        FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue();
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
-    private int maxPlanningSnapshotCount = FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT;
+    private int maxPlanningSnapshotCount =
+        FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue();
 
     private Builder() {}
 
@@ -384,7 +387,7 @@ public class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder settleConfig(
+    public Builder resolveConfig(
         Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
       FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
 

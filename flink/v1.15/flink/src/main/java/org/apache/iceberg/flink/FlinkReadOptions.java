@@ -33,20 +33,17 @@ public class FlinkReadOptions {
       ConfigOptions.key("snapshot-id").longType().defaultValue(null);
 
   public static final String CASE_SENSITIVE = "case-sensitive";
-  public static final boolean CASE_SENSITIVE_DEFAULT = false;
   public static final ConfigOption<Boolean> CASE_SENSITIVE_OPTION =
-      ConfigOptions.key(PREFIX + CASE_SENSITIVE).booleanType().defaultValue(CASE_SENSITIVE_DEFAULT);
+      ConfigOptions.key(PREFIX + CASE_SENSITIVE).booleanType().defaultValue(false);
 
   public static final ConfigOption<Long> AS_OF_TIMESTAMP =
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);
 
   public static final String STARTING_STRATEGY = "starting-strategy";
-  public static final StreamingStartingStrategy STARTING_STRATEGY_DEFAULT =
-      StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT;
   public static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY_OPTION =
       ConfigOptions.key(PREFIX + STARTING_STRATEGY)
           .enumType(StreamingStartingStrategy.class)
-          .defaultValue(STARTING_STRATEGY_DEFAULT);
+          .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT);
 
   public static final ConfigOption<Long> START_SNAPSHOT_TIMESTAMP =
       ConfigOptions.key("start-snapshot-timestamp").longType().defaultValue(null);
@@ -58,51 +55,42 @@ public class FlinkReadOptions {
       ConfigOptions.key("end-snapshot-id").longType().defaultValue(null);
 
   public static final String SPLIT_SIZE = "split-size";
-  public static final long SPLIT_SIZE_DEFAULT = TableProperties.SPLIT_SIZE_DEFAULT;
   public static final ConfigOption<Long> SPLIT_SIZE_OPTION =
-      ConfigOptions.key(PREFIX + SPLIT_SIZE).longType().defaultValue(SPLIT_SIZE_DEFAULT);
+      ConfigOptions.key(PREFIX + SPLIT_SIZE)
+          .longType()
+          .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT);
 
   public static final String SPLIT_LOOKBACK = "split-lookback";
-  public static final int SPLIT_LOOKBACK_DEFAULT = TableProperties.SPLIT_LOOKBACK_DEFAULT;
   public static final ConfigOption<Integer> SPLIT_LOOKBACK_OPTION =
-      ConfigOptions.key(PREFIX + SPLIT_LOOKBACK).intType().defaultValue(SPLIT_LOOKBACK_DEFAULT);
+      ConfigOptions.key(PREFIX + SPLIT_LOOKBACK)
+          .intType()
+          .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
   public static final String SPLIT_FILE_OPEN_COST = "split-file-open-cost";
-  public static final long SPLIT_FILE_OPEN_COST_DEFAULT =
-      TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
   public static final ConfigOption<Long> SPLIT_FILE_OPEN_COST_OPTION =
       ConfigOptions.key(PREFIX + SPLIT_FILE_OPEN_COST)
           .longType()
           .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
   public static final String STREAMING = "streaming";
-  public static final boolean STREAMING_DEFAULT = false;
   public static final ConfigOption<Boolean> STREAMING_OPTION =
-      ConfigOptions.key(PREFIX + STREAMING).booleanType().defaultValue(STREAMING_DEFAULT);
+      ConfigOptions.key(PREFIX + STREAMING).booleanType().defaultValue(false);
 
   public static final String MONITOR_INTERVAL = "monitor-interval";
-  public static final String MONITOR_INTERVAL_DEFAULT = "60s";
   public static final ConfigOption<String> MONITOR_INTERVAL_OPTION =
-      ConfigOptions.key(PREFIX + MONITOR_INTERVAL)
-          .stringType()
-          .defaultValue(MONITOR_INTERVAL_DEFAULT);
+      ConfigOptions.key(PREFIX + MONITOR_INTERVAL).stringType().defaultValue("60s");
 
   public static final String INCLUDE_COLUMN_STATS = "include-column-stats";
-  public static final boolean INCLUDE_COLUMN_STATS_DEFAULT = false;
   public static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS_OPTION =
-      ConfigOptions.key(PREFIX + INCLUDE_COLUMN_STATS)
-          .booleanType()
-          .defaultValue(INCLUDE_COLUMN_STATS_DEFAULT);
+      ConfigOptions.key(PREFIX + INCLUDE_COLUMN_STATS).booleanType().defaultValue(false);
 
   public static final String MAX_PLANNING_SNAPSHOT_COUNT = "max-planning-snapshot-count";
-  public static final int MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT = Integer.MAX_VALUE;
   public static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT_OPTION =
       ConfigOptions.key(PREFIX + MAX_PLANNING_SNAPSHOT_COUNT)
           .intType()
           .defaultValue(Integer.MAX_VALUE);
 
   public static final String LIMIT = "limit";
-  public static final long LIMIT_DEFAULT = -1;
   public static final ConfigOption<Long> LIMIT_OPTION =
-      ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(LIMIT_DEFAULT);
+      ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);
 }

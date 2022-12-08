@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
 import java.time.Duration;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
@@ -46,7 +44,7 @@ public class FlinkReadConf {
         .booleanConf()
         .option(FlinkReadOptions.CASE_SENSITIVE)
         .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
-        .defaultValue(FlinkReadOptions.CASE_SENSITIVE_DEFAULT)
+        .defaultValue(FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue())
         .parse();
   }
 
@@ -113,7 +111,7 @@ public class FlinkReadConf {
         .booleanConf()
         .option(FlinkReadOptions.STREAMING)
         .flinkConfig(FlinkReadOptions.STREAMING_OPTION)
-        .defaultValue(FlinkReadOptions.STREAMING_DEFAULT)
+        .defaultValue(FlinkReadOptions.STREAMING_OPTION.defaultValue())
         .parse();
   }
 
@@ -123,7 +121,7 @@ public class FlinkReadConf {
             .stringConf()
             .option(FlinkReadOptions.MONITOR_INTERVAL)
             .flinkConfig(FlinkReadOptions.MONITOR_INTERVAL_OPTION)
-            .defaultValue(FlinkReadOptions.MONITOR_INTERVAL_DEFAULT)
+            .defaultValue(FlinkReadOptions.MONITOR_INTERVAL_OPTION.defaultValue())
             .parse();
 
     return TimeUtils.parseDuration(duration);
@@ -134,7 +132,7 @@ public class FlinkReadConf {
         .booleanConf()
         .option(FlinkReadOptions.INCLUDE_COLUMN_STATS)
         .flinkConfig(FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION)
-        .defaultValue(FlinkReadOptions.INCLUDE_COLUMN_STATS_DEFAULT)
+        .defaultValue(FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION.defaultValue())
         .parse();
   }
 
@@ -143,12 +141,12 @@ public class FlinkReadConf {
         .intConf()
         .option(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT)
         .flinkConfig(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION)
-        .defaultValue(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT)
+        .defaultValue(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue())
         .parse();
   }
 
   public String nameMapping() {
-    return confParser.stringConf().option(DEFAULT_NAME_MAPPING).parseOptional();
+    return confParser.stringConf().option(TableProperties.DEFAULT_NAME_MAPPING).parseOptional();
   }
 
   public long limit() {
@@ -156,7 +154,7 @@ public class FlinkReadConf {
         .longConf()
         .option(FlinkReadOptions.LIMIT)
         .flinkConfig(FlinkReadOptions.LIMIT_OPTION)
-        .defaultValue(FlinkReadOptions.LIMIT_DEFAULT)
+        .defaultValue(FlinkReadOptions.LIMIT_OPTION.defaultValue())
         .parse();
   }
 

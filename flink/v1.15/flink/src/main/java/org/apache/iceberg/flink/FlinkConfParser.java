@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
@@ -35,8 +34,7 @@ class FlinkConfParser {
   private final Map<String, String> options;
   private final ReadableConfig readableConfig;
 
-  FlinkConfParser(
-      @Nullable Table table, Map<String, String> options, ReadableConfig readableConfig) {
+  FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
     this.tableProperties = table == null ? Maps.newHashMap() : table.properties();
     this.options = options;
     this.readableConfig = readableConfig;
