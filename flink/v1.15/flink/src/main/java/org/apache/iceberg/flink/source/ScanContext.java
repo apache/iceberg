@@ -259,7 +259,7 @@ public class ScanContext implements Serializable {
   }
 
   public static class Builder {
-    private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE.defaultValue();
+    private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE_DEFAULT;
     private Long snapshotId = FlinkReadOptions.SNAPSHOT_ID.defaultValue();
     private StreamingStartingStrategy startingStrategy = FlinkReadOptions.STARTING_STRATEGY_DEFAULT;
     private Long startSnapshotTimestamp = FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.defaultValue();

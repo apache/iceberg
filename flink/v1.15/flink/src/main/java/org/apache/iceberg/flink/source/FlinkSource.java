@@ -135,7 +135,7 @@ public class FlinkSource {
     }
 
     public Builder caseSensitive(boolean caseSensitive) {
-      readOptions.put(FlinkReadOptions.CASE_SENSITIVE.key(), Boolean.toString(caseSensitive));
+      readOptions.put(FlinkReadOptions.CASE_SENSITIVE, Boolean.toString(caseSensitive));
       return this;
     }
 

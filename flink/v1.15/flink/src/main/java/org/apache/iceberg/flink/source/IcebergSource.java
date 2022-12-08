@@ -242,7 +242,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> caseSensitive(boolean newCaseSensitive) {
-      readOptions.put(FlinkReadOptions.CASE_SENSITIVE.key(), Boolean.toString(newCaseSensitive));
+      readOptions.put(FlinkReadOptions.CASE_SENSITIVE, Boolean.toString(newCaseSensitive));
       return this;
     }
 

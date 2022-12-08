@@ -32,8 +32,10 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> SNAPSHOT_ID =
       ConfigOptions.key("snapshot-id").longType().defaultValue(null);
 
-  public static final ConfigOption<Boolean> CASE_SENSITIVE =
-      ConfigOptions.key("case-sensitive").booleanType().defaultValue(false);
+  public static final String CASE_SENSITIVE = "case-sensitive";
+  public static final boolean CASE_SENSITIVE_DEFAULT = false;
+  public static final ConfigOption<Boolean> CASE_SENSITIVE_OPTION =
+      ConfigOptions.key(PREFIX + CASE_SENSITIVE).booleanType().defaultValue(CASE_SENSITIVE_DEFAULT);
 
   public static final ConfigOption<Long> AS_OF_TIMESTAMP =
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);

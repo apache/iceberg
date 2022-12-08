@@ -44,9 +44,9 @@ public class FlinkReadConf {
   public boolean caseSensitive() {
     return confParser
         .booleanConf()
-        .option(FlinkReadOptions.CASE_SENSITIVE.key())
-        .flinkConfig(FlinkReadOptions.CASE_SENSITIVE)
-        .defaultValue(FlinkReadOptions.CASE_SENSITIVE.defaultValue())
+        .option(FlinkReadOptions.CASE_SENSITIVE)
+        .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
+        .defaultValue(FlinkReadOptions.CASE_SENSITIVE_DEFAULT)
         .parse();
   }
 
