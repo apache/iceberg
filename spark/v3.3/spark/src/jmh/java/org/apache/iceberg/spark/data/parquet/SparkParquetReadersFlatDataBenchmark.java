@@ -88,7 +88,7 @@ public class SparkParquetReadersFlatDataBenchmark {
           required(1, "longCol", Types.LongType.get()),
           optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
           optional(8, "stringCol", Types.StringType.get()));
-  private static final int NUM_RECORDS = 10000000;
+  private static final int NUM_RECORDS = 1000000;
   private File dataFile;
 
   @Setup
