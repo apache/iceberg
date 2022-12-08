@@ -26,6 +26,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class FlinkConfParser {
 
@@ -34,7 +35,7 @@ class FlinkConfParser {
   private final ReadableConfig readableConfig;
 
   FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
-    this.tableProperties = table.properties();
+    this.tableProperties = table == null ? Maps.newHashMap() : table.properties();
     this.options = options;
     this.readableConfig = readableConfig;
   }
@@ -49,6 +50,10 @@ class FlinkConfParser {
 
   public LongConfParser longConf() {
     return new LongConfParser();
+  }
+
+  public <E extends Enum<E>> EnumConfParser<E> enumConfParser(Class<E> enumClass) {
+    return new EnumConfParser<>(enumClass);
   }
 
   public StringConfParser stringConf() {
@@ -145,6 +150,34 @@ class FlinkConfParser {
 
     public String parseOptional() {
       return parse(Function.identity(), null);
+    }
+  }
+
+  class EnumConfParser<E extends Enum<E>> extends ConfParser<EnumConfParser<E>, E> {
+    private E defaultValue;
+    private final Class<E> enumClass;
+
+    EnumConfParser(Class<E> enumClass) {
+      this.enumClass = enumClass;
+    }
+
+    @Override
+    protected EnumConfParser<E> self() {
+      return this;
+    }
+
+    public EnumConfParser<E> defaultValue(E value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public E parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(s -> Enum.valueOf(enumClass, s), defaultValue);
+    }
+
+    public E parseOptional() {
+      return parse(s -> Enum.valueOf(enumClass, s), null);
     }
   }
 
