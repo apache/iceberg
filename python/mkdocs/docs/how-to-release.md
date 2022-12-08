@@ -134,3 +134,13 @@ EOF
 
 cat release-announcement-email.txt
 ```
+
+## Vote has passed
+
+Once the vote has been passed, we can release the latest version to PyPi. Check out the commit associated with the passing vote, and run:
+
+```bash
+rm -rf dist/
+poetry build
+twine upload -s dist/*
+```
