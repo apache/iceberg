@@ -155,6 +155,7 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
             .set("spark.sql.caseSensitive", "false")
+            .set("spark.sql.parquet.fieldId.write.enabled", "false")
             .callInit()
             .build()) {
 
