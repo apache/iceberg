@@ -261,28 +261,26 @@ public class ScanContext implements Serializable {
   public static class Builder {
     private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE.defaultValue();
     private Long snapshotId = FlinkReadOptions.SNAPSHOT_ID.defaultValue();
-    private StreamingStartingStrategy startingStrategy =
-        FlinkReadOptions.STARTING_STRATEGY.defaultValue();
+    private StreamingStartingStrategy startingStrategy = FlinkReadOptions.STARTING_STRATEGY_DEFAULT;
     private Long startSnapshotTimestamp = FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.defaultValue();
     private Long startSnapshotId = FlinkReadOptions.START_SNAPSHOT_ID.defaultValue();
     private Long endSnapshotId = FlinkReadOptions.END_SNAPSHOT_ID.defaultValue();
     private Long asOfTimestamp = FlinkReadOptions.AS_OF_TIMESTAMP.defaultValue();
-    private Long splitSize = FlinkReadOptions.SPLIT_SIZE.defaultValue();
-    private Integer splitLookback = FlinkReadOptions.SPLIT_LOOKBACK.defaultValue();
-    private Long splitOpenFileCost = FlinkReadOptions.SPLIT_FILE_OPEN_COST.defaultValue();
-    private boolean isStreaming = FlinkReadOptions.STREAMING.defaultValue();
+    private Long splitSize = FlinkReadOptions.SPLIT_SIZE_DEFAULT;
+    private Integer splitLookback = FlinkReadOptions.SPLIT_LOOKBACK_DEFAULT;
+    private Long splitOpenFileCost = FlinkReadOptions.SPLIT_FILE_OPEN_COST_DEFAULT;
+    private boolean isStreaming = FlinkReadOptions.STREAMING_DEFAULT;
     private Duration monitorInterval =
-        TimeUtils.parseDuration(FlinkReadOptions.MONITOR_INTERVAL.defaultValue());
+        TimeUtils.parseDuration(FlinkReadOptions.MONITOR_INTERVAL_DEFAULT);
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
-    private long limit = FlinkReadOptions.LIMIT.defaultValue();
-    private boolean includeColumnStats = FlinkReadOptions.INCLUDE_COLUMN_STATS.defaultValue();
+    private long limit = FlinkReadOptions.LIMIT_DEFAULT;
+    private boolean includeColumnStats = FlinkReadOptions.INCLUDE_COLUMN_STATS_DEFAULT;
     private boolean exposeLocality;
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
-    private int maxPlanningSnapshotCount =
-        FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT.defaultValue();
+    private int maxPlanningSnapshotCount = FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT;
 
     private Builder() {}
 

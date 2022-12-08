@@ -57,8 +57,8 @@ public class FlinkReadConf {
   public StreamingStartingStrategy startingStrategy() {
     return confParser
         .enumConfParser(StreamingStartingStrategy.class)
-        .option(FlinkReadOptions.STARTING_STRATEGY.key())
-        .flinkConfig(FlinkReadOptions.STARTING_STRATEGY)
+        .option(FlinkReadOptions.STARTING_STRATEGY)
+        .flinkConfig(FlinkReadOptions.STARTING_STRATEGY_OPTION)
         .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
         .parse();
   }
@@ -81,8 +81,8 @@ public class FlinkReadConf {
   public long splitSize() {
     return confParser
         .longConf()
-        .option(FlinkReadOptions.SPLIT_SIZE.key())
-        .flinkConfig(FlinkReadOptions.SPLIT_SIZE)
+        .option(FlinkReadOptions.SPLIT_SIZE)
+        .flinkConfig(FlinkReadOptions.SPLIT_SIZE_OPTION)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
@@ -91,8 +91,8 @@ public class FlinkReadConf {
   public int splitLookback() {
     return confParser
         .intConf()
-        .option(FlinkReadOptions.SPLIT_LOOKBACK.key())
-        .flinkConfig(FlinkReadOptions.SPLIT_LOOKBACK)
+        .option(FlinkReadOptions.SPLIT_LOOKBACK)
+        .flinkConfig(FlinkReadOptions.SPLIT_LOOKBACK_OPTION)
         .tableProperty(TableProperties.SPLIT_LOOKBACK)
         .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT)
         .parse();
@@ -101,8 +101,8 @@ public class FlinkReadConf {
   public long splitFileOpenCost() {
     return confParser
         .longConf()
-        .option(FlinkReadOptions.SPLIT_FILE_OPEN_COST.key())
-        .flinkConfig(FlinkReadOptions.SPLIT_FILE_OPEN_COST)
+        .option(FlinkReadOptions.SPLIT_FILE_OPEN_COST)
+        .flinkConfig(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION)
         .tableProperty(TableProperties.SPLIT_OPEN_FILE_COST)
         .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT)
         .parse();
@@ -111,9 +111,9 @@ public class FlinkReadConf {
   public boolean streaming() {
     return confParser
         .booleanConf()
-        .option(FlinkReadOptions.STREAMING.key())
-        .flinkConfig(FlinkReadOptions.STREAMING)
-        .defaultValue(FlinkReadOptions.STREAMING.defaultValue())
+        .option(FlinkReadOptions.STREAMING)
+        .flinkConfig(FlinkReadOptions.STREAMING_OPTION)
+        .defaultValue(FlinkReadOptions.STREAMING_DEFAULT)
         .parse();
   }
 
@@ -121,9 +121,9 @@ public class FlinkReadConf {
     String duration =
         confParser
             .stringConf()
-            .option(FlinkReadOptions.MONITOR_INTERVAL.key())
-            .flinkConfig(FlinkReadOptions.MONITOR_INTERVAL)
-            .defaultValue(FlinkReadOptions.MONITOR_INTERVAL.defaultValue())
+            .option(FlinkReadOptions.MONITOR_INTERVAL)
+            .flinkConfig(FlinkReadOptions.MONITOR_INTERVAL_OPTION)
+            .defaultValue(FlinkReadOptions.MONITOR_INTERVAL_DEFAULT)
             .parse();
 
     return TimeUtils.parseDuration(duration);
@@ -132,18 +132,18 @@ public class FlinkReadConf {
   public boolean includeColumnStats() {
     return confParser
         .booleanConf()
-        .option(FlinkReadOptions.INCLUDE_COLUMN_STATS.key())
-        .flinkConfig(FlinkReadOptions.INCLUDE_COLUMN_STATS)
-        .defaultValue(FlinkReadOptions.INCLUDE_COLUMN_STATS.defaultValue())
+        .option(FlinkReadOptions.INCLUDE_COLUMN_STATS)
+        .flinkConfig(FlinkReadOptions.INCLUDE_COLUMN_STATS_OPTION)
+        .defaultValue(FlinkReadOptions.INCLUDE_COLUMN_STATS_DEFAULT)
         .parse();
   }
 
   public int maxPlanningSnapshotCount() {
     return confParser
         .intConf()
-        .option(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT.key())
-        .flinkConfig(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT)
-        .defaultValue(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT.defaultValue())
+        .option(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT)
+        .flinkConfig(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION)
+        .defaultValue(FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT)
         .parse();
   }
 
@@ -154,8 +154,9 @@ public class FlinkReadConf {
   public long limit() {
     return confParser
         .longConf()
-        .option(FlinkReadOptions.LIMIT.key())
-        .defaultValue(FlinkReadOptions.LIMIT.defaultValue())
+        .option(FlinkReadOptions.LIMIT)
+        .flinkConfig(FlinkReadOptions.LIMIT_OPTION)
+        .defaultValue(FlinkReadOptions.LIMIT_DEFAULT)
         .parse();
   }
 

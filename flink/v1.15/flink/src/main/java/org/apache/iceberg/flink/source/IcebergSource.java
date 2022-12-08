@@ -254,7 +254,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> streamingStartingStrategy(StreamingStartingStrategy newStartingStrategy) {
-      readOptions.put(FlinkReadOptions.STARTING_STRATEGY.key(), newStartingStrategy.name());
+      readOptions.put(FlinkReadOptions.STARTING_STRATEGY, newStartingStrategy.name());
       return this;
     }
 
@@ -291,36 +291,34 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> splitSize(Long newSplitSize) {
       if (newSplitSize != null) {
-        readOptions.put(FlinkReadOptions.SPLIT_SIZE.key(), Long.toString(newSplitSize));
+        readOptions.put(FlinkReadOptions.SPLIT_SIZE, Long.toString(newSplitSize));
       }
       return this;
     }
 
     public Builder<T> splitLookback(Integer newSplitLookback) {
       if (newSplitLookback != null) {
-        readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK.key(), Integer.toString(newSplitLookback));
+        readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK, Integer.toString(newSplitLookback));
       }
       return this;
     }
 
     public Builder<T> splitOpenFileCost(Long newSplitOpenFileCost) {
       if (newSplitOpenFileCost != null) {
-        readOptions.put(
-            FlinkReadOptions.SPLIT_FILE_OPEN_COST.key(), Long.toString(newSplitOpenFileCost));
+        readOptions.put(FlinkReadOptions.SPLIT_FILE_OPEN_COST, Long.toString(newSplitOpenFileCost));
       }
 
       return this;
     }
 
     public Builder<T> streaming(boolean streaming) {
-      readOptions.put(FlinkReadOptions.STREAMING.key(), Boolean.toString(streaming));
+      readOptions.put(FlinkReadOptions.STREAMING, Boolean.toString(streaming));
       return this;
     }
 
     public Builder<T> monitorInterval(Duration newMonitorInterval) {
       if (newMonitorInterval != null) {
-        readOptions.put(
-            FlinkReadOptions.MONITOR_INTERVAL.key(), newMonitorInterval.toNanos() + " ns");
+        readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, newMonitorInterval.toNanos() + " ns");
       }
       return this;
     }
@@ -346,13 +344,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> limit(long newLimit) {
-      readOptions.put(FlinkReadOptions.LIMIT.key(), Long.toString(newLimit));
+      readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
       return this;
     }
 
     public Builder<T> includeColumnStats(boolean newIncludeColumnStats) {
       readOptions.put(
-          FlinkReadOptions.INCLUDE_COLUMN_STATS.key(), Boolean.toString(newIncludeColumnStats));
+          FlinkReadOptions.INCLUDE_COLUMN_STATS, Boolean.toString(newIncludeColumnStats));
       return this;
     }
 

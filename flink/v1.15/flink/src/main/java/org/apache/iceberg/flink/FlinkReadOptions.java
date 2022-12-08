@@ -25,6 +25,8 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 /** Flink source read options */
 public class FlinkReadOptions {
+  private static final String PREFIX = "connector.iceberg.";
+
   private FlinkReadOptions() {}
 
   public static final ConfigOption<Long> SNAPSHOT_ID =
@@ -36,10 +38,13 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> AS_OF_TIMESTAMP =
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);
 
-  public static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY =
-      ConfigOptions.key("connector.iceberg.starting-strategy")
+  public static final String STARTING_STRATEGY = "starting-strategy";
+  public static final StreamingStartingStrategy STARTING_STRATEGY_DEFAULT =
+      StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT;
+  public static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY_OPTION =
+      ConfigOptions.key(PREFIX + STARTING_STRATEGY)
           .enumType(StreamingStartingStrategy.class)
-          .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT);
+          .defaultValue(STARTING_STRATEGY_DEFAULT);
 
   public static final ConfigOption<Long> START_SNAPSHOT_TIMESTAMP =
       ConfigOptions.key("start-snapshot-timestamp").longType().defaultValue(null);
@@ -50,35 +55,52 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> END_SNAPSHOT_ID =
       ConfigOptions.key("end-snapshot-id").longType().defaultValue(null);
 
-  public static final ConfigOption<Long> SPLIT_SIZE =
-      ConfigOptions.key("connector.iceberg.split-size")
-          .longType()
-          .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT);
+  public static final String SPLIT_SIZE = "split-size";
+  public static final long SPLIT_SIZE_DEFAULT = TableProperties.SPLIT_SIZE_DEFAULT;
+  public static final ConfigOption<Long> SPLIT_SIZE_OPTION =
+      ConfigOptions.key(PREFIX + SPLIT_SIZE).longType().defaultValue(SPLIT_SIZE_DEFAULT);
 
-  public static final ConfigOption<Integer> SPLIT_LOOKBACK =
-      ConfigOptions.key("connector.iceberg.split-lookback")
-          .intType()
-          .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT);
+  public static final String SPLIT_LOOKBACK = "split-lookback";
+  public static final int SPLIT_LOOKBACK_DEFAULT = TableProperties.SPLIT_LOOKBACK_DEFAULT;
+  public static final ConfigOption<Integer> SPLIT_LOOKBACK_OPTION =
+      ConfigOptions.key(PREFIX + SPLIT_LOOKBACK).intType().defaultValue(SPLIT_LOOKBACK_DEFAULT);
 
-  public static final ConfigOption<Long> SPLIT_FILE_OPEN_COST =
-      ConfigOptions.key("connector.iceberg.split-file-open-cost")
+  public static final String SPLIT_FILE_OPEN_COST = "split-file-open-cost";
+  public static final long SPLIT_FILE_OPEN_COST_DEFAULT =
+      TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
+  public static final ConfigOption<Long> SPLIT_FILE_OPEN_COST_OPTION =
+      ConfigOptions.key(PREFIX + SPLIT_FILE_OPEN_COST)
           .longType()
           .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-  public static final ConfigOption<Boolean> STREAMING =
-      ConfigOptions.key("streaming").booleanType().defaultValue(false);
+  public static final String STREAMING = "streaming";
+  public static final boolean STREAMING_DEFAULT = false;
+  public static final ConfigOption<Boolean> STREAMING_OPTION =
+      ConfigOptions.key(PREFIX + STREAMING).booleanType().defaultValue(STREAMING_DEFAULT);
 
-  public static final ConfigOption<String> MONITOR_INTERVAL =
-      ConfigOptions.key("monitor-interval").stringType().defaultValue("60s");
+  public static final String MONITOR_INTERVAL = "monitor-interval";
+  public static final String MONITOR_INTERVAL_DEFAULT = "60s";
+  public static final ConfigOption<String> MONITOR_INTERVAL_OPTION =
+      ConfigOptions.key(PREFIX + MONITOR_INTERVAL)
+          .stringType()
+          .defaultValue(MONITOR_INTERVAL_DEFAULT);
 
-  public static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS =
-      ConfigOptions.key("connector.iceberg.include-column-stats").booleanType().defaultValue(false);
+  public static final String INCLUDE_COLUMN_STATS = "include-column-stats";
+  public static final boolean INCLUDE_COLUMN_STATS_DEFAULT = false;
+  public static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS_OPTION =
+      ConfigOptions.key(PREFIX + INCLUDE_COLUMN_STATS)
+          .booleanType()
+          .defaultValue(INCLUDE_COLUMN_STATS_DEFAULT);
 
-  public static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
-      ConfigOptions.key("connector.iceberg.max-planning-snapshot-count")
+  public static final String MAX_PLANNING_SNAPSHOT_COUNT = "max-planning-snapshot-count";
+  public static final int MAX_PLANNING_SNAPSHOT_COUNT_DEFAULT = Integer.MAX_VALUE;
+  public static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT_OPTION =
+      ConfigOptions.key(PREFIX + MAX_PLANNING_SNAPSHOT_COUNT)
           .intType()
           .defaultValue(Integer.MAX_VALUE);
 
-  public static final ConfigOption<Integer> LIMIT =
-      ConfigOptions.key("connector.iceberg.limit").intType().defaultValue(-1);
+  public static final String LIMIT = "limit";
+  public static final long LIMIT_DEFAULT = -1;
+  public static final ConfigOption<Long> LIMIT_OPTION =
+      ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(LIMIT_DEFAULT);
 }

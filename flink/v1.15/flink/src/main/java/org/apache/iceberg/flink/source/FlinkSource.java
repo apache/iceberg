@@ -45,6 +45,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,23 +160,22 @@ public class FlinkSource {
     }
 
     public Builder splitSize(Long splitSize) {
-      readOptions.put(FlinkReadOptions.SPLIT_SIZE.key(), Long.toString(splitSize));
+      readOptions.put(FlinkReadOptions.SPLIT_SIZE, Long.toString(splitSize));
       return this;
     }
 
     public Builder splitLookback(Integer splitLookback) {
-      readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK.key(), Integer.toString(splitLookback));
+      readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK, Integer.toString(splitLookback));
       return this;
     }
 
     public Builder splitOpenFileCost(Long splitOpenFileCost) {
-      readOptions.put(
-          FlinkReadOptions.SPLIT_FILE_OPEN_COST.key(), Long.toString(splitOpenFileCost));
+      readOptions.put(FlinkReadOptions.SPLIT_FILE_OPEN_COST, Long.toString(splitOpenFileCost));
       return this;
     }
 
     public Builder streaming(boolean streaming) {
-      readOptions.put(FlinkReadOptions.STREAMING.key(), Boolean.toString(streaming));
+      readOptions.put(FlinkReadOptions.STREAMING, Boolean.toString(streaming));
       return this;
     }
 
@@ -190,13 +190,13 @@ public class FlinkSource {
     }
 
     public Builder monitorInterval(Duration interval) {
-      readOptions.put(FlinkReadOptions.MONITOR_INTERVAL.key(), interval.toNanos() + " ns");
+      readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, interval.toNanos() + " ns");
       return this;
     }
 
     public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
       readOptions.put(
-          FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT.key(),
+          FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT,
           Integer.toString(newMaxPlanningSnapshotCount));
       return this;
     }
@@ -284,7 +284,6 @@ public class FlinkSource {
   }
 
   public static boolean isBounded(Map<String, String> properties) {
-    return !Boolean.parseBoolean(
-        properties.getOrDefault(FlinkReadOptions.STREAMING.key(), "false"));
+    return !PropertyUtil.propertyAsBoolean(properties, FlinkReadOptions.STREAMING, false);
   }
 }
