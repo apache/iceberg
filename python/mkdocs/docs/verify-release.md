@@ -71,13 +71,13 @@ Run RAT checks to validate license header:
 
 ## Testing
 
-First we need it install the package:
+First step is to install the package:
 
 ```sh
 make install
 ```
 
-And then we can run the tests:
+And then run the tests:
 
 ```sh
 make test

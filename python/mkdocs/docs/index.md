@@ -19,71 +19,39 @@
 
 PyIceberg is a Python implementation for accessing Iceberg tables, without the need of a JVM.
 
-# Feature Support
+## Install
 
-The goal is that the python library will provide a functional, performant subset of the Java library. The initial focus has been on reading table metadata and provide a convenient CLI to go through the catalog.
+You can install the latest release version from pypi:
 
-## Metadata
+```sh
+pip3 install "pyiceberg[s3fs,hive]"
+```
 
-| Operation                | Java  | Python |
-|:-------------------------|:-----:|:------:|
-| Get Schema               |    X  |   X    |
-| Get Snapshots            |    X  |   X    |
-| Plan Scan                |    X  |   X    |
-| Plan Scan for Snapshot   |    X  |   X    |
-| Update Current Snapshot  |    X  |        |
-| Create Table             |    X  |   X    |
-| Rename Table             |    X  |   X    |
-| Drop Table               |    X  |   X    |
-| Alter Table              |    X  |        |
-| Set Table Properties     |    X  |        |
-| Create Namespace         |    X  |   X    |
-| Drop Namespace           |    X  |   X    |
-| Set Namespace Properties |    X  |   X    |
+Install it directly for Github (not recommended), but sometimes handy:
 
-## Types
+```
+pip install "git+https://github.com/apache/iceberg.git#subdirectory=python&egg=pyiceberg[s3fs]"
+```
 
-The types are kept in `pyiceberg.types`.
+Or clone the repository for local development:
 
-Primitive types:
+```sh
+git clone https://github.com/apache/iceberg.git
+cd iceberg/python
+pip3 install -e ".[s3fs,hive]"
+```
 
-- `BooleanType`
-- `StringType`
-- `IntegerType`
-- `LongType`
-- `FloatType`
-- `DoubleType`
-- `DateType`
-- `TimeType`
-- `TimestampType`
-- `TimestamptzType`
-- `BinaryType`
-- `UUIDType`
+You can mix and match optional dependencies depending on your needs:
 
-Complex types:
+| Key     | Description:                                                         |
+|---------|----------------------------------------------------------------------|
+| hive    | Support for the Hive metastore                                       |
+| glue    | Support for AWS Glue                                                 |
+| pyarrow | PyArrow as a FileIO implementation to interact with the object store |
+| duckdb  | Installs both PyArrow and DuckDB                                     |
+| s3fs    | S3FS as a FileIO implementation to interact with the object store    |
+| snappy  | Support for snappy Avro compression                                  |
 
-- `StructType`
-- `ListType`
-- `MapType`
-- `FixedType(16)`
-- `DecimalType(8, 3)`
+You either need to install `s3fs` or `pyarrow` for fetching files.
 
-## Expressions
-
-The expressions are kept in `pyiceberg.expressions`.
-
-- `IsNull`
-- `NotNull`
-- `IsNaN`
-- `NotNaN`
-- `In`
-- `NotIn`
-- `EqualTo`
-- `NotEqualTo`
-- `GreaterThanOrEqual`
-- `GreaterThan`
-- `LessThanOrEqual`
-- `LessThan`
-- `And`
-- `Or`
-- `Not`
+There is both a [CLI](cli.md) and [Python API](api.md) available.
