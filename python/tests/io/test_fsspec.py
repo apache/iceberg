@@ -203,7 +203,7 @@ def test_writing_avro_file(generated_manifest_entry_file: Generator[str, None, N
         with fsspec_fileio.new_input(location=f"s3://warehouse/{filename}").open() as in_f:
             b2 = in_f.read()
             assert b1 == b2  # Check that bytes of read from local avro file match bytes written to s3
-    
+
     fsspec_fileio.delete(f"s3://warehouse/{filename}")
 
 
@@ -267,8 +267,8 @@ def test_fsspec_file_tell_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     filename = str(uuid.uuid4())
 
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
-    with output_file.create() as f:
-        f.write(b"foobar")
+    with output_file.create() as write_file:
+        write_file.write(b"foobar")
 
     input_file = adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}")
     f = input_file.open()
@@ -317,7 +317,7 @@ def test_fsspec_raise_on_opening_file_not_found_adlfs(adlfs_fsspec_fileio: Fsspe
 
     filename = str(uuid.uuid4())
     input_file = adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}")
-    with pytest.raises(FileNotFoundError) as exc_info:
+    with pytest.raises(FileNotFoundError):
         input_file.open().read()
 
     # filename is not propagated in FileNotFoundError for adlfs
@@ -374,7 +374,9 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_file
 
 
 @pytest.mark.adlfs
-def test_writing_avro_file_adlfs(generated_manifest_entry_file: Generator[str, None, None], adlfs_fsspec_fileio: FsspecFileIO) -> None:
+def test_writing_avro_file_adlfs(
+    generated_manifest_entry_file: Generator[str, None, None], adlfs_fsspec_fileio: FsspecFileIO
+) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
     with LocalInputFile(generated_manifest_entry_file).open() as f:
@@ -384,7 +386,7 @@ def test_writing_avro_file_adlfs(generated_manifest_entry_file: Generator[str, N
         with adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}").open() as in_f:
             b2 = in_f.read()
             assert b1 == b2  # Check that bytes of read from local avro file match bytes written to adlfs
-    
+
     adlfs_fsspec_fileio.delete(f"abfss://tests/{filename}")
 
 

@@ -86,11 +86,19 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     # ADLFS options
     parser.addoption(
-        "--adlfs.endpoint", action="store", default="http://127.0.0.1:10000", help="The ADLS endpoint URL for tests marked as adlfs"
+        "--adlfs.endpoint",
+        action="store",
+        default="http://127.0.0.1:10000",
+        help="The ADLS endpoint URL for tests marked as adlfs",
     )
-    parser.addoption("--adlfs.account-name", action="store", default="devstoreaccount1", help="The ADLS account key for tests marked as adlfs")
     parser.addoption(
-        "--adlfs.account-key", action="store", default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", help="The ADLS secret account key for tests marked as adlfs"
+        "--adlfs.account-name", action="store", default="devstoreaccount1", help="The ADLS account key for tests marked as adlfs"
+    )
+    parser.addoption(
+        "--adlfs.account-key",
+        action="store",
+        default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+        help="The ADLS secret account key for tests marked as adlfs",
     )
 
 
@@ -1271,7 +1279,7 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
 
 
 @pytest.fixture
-def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
+def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileIO, None, None]:
     from azure.storage.blob import BlobServiceClient
 
     azurite_url = request.config.getoption("--adlfs.endpoint")

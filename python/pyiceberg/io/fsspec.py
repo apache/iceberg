@@ -26,12 +26,12 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
+from adlfs import AzureBlobFileSystem
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
 from requests import HTTPError
 from s3fs import S3FileSystem
-from adlfs import AzureBlobFileSystem
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
@@ -106,9 +106,11 @@ def _s3(properties: Properties) -> AbstractFileSystem:
 
     return fs
 
+
 def _adlfs(properties: Properties) -> AbstractFileSystem:
     fs = AzureBlobFileSystem(**properties)
     return fs
+
 
 SCHEME_TO_FS = {
     "s3": _s3,
