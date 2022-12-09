@@ -107,16 +107,20 @@ public class BinaryUtil {
   }
 
   public static byte[] paddingTo8Byte(byte[] data) {
-    if (data.length == 8) {
+    return paddingToNByte(data, 8);
+  }
+
+  public static byte[] paddingToNByte(byte[] data, int paddingNum) {
+    if (data.length == paddingNum) {
       return data;
     }
-    if (data.length > 8) {
-      byte[] result = new byte[8];
-      System.arraycopy(data, 0, result, 0, 8);
+    if (data.length > paddingNum) {
+      byte[] result = new byte[paddingNum];
+      System.arraycopy(data, 0, result, 0, paddingNum);
       return result;
     }
-    int paddingSize = 8 - data.length;
-    byte[] result = new byte[8];
+    int paddingSize = paddingNum - data.length;
+    byte[] result = new byte[paddingNum];
     for (int i = 0; i < paddingSize; i++) {
       result[i] = 0;
     }

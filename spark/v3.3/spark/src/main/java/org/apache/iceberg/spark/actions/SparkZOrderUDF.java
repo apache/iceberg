@@ -284,7 +284,7 @@ class SparkZOrderUDF implements SparkSpaceCurveUDF, Serializable {
           .withName("INTERLEAVE_BYTES");
 
   @Override
-  public Column interleaveBytes(Column arrayBinary) {
+  public Column transform(Column arrayBinary) {
     return interleaveUDF.apply(arrayBinary);
   }
 

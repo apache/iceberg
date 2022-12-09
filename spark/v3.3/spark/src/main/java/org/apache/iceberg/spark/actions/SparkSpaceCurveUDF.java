@@ -25,7 +25,7 @@ public interface SparkSpaceCurveUDF {
 
   Column sortedLexicographically(Column column, DataType type);
 
-  Column interleaveBytes(Column arrayBinary);
+  Column transform(Column arrayBinary);
 
   /** strategies·such·as·Z-order/Hilbert·space-curves, etc */
   enum SparkSpaceStrategy {

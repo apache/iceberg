@@ -57,8 +57,9 @@ import org.apache.spark.sql.types.StructField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkSpaceCurveStrategy extends SparkSortStrategy {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkSpaceCurveStrategy.class);
+@Deprecated
+public class SparkZOrderStrategy extends SparkSortStrategy {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderStrategy.class);
 
   private static final String Z_COLUMN = "ICEZVALUE";
   private static final Schema Z_SCHEMA =
@@ -86,7 +87,6 @@ public class SparkSpaceCurveStrategy extends SparkSortStrategy {
   private static final int DEFAULT_VAR_LENGTH_CONTRIBUTION = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
 
   private final List<String> zOrderColNames;
-  private final SparkSpaceCurveUDF.SparkSpaceStrategy spaceCurveStrategy;
 
   private int maxOutputSize;
   private int varLengthContribution;
@@ -124,11 +124,7 @@ public class SparkSpaceCurveStrategy extends SparkSortStrategy {
     return this;
   }
 
-  public SparkSpaceCurveStrategy(
-      Table table,
-      SparkSession spark,
-      List<String> zOrderColNames,
-      SparkSpaceCurveUDF.SparkSpaceStrategy spaceCurveStrategy) {
+  public SparkZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
     super(table, spark);
 
     Preconditions.checkArgument(
@@ -156,7 +152,6 @@ public class SparkSpaceCurveStrategy extends SparkSortStrategy {
     validateColumnsExistence(table, spark, zOrderColNames);
 
     this.zOrderColNames = zOrderColNames;
-    this.spaceCurveStrategy = spaceCurveStrategy;
   }
 
   private void validateColumnsExistence(Table table, SparkSession spark, List<String> colNames) {
@@ -187,6 +182,9 @@ public class SparkSpaceCurveStrategy extends SparkSortStrategy {
 
   @Override
   public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    SparkZOrderUDF zOrderUDF =
+        new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
+
     String groupID = UUID.randomUUID().toString();
     boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table().spec());
 
@@ -227,29 +225,16 @@ public class SparkSpaceCurveStrategy extends SparkSortStrategy {
       List<StructField> zOrderColumns =
           zOrderColNames.stream().map(scanDF.schema()::apply).collect(Collectors.toList());
 
-      Dataset<Row> zvalueDF;
-      Column zvalueArray;
-      SparkSpaceCurveUDF udf;
-      switch (spaceCurveStrategy) {
-        case ZORDER:
-          udf = new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
-          break;
-        case HILBERT:
-          udf = new SparkHilbertUDF();
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              String.format("Not supported layout-optimization strategy (%s)", spaceCurveStrategy));
-      }
-      zvalueArray =
+      Column zvalueArray =
           functions.array(
               zOrderColumns.stream()
                   .map(
                       colStruct ->
-                          udf.sortedLexicographically(
+                          zOrderUDF.sortedLexicographically(
                               functions.col(colStruct.name()), colStruct.dataType()))
                   .toArray(Column[]::new));
-      zvalueDF = scanDF.withColumn(Z_COLUMN, udf.transform(zvalueArray));
+
+      Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, zOrderUDF.transform(zvalueArray));
 
       SQLConf sqlConf = cloneSession.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, zvalueDF.logicalPlan(), sqlConf);

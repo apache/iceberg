@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
@@ -62,7 +63,8 @@ class SparkHilbertUDF implements SparkSpaceCurveUDF, Serializable {
       longs1[i] = longs.get(i);
     }
     HilbertCurve hilbertCurve = HilbertCurve.bits(BITS_NUM).dimensions(points.size());
-    return HilbertCurveUtils.indexBytes(hilbertCurve, longs1, BITS_NUM);
+    BigInteger index = hilbertCurve.index(longs1);
+    return BinaryUtil.paddingToNByte(index.toByteArray(), BITS_NUM);
   }
 
   private UserDefinedFunction tinyToOrderedLongUDF() {
@@ -231,13 +233,13 @@ class SparkHilbertUDF implements SparkSpaceCurveUDF, Serializable {
     }
   }
 
-  private final UserDefinedFunction interleaveUDF =
+  private final UserDefinedFunction hilbertCurveUDF =
       functions
           .udf((Seq<Long> points) -> hilbertCurvePosBytes(points), DataTypes.BinaryType)
           .withName("HILBERT_LONG");
 
   @Override
-  public Column interleaveBytes(Column arrayBinary) {
-    return interleaveUDF.apply(arrayBinary);
+  public Column transform(Column arrayBinary) {
+    return hilbertCurveUDF.apply(arrayBinary);
   }
 }
