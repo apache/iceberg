@@ -1240,28 +1240,28 @@ public class TestMergeAppend extends TableTestBase {
 
     List<PartitionSpec> partitionSpecs = table.ops().current().specs();
     PartitionSpec partitionSpec = partitionSpecs.get(0);
-    Assert.assertEquals(1000, partitionSpec.lastAssignedFieldId());
+    Assert.assertEquals(10000, partitionSpec.lastAssignedFieldId());
 
     Types.StructType structType = partitionSpec.partitionType();
     List<Types.NestedField> fields = structType.fields();
     Assert.assertEquals(1, fields.size());
     Assert.assertEquals("data_bucket", fields.get(0).name());
-    Assert.assertEquals(1000, fields.get(0).fieldId());
+    Assert.assertEquals(10000, fields.get(0).fieldId());
 
     partitionSpec = partitionSpecs.get(1);
-    Assert.assertEquals(1003, partitionSpec.lastAssignedFieldId());
+    Assert.assertEquals(10003, partitionSpec.lastAssignedFieldId());
 
     structType = partitionSpec.partitionType();
     fields = structType.fields();
     Assert.assertEquals(4, fields.size());
     Assert.assertEquals("id_bucket", fields.get(0).name());
-    Assert.assertEquals(1000, fields.get(0).fieldId());
+    Assert.assertEquals(10000, fields.get(0).fieldId());
     Assert.assertEquals("data", fields.get(1).name());
-    Assert.assertEquals(1001, fields.get(1).fieldId());
+    Assert.assertEquals(10001, fields.get(1).fieldId());
     Assert.assertEquals("data_bucket", fields.get(2).name());
-    Assert.assertEquals(1002, fields.get(2).fieldId());
+    Assert.assertEquals(10002, fields.get(2).fieldId());
     Assert.assertEquals("data_partition", fields.get(3).name());
-    Assert.assertEquals(1003, fields.get(3).fieldId());
+    Assert.assertEquals(10003, fields.get(3).fieldId());
   }
 
   @Test
@@ -1338,10 +1338,10 @@ public class TestMergeAppend extends TableTestBase {
             .next();
     Types.NestedField field =
         ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals(10000, field.fieldId());
     Assert.assertEquals("id_bucket", field.name());
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
-    Assert.assertEquals(1001, field.fieldId());
+    Assert.assertEquals(10001, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
 
     entry =
@@ -1350,7 +1350,7 @@ public class TestMergeAppend extends TableTestBase {
             .iterator()
             .next();
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals(10000, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
   }
 

@@ -334,7 +334,7 @@ def test_load_table(hive_table: HiveTable) -> None:
             PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0)
         ],
         default_spec_id=0,
-        last_partition_id=1000,
+        last_partition_id=10000,
         properties={"read.split.target.size": "134217728"},
         current_snapshot_id=3055729675574597004,
         snapshots=[

@@ -139,8 +139,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
                     1,
                     "partition",
                     Types.StructType.of(
-                        optional(1000, "id", Types.IntegerType.get()),
-                        optional(1001, "nested.id", Types.IntegerType.get()))))
+                        optional(10000, "id", Types.IntegerType.get()),
+                        optional(10001, "nested.id", Types.IntegerType.get()))))
             .asStruct();
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");

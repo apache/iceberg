@@ -306,26 +306,26 @@ public class TestPartitionSpecValidation {
             .truncate("s", 1, "custom_truncate")
             .build();
 
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1001, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1002, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1003, spec.fields().get(3).fieldId());
-    Assert.assertEquals(1003, spec.lastAssignedFieldId());
+    Assert.assertEquals(10000, spec.fields().get(0).fieldId());
+    Assert.assertEquals(10001, spec.fields().get(1).fieldId());
+    Assert.assertEquals(10002, spec.fields().get(2).fieldId());
+    Assert.assertEquals(10003, spec.fields().get(3).fieldId());
+    Assert.assertEquals(10003, spec.lastAssignedFieldId());
   }
 
   @Test
   public void testAddPartitionFieldsWithFieldIds() {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA)
-            .add(1, 1005, "id_partition1", Transforms.bucket(4))
-            .add(1, 1006, "id_partition2", Transforms.bucket(5))
-            .add(1, 1002, "id_partition3", Transforms.bucket(6))
+            .add(1, 10005, "id_partition1", Transforms.bucket(4))
+            .add(1, 10006, "id_partition2", Transforms.bucket(5))
+            .add(1, 10002, "id_partition3", Transforms.bucket(6))
             .build();
 
-    Assert.assertEquals(1005, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1006, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1002, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1006, spec.lastAssignedFieldId());
+    Assert.assertEquals(10005, spec.fields().get(0).fieldId());
+    Assert.assertEquals(10006, spec.fields().get(1).fieldId());
+    Assert.assertEquals(10002, spec.fields().get(2).fieldId());
+    Assert.assertEquals(10006, spec.lastAssignedFieldId());
   }
 
   @Test
@@ -333,13 +333,13 @@ public class TestPartitionSpecValidation {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA)
             .add(1, "id_partition2", Transforms.bucket(5))
-            .add(1, 1005, "id_partition1", Transforms.bucket(4))
+            .add(1, 10005, "id_partition1", Transforms.bucket(4))
             .truncate("s", 1, "custom_truncate")
             .build();
 
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1005, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1006, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1006, spec.lastAssignedFieldId());
+    Assert.assertEquals(10000, spec.fields().get(0).fieldId());
+    Assert.assertEquals(10005, spec.fields().get(1).fieldId());
+    Assert.assertEquals(10006, spec.fields().get(2).fieldId());
+    Assert.assertEquals(10006, spec.lastAssignedFieldId());
   }
 }

@@ -305,7 +305,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 required(
                     1,
                     "partition",
-                    Types.StructType.of(optional(1000, "data_bucket", Types.IntegerType.get()))))
+                    Types.StructType.of(optional(10000, "data_bucket", Types.IntegerType.get()))))
             .asStruct();
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
@@ -481,11 +481,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Types.StructType actualType = schema.findField(DataFile.PARTITION_ID).type().asStructType();
     Types.StructType expectedType =
         Types.StructType.of(
-            Types.NestedField.optional(1000, "data_bucket", Types.IntegerType.get()),
-            Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
-            Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get()));
+            Types.NestedField.optional(10000, "data_bucket", Types.IntegerType.get()),
+            Types.NestedField.optional(10001, "data_bucket_16", Types.IntegerType.get()),
+            Types.NestedField.optional(10002, "data_trunc_2", Types.StringType.get()));
     Assert.assertEquals("Partition type must match", expectedType, actualType);
-    Accessor<StructLike> accessor = schema.accessorForField(1000);
+    Accessor<StructLike> accessor = schema.accessorForField(10000);
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Set<Integer> results =

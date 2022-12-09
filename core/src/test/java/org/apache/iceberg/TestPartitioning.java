@@ -74,8 +74,8 @@ public class TestPartitioning {
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "data", Types.StringType.get()),
-            NestedField.optional(1001, "category_bucket_8", Types.IntegerType.get()));
+            NestedField.optional(10000, "data", Types.StringType.get()),
+            NestedField.optional(10001, "category_bucket_8", Types.IntegerType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -91,8 +91,8 @@ public class TestPartitioning {
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "data", Types.StringType.get()),
-            NestedField.optional(1001, "category", Types.StringType.get()));
+            NestedField.optional(10000, "data", Types.StringType.get()),
+            NestedField.optional(10001, "category", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -109,8 +109,8 @@ public class TestPartitioning {
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p2", Types.StringType.get()),
-            NestedField.optional(1001, "category", Types.StringType.get()));
+            NestedField.optional(10000, "p2", Types.StringType.get()),
+            NestedField.optional(10001, "category", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -127,8 +127,8 @@ public class TestPartitioning {
     // in v1, we use void transforms instead of dropping partition fields
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "data_1000", Types.StringType.get()),
-            NestedField.optional(1001, "data", Types.StringType.get()));
+            NestedField.optional(10000, "data_10000", Types.StringType.get()),
+            NestedField.optional(10001, "data", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -144,7 +144,7 @@ public class TestPartitioning {
 
     // in v2, we should be able to reuse the original partition spec
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -179,7 +179,7 @@ public class TestPartitioning {
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -194,7 +194,7 @@ public class TestPartitioning {
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -210,7 +210,7 @@ public class TestPartitioning {
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -226,7 +226,7 @@ public class TestPartitioning {
     Assert.assertEquals("Should have 2 specs", 2, table.specs().size());
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -242,7 +242,7 @@ public class TestPartitioning {
     table.updateSpec().renameField("p1", "p2").commit();
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "p2", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "p2", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -258,7 +258,7 @@ public class TestPartitioning {
     table.updateSpec().renameField("p1", "p2").commit();
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "p2", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "p2", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -301,7 +301,7 @@ public class TestPartitioning {
     table.updateSpec().addField("data").commit();
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "category", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "category", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }
@@ -316,7 +316,7 @@ public class TestPartitioning {
     table.updateSpec().addField("data").commit();
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "category", Types.StringType.get()));
+        StructType.of(NestedField.optional(10000, "category", Types.StringType.get()));
     StructType actualType = Partitioning.groupingKeyType(table.specs().values());
     Assert.assertEquals("Types must match", expectedType, actualType);
   }

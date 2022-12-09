@@ -35,7 +35,7 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
             + "    \"source-id\" : 2,\n"
-            + "    \"field-id\" : 1000\n"
+            + "    \"field-id\" : 10000\n"
             + "  } ]\n"
             + "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
@@ -52,12 +52,12 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
             + "    \"source-id\" : 1,\n"
-            + "    \"field-id\" : 1000\n"
+            + "    \"field-id\" : 10000\n"
             + "  }, {\n"
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
             + "    \"source-id\" : 2,\n"
-            + "    \"field-id\" : 1001\n"
+            + "    \"field-id\" : 10001\n"
             + "  } ]\n"
             + "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
@@ -72,12 +72,12 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
             + "    \"source-id\" : 1,\n"
-            + "    \"field-id\" : 1001\n"
+            + "    \"field-id\" : 10001\n"
             + "  }, {\n"
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
             + "    \"source-id\" : 2,\n"
-            + "    \"field-id\" : 1000\n"
+            + "    \"field-id\" : 10000\n"
             + "  } ]\n"
             + "}";
 
@@ -85,8 +85,8 @@ public class TestPartitionSpecParser extends TableTestBase {
 
     Assert.assertEquals(2, spec.fields().size());
     // should be the field ids in the JSON
-    Assert.assertEquals(1001, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1000, spec.fields().get(1).fieldId());
+    Assert.assertEquals(10001, spec.fields().get(0).fieldId());
+    Assert.assertEquals(10000, spec.fields().get(1).fieldId());
   }
 
   @Test
@@ -109,8 +109,8 @@ public class TestPartitionSpecParser extends TableTestBase {
 
     Assert.assertEquals(2, spec.fields().size());
     // should be the default assignment
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1001, spec.fields().get(1).fieldId());
+    Assert.assertEquals(10000, spec.fields().get(0).fieldId());
+    Assert.assertEquals(10001, spec.fields().get(1).fieldId());
   }
 
   @Test

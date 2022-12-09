@@ -233,7 +233,7 @@ def all_avro_types() -> Dict[str, Any]:
                         "element-id": 1001,
                     },
                 ],
-                "field-id": 1000,
+                "field-id": 10000,
             },
             {
                 "name": "map_with_longs",
@@ -244,7 +244,7 @@ def all_avro_types() -> Dict[str, Any]:
                     "key-id": 1101,
                     "value-id": 1102,
                 },
-                "field-id": 1000,
+                "field-id": 10000,
             },
         ],
     }
@@ -273,7 +273,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
     ],
     "default-spec-id": 0,
     "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
-    "last-partition-id": 1000,
+    "last-partition-id": 10000,
     "default-sort-order-id": 3,
     "sort-orders": [
         {

@@ -289,7 +289,7 @@ def base_scan_partition(base_scan_schema, request):
     if request.param == "none":
         spec = PartitionSpec.unpartitioned()
     else:
-        spec = PartitionSpecBuilder(base_scan_schema).add(1, 1000, "id", "identity").build()
+        spec = PartitionSpecBuilder(base_scan_schema).add(1, 10000, "id", "identity").build()
     return spec
 
 

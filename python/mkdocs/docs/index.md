@@ -454,7 +454,7 @@ from pyiceberg.transforms import DayTransform
 
 partition_spec = PartitionSpec(
     PartitionField(
-        source_id=1, field_id=1000, transform=DayTransform(), name="datetime_day"
+        source_id=1, field_id=10000, transform=DayTransform(), name="datetime_day"
     )
 )
 
@@ -499,10 +499,10 @@ Table(
         current_schema_id=1,
         partition_specs=[
             PartitionSpec(
-                PartitionField(source_id=1, field_id=1000, transform=DayTransform(), name='datetime_day'),))
+                PartitionField(source_id=1, field_id=10000, transform=DayTransform(), name='datetime_day'),))
         ],
         default_spec_id=0,
-        last_partition_id=1000,
+        last_partition_id=10000,
         properties={},
         current_snapshot_id=None,
         snapshots=[],

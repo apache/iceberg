@@ -1039,7 +1039,7 @@ Partition specs are serialized as a JSON object with the following fields:
 |Field|JSON representation|Example|
 |--- |--- |--- |
 |**`spec-id`**|`JSON int`|`0`|
-|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
+|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 10000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
 
 Each partition field in the fields list is stored as an object. See the table for more detail:
 
@@ -1052,7 +1052,7 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
+|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 10000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
@@ -1098,7 +1098,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`partition-spec`**|`JSON partition fields (list)`|`See above, read partition-specs instead`|
 |**`partition-specs`**|`JSON partition specs (list of objects)`|`See above`|
 |**`default-spec-id`**|`JSON int`|`0`|
-|**`last-partition-id`**|`JSON int`|`1000`|
+|**`last-partition-id`**|`JSON int`|`10000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
 |**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
