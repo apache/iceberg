@@ -16,10 +16,12 @@
 # under the License.
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -41,7 +43,6 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import bind, inclusive_projection
 from pyiceberg.io import FileIO
-from pyiceberg.io.pyarrow import expression_to_pyarrow, schema_to_pyarrow
 from pyiceberg.manifest import DataFile, ManifestFile, files
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -57,6 +58,10 @@ from pyiceberg.typedef import (
 )
 from pyiceberg.types import StructType
 
+if TYPE_CHECKING:
+    import pyarrow as pa
+    from duckdb import DuckDBPyConnection
+
 
 class Table:
     identifier: Identifier = Field()
@@ -64,13 +69,13 @@ class Table:
     metadata_location: str = Field()
     io: FileIO
 
-    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO):
+    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
 
-    def refresh(self):
+    def refresh(self) -> Table:
         """Refresh the current table metadata"""
         raise NotImplementedError("To be implemented")
 
@@ -202,18 +207,18 @@ class TableScan(Generic[S], ABC):
         return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
 
     @abstractmethod
-    def plan_files(self):
+    def plan_files(self) -> Iterator[ScanTask]:
         ...
 
     @abstractmethod
-    def to_arrow(self):
+    def to_arrow(self) -> pa.table:
         ...
 
-    def update(self: S, **overrides) -> S:
+    def update(self: S, **overrides: Any) -> S:
         """Creates a copy of this table scan with updated fields."""
         return type(self)(**{**self.__dict__, **overrides})
 
-    def use_ref(self, name: str):
+    def use_ref(self, name: str) -> S:
         if self.snapshot_id:
             raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
         if snapshot := self.table.snapshot_by_name(name):
@@ -333,8 +338,12 @@ class DataScan(TableScan["DataScan"]):
 
             yield from (FileScanTask(file) for file in matching_partition_files)
 
-    def to_arrow(self):
-        from pyiceberg.io.pyarrow import PyArrowFileIO
+    def to_arrow(self) -> pa.table:
+        from pyiceberg.io.pyarrow import PyArrowFileIO, expression_to_pyarrow, schema_to_pyarrow
+
+        warnings.warn(
+            "Projection is currently done by name instead of Field ID, this can lead to incorrect results in some cases."
+        )
 
         fs = None
         if isinstance(self.table.io, PyArrowFileIO):
@@ -371,7 +380,7 @@ class DataScan(TableScan["DataScan"]):
 
         return ds.to_table(filter=pyarrow_filter, columns=columns)
 
-    def to_duckdb(self, table_name: str, connection=None):
+    def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None) -> DuckDBPyConnection:
         import duckdb
 
         con = connection or duckdb.connect(database=":memory:")

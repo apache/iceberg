@@ -24,22 +24,22 @@ from pyiceberg.utils.config import Config, _lowercase_dictionary_keys
 EXAMPLE_ENV = {"PYICEBERG_CATALOG__PRODUCTION__URI": "https://service.io/api"}
 
 
-def test_config():
+def test_config() -> None:
     """To check if all the file lookups go well without any mocking"""
     assert Config()
 
 
 @mock.patch.dict(os.environ, EXAMPLE_ENV)
-def test_from_environment_variables():
+def test_from_environment_variables() -> None:
     assert Config().get_catalog_config("production") == {"uri": "https://service.io/api"}
 
 
 @mock.patch.dict(os.environ, EXAMPLE_ENV)
-def test_from_environment_variables_uppercase():
+def test_from_environment_variables_uppercase() -> None:
     assert Config().get_catalog_config("PRODUCTION") == {"uri": "https://service.io/api"}
 
 
-def test_from_configuration_files(tmp_path_factory):
+def test_from_configuration_files(tmp_path_factory) -> None:  # type: ignore
     config_path = str(tmp_path_factory.mktemp("config"))
     with open(f"{config_path}/.pyiceberg.yaml", "w", encoding="utf-8") as file:
         yaml.dump({"catalog": {"production": {"uri": "https://service.io/api"}}}, file)
@@ -48,7 +48,7 @@ def test_from_configuration_files(tmp_path_factory):
     assert Config().get_catalog_config("production") == {"uri": "https://service.io/api"}
 
 
-def test_lowercase_dictionary_keys():
+def test_lowercase_dictionary_keys() -> None:
     uppercase_keys = {"UPPER": {"NESTED_UPPER": {"YES"}}}
     expected = {"upper": {"nested_upper": {"YES"}}}
-    assert _lowercase_dictionary_keys(uppercase_keys) == expected
+    assert _lowercase_dictionary_keys(uppercase_keys) == expected  # type: ignore

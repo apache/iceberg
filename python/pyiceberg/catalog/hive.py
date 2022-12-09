@@ -17,6 +17,7 @@
 import getpass
 import time
 import uuid
+from types import TracebackType
 from typing import (
     Any,
     Dict,
@@ -130,7 +131,9 @@ class _HiveClient:
         self._transport.open()
         return self._client
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         self._transport.close()
 
 
@@ -265,7 +268,7 @@ class HiveCatalog(Catalog):
             io=self._load_file_io(metadata.properties),
         )
 
-    def _write_metadata(self, metadata: TableMetadata, io: FileIO, metadata_path: str):
+    def _write_metadata(self, metadata: TableMetadata, io: FileIO, metadata_path: str) -> None:
         ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
 
     def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str) -> str:

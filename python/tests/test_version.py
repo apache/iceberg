@@ -18,7 +18,7 @@
 from pyiceberg import __version__
 
 
-def test_version_format():
+def test_version_format() -> None:
     from importlib import metadata
 
     installed_version = metadata.version("pyiceberg")

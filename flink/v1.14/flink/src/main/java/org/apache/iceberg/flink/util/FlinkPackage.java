@@ -26,7 +26,7 @@ public class FlinkPackage {
 
   private FlinkPackage() {}
 
-  /** @return Flink version string like x.y.z */
+  /** Returns Flink version string like x.y.z */
   public static String version() {
     return VERSION;
   }

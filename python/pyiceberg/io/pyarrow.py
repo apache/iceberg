@@ -64,6 +64,7 @@ from pyiceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
@@ -387,44 +388,52 @@ def _(_: BinaryType) -> pa.DataType:
     return pa.binary()
 
 
+def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
+    if not isinstance(iceberg_type, PrimitiveType):
+        raise ValueError(f"Expected primitive type, got: {iceberg_type}")
+    return pa.scalar(value).cast(_iceberg_to_pyarrow_type(iceberg_type))
+
+
 class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name).isin(literals)
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return pc.field(term.ref().field.name).isin(pyarrow_literals)
 
     def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
-        return ~pc.field(term.ref().field.name).isin(literals)
+        pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
+        return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
 
-    def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
         return ref.is_null(nan_is_null=True) & ref.is_valid()
 
-    def visit_not_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
         return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
 
-    def visit_is_null(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)
 
     def visit_not_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_valid()
 
     def visit_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) == literal.value
+        return pc.field(term.ref().field.name) == _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_not_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) != literal.value
+        return pc.field(term.ref().field.name) != _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_greater_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) >= literal.value
+        return pc.field(term.ref().field.name) >= _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_greater_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) > literal.value
+        return pc.field(term.ref().field.name) > _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_less_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) < literal.value
+        return pc.field(term.ref().field.name) < _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return pc.field(term.ref().field.name) <= literal.value
+        return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
 
     def visit_true(self) -> pc.Expression:
         return pc.scalar(True)

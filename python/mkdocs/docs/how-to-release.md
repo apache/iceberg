@@ -21,11 +21,11 @@
 
 The guide to release PyIceberg.
 
-First we're going to release a release candidate (RC) and publish it to the public for testing and validation. Once the vote has passed on the RC, we can release the new version.
+The first step is to publish a release candidate (RC) and publish it to the public for testing and validation. Once the vote has passed on the RC, the RC turns into the new release.
 
 ## Running a release candidate
 
-Make sure that you're on the version that you want to release.
+Make sure that you're on the version that you want to release. And that the version is correct in `pyproject.toml` and `pyiceberg/__init__.py`. Correct means that it reflects the version that you want to release, and doesn't contain any additional modifiers, such as `dev0`.
 
 ```bash
 export RC=rc1
@@ -44,7 +44,7 @@ export LAST_COMMIT_ID=$(git rev-list ${GIT_TAG} 2> /dev/null | head -n 1)
 
 The `-s` option will sign the commit. If you don't have a key yet, you can find the instructions [here](http://www.apache.org/dev/openpgp.html#key-gen-generate-key). To install gpg on a M1 based Mac, a couple of additional steps are required: https://gist.github.com/phortuin/cf24b1cca3258720c71ad42977e1ba57
 
-Next we'll create a source distribution (`sdist`) which will generate a `.tar.gz` with all the source files. So we can upload the files to the Apache SVN.
+Next step is to create a source distribution (`sdist`) which will generate a `.tar.gz` with all the source files. These files need to be uploaded to the Apache SVN.
 
 ```
 poetry build
@@ -62,7 +62,7 @@ Building pyiceberg (0.1.0)
 
 The `sdist` contains the source which can be used for checking licenses, and the wheel is a compiled version for quick installation.
 
-Before committing the files to the Apache SVN artifact distribution SVN, we need to generate hashes, and we need to sign them using gpg:
+Before committing the files to the Apache SVN artifact distribution SVN hashes need to be generated, and those need to be signed with gpg to make sure that they are authentic:
 
 ```bash
 for name in "pyiceberg-${VERSION_WITHOUT_RC}-py3-none-any.whl" "pyiceberg-${VERSION_WITHOUT_RC}.tar.gz"
@@ -72,7 +72,7 @@ do
 done
 ```
 
-Next, we'll clone the Apache SVN, copy and commit the files:
+Next step is to clone the Apache SVN, copy and commit the files:
 
 ```bash
 export SVN_TMP_DIR=/tmp/iceberg-${VERSION_BRANCH}/
@@ -85,7 +85,7 @@ svn add $SVN_TMP_DIR_VERSIONED
 svn ci -m "PyIceberg ${VERSION}" ${SVN_TMP_DIR_VERSIONED}
 ```
 
-Next, we can upload them to pypi. Please keep in mind that this **won't** bump the version for everyone that hasn't pinned their version, we set it to a RC [pre-release and those are ignored](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#pre-release-versioning).
+Next step is to upload them to pypi. Please keep in mind that this **won't** bump the version for everyone that hasn't pinned their version, since it is set to a RC [pre-release and those are ignored](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#pre-release-versioning).
 
 ```
 poetry version ${VERSION}
@@ -94,7 +94,7 @@ poetry build
 twine upload -s dist/*
 ```
 
-Finally, we can generate the email what we'll send to the mail list:
+Finally step is to generate the email what send to the dev mail list:
 
 ```bash
 cat << EOF > release-announcement-email.txt
@@ -133,4 +133,14 @@ Please vote in the next 72 hours.
 EOF
 
 cat release-announcement-email.txt
+```
+
+## Vote has passed
+
+Once the vote has been passed, the latest version can be pushed to PyPi. Check out the commit associated with the passing vote, and run:
+
+```bash
+rm -rf dist/
+poetry build
+twine upload -s dist/*
 ```

@@ -31,7 +31,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class EqualityDeleteRowReader extends RowDataReader {
   public EqualityDeleteRowReader(
       CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table, expectedSchema, caseSensitive);
+    super(table, task, expectedSchema, caseSensitive);
   }
 
   @Override

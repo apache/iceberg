@@ -66,19 +66,19 @@ class Schema(IcebergBaseModel):
 
     _name_to_id: Dict[str, int] = PrivateAttr()
 
-    def __init__(self, *fields: NestedField, **data):
+    def __init__(self, *fields: NestedField, **data: Any):
         if fields:
             data["fields"] = fields
         super().__init__(**data)
         self._name_to_id = index_by_name(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not other:
             return False
 
@@ -178,7 +178,7 @@ class Schema(IcebergBaseModel):
         return field.field_type
 
     @property
-    def highest_field_id(self):
+    def highest_field_id(self) -> int:
         return visit(self.as_struct(), _FindLastFieldId())
 
     def find_column_name(self, column_id: int) -> Optional[str]:
@@ -324,10 +324,10 @@ class Accessor:
     position: int
     inner: Optional["Accessor"] = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Accessor(position={self.position},inner={self.inner})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     def get(self, container: StructProtocol) -> Any:
@@ -350,7 +350,7 @@ class Accessor:
 
 
 @singledispatch
-def visit(obj, visitor: SchemaVisitor[T]) -> T:
+def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
 
     The function traverses the schema in post-order fashion
@@ -417,7 +417,7 @@ def _(obj: PrimitiveType, visitor: SchemaVisitor[T]) -> T:
 
 
 @singledispatch
-def pre_order_visit(obj, visitor: PreOrderSchemaVisitor[T]) -> T:
+def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
 
     The function traverses the schema in pre-order fashion. This is a slimmed down version
@@ -479,33 +479,35 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
     def __init__(self) -> None:
         self._index: Dict[int, NestedField] = {}
 
-    def schema(self, schema: Schema, struct_result) -> Dict[int, NestedField]:
+    def schema(self, schema: Schema, struct_result: Dict[int, NestedField]) -> Dict[int, NestedField]:
         return self._index
 
-    def struct(self, struct: StructType, field_results) -> Dict[int, NestedField]:
+    def struct(self, struct: StructType, field_results: List[Dict[int, NestedField]]) -> Dict[int, NestedField]:
         return self._index
 
-    def field(self, field: NestedField, field_result) -> Dict[int, NestedField]:
+    def field(self, field: NestedField, field_result: Dict[int, NestedField]) -> Dict[int, NestedField]:
         """Add the field ID to the index"""
         self._index[field.field_id] = field
         return self._index
 
-    def list(self, list_type: ListType, element_result) -> Dict[int, NestedField]:
+    def list(self, list_type: ListType, element_result: Dict[int, NestedField]) -> Dict[int, NestedField]:
         """Add the list element ID to the index"""
         self._index[list_type.element_field.field_id] = list_type.element_field
         return self._index
 
-    def map(self, map_type: MapType, key_result, value_result) -> Dict[int, NestedField]:
+    def map(
+        self, map_type: MapType, key_result: Dict[int, NestedField], value_result: Dict[int, NestedField]
+    ) -> Dict[int, NestedField]:
         """Add the key ID and value ID as individual items in the index"""
         self._index[map_type.key_field.field_id] = map_type.key_field
         self._index[map_type.value_field.field_id] = map_type.value_field
         return self._index
 
-    def primitive(self, primitive) -> Dict[int, NestedField]:
+    def primitive(self, primitive: PrimitiveType) -> Dict[int, NestedField]:
         return self._index
 
 
-def index_by_id(schema_or_type) -> Dict[int, NestedField]:
+def index_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, NestedField]:
     """Generate an index of field IDs to NestedField instances
 
     Args:
@@ -570,7 +572,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._add_field(map_type.value_field.name, map_type.value_field.field_id)
         return self._index
 
-    def _add_field(self, name: str, field_id: int):
+    def _add_field(self, name: str, field_id: int) -> None:
         """Add a field name to the index, mapping its full name to its field ID
 
         Args:
@@ -593,7 +595,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
             short_name = ".".join([".".join(self._short_field_names), name])
             self._short_name_to_id[short_name] = field_id
 
-    def primitive(self, primitive) -> Dict[str, int]:
+    def primitive(self, primitive: PrimitiveType) -> Dict[str, int]:
         return self._index
 
     def by_name(self) -> Dict[str, int]:
@@ -919,7 +921,7 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
             return projected_field
 
     @staticmethod
-    def _project_list(list_type: ListType, element_result: IcebergType):
+    def _project_list(list_type: ListType, element_result: IcebergType) -> ListType:
         if list_type.element_type == element_result:
             return list_type
         else:
@@ -928,7 +930,7 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
             )
 
     @staticmethod
-    def _project_map(map_type: MapType, value_result: IcebergType):
+    def _project_map(map_type: MapType, value_result: IcebergType) -> MapType:
         if map_type.value_type == value_result:
             return map_type
         else:

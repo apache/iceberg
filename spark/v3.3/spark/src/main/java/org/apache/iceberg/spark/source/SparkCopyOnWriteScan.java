@@ -151,7 +151,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   }
 
   @Override
-  protected synchronized List<CombinedScanTask> tasks() {
+  protected synchronized List<CombinedScanTask> taskGroups() {
     if (tasks == null) {
       CloseableIterable<FileScanTask> splitFiles =
           TableScanUtil.splitFiles(

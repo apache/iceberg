@@ -41,7 +41,10 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
@@ -58,6 +61,7 @@ import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -187,8 +191,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     } else {
       List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
       assigner.onDiscoveredSplits(splits);
-      return new StaticIcebergEnumerator(
-          enumContext, assigner, lazyTable(), scanContext, enumState);
+      return new StaticIcebergEnumerator(enumContext, assigner);
     }
   }
 
@@ -213,6 +216,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private TableSchema projectedFlinkSchema;
     private Boolean exposeLocality;
 
+    private final Map<String, String> readOptions = Maps.newHashMap();
+
     Builder() {}
 
     public Builder<T> tableLoader(TableLoader loader) {
@@ -236,67 +241,89 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> caseSensitive(boolean newCaseSensitive) {
-      this.contextBuilder.caseSensitive(newCaseSensitive);
+      readOptions.put(FlinkReadOptions.CASE_SENSITIVE, Boolean.toString(newCaseSensitive));
       return this;
     }
 
     public Builder<T> useSnapshotId(Long newSnapshotId) {
-      this.contextBuilder.useSnapshotId(newSnapshotId);
+      if (newSnapshotId != null) {
+        readOptions.put(FlinkReadOptions.SNAPSHOT_ID.key(), Long.toString(newSnapshotId));
+      }
       return this;
     }
 
     public Builder<T> streamingStartingStrategy(StreamingStartingStrategy newStartingStrategy) {
-      this.contextBuilder.startingStrategy(newStartingStrategy);
+      readOptions.put(FlinkReadOptions.STARTING_STRATEGY, newStartingStrategy.name());
       return this;
     }
 
     public Builder<T> startSnapshotTimestamp(Long newStartSnapshotTimestamp) {
-      this.contextBuilder.startSnapshotTimestamp(newStartSnapshotTimestamp);
+      if (newStartSnapshotTimestamp != null) {
+        readOptions.put(
+            FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.key(),
+            Long.toString(newStartSnapshotTimestamp));
+      }
       return this;
     }
 
     public Builder<T> startSnapshotId(Long newStartSnapshotId) {
-      this.contextBuilder.startSnapshotId(newStartSnapshotId);
+      if (newStartSnapshotId != null) {
+        readOptions.put(
+            FlinkReadOptions.START_SNAPSHOT_ID.key(), Long.toString(newStartSnapshotId));
+      }
       return this;
     }
 
     public Builder<T> endSnapshotId(Long newEndSnapshotId) {
-      this.contextBuilder.endSnapshotId(newEndSnapshotId);
+      if (newEndSnapshotId != null) {
+        readOptions.put(FlinkReadOptions.END_SNAPSHOT_ID.key(), Long.toString(newEndSnapshotId));
+      }
       return this;
     }
 
     public Builder<T> asOfTimestamp(Long newAsOfTimestamp) {
-      this.contextBuilder.asOfTimestamp(newAsOfTimestamp);
+      if (newAsOfTimestamp != null) {
+        readOptions.put(FlinkReadOptions.AS_OF_TIMESTAMP.key(), Long.toString(newAsOfTimestamp));
+      }
       return this;
     }
 
     public Builder<T> splitSize(Long newSplitSize) {
-      this.contextBuilder.splitSize(newSplitSize);
+      if (newSplitSize != null) {
+        readOptions.put(FlinkReadOptions.SPLIT_SIZE, Long.toString(newSplitSize));
+      }
       return this;
     }
 
     public Builder<T> splitLookback(Integer newSplitLookback) {
-      this.contextBuilder.splitLookback(newSplitLookback);
+      if (newSplitLookback != null) {
+        readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK, Integer.toString(newSplitLookback));
+      }
       return this;
     }
 
     public Builder<T> splitOpenFileCost(Long newSplitOpenFileCost) {
-      this.contextBuilder.splitOpenFileCost(newSplitOpenFileCost);
+      if (newSplitOpenFileCost != null) {
+        readOptions.put(FlinkReadOptions.SPLIT_FILE_OPEN_COST, Long.toString(newSplitOpenFileCost));
+      }
+
       return this;
     }
 
     public Builder<T> streaming(boolean streaming) {
-      this.contextBuilder.streaming(streaming);
+      readOptions.put(FlinkReadOptions.STREAMING, Boolean.toString(streaming));
       return this;
     }
 
     public Builder<T> monitorInterval(Duration newMonitorInterval) {
-      this.contextBuilder.monitorInterval(newMonitorInterval);
+      if (newMonitorInterval != null) {
+        readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, newMonitorInterval.toNanos() + " ns");
+      }
       return this;
     }
 
     public Builder<T> nameMapping(String newNameMapping) {
-      this.contextBuilder.nameMapping(newNameMapping);
+      readOptions.put(TableProperties.DEFAULT_NAME_MAPPING, newNameMapping);
       return this;
     }
 
@@ -316,17 +343,20 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public Builder<T> limit(long newLimit) {
-      this.contextBuilder.limit(newLimit);
+      readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
       return this;
     }
 
     public Builder<T> includeColumnStats(boolean newIncludeColumnStats) {
-      this.contextBuilder.includeColumnStats(newIncludeColumnStats);
+      readOptions.put(
+          FlinkReadOptions.INCLUDE_COLUMN_STATS, Boolean.toString(newIncludeColumnStats));
       return this;
     }
 
     public Builder<T> planParallelism(int planParallelism) {
-      this.contextBuilder.planParallelism(planParallelism);
+      readOptions.put(
+          FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.key(),
+          Integer.toString(planParallelism));
       return this;
     }
 
@@ -335,8 +365,28 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * Set the read properties for Flink source. View the supported properties in {@link
+     * FlinkReadOptions}
+     */
+    public Builder<T> set(String property, String value) {
+      readOptions.put(property, value);
+      return this;
+    }
+
+    /**
+     * Set the read properties for Flink source. View the supported properties in {@link
+     * FlinkReadOptions}
+     */
+    public Builder<T> setAll(Map<String, String> properties) {
+      readOptions.putAll(properties);
+      return this;
+    }
+
+    /** @deprecated Use {@link #setAll} instead. */
+    @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
-      contextBuilder.fromProperties(properties);
+      readOptions.putAll(properties);
       return this;
     }
 
@@ -348,6 +398,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
+
+      contextBuilder.resolveConfig(table, readOptions, flinkConfig);
 
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {

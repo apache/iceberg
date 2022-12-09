@@ -17,7 +17,7 @@
 # pylint: disable=eval-used,protected-access,redefined-outer-name
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
 
 import mmh3 as mmh3
@@ -55,6 +55,7 @@ from pyiceberg.transforms import (
     HourTransform,
     IdentityTransform,
     MonthTransform,
+    TimeTransform,
     Transform,
     TruncateTransform,
     UnknownTransform,
@@ -72,6 +73,7 @@ from pyiceberg.types import (
     IntegerType,
     LongType,
     NestedField,
+    PrimitiveType,
     StringType,
     TimestampType,
     TimestamptzType,
@@ -113,7 +115,7 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
         (UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"), UUIDType(), 1488055340),
     ],
 )
-def test_bucket_hash_values(test_input, test_type, expected):
+def test_bucket_hash_values(test_input: Any, test_type: PrimitiveType, expected: Any) -> None:
     assert BucketTransform(num_buckets=8).transform(test_type, bucket=False)(test_input) == expected
 
 
@@ -136,7 +138,7 @@ def test_bucket_hash_values(test_input, test_type, expected):
         (BucketTransform(128).transform(BinaryType()), b"\x00\x01\x02\x03", 57),
     ],
 )
-def test_buckets(transform, value, expected):
+def test_buckets(transform: Callable[[Any], int], value: Any, expected: int) -> None:
     assert transform(value) == expected
 
 
@@ -156,8 +158,8 @@ def test_buckets(transform, value, expected):
         UUIDType(),
     ],
 )
-def test_bucket_method(type_var):
-    bucket_transform = BucketTransform(8)
+def test_bucket_method(type_var: PrimitiveType) -> None:
+    bucket_transform = BucketTransform(8)  # type: ignore
     assert str(bucket_transform) == str(eval(repr(bucket_transform)))
     assert bucket_transform.can_transform(type_var)
     assert bucket_transform.result_type(type_var) == IntegerType()
@@ -166,7 +168,7 @@ def test_bucket_method(type_var):
     assert bucket_transform.to_human_string(type_var, "test") == "test"
 
 
-def test_string_with_surrogate_pair():
+def test_string_with_surrogate_pair() -> None:
     string_with_surrogate_pair = "string with a surrogate pair: 💰"
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
     bucket_transform = BucketTransform(100).transform(StringType(), bucket=False)
@@ -181,7 +183,7 @@ def test_string_with_surrogate_pair():
         (17501, DayTransform(), "2017-12-01"),
     ],
 )
-def test_date_to_human_string(date_val, date_transform, expected):
+def test_date_to_human_string(date_val: int, date_transform: TimeTransform[Any], expected: str) -> None:
     assert date_transform.to_human_string(DateType(), date_val) == expected
 
 
@@ -193,13 +195,13 @@ def test_date_to_human_string(date_val, date_transform, expected):
         DayTransform(),
     ],
 )
-def test_none_date_to_human_string(date_transform):
+def test_none_date_to_human_string(date_transform: TimeTransform[Any]) -> None:
     assert date_transform.to_human_string(DateType(), None) == "null"
 
 
-def test_hour_to_human_string():
+def test_hour_to_human_string() -> None:
     assert HourTransform().to_human_string(TimestampType(), None) == "null"
-    assert HourTransform().to_human_string(TimestampType(), 420042) == "2017-12-01-18"
+    assert HourTransform().to_human_string(TimestampType(), 420042) == "2017-12-01-18"  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -211,7 +213,7 @@ def test_hour_to_human_string():
         (-1, HourTransform(), "1969-12-31-23"),
     ],
 )
-def test_negative_value_to_human_string(negative_value, time_transform, expected):
+def test_negative_value_to_human_string(negative_value: int, time_transform: TimeTransform[Any], expected: str) -> None:
     assert time_transform.to_human_string(TimestampType(), negative_value) == expected
 
 
@@ -223,7 +225,7 @@ def test_negative_value_to_human_string(negative_value, time_transform, expected
         TimestamptzType(),
     ],
 )
-def test_time_methods(type_var):
+def test_time_methods(type_var: PrimitiveType) -> None:
     assert YearTransform().can_transform(type_var)
     assert MonthTransform().can_transform(type_var)
     assert DayTransform().can_transform(type_var)
@@ -255,7 +257,7 @@ def test_time_methods(type_var):
         (DayTransform(), TimestampType(), -1, -1),
     ],
 )
-def test_time_apply_method(transform, type_var, value, expected):
+def test_time_apply_method(transform: TimeTransform[Any], type_var: PrimitiveType, value: int, expected: int) -> None:
     assert transform.transform(type_var)(value) == expected
 
 
@@ -266,10 +268,10 @@ def test_time_apply_method(transform, type_var, value, expected):
         TimestamptzType(),
     ],
 )
-def test_hour_method(type_var):
+def test_hour_method(type_var: PrimitiveType) -> None:
     assert HourTransform().can_transform(type_var)
     assert HourTransform().result_type(type_var) == IntegerType()
-    assert HourTransform().transform(type_var)(1512151975038194) == 420042
+    assert HourTransform().transform(type_var)(1512151975038194) == 420042  # type: ignore
     assert HourTransform().dedup_name == "time"
 
 
@@ -284,7 +286,7 @@ def test_hour_method(type_var):
         (DayTransform(), HourTransform()),
     ],
 )
-def test_satisfies_order_of_method(transform, other_transform):
+def test_satisfies_order_of_method(transform: TimeTransform[Any], other_transform: TimeTransform[Any]) -> None:
     assert transform.satisfies_order_of(transform)
     assert other_transform.satisfies_order_of(transform)
     assert not transform.satisfies_order_of(other_transform)
@@ -306,8 +308,8 @@ def test_satisfies_order_of_method(transform, other_transform):
         (FixedType(100), b"foo", "Zm9v"),
     ],
 )
-def test_identity_human_string(type_var, value, expected):
-    identity = IdentityTransform()
+def test_identity_human_string(type_var: PrimitiveType, value: Any, expected: str) -> None:
+    identity = IdentityTransform()  # type: ignore
     assert identity.to_human_string(type_var, value) == expected
 
 
@@ -330,8 +332,8 @@ def test_identity_human_string(type_var, value, expected):
         UUIDType(),
     ],
 )
-def test_identity_method(type_var):
-    identity_transform = IdentityTransform()
+def test_identity_method(type_var: PrimitiveType) -> None:
+    identity_transform = IdentityTransform()  # type: ignore
     assert str(identity_transform) == str(eval(repr(identity_transform)))
     assert identity_transform.can_transform(type_var)
     assert identity_transform.result_type(type_var) == type_var
@@ -343,8 +345,8 @@ def test_identity_method(type_var):
     "input_var,expected",
     [(1, 0), (5, 0), (9, 0), (10, 10), (11, 10), (-1, -10), (-10, -10), (-12, -20)],
 )
-def test_truncate_integer(type_var, input_var, expected):
-    trunc = TruncateTransform(10)
+def test_truncate_integer(type_var: PrimitiveType, input_var: int, expected: int) -> None:
+    trunc = TruncateTransform(10)  # type: ignore
     assert trunc.transform(type_var)(input_var) == expected
 
 
@@ -358,14 +360,14 @@ def test_truncate_integer(type_var, input_var, expected):
         (Decimal("-0.05"), Decimal("-0.10")),
     ],
 )
-def test_truncate_decimal(input_var, expected):
-    trunc = TruncateTransform(10)
+def test_truncate_decimal(input_var: Decimal, expected: Decimal) -> None:
+    trunc = TruncateTransform(10)  # type: ignore
     assert trunc.transform(DecimalType(9, 2))(input_var) == expected
 
 
 @pytest.mark.parametrize("input_var,expected", [("abcdefg", "abcde"), ("abc", "abc")])
-def test_truncate_string(input_var, expected):
-    trunc = TruncateTransform(5)
+def test_truncate_string(input_var: str, expected: str) -> None:
+    trunc = TruncateTransform(5)  # type: ignore
     assert trunc.transform(StringType())(input_var) == expected
 
 
@@ -381,8 +383,8 @@ def test_truncate_string(input_var, expected):
         (StringType(), "\u2603de", "\u2603de", "\u2603"),
     ],
 )
-def test_truncate_method(type_var, value, expected_human_str, expected):
-    truncate_transform = TruncateTransform(1)
+def test_truncate_method(type_var: PrimitiveType, value: Any, expected_human_str: str, expected: Any) -> None:
+    truncate_transform = TruncateTransform(1)  # type: ignore
     assert str(truncate_transform) == str(eval(repr(truncate_transform)))
     assert truncate_transform.can_transform(type_var)
     assert truncate_transform.result_type(type_var) == type_var
@@ -395,8 +397,8 @@ def test_truncate_method(type_var, value, expected_human_str, expected):
     assert truncate_transform.satisfies_order_of(truncate_transform)
 
 
-def test_unknown_transform():
-    unknown_transform = transforms.UnknownTransform("unknown")
+def test_unknown_transform() -> None:
+    unknown_transform = transforms.UnknownTransform("unknown")  # type: ignore
     assert str(unknown_transform) == str(eval(repr(unknown_transform)))
     with pytest.raises(AttributeError):
         unknown_transform.transform(StringType())("test")
@@ -404,8 +406,8 @@ def test_unknown_transform():
     assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
 
 
-def test_void_transform():
-    void_transform = VoidTransform()
+def test_void_transform() -> None:
+    void_transform = VoidTransform()  # type: ignore
     assert void_transform is VoidTransform()
     assert void_transform == eval(repr(void_transform))
     assert void_transform.transform(StringType())("test") is None
@@ -422,89 +424,89 @@ class TestType(IcebergBaseModel):
     __root__: Transform[Any, Any]
 
 
-def test_bucket_transform_serialize():
+def test_bucket_transform_serialize() -> None:
     assert BucketTransform(num_buckets=22).json() == '"bucket[22]"'
 
 
-def test_bucket_transform_deserialize():
+def test_bucket_transform_deserialize() -> None:
     transform = TestType.parse_raw('"bucket[22]"').__root__
     assert transform == BucketTransform(num_buckets=22)
 
 
-def test_bucket_transform_str():
+def test_bucket_transform_str() -> None:
     assert str(BucketTransform(num_buckets=22)) == "bucket[22]"
 
 
-def test_bucket_transform_repr():
+def test_bucket_transform_repr() -> None:
     assert repr(BucketTransform(num_buckets=22)) == "BucketTransform(num_buckets=22)"
 
 
-def test_truncate_transform_serialize():
+def test_truncate_transform_serialize() -> None:
     assert UnknownTransform("unknown").json() == '"unknown"'
 
 
-def test_unknown_transform_deserialize():
+def test_unknown_transform_deserialize() -> None:
     transform = TestType.parse_raw('"unknown"').__root__
     assert transform == UnknownTransform("unknown")
 
 
-def test_unknown_transform_str():
+def test_unknown_transform_str() -> None:
     assert str(UnknownTransform("unknown")) == "unknown"
 
 
-def test_unknown_transform_repr():
+def test_unknown_transform_repr() -> None:
     assert repr(UnknownTransform("unknown")) == "UnknownTransform(transform='unknown')"
 
 
-def test_void_transform_serialize():
+def test_void_transform_serialize() -> None:
     assert VoidTransform().json() == '"void"'
 
 
-def test_void_transform_deserialize():
+def test_void_transform_deserialize() -> None:
     transform = TestType.parse_raw('"void"').__root__
     assert transform == VoidTransform()
 
 
-def test_void_transform_str():
+def test_void_transform_str() -> None:
     assert str(VoidTransform()) == "void"
 
 
-def test_void_transform_repr():
+def test_void_transform_repr() -> None:
     assert repr(VoidTransform()) == "VoidTransform()"
 
 
-def test_year_transform_serialize():
+def test_year_transform_serialize() -> None:
     assert YearTransform().json() == '"year"'
 
 
-def test_year_transform_deserialize():
+def test_year_transform_deserialize() -> None:
     transform = TestType.parse_raw('"year"').__root__
     assert transform == YearTransform()
 
 
-def test_month_transform_serialize():
+def test_month_transform_serialize() -> None:
     assert MonthTransform().json() == '"month"'
 
 
-def test_month_transform_deserialize():
+def test_month_transform_deserialize() -> None:
     transform = TestType.parse_raw('"month"').__root__
     assert transform == MonthTransform()
 
 
-def test_day_transform_serialize():
+def test_day_transform_serialize() -> None:
     assert DayTransform().json() == '"day"'
 
 
-def test_day_transform_deserialize():
+def test_day_transform_deserialize() -> None:
     transform = TestType.parse_raw('"day"').__root__
     assert transform == DayTransform()
 
 
-def test_hour_transform_serialize():
+def test_hour_transform_serialize() -> None:
     assert HourTransform().json() == '"hour"'
 
 
-def test_hour_transform_deserialize():
+def test_hour_transform_deserialize() -> None:
     transform = TestType.parse_raw('"hour"').__root__
     assert transform == HourTransform()
 
@@ -518,7 +520,7 @@ def test_hour_transform_deserialize():
         (HourTransform(), "hour"),
     ],
 )
-def test_datetime_transform_str(transform, transform_str):
+def test_datetime_transform_str(transform: TimeTransform[Any], transform_str: str) -> None:
     assert str(transform) == transform_str
 
 
@@ -531,7 +533,7 @@ def test_datetime_transform_str(transform, transform_str):
         (HourTransform(), "HourTransform()"),
     ],
 )
-def test_datetime_transform_repr(transform, transform_repr):
+def test_datetime_transform_repr(transform: TimeTransform[Any], transform_repr: str) -> None:
     assert repr(transform) == transform_repr
 
 
@@ -653,31 +655,31 @@ def test_projection_day_month_not_in(bound_reference_date: BoundReference[int]) 
     )
 
 
-def test_projection_day_unary(bound_reference_timestamp) -> None:
+def test_projection_day_unary(bound_reference_timestamp: BoundReference[int]) -> None:
     assert DayTransform().project("name", BoundNotNull(term=bound_reference_timestamp)) == NotNull(term="name")
 
 
-def test_projection_day_literal(bound_reference_timestamp) -> None:
+def test_projection_day_literal(bound_reference_timestamp: BoundReference[int]) -> None:
     assert DayTransform().project(
         "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(1667696874000))
     ) == EqualTo(term="name", literal=19)
 
 
-def test_projection_day_set_same_day(bound_reference_timestamp) -> None:
+def test_projection_day_set_same_day(bound_reference_timestamp: BoundReference[int]) -> None:
     assert DayTransform().project(
         "name",
         BoundIn(term=bound_reference_timestamp, literals={TimestampLiteral(1667696874001), TimestampLiteral(1667696874000)}),
     ) == EqualTo(term="name", literal=19)
 
 
-def test_projection_day_set_in(bound_reference_timestamp) -> None:
+def test_projection_day_set_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert DayTransform().project(
         "name",
         BoundIn(term=bound_reference_timestamp, literals={TimestampLiteral(1667696874001), TimestampLiteral(1567696874000)}),
     ) == In(term="name", literals={18, 19})
 
 
-def test_projection_day_set_not_in(bound_reference_timestamp) -> None:
+def test_projection_day_set_not_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert (
         DayTransform().project(
             "name",
@@ -712,7 +714,7 @@ def test_projection_day_human(bound_reference_date: BoundReference[int]) -> None
     )  # >= 2018, 1, 2
 
 
-def test_projection_hour_unary(bound_reference_timestamp) -> None:
+def test_projection_hour_unary(bound_reference_timestamp: BoundReference[int]) -> None:
     assert HourTransform().project("name", BoundNotNull(term=bound_reference_timestamp)) == NotNull(term="name")
 
 
@@ -720,13 +722,13 @@ TIMESTAMP_EXAMPLE = 1667696874000000  # Sun Nov 06 2022 01:07:54
 HOUR_IN_MICROSECONDS = 60 * 60 * 1000 * 1000
 
 
-def test_projection_hour_literal(bound_reference_timestamp) -> None:
+def test_projection_hour_literal(bound_reference_timestamp: BoundReference[int]) -> None:
     assert HourTransform().project(
         "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
     ) == EqualTo(term="name", literal=463249)
 
 
-def test_projection_hour_set_same_hour(bound_reference_timestamp) -> None:
+def test_projection_hour_set_same_hour(bound_reference_timestamp: BoundReference[int]) -> None:
     assert HourTransform().project(
         "name",
         BoundIn(
@@ -736,7 +738,7 @@ def test_projection_hour_set_same_hour(bound_reference_timestamp) -> None:
     ) == EqualTo(term="name", literal=463249)
 
 
-def test_projection_hour_set_in(bound_reference_timestamp) -> None:
+def test_projection_hour_set_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert HourTransform().project(
         "name",
         BoundIn(
@@ -746,7 +748,7 @@ def test_projection_hour_set_in(bound_reference_timestamp) -> None:
     ) == In(term="name", literals={463249, 463250})
 
 
-def test_projection_hour_set_not_in(bound_reference_timestamp) -> None:
+def test_projection_hour_set_not_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert (
         HourTransform().project(
             "name",
@@ -759,11 +761,11 @@ def test_projection_hour_set_not_in(bound_reference_timestamp) -> None:
     )
 
 
-def test_projection_identity_unary(bound_reference_timestamp) -> None:
+def test_projection_identity_unary(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project("name", BoundNotNull(term=bound_reference_timestamp)) == NotNull(term="name")
 
 
-def test_projection_identity_literal(bound_reference_timestamp) -> None:
+def test_projection_identity_literal(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project(
         "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
     ) == EqualTo(
@@ -771,7 +773,7 @@ def test_projection_identity_literal(bound_reference_timestamp) -> None:
     )
 
 
-def test_projection_identity_set_in(bound_reference_timestamp) -> None:
+def test_projection_identity_set_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project(
         "name",
         BoundIn(
@@ -779,11 +781,12 @@ def test_projection_identity_set_in(bound_reference_timestamp) -> None:
             literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
         ),
     ) == In(
-        term="name", literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)}  # type: ignore
+        term="name",
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
     )
 
 
-def test_projection_identity_set_not_in(bound_reference_timestamp) -> None:
+def test_projection_identity_set_not_in(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project(
         "name",
         BoundNotIn(
@@ -791,7 +794,8 @@ def test_projection_identity_set_not_in(bound_reference_timestamp) -> None:
             literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
         ),
     ) == NotIn(
-        term="name", literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)}  # type: ignore
+        term="name",
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
     )
 
 

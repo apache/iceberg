@@ -65,6 +65,199 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
+  "1.1.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
