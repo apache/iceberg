@@ -208,7 +208,7 @@ def test_writing_avro_file(generated_manifest_entry_file: Generator[str, None, N
 
 
 @pytest.mark.adlfs
-def test_fsspec_new_input_file_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_new_input_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test creating a new input file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
@@ -219,7 +219,7 @@ def test_fsspec_new_input_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_new_abfss_output_file_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_new_abfss_output_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test creating a new output file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
@@ -230,7 +230,7 @@ def test_fsspec_new_abfss_output_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_write_and_read_file_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_write_and_read_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test writing and reading a file using FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
@@ -244,7 +244,7 @@ def test_fsspec_write_and_read_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_getting_length_of_file_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_getting_length_of_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test getting the length of an FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
 
@@ -261,7 +261,7 @@ def test_fsspec_getting_length_of_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_file_tell_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_file_tell_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test finding cursor position for an fsspec file-io file"""
 
     filename = str(uuid.uuid4())
@@ -286,7 +286,7 @@ def test_fsspec_file_tell_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_read_specified_bytes_for_file_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_read_specified_bytes_for_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test reading a specified number of bytes from an fsspec file-io file"""
 
     filename = str(uuid.uuid4())
@@ -312,7 +312,7 @@ def test_fsspec_read_specified_bytes_for_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_raise_on_opening_file_not_found_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_raise_on_opening_file_not_found_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test that an fsspec input file raises appropriately when the adlfs file is not found"""
 
     filename = str(uuid.uuid4())
@@ -324,7 +324,7 @@ def test_fsspec_raise_on_opening_file_not_found_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_checking_if_a_file_exists_adlfs(adlfs_fsspec_fileio):
+def test_checking_if_a_file_exists_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test checking if a file exists"""
 
     non_existent_file = adlfs_fsspec_fileio.new_input(location="abfss://tests/does-not-exist.txt")
@@ -346,7 +346,7 @@ def test_checking_if_a_file_exists_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_closing_a_file_adlfs(adlfs_fsspec_fileio):
+def test_closing_a_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test closing an output file and input file"""
     filename = str(uuid.uuid4())
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
@@ -365,7 +365,7 @@ def test_closing_a_file_adlfs(adlfs_fsspec_fileio):
 
 
 @pytest.mark.adlfs
-def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_fileio):
+def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test converting an output file to an input file"""
     filename = str(uuid.uuid4())
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
@@ -374,7 +374,7 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_file
 
 
 @pytest.mark.adlfs
-def test_writing_avro_file_adlfs(generated_manifest_entry_file, adlfs_fsspec_fileio):
+def test_writing_avro_file_adlfs(generated_manifest_entry_file, adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
     with LocalInputFile(generated_manifest_entry_file).open() as f:

@@ -1271,7 +1271,7 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
 
 
 @pytest.fixture
-def adlfs_fsspec_fileio(request):
+def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     from azure.storage.blob import BlobServiceClient
 
     azurite_url = request.config.getoption("--adlfs.endpoint")
