@@ -403,15 +403,15 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
         pyarrow_literals = pa.array(literals, type=_iceberg_to_pyarrow_type(term.ref().field.field_type))
         return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
 
-    def visit_is_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
         return ref.is_null(nan_is_null=True) & ref.is_valid()
 
-    def visit_not_nan(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
         return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
 
-    def visit_is_null(self, term: BoundTerm[pc.Expression]) -> pc.Expression:
+    def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)
 
     def visit_not_null(self, term: BoundTerm[Any]) -> pc.Expression:

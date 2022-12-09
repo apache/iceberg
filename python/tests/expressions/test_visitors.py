@@ -83,24 +83,24 @@ from pyiceberg.utils.singleton import Singleton
 
 
 class ExpressionA(BooleanExpression, Singleton):
-    def __invert__(self):
+    def __invert__(self) -> BooleanExpression:
         return ExpressionB()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ExpressionA()"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "testexpra"
 
 
 class ExpressionB(BooleanExpression, Singleton):
-    def __invert__(self):
+    def __invert__(self) -> BooleanExpression:
         return ExpressionA()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ExpressionB()"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "testexprb"
 
 
@@ -111,7 +111,7 @@ class ExampleVisitor(BooleanExpressionVisitor[List[str]]):
     visited in an expected order by the `visit` method.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.visit_history: List[str] = []
 
     def visit_true(self) -> List[str]:
@@ -169,7 +169,7 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
     visited in an expected order by the `visit` method.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.visit_history: List[str] = []
 
     def visit_in(self, term: BoundTerm[Any], literals: Set[Any]) -> List[str]:
@@ -247,7 +247,7 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
         return self.visit_history
 
 
-def test_boolean_expression_visitor():
+def test_boolean_expression_visitor() -> None:
     """Test post-order traversal of boolean expression visit method"""
     expr = And(
         Or(Not(ExpressionA()), Not(ExpressionB()), ExpressionA(), ExpressionB()),
@@ -274,16 +274,16 @@ def test_boolean_expression_visitor():
     ]
 
 
-def test_boolean_expression_visit_raise_not_implemented_error():
+def test_boolean_expression_visit_raise_not_implemented_error() -> None:
     """Test raise NotImplementedError when visiting an unsupported object type"""
     visitor = ExampleVisitor()
     with pytest.raises(NotImplementedError) as exc_info:
-        visit("foo", visitor=visitor)
+        visit("foo", visitor=visitor)  # type: ignore
 
     assert str(exc_info.value) == "Cannot visit unsupported expression: foo"
 
 
-def test_bind_visitor_already_bound(table_schema_simple: Schema):
+def test_bind_visitor_already_bound(table_schema_simple: Schema) -> None:
     bound = BoundEqualTo[str](
         term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
         literal=literal("hello"),
@@ -296,34 +296,34 @@ def test_bind_visitor_already_bound(table_schema_simple: Schema):
     )
 
 
-def test_visit_bound_visitor_unknown_predicate():
+def test_visit_bound_visitor_unknown_predicate() -> None:
     with pytest.raises(TypeError) as exc_info:
-        visit_bound_predicate({"something"}, FooBoundBooleanExpressionVisitor())
+        visit_bound_predicate({"something"}, FooBoundBooleanExpressionVisitor())  # type: ignore
     assert "Unknown predicate: {'something'}" == str(exc_info.value)
 
 
-def test_always_true_expression_binding(table_schema_simple: Schema):
+def test_always_true_expression_binding(table_schema_simple: Schema) -> None:
     """Test that visiting an always-true expression returns always-true"""
     unbound_expression = AlwaysTrue()
     bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysTrue()
 
 
-def test_always_false_expression_binding(table_schema_simple: Schema):
+def test_always_false_expression_binding(table_schema_simple: Schema) -> None:
     """Test that visiting an always-false expression returns always-false"""
     unbound_expression = AlwaysFalse()
     bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysFalse()
 
 
-def test_always_false_and_always_true_expression_binding(table_schema_simple: Schema):
+def test_always_false_and_always_true_expression_binding(table_schema_simple: Schema) -> None:
     """Test that visiting both an always-true AND always-false expression returns always-false"""
     unbound_expression = And(AlwaysTrue(), AlwaysFalse())
     bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == AlwaysFalse()
 
 
-def test_always_false_or_always_true_expression_binding(table_schema_simple: Schema):
+def test_always_false_or_always_true_expression_binding(table_schema_simple: Schema) -> None:
     """Test that visiting always-true OR always-false expression returns always-true"""
     unbound_expression = Or(AlwaysTrue(), AlwaysFalse())
     bound_expression = visit(unbound_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
@@ -395,7 +395,9 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple: Sch
         ),
     ],
 )
-def test_and_expression_binding(unbound_and_expression, expected_bound_expression, table_schema_simple):
+def test_and_expression_binding(
+    unbound_and_expression: UnboundPredicate[Any], expected_bound_expression: BoundPredicate[Any], table_schema_simple: Schema
+) -> None:
     """Test that visiting an unbound AND expression with a bind-visitor returns the expected bound expression"""
     bound_expression = visit(unbound_and_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
@@ -487,7 +489,9 @@ def test_and_expression_binding(unbound_and_expression, expected_bound_expressio
         ),
     ],
 )
-def test_or_expression_binding(unbound_or_expression, expected_bound_expression, table_schema_simple):
+def test_or_expression_binding(
+    unbound_or_expression: UnboundPredicate[Any], expected_bound_expression: BoundPredicate[Any], table_schema_simple: Schema
+) -> None:
     """Test that visiting an unbound OR expression with a bind-visitor returns the expected bound expression"""
     bound_expression = visit(unbound_or_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
@@ -531,7 +535,9 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
         ),
     ],
 )
-def test_in_expression_binding(unbound_in_expression, expected_bound_expression, table_schema_simple):
+def test_in_expression_binding(
+    unbound_in_expression: UnboundPredicate[Any], expected_bound_expression: BoundPredicate[Any], table_schema_simple: Schema
+) -> None:
     """Test that visiting an unbound IN expression with a bind-visitor returns the expected bound expression"""
     bound_expression = visit(unbound_in_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
@@ -580,13 +586,15 @@ def test_in_expression_binding(unbound_in_expression, expected_bound_expression,
         ),
     ],
 )
-def test_not_expression_binding(unbound_not_expression, expected_bound_expression, table_schema_simple):
+def test_not_expression_binding(
+    unbound_not_expression: UnboundPredicate[Any], expected_bound_expression: BoundPredicate[Any], table_schema_simple: Schema
+) -> None:
     """Test that visiting an unbound NOT expression with a bind-visitor returns the expected bound expression"""
     bound_expression = visit(unbound_not_expression, visitor=BindVisitor(schema=table_schema_simple, case_sensitive=True))
     assert bound_expression == expected_bound_expression
 
 
-def test_bound_boolean_expression_visitor_and_in():
+def test_bound_boolean_expression_visitor_and_in() -> None:
     """Test visiting an And and In expression with a bound boolean expression visitor"""
     bound_expression = And(
         BoundIn(
@@ -609,7 +617,7 @@ def test_bound_boolean_expression_visitor_and_in():
     assert result == ["IN", "IN", "AND"]
 
 
-def test_bound_boolean_expression_visitor_or():
+def test_bound_boolean_expression_visitor_or() -> None:
     """Test visiting an Or expression with a bound boolean expression visitor"""
     bound_expression = Or(
         Not(
@@ -636,7 +644,7 @@ def test_bound_boolean_expression_visitor_or():
     assert result == ["IN", "NOT", "IN", "NOT", "OR"]
 
 
-def test_bound_boolean_expression_visitor_equal():
+def test_bound_boolean_expression_visitor_equal() -> None:
     bound_expression = BoundEqualTo(
         term=BoundReference(
             field=NestedField(field_id=2, name="bar", field_type=StringType(), required=False),
@@ -649,7 +657,7 @@ def test_bound_boolean_expression_visitor_equal():
     assert result == ["EQUAL"]
 
 
-def test_bound_boolean_expression_visitor_not_equal():
+def test_bound_boolean_expression_visitor_not_equal() -> None:
     bound_expression = BoundNotEqualTo(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -662,21 +670,21 @@ def test_bound_boolean_expression_visitor_not_equal():
     assert result == ["NOT_EQUAL"]
 
 
-def test_bound_boolean_expression_visitor_always_true():
+def test_bound_boolean_expression_visitor_always_true() -> None:
     bound_expression = AlwaysTrue()
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
     assert result == ["TRUE"]
 
 
-def test_bound_boolean_expression_visitor_always_false():
+def test_bound_boolean_expression_visitor_always_false() -> None:
     bound_expression = AlwaysFalse()
     visitor = FooBoundBooleanExpressionVisitor()
     result = visit(bound_expression, visitor=visitor)
     assert result == ["FALSE"]
 
 
-def test_bound_boolean_expression_visitor_in():
+def test_bound_boolean_expression_visitor_in() -> None:
     bound_expression = BoundIn(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -689,7 +697,7 @@ def test_bound_boolean_expression_visitor_in():
     assert result == ["IN"]
 
 
-def test_bound_boolean_expression_visitor_not_in():
+def test_bound_boolean_expression_visitor_not_in() -> None:
     bound_expression = BoundNotIn(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -702,7 +710,7 @@ def test_bound_boolean_expression_visitor_not_in():
     assert result == ["NOT_IN"]
 
 
-def test_bound_boolean_expression_visitor_is_nan():
+def test_bound_boolean_expression_visitor_is_nan() -> None:
     bound_expression = BoundIsNaN(
         term=BoundReference(
             field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
@@ -714,7 +722,7 @@ def test_bound_boolean_expression_visitor_is_nan():
     assert result == ["IS_NAN"]
 
 
-def test_bound_boolean_expression_visitor_not_nan():
+def test_bound_boolean_expression_visitor_not_nan() -> None:
     bound_expression = BoundNotNaN(
         term=BoundReference(
             field=NestedField(field_id=3, name="baz", field_type=FloatType(), required=False),
@@ -726,7 +734,7 @@ def test_bound_boolean_expression_visitor_not_nan():
     assert result == ["NOT_NAN"]
 
 
-def test_bound_boolean_expression_visitor_is_null():
+def test_bound_boolean_expression_visitor_is_null() -> None:
     bound_expression = BoundIsNull(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -738,7 +746,7 @@ def test_bound_boolean_expression_visitor_is_null():
     assert result == ["IS_NULL"]
 
 
-def test_bound_boolean_expression_visitor_not_null():
+def test_bound_boolean_expression_visitor_not_null() -> None:
     bound_expression = BoundNotNull(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -750,7 +758,7 @@ def test_bound_boolean_expression_visitor_not_null():
     assert result == ["NOT_NULL"]
 
 
-def test_bound_boolean_expression_visitor_greater_than():
+def test_bound_boolean_expression_visitor_greater_than() -> None:
     bound_expression = BoundGreaterThan(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -763,7 +771,7 @@ def test_bound_boolean_expression_visitor_greater_than():
     assert result == ["GREATER_THAN"]
 
 
-def test_bound_boolean_expression_visitor_greater_than_or_equal():
+def test_bound_boolean_expression_visitor_greater_than_or_equal() -> None:
     bound_expression = BoundGreaterThanOrEqual(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -776,7 +784,7 @@ def test_bound_boolean_expression_visitor_greater_than_or_equal():
     assert result == ["GREATER_THAN_OR_EQUAL"]
 
 
-def test_bound_boolean_expression_visitor_less_than():
+def test_bound_boolean_expression_visitor_less_than() -> None:
     bound_expression = BoundLessThan(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -789,7 +797,7 @@ def test_bound_boolean_expression_visitor_less_than():
     assert result == ["LESS_THAN"]
 
 
-def test_bound_boolean_expression_visitor_less_than_or_equal():
+def test_bound_boolean_expression_visitor_less_than_or_equal() -> None:
     bound_expression = BoundLessThanOrEqual(
         term=BoundReference(
             field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -802,7 +810,7 @@ def test_bound_boolean_expression_visitor_less_than_or_equal():
     assert result == ["LESS_THAN_OR_EQUAL"]
 
 
-def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
+def test_bound_boolean_expression_visitor_raise_on_unbound_predicate() -> None:
     bound_expression = LessThanOrEqual(
         term=Reference("foo"),
         literal="foo",
@@ -813,7 +821,7 @@ def test_bound_boolean_expression_visitor_raise_on_unbound_predicate():
     assert "Not a bound predicate" in str(exc_info.value)
 
 
-def _to_byte_buffer(field_type: IcebergType, val: Any):
+def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
     if not isinstance(field_type, PrimitiveType):
         raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
     return to_bytes(field_type, val)
@@ -1041,7 +1049,7 @@ def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: no_nan_or_null column contains non nan value"
 
 
-def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
+def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile) -> None:
     expressions: List[BooleanExpression] = [
         LessThan(Reference("id"), 5),
         LessThanOrEqual(Reference("id"), 30),
@@ -1061,7 +1069,7 @@ def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile):
         ), f"Should read when missing stats for expr: {expr}"
 
 
-def test_not(schema: Schema, manifest: ManifestFile):
+def test_not(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
         manifest
     ), "Should read: not(false)"
@@ -1071,7 +1079,7 @@ def test_not(schema: Schema, manifest: ManifestFile):
     ), "Should skip: not(true)"
 
 
-def test_and(schema: Schema, manifest: ManifestFile):
+def test_and(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         And(
@@ -1100,7 +1108,7 @@ def test_and(schema: Schema, manifest: ManifestFile):
     ).eval(manifest), "Should read: and(true, true)"
 
 
-def test_or(schema: Schema, manifest: ManifestFile):
+def test_or(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         Or(
@@ -1120,7 +1128,7 @@ def test_or(schema: Schema, manifest: ManifestFile):
     ).eval(manifest), "Should read: or(false, true)"
 
 
-def test_integer_lt(schema: Schema, manifest: ManifestFile):
+def test_integer_lt(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1138,7 +1146,7 @@ def test_integer_lt(schema: Schema, manifest: ManifestFile):
     ), "Should read: may possible ids"
 
 
-def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):
+def test_integer_lt_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1156,7 +1164,7 @@ def test_integer_lt_eq(schema: Schema, manifest: ManifestFile):
     ), "Should read: many possible ids"
 
 
-def test_integer_gt(schema: Schema, manifest: ManifestFile):
+def test_integer_gt(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1174,7 +1182,7 @@ def test_integer_gt(schema: Schema, manifest: ManifestFile):
     ), "Should read: may possible ids"
 
 
-def test_integer_gt_eq(schema: Schema, manifest: ManifestFile):
+def test_integer_gt_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1192,7 +1200,7 @@ def test_integer_gt_eq(schema: Schema, manifest: ManifestFile):
     ), "Should read: may possible ids"
 
 
-def test_integer_eq(schema: Schema, manifest: ManifestFile):
+def test_integer_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id below lower bound"
@@ -1222,7 +1230,7 @@ def test_integer_eq(schema: Schema, manifest: ManifestFile):
     ), "Should not read: id above upper bound"
 
 
-def test_integer_not_eq(schema: Schema, manifest: ManifestFile):
+def test_integer_not_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1252,7 +1260,7 @@ def test_integer_not_eq(schema: Schema, manifest: ManifestFile):
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile):
+def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1282,7 +1290,7 @@ def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile):
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile):
+def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE - 25)), case_sensitive=False).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1312,7 +1320,7 @@ def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: Man
     ), "Should read: id above upper bound"
 
 
-def test_integer_in(schema: Schema, manifest: ManifestFile):
+def test_integer_in(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema, In(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should not read: id below lower bound (5 < 30, 6 < 30)"
@@ -1354,7 +1362,7 @@ def test_integer_in(schema: Schema, manifest: ManifestFile):
     ), "Should read: in on no nulls column"
 
 
-def test_integer_not_in(schema: Schema, manifest: ManifestFile):
+def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(
         schema, NotIn(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should read: id below lower bound (5 < 30, 6 < 30)"
@@ -1396,41 +1404,41 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile):
     ), "Should read: in on no nulls column"
 
 
-def test_rewrite_not_equal_to():
+def test_rewrite_not_equal_to() -> None:
     assert rewrite_not(Not(EqualTo(Reference("x"), 34.56))) == NotEqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_not_equal_to():
+def test_rewrite_not_not_equal_to() -> None:
     assert rewrite_not(Not(NotEqualTo(Reference("x"), 34.56))) == EqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_in():
+def test_rewrite_not_in() -> None:
     assert rewrite_not(Not(In(Reference("x"), (34.56,)))) == NotIn(Reference("x"), (34.56,))
 
 
-def test_rewrite_and():
+def test_rewrite_and() -> None:
     assert rewrite_not(Not(And(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == Or(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
-def test_rewrite_or():
+def test_rewrite_or() -> None:
     assert rewrite_not(Not(Or(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == And(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
-def test_rewrite_always_false():
+def test_rewrite_always_false() -> None:
     assert rewrite_not(Not(AlwaysFalse())) == AlwaysTrue()
 
 
-def test_rewrite_always_true():
+def test_rewrite_always_true() -> None:
     assert rewrite_not(Not(AlwaysTrue())) == AlwaysFalse()
 
 
-def test_rewrite_bound():
+def test_rewrite_bound() -> None:
     schema = Schema(NestedField(2, "a", IntegerType(), required=False), schema_id=1)
     assert rewrite_not(IsNull(Reference("a")).bind(schema)) == BoundIsNull(
         term=BoundReference(

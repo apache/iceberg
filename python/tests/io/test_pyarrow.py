@@ -18,6 +18,7 @@
 
 import os
 import tempfile
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pyarrow as pa
@@ -74,7 +75,7 @@ from pyiceberg.types import (
 )
 
 
-def test_pyarrow_input_file():
+def test_pyarrow_input_file() -> None:
     """Test reading a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -90,14 +91,14 @@ def test_pyarrow_input_file():
         input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
-        f = input_file.open()
-        assert isinstance(f, InputStream)  # Test that the file object abides by the InputStream protocol
-        data = f.read()
+        r = input_file.open()
+        assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
         assert data == b"foo"
         assert len(input_file) == 3
 
 
-def test_pyarrow_output_file():
+def test_pyarrow_output_file() -> None:
     """Test writing a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -119,21 +120,21 @@ def test_pyarrow_output_file():
         assert len(output_file) == 3
 
 
-def test_pyarrow_invalid_scheme():
+def test_pyarrow_invalid_scheme() -> None:
     """Test that a ValueError is raised if a location is provided with an invalid scheme"""
 
     with pytest.raises(ValueError) as exc_info:
         PyArrowFileIO().new_input("foo://bar/baz.txt")
 
-    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
+    assert "Unrecognized filesystem type in URI" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         PyArrowFileIO().new_output("foo://bar/baz.txt")
 
-    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
+    assert "Unrecognized filesystem type in URI" in str(exc_info.value)
 
 
-def test_pyarrow_violating_input_stream_protocol():
+def test_pyarrow_violating_input_stream_protocol() -> None:
     """Test that a TypeError is raised if an input file is provided that violates the InputStream protocol"""
 
     # Missing seek, tell, closed, and close
@@ -149,7 +150,7 @@ def test_pyarrow_violating_input_stream_protocol():
     assert not isinstance(f, InputStream)
 
 
-def test_pyarrow_violating_output_stream_protocol():
+def test_pyarrow_violating_output_stream_protocol() -> None:
     """Test that a TypeError is raised if an output stream is provided that violates the OutputStream protocol"""
 
     # Missing closed, and close
@@ -171,7 +172,7 @@ def test_pyarrow_violating_output_stream_protocol():
     assert not isinstance(f, OutputStream)
 
 
-def test_raise_on_opening_a_local_file_not_found():
+def test_raise_on_opening_a_local_file_not_found() -> None:
     """Test that a PyArrowFile raises appropriately when a local file is not found"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -184,7 +185,7 @@ def test_raise_on_opening_a_local_file_not_found():
         assert "[Errno 2] Failed to open local file" in str(exc_info.value)
 
 
-def test_raise_on_opening_a_local_file_no_permission():
+def test_raise_on_opening_a_local_file_no_permission() -> None:
     """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -198,7 +199,7 @@ def test_raise_on_opening_a_local_file_no_permission():
         assert "[Errno 13] Failed to open local file" in str(exc_info.value)
 
 
-def test_raise_on_checking_if_local_file_exists_no_permission():
+def test_raise_on_checking_if_local_file_exists_no_permission() -> None:
     """Test that a PyArrowFile raises when checking for existence on a file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -212,7 +213,7 @@ def test_raise_on_checking_if_local_file_exists_no_permission():
         assert "Cannot get file info, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_creating_a_local_file_no_permission():
+def test_raise_on_creating_a_local_file_no_permission() -> None:
     """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -226,7 +227,7 @@ def test_raise_on_creating_a_local_file_no_permission():
         assert "Cannot get file info, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_delete_file_with_no_permission():
+def test_raise_on_delete_file_with_no_permission() -> None:
     """Test that a PyArrowFile raises when deleting a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -240,7 +241,7 @@ def test_raise_on_delete_file_with_no_permission():
         assert "Cannot delete file" in str(exc_info.value)
 
 
-def test_raise_on_opening_an_s3_file_no_permission():
+def test_raise_on_opening_an_s3_file_no_permission() -> None:
     """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -254,7 +255,7 @@ def test_raise_on_opening_an_s3_file_no_permission():
     assert "Cannot open file, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_opening_an_s3_file_not_found():
+def test_raise_on_opening_an_s3_file_not_found() -> None:
     """Test that a PyArrowFile raises a FileNotFoundError when the pyarrow error includes 'Path does not exist'"""
 
     s3fs_mock = MagicMock()
@@ -269,7 +270,7 @@ def test_raise_on_opening_an_s3_file_not_found():
 
 
 @patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-def test_raise_on_creating_an_s3_file_no_permission(_):
+def test_raise_on_creating_an_s3_file_no_permission(_: Any) -> None:
     """Test that creating a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -283,7 +284,7 @@ def test_raise_on_creating_an_s3_file_no_permission(_):
     assert "Cannot create file, access denied:" in str(exc_info.value)
 
 
-def test_deleting_s3_file_no_permission():
+def test_deleting_s3_file_no_permission() -> None:
     """Test that a PyArrowFile raises a PermissionError when the pyarrow OSError includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -298,7 +299,7 @@ def test_deleting_s3_file_no_permission():
     assert "Cannot delete file, access denied:" in str(exc_info.value)
 
 
-def test_deleting_s3_file_not_found():
+def test_deleting_s3_file_not_found() -> None:
     """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -313,7 +314,7 @@ def test_deleting_s3_file_not_found():
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
 
-def test_schema_to_pyarrow_schema(table_schema_nested: Schema):
+def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
 bar: int32 not null
@@ -337,75 +338,75 @@ person: struct<name: string, age: int32 not null>
     assert repr(actual) == expected
 
 
-def test_fixed_type_to_pyarrow():
+def test_fixed_type_to_pyarrow() -> None:
     length = 22
     iceberg_type = FixedType(length)
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary(length)
 
 
-def test_decimal_type_to_pyarrow():
+def test_decimal_type_to_pyarrow() -> None:
     precision = 25
     scale = 19
     iceberg_type = DecimalType(precision, scale)
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.decimal128(precision, scale)
 
 
-def test_boolean_type_to_pyarrow():
+def test_boolean_type_to_pyarrow() -> None:
     iceberg_type = BooleanType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.bool_()
 
 
-def test_integer_type_to_pyarrow():
+def test_integer_type_to_pyarrow() -> None:
     iceberg_type = IntegerType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int32()
 
 
-def test_long_type_to_pyarrow():
+def test_long_type_to_pyarrow() -> None:
     iceberg_type = LongType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int64()
 
 
-def test_float_type_to_pyarrow():
+def test_float_type_to_pyarrow() -> None:
     iceberg_type = FloatType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float32()
 
 
-def test_double_type_to_pyarrow():
+def test_double_type_to_pyarrow() -> None:
     iceberg_type = DoubleType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float64()
 
 
-def test_date_type_to_pyarrow():
+def test_date_type_to_pyarrow() -> None:
     iceberg_type = DateType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.date32()
 
 
-def test_time_type_to_pyarrow():
+def test_time_type_to_pyarrow() -> None:
     iceberg_type = TimeType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.time64("us")
 
 
-def test_timestamp_type_to_pyarrow():
+def test_timestamp_type_to_pyarrow() -> None:
     iceberg_type = TimestampType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us")
 
 
-def test_timestamptz_type_to_pyarrow():
+def test_timestamptz_type_to_pyarrow() -> None:
     iceberg_type = TimestamptzType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="+00:00")
 
 
-def test_string_type_to_pyarrow():
+def test_string_type_to_pyarrow() -> None:
     iceberg_type = StringType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.string()
 
 
-def test_binary_type_to_pyarrow():
+def test_binary_type_to_pyarrow() -> None:
     iceberg_type = BinaryType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary()
 
 
-def test_struct_type_to_pyarrow(table_schema_simple: Schema):
+def test_struct_type_to_pyarrow(table_schema_simple: Schema) -> None:
     expected = pa.struct(
         [
             pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
@@ -416,7 +417,7 @@ def test_struct_type_to_pyarrow(table_schema_simple: Schema):
     assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
 
 
-def test_map_type_to_pyarrow():
+def test_map_type_to_pyarrow() -> None:
     iceberg_map = MapType(
         key_id=1,
         key_type=IntegerType(),
@@ -427,7 +428,7 @@ def test_map_type_to_pyarrow():
     assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(pa.int32(), pa.string())
 
 
-def test_list_type_to_pyarrow():
+def test_list_type_to_pyarrow() -> None:
     iceberg_map = ListType(
         element_id=1,
         element_type=IntegerType(),

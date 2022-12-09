@@ -26,7 +26,7 @@ pyiceberg is currently in development, for development and testing purposes the 
 ```
 git clone https://github.com/apache/iceberg.git
 cd iceberg/python
-pip install -e .
+pip install -e .  # this step requires pip >= 21.3.0
 ```
 
 ## Development

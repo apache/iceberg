@@ -16,6 +16,7 @@
 # under the License.
 
 import uuid
+from typing import Generator
 
 import pytest
 from botocore.awsrequest import AWSRequest
@@ -23,12 +24,12 @@ from requests_mock import Mocker
 
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec
-from pyiceberg.io.fsspec import s3v4_rest_signer
+from pyiceberg.io.fsspec import FsspecFileIO, s3v4_rest_signer
 from tests.io.test_io import LocalInputFile
 
 
 @pytest.mark.s3
-def test_fsspec_new_input_file(fsspec_fileio):
+def test_fsspec_new_input_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test creating a new input file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
@@ -39,7 +40,7 @@ def test_fsspec_new_input_file(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_new_s3_output_file(fsspec_fileio):
+def test_fsspec_new_s3_output_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test creating a new output file from an fsspec file-io"""
     filename = str(uuid.uuid4())
 
@@ -50,7 +51,7 @@ def test_fsspec_new_s3_output_file(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_write_and_read_file(fsspec_fileio):
+def test_fsspec_write_and_read_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test writing and reading a file using FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
@@ -64,7 +65,7 @@ def test_fsspec_write_and_read_file(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_getting_length_of_file(fsspec_fileio):
+def test_fsspec_getting_length_of_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test getting the length of an FsspecInputFile and FsspecOutputFile"""
     filename = str(uuid.uuid4())
 
@@ -81,14 +82,14 @@ def test_fsspec_getting_length_of_file(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_file_tell(fsspec_fileio):
+def test_fsspec_file_tell(fsspec_fileio: FsspecFileIO) -> None:
     """Test finding cursor position for an fsspec file-io file"""
 
     filename = str(uuid.uuid4())
 
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
-    with output_file.create() as f:
-        f.write(b"foobar")
+    with output_file.create() as write_file:
+        write_file.write(b"foobar")
 
     input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
@@ -104,13 +105,13 @@ def test_fsspec_file_tell(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_read_specified_bytes_for_file(fsspec_fileio):
+def test_fsspec_read_specified_bytes_for_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test reading a specified number of bytes from an fsspec file-io file"""
 
     filename = str(uuid.uuid4())
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
-    with output_file.create() as f:
-        f.write(b"foo")
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
 
     input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
@@ -130,7 +131,7 @@ def test_fsspec_read_specified_bytes_for_file(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio):
+def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio: FsspecFileIO) -> None:
     """Test that an fsppec input file raises appropriately when the s3 file is not found"""
 
     filename = str(uuid.uuid4())
@@ -142,7 +143,7 @@ def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_checking_if_a_file_exists(fsspec_fileio):
+def test_checking_if_a_file_exists(fsspec_fileio: FsspecFileIO) -> None:
     """Test checking if a file exists"""
 
     non_existent_file = fsspec_fileio.new_input(location="s3://warehouse/does-not-exist.txt")
@@ -164,26 +165,26 @@ def test_checking_if_a_file_exists(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_closing_a_file(fsspec_fileio):
+def test_closing_a_file(fsspec_fileio: FsspecFileIO) -> None:
     """Test closing an output file and input file"""
     filename = str(uuid.uuid4())
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
-    with output_file.create() as f:
-        f.write(b"foo")
-        assert not f.closed
-    assert f.closed
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+        assert not write_file.closed  # type: ignore
+    assert write_file.closed  # type: ignore
 
     input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
     f = input_file.open()
-    assert not f.closed
+    assert not f.closed  # type: ignore
     f.close()
-    assert f.closed
+    assert f.closed  # type: ignore
 
     fsspec_fileio.delete(f"s3://warehouse/{filename}")
 
 
 @pytest.mark.s3
-def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio):
+def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio: FsspecFileIO) -> None:
     """Test converting an output file to an input file"""
     filename = str(uuid.uuid4())
     output_file = fsspec_fileio.new_output(location=f"s3://warehouse/{filename}")
@@ -192,7 +193,7 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio):
 
 
 @pytest.mark.s3
-def test_writing_avro_file(generated_manifest_entry_file, fsspec_fileio):
+def test_writing_avro_file(generated_manifest_entry_file: Generator[str, None, None], fsspec_fileio: FsspecFileIO) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
     with LocalInputFile(generated_manifest_entry_file).open() as f:
@@ -207,7 +208,7 @@ def test_writing_avro_file(generated_manifest_entry_file, fsspec_fileio):
 TEST_URI = "https://iceberg-test-signer"
 
 
-def test_s3v4_rest_signer(requests_mock: Mocker):
+def test_s3v4_rest_signer(requests_mock: Mocker) -> None:
     new_uri = "https://other-bucket/metadata/snap-8048355899640248710-1-a5c8ea2d-aa1f-48e8-89f4-1fa69db8c742.avro"
     requests_mock.post(
         f"{TEST_URI}/v1/aws/s3/sign",
@@ -259,7 +260,7 @@ def test_s3v4_rest_signer(requests_mock: Mocker):
     }
 
 
-def test_s3v4_rest_signer_forbidden(requests_mock: Mocker):
+def test_s3v4_rest_signer_forbidden(requests_mock: Mocker) -> None:
     requests_mock.post(
         f"{TEST_URI}/v1/aws/s3/sign",
         json={

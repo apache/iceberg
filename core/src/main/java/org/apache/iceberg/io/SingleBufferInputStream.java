@@ -64,7 +64,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   }
 
   @Override
-  public int read(byte[] bytes, int offset, int len) throws IOException {
+  public int read(byte[] bytes, int off, int len) throws IOException {
     if (len == 0) {
       return 0;
     }
@@ -75,7 +75,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
     }
 
     int bytesToRead = Math.min(buffer.remaining(), len);
-    buffer.get(bytes, offset, bytesToRead);
+    buffer.get(bytes, off, bytesToRead);
 
     return bytesToRead;
   }
