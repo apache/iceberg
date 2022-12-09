@@ -227,7 +227,7 @@ public class SparkScanBuilder
     Long startTimestamp = readConf.startTimestamp();
     Long endTimestamp = readConf.endTimestamp();
     Preconditions.checkArgument(
-        startTimestamp != null || endTimestamp != null,
+        startTimestamp == null && endTimestamp == null,
         "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
             + "changelog scans.",
         SparkReadOptions.START_TIMESTAMP,
