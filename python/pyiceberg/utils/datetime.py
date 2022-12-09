@@ -97,13 +97,13 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
 
 
-def micros_to_timestamp(micros: int):
+def micros_to_timestamp(micros: int) -> datetime:
     """Converts microseconds from epoch to a timestamp"""
     dt = timedelta(microseconds=micros)
     return EPOCH_TIMESTAMP + dt
 
 
-def micros_to_timestamptz(micros: int):
+def micros_to_timestamptz(micros: int) -> datetime:
     """Converts microseconds from epoch to an utc timestamp"""
     dt = timedelta(microseconds=micros)
     return EPOCH_TIMESTAMPTZ + dt

@@ -16,9 +16,12 @@
 # under the License.
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -38,6 +41,7 @@ from pyiceberg.expressions import (
     BooleanExpression,
     visitors,
 )
+from pyiceberg.expressions.visitors import bind, inclusive_projection
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import DataFile, ManifestFile, files
 from pyiceberg.partitioning import PartitionSpec
@@ -54,6 +58,10 @@ from pyiceberg.typedef import (
 )
 from pyiceberg.types import StructType
 
+if TYPE_CHECKING:
+    import pyarrow as pa
+    from duckdb import DuckDBPyConnection
+
 
 class Table:
     identifier: Identifier = Field()
@@ -61,13 +69,13 @@ class Table:
     metadata_location: str = Field()
     io: FileIO
 
-    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO):
+    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
 
-    def refresh(self):
+    def refresh(self) -> Table:
         """Refresh the current table metadata"""
         raise NotImplementedError("To be implemented")
 
@@ -78,7 +86,6 @@ class Table:
     def scan(
         self,
         row_filter: Optional[BooleanExpression] = None,
-        partition_filter: Optional[BooleanExpression] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -87,7 +94,6 @@ class Table:
         return DataScan(
             table=self,
             row_filter=row_filter or AlwaysTrue(),
-            partition_filter=partition_filter or AlwaysTrue(),
             selected_fields=selected_fields,
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
@@ -163,7 +169,6 @@ S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
 class TableScan(Generic[S], ABC):
     table: Table
     row_filter: BooleanExpression
-    partition_filter: BooleanExpression
     selected_fields: Tuple[str]
     case_sensitive: bool
     snapshot_id: Optional[int]
@@ -173,7 +178,6 @@ class TableScan(Generic[S], ABC):
         self,
         table: Table,
         row_filter: Optional[BooleanExpression] = None,
-        partition_filter: Optional[BooleanExpression] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -181,7 +185,6 @@ class TableScan(Generic[S], ABC):
     ):
         self.table = table
         self.row_filter = row_filter or AlwaysTrue()
-        self.partition_filter = partition_filter or AlwaysTrue()
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -204,18 +207,18 @@ class TableScan(Generic[S], ABC):
         return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
 
     @abstractmethod
-    def plan_files(self):
+    def plan_files(self) -> Iterator[ScanTask]:
         ...
 
     @abstractmethod
-    def to_arrow(self):
+    def to_arrow(self) -> pa.table:
         ...
 
-    def update(self: S, **overrides) -> S:
+    def update(self: S, **overrides: Any) -> S:
         """Creates a copy of this table scan with updated fields."""
         return type(self)(**{**self.__dict__, **overrides})
 
-    def use_ref(self, name: str):
+    def use_ref(self, name: str) -> S:
         if self.snapshot_id:
             raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
         if snapshot := self.table.snapshot_by_name(name):
@@ -228,11 +231,8 @@ class TableScan(Generic[S], ABC):
             return self.update(selected_fields=field_names)
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
-    def filter_rows(self, new_row_filter: BooleanExpression) -> S:
+    def filter(self, new_row_filter: BooleanExpression) -> S:
         return self.update(row_filter=And(self.row_filter, new_row_filter))
-
-    def filter_partitions(self, new_partition_filter: BooleanExpression) -> S:
-        return self.update(partition_filter=And(self.partition_filter, new_partition_filter))
 
     def with_case_sensitive(self, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
@@ -277,25 +277,30 @@ class DataScan(TableScan["DataScan"]):
         self,
         table: Table,
         row_filter: Optional[BooleanExpression] = None,
-        partition_filter: Optional[BooleanExpression] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
     ):
-        super().__init__(table, row_filter, partition_filter, selected_fields, case_sensitive, snapshot_id, options)
+        super().__init__(table, row_filter, selected_fields, case_sensitive, snapshot_id, options)
+
+    def _build_partition_projection(self, spec_id: int) -> BooleanExpression:
+        project = inclusive_projection(self.table.schema(), self.table.specs()[spec_id])
+        return project(self.row_filter)
+
+    @cached_property
+    def partition_filters(self) -> KeyDefaultDict[int, BooleanExpression]:
+        return KeyDefaultDict(self._build_partition_projection)
 
     def _build_manifest_evaluator(self, spec_id: int) -> Callable[[ManifestFile], bool]:
         spec = self.table.specs()[spec_id]
-        return visitors.manifest_evaluator(spec, self.table.schema(), self.partition_filter, self.case_sensitive)
+        return visitors.manifest_evaluator(spec, self.table.schema(), self.partition_filters[spec_id], self.case_sensitive)
 
     def _build_partition_evaluator(self, spec_id: int) -> Callable[[DataFile], bool]:
         spec = self.table.specs()[spec_id]
         partition_type = spec.partition_type(self.table.schema())
         partition_schema = Schema(*partition_type.fields)
-
-        # TODO: project the row filter  # pylint: disable=W0511
-        partition_expr = And(self.partition_filter, AlwaysTrue())
+        partition_expr = self.partition_filters[spec_id]
 
         # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
         wrapper = _DictAsStruct(partition_type)
@@ -333,15 +338,17 @@ class DataScan(TableScan["DataScan"]):
 
             yield from (FileScanTask(file) for file in matching_partition_files)
 
-    def to_arrow(self):
-        from pyiceberg.io.pyarrow import PyArrowFileIO
+    def to_arrow(self) -> pa.table:
+        from pyiceberg.io.pyarrow import PyArrowFileIO, expression_to_pyarrow, schema_to_pyarrow
+
+        warnings.warn(
+            "Projection is currently done by name instead of Field ID, this can lead to incorrect results in some cases."
+        )
 
         fs = None
         if isinstance(self.table.io, PyArrowFileIO):
             scheme, path = PyArrowFileIO.parse_location(self.table.location())
             fs = self.table.io.get_fs(scheme)
-
-        import pyarrow.parquet as pq
 
         locations = []
         for task in self.plan_files():
@@ -355,9 +362,25 @@ class DataScan(TableScan["DataScan"]):
         if "*" not in self.selected_fields:
             columns = list(self.selected_fields)
 
-        return pq.read_table(source=locations, filesystem=fs, columns=columns)
+        pyarrow_filter = None
+        if self.row_filter is not AlwaysTrue():
+            bound_row_filter = bind(self.table.schema(), self.row_filter, case_sensitive=self.case_sensitive)
+            pyarrow_filter = expression_to_pyarrow(bound_row_filter)
 
-    def to_duckdb(self, table_name: str, connection=None):
+        from pyarrow.dataset import dataset
+
+        ds = dataset(
+            source=locations,
+            filesystem=fs,
+            # Optionally provide the Schema for the Dataset,
+            # in which case it will not be inferred from the source.
+            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset
+            schema=schema_to_pyarrow(self.table.schema()),
+        )
+
+        return ds.to_table(filter=pyarrow_filter, columns=columns)
+
+    def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None) -> DuckDBPyConnection:
         import duckdb
 
         con = connection or duckdb.connect(database=":memory:")

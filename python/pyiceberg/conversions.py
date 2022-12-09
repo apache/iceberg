@@ -31,7 +31,12 @@ import uuid
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
-from typing import Union
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Union,
+)
 
 from pyiceberg.types import (
     BinaryType,
@@ -60,14 +65,14 @@ _DOUBLE_STRUCT = Struct("<d")
 _UUID_STRUCT = Struct(">QQ")
 
 
-def handle_none(func):
+def handle_none(func: Callable) -> Callable:  # type: ignore
     """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__"
 
     Args:
         func (Callable): A function registered to the singledispatch function `partition_to_py`
     """
 
-    def wrapper(primitive_type, value_str):
+    def wrapper(primitive_type: PrimitiveType, value_str: Optional[str]) -> Any:
         if value_str is None:
             return None
         elif value_str == "__HIVE_DEFAULT_PARTITION__":
@@ -78,7 +83,7 @@ def handle_none(func):
 
 
 @singledispatch
-def partition_to_py(primitive_type, value_str: str):
+def partition_to_py(primitive_type: PrimitiveType, value_str: str) -> Union[int, float, str, uuid.UUID, bytes, Decimal]:
     """A generic function which converts a partition string to a python built-in
 
     Args:
@@ -90,7 +95,7 @@ def partition_to_py(primitive_type, value_str: str):
 
 @partition_to_py.register(BooleanType)
 @handle_none
-def _(primitive_type, value_str: str) -> Union[int, float, str, uuid.UUID]:
+def _(primitive_type: BooleanType, value_str: str) -> Union[int, float, str, uuid.UUID]:
     return value_str.lower() == "true"
 
 
@@ -101,7 +106,7 @@ def _(primitive_type, value_str: str) -> Union[int, float, str, uuid.UUID]:
 @partition_to_py.register(TimestampType)
 @partition_to_py.register(TimestamptzType)
 @handle_none
-def _(primitive_type, value_str: str) -> int:
+def _(primitive_type: PrimitiveType, value_str: str) -> int:
     """
     Raises:
         ValueError: If the scale/exponent is not 0
@@ -115,37 +120,37 @@ def _(primitive_type, value_str: str) -> int:
 @partition_to_py.register(FloatType)
 @partition_to_py.register(DoubleType)
 @handle_none
-def _(primitive_type, value_str: str) -> float:
+def _(_: PrimitiveType, value_str: str) -> float:
     return float(value_str)
 
 
 @partition_to_py.register(StringType)
 @handle_none
-def _(primitive_type, value_str: str) -> str:
+def _(_: StringType, value_str: str) -> str:
     return value_str
 
 
 @partition_to_py.register(UUIDType)
 @handle_none
-def _(primitive_type, value_str: str) -> uuid.UUID:
+def _(_: UUIDType, value_str: str) -> uuid.UUID:
     return uuid.UUID(value_str)
 
 
 @partition_to_py.register(FixedType)
 @partition_to_py.register(BinaryType)
 @handle_none
-def _(primitive_type, value_str: str) -> bytes:
+def _(_: PrimitiveType, value_str: str) -> bytes:
     return bytes(value_str, "UTF-8")
 
 
 @partition_to_py.register(DecimalType)
 @handle_none
-def _(primitive_type, value_str: str) -> Decimal:
+def _(_: DecimalType, value_str: str) -> Decimal:
     return Decimal(value_str)
 
 
 @singledispatch
-def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
+def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
     """A generic function which converts a built-in python value to bytes
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
@@ -153,20 +158,20 @@ def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, f
 
     Args:
         primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        value: The value to convert to bytes (The type of this value depends on which dispatched function is
+        _: The value to convert to bytes (The type of this value depends on which dispatched function is
             used--check dispatchable functions for type hints)
     """
     raise TypeError(f"scale does not match {primitive_type}")
 
 
 @to_bytes.register(BooleanType)
-def _(primitive_type, value: bool) -> bytes:
+def _(_: BooleanType, value: bool) -> bytes:
     return _BOOL_STRUCT.pack(1 if value else 0)
 
 
 @to_bytes.register(IntegerType)
 @to_bytes.register(DateType)
-def _(primitive_type, value: int) -> bytes:
+def _(_: PrimitiveType, value: int) -> bytes:
     return _INT_STRUCT.pack(value)
 
 
@@ -174,12 +179,12 @@ def _(primitive_type, value: int) -> bytes:
 @to_bytes.register(TimeType)
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
-def _(primitive_type, value: int) -> bytes:
+def _(_: PrimitiveType, value: int) -> bytes:
     return _LONG_STRUCT.pack(value)
 
 
 @to_bytes.register(FloatType)
-def _(primitive_type, value: float) -> bytes:
+def _(_: FloatType, value: float) -> bytes:
     """
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.
@@ -188,23 +193,23 @@ def _(primitive_type, value: float) -> bytes:
 
 
 @to_bytes.register(DoubleType)
-def _(primitive_type, value: float) -> bytes:
+def _(_: DoubleType, value: float) -> bytes:
     return _DOUBLE_STRUCT.pack(value)
 
 
 @to_bytes.register(StringType)
-def _(primitive_type, value: str) -> bytes:
+def _(_: StringType, value: str) -> bytes:
     return value.encode("UTF-8")
 
 
 @to_bytes.register(UUIDType)
-def _(primitive_type, value: uuid.UUID) -> bytes:
+def _(_: UUIDType, value: uuid.UUID) -> bytes:
     return _UUID_STRUCT.pack((value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
 
 
 @to_bytes.register(BinaryType)
 @to_bytes.register(FixedType)
-def _(primitive_type, value: bytes) -> bytes:
+def _(_: PrimitiveType, value: bytes) -> bytes:
     return value
 
 
@@ -247,13 +252,13 @@ def from_bytes(primitive_type: PrimitiveType, b: bytes) -> Union[bool, bytes, De
 
 
 @from_bytes.register(BooleanType)
-def _(primitive_type, b: bytes) -> bool:
+def _(_: BooleanType, b: bytes) -> bool:
     return _BOOL_STRUCT.unpack(b)[0] != 0
 
 
 @from_bytes.register(IntegerType)
 @from_bytes.register(DateType)
-def _(primitive_type, b: bytes) -> int:
+def _(_: PrimitiveType, b: bytes) -> int:
     return _INT_STRUCT.unpack(b)[0]
 
 
@@ -261,34 +266,34 @@ def _(primitive_type, b: bytes) -> int:
 @from_bytes.register(TimeType)
 @from_bytes.register(TimestampType)
 @from_bytes.register(TimestamptzType)
-def _(primitive_type, b: bytes) -> int:
+def _(_: PrimitiveType, b: bytes) -> int:
     return _LONG_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(FloatType)
-def _(primitive_type, b: bytes) -> float:
+def _(_: FloatType, b: bytes) -> float:
     return _FLOAT_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(DoubleType)
-def _(primitive_type, b: bytes) -> float:
+def _(_: DoubleType, b: bytes) -> float:
     return _DOUBLE_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(StringType)
-def _(primitive_type: PrimitiveType, b: bytes) -> str:
+def _(_: StringType, b: bytes) -> str:
     return bytes(b).decode("utf-8")
 
 
 @from_bytes.register(UUIDType)
-def _(primitive_type, b: bytes) -> uuid.UUID:
+def _(_: UUIDType, b: bytes) -> uuid.UUID:
     unpacked_bytes = _UUID_STRUCT.unpack(b)
     return uuid.UUID(int=unpacked_bytes[0] << 64 | unpacked_bytes[1])
 
 
 @from_bytes.register(BinaryType)
 @from_bytes.register(FixedType)
-def _(primitive_type, b: bytes) -> bytes:
+def _(_: PrimitiveType, b: bytes) -> bytes:
     return b
 
 

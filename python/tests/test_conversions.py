@@ -74,6 +74,7 @@ Notes:
 import struct
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -89,6 +90,7 @@ from pyiceberg.types import (
     FloatType,
     IntegerType,
     LongType,
+    PrimitiveType,
     StringType,
     TimestampType,
     TimestamptzType,
@@ -111,7 +113,7 @@ from pyiceberg.types import (
         (Decimal("0.0000001"), 1),
     ],
 )
-def test_decimal_to_unscaled(value, expected_result):
+def test_decimal_to_unscaled(value: Decimal, expected_result: int) -> None:
     """Test converting a decimal to an unscaled value"""
     assert decimal_util.decimal_to_unscaled(value=value) == expected_result
 
@@ -129,7 +131,7 @@ def test_decimal_to_unscaled(value, expected_result):
         (1, 7, Decimal("0.0000001")),
     ],
 )
-def test_unscaled_to_decimal(unscaled, scale, expected_result):
+def test_unscaled_to_decimal(unscaled: int, scale: int, expected_result: Decimal) -> None:
     """Test converting an unscaled value to a decimal with a specified scale"""
     assert decimal_util.unscaled_to_decimal(unscaled=unscaled, scale=scale) == expected_result
 
@@ -153,7 +155,7 @@ def test_unscaled_to_decimal(unscaled, scale, expected_result):
         (BinaryType(), "foo", b"foo"),
     ],
 )
-def test_partition_to_py(primitive_type, value_str, expected_result):
+def test_partition_to_py(primitive_type: PrimitiveType, value_str: str, expected_result: Any) -> None:
     """Test converting a partition value to a python built-in"""
     assert conversions.partition_to_py(primitive_type, value_str) == expected_result
 
@@ -177,9 +179,9 @@ def test_partition_to_py(primitive_type, value_str, expected_result):
         (UUIDType()),
     ],
 )
-def test_none_partition_values(primitive_type):
+def test_none_partition_values(primitive_type: PrimitiveType) -> None:
     """Test converting a partition value to a python built-in"""
-    assert conversions.partition_to_py(primitive_type, None) is None
+    assert conversions.partition_to_py(primitive_type, None) is None  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -201,7 +203,7 @@ def test_none_partition_values(primitive_type):
         (UUIDType()),
     ],
 )
-def test_hive_default_partition_values(primitive_type):
+def test_hive_default_partition_values(primitive_type: PrimitiveType) -> None:
     """Test converting a partition value to a python built-in"""
     assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") is None
 
@@ -227,7 +229,9 @@ def test_hive_default_partition_values(primitive_type):
         (LongType(), "123456700", False),
     ],
 )
-def test_partition_to_py_raise_on_incorrect_precision_or_scale(primitive_type, value, should_raise):
+def test_partition_to_py_raise_on_incorrect_precision_or_scale(
+    primitive_type: PrimitiveType, value: str, should_raise: bool
+) -> None:
     if should_raise:
         with pytest.raises(ValueError) as exc_info:
             conversions.partition_to_py(primitive_type, value)
@@ -270,7 +274,7 @@ def test_partition_to_py_raise_on_incorrect_precision_or_scale(primitive_type, v
         (DecimalType(7, 4), b"\xff\xed\x29\x79", Decimal("-123.4567")),
     ],
 )
-def test_from_bytes(primitive_type, b, result):
+def test_from_bytes(primitive_type: PrimitiveType, b: bytes, result: Any) -> None:
     """Test converting from bytes"""
     assert conversions.from_bytes(primitive_type, b) == result
 
@@ -322,7 +326,7 @@ def test_from_bytes(primitive_type, b, result):
         (FloatType(), b"\x19\x04\x9e?", struct.unpack("<f", struct.pack("<f", 1.2345))[0]),
     ],
 )
-def test_round_trip_conversion(primitive_type, b, result):
+def test_round_trip_conversion(primitive_type: PrimitiveType, b: bytes, result: Any) -> None:
     """Test round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
     value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == result
@@ -402,7 +406,7 @@ def test_round_trip_conversion(primitive_type, b, result):
         (DecimalType(31, 26), b"\x0f\x94\xec\xad\xa5C<]\xdePf\xd6N", Decimal("12345.12345678912345678912345678")),
     ],
 )
-def test_round_trip_conversion_large_decimals(primitive_type, b, result):
+def test_round_trip_conversion_large_decimals(primitive_type: PrimitiveType, b: bytes, result: Any) -> None:
     """Test round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
     value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == result
@@ -421,7 +425,7 @@ def test_round_trip_conversion_large_decimals(primitive_type, b, result):
         (DecimalType(20, 1), Decimal("9999999999999999999.9")),
     ],
 )
-def test_max_value_round_trip_conversion(primitive_type, expected_max_value):
+def test_max_value_round_trip_conversion(primitive_type: DecimalType, expected_max_value: Decimal) -> None:
     """Test round trip conversions of maximum DecimalType values"""
     b = conversions.to_bytes(primitive_type, expected_max_value)
     value_from_bytes = conversions.from_bytes(primitive_type, b)
@@ -439,7 +443,7 @@ def test_max_value_round_trip_conversion(primitive_type, expected_max_value):
         (DecimalType(20, 1), Decimal("-9999999999999999999.9")),
     ],
 )
-def test_min_value_round_trip_conversion(primitive_type, expected_min_value):
+def test_min_value_round_trip_conversion(primitive_type: DecimalType, expected_min_value: Decimal) -> None:
     """Test round trip conversions of minimum DecimalType values"""
     b = conversions.to_bytes(primitive_type, expected_min_value)
     value_from_bytes = conversions.from_bytes(primitive_type, b)
@@ -447,23 +451,23 @@ def test_min_value_round_trip_conversion(primitive_type, expected_min_value):
     assert value_from_bytes == expected_min_value
 
 
-def test_raise_on_unregistered_type():
+def test_raise_on_unregistered_type() -> None:
     """Test raising when a conversion is attempted for a type that has no registered method"""
 
     class FooUnknownType:
-        def __repr__(self):
+        def __repr__(self) -> str:
             return "FooUnknownType()"
 
     with pytest.raises(TypeError) as exc_info:
-        conversions.partition_to_py(FooUnknownType(), "foo")
+        conversions.partition_to_py(FooUnknownType(), "foo")  # type: ignore
     assert "Cannot convert 'foo' to unsupported type: FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
-        conversions.to_bytes(FooUnknownType(), "foo")
+        conversions.to_bytes(FooUnknownType(), "foo")  # type: ignore
     assert "scale does not match FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
-        conversions.from_bytes(FooUnknownType(), b"foo")
+        conversions.from_bytes(FooUnknownType(), b"foo")  # type: ignore
     assert "Cannot deserialize bytes, type FooUnknownType() not supported: b'foo'" in str(exc_info.value)
 
 
@@ -498,7 +502,7 @@ def test_raise_on_unregistered_type():
         ),
     ],
 )
-def test_raise_on_incorrect_precision_or_scale(primitive_type, value, expected_error_message):
+def test_raise_on_incorrect_precision_or_scale(primitive_type: DecimalType, value: Decimal, expected_error_message: str) -> None:
     with pytest.raises(ValueError) as exc_info:
         conversions.to_bytes(primitive_type, value)
 

@@ -34,6 +34,8 @@ public class SparkFunctions {
           "iceberg_version", new IcebergVersionFunction(),
           "years", new YearsFunction(),
           "months", new MonthsFunction(),
+          "days", new DaysFunction(),
+          "hours", new HoursFunction(),
           "bucket", new BucketFunction(),
           "truncate", new TruncateFunction());
 

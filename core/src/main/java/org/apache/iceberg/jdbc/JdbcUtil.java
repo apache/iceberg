@@ -72,9 +72,9 @@ final class JdbcUtil {
           + TABLE_NAME
           + " VARCHAR(255) NOT NULL,"
           + METADATA_LOCATION
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + PREVIOUS_METADATA_LOCATION
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
           + ", "
@@ -185,9 +185,9 @@ final class JdbcUtil {
           + NAMESPACE_NAME
           + " VARCHAR(255) NOT NULL,"
           + NAMESPACE_PROPERTY_KEY
-          + " VARCHAR(5500),"
+          + " VARCHAR(255),"
           + NAMESPACE_PROPERTY_VALUE
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
           + ", "

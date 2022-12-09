@@ -29,17 +29,21 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
+from __future__ import annotations
+
 import re
 from typing import (
     Any,
     ClassVar,
     Dict,
+    Generator,
     Literal,
     Optional,
     Tuple,
 )
 
 from pydantic import Field, PrivateAttr
+from pydantic.typing import AnyCallable
 
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
@@ -61,14 +65,14 @@ class IcebergType(IcebergBaseModel, Singleton):
     """
 
     @classmethod
-    def __get_validators__(cls):
+    def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: Any) -> "IcebergType":
+    def validate(cls, v: Any) -> IcebergType:
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the
         # primitive type ourselves, or pointing it at the correct
@@ -129,7 +133,7 @@ class FixedType(PrimitiveType):
     _len: int = PrivateAttr()
 
     @staticmethod
-    def parse(str_repr: str) -> "FixedType":
+    def parse(str_repr: str) -> FixedType:
         return FixedType(length=FIXED_PARSER.match(str_repr))
 
     def __init__(self, length: int):
@@ -158,7 +162,7 @@ class DecimalType(PrimitiveType):
     _scale: int = PrivateAttr()
 
     @staticmethod
-    def parse(str_repr: str) -> "DecimalType":
+    def parse(str_repr: str) -> DecimalType:
         matches = DECIMAL_REGEX.search(str_repr)
         if matches:
             precision = int(matches.group(1))
@@ -223,7 +227,7 @@ class NestedField(IcebergType):
         field_type: Optional[IcebergType] = None,
         required: bool = True,
         doc: Optional[str] = None,
-        **data,
+        **data: Any,
     ):
         # We need an init when we want to use positional arguments, but
         # need also to support the aliases.
@@ -258,7 +262,7 @@ class StructType(IcebergType):
     type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
 
-    def __init__(self, *fields: NestedField, **data):
+    def __init__(self, *fields: NestedField, **data: Any):
         # In case we use positional arguments, instead of keyword args
         if fields:
             data["fields"] = fields
@@ -289,7 +293,7 @@ class ListType(IcebergType):
     element_field: NestedField = Field(init=False, repr=False)
 
     def __init__(
-        self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data
+        self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data: Any
     ):
         data["element_id"] = data["element-id"] if "element-id" in data else element_id
         data["element_type"] = element or data["element_type"]
@@ -333,7 +337,7 @@ class MapType(IcebergType):
         value_id: Optional[int] = None,
         value_type: Optional[IcebergType] = None,
         value_required: bool = True,
-        **data,
+        **data: Any,
     ):
         data["key_id"] = key_id or data["key-id"]
         data["key_type"] = key_type or data["key"]

@@ -61,7 +61,7 @@ from pyiceberg.types import (
 from tests.io.test_io import LocalInputFile
 
 
-def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema):
+def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
     with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
         header = reader._read_header()
 
@@ -71,7 +71,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
         "name": "manifest_entry",
         "fields": [
             {"field-id": 0, "name": "status", "type": "int"},
-            {"field-id": 1, "default": "null", "name": "snapshot_id", "type": ["null", "long"]},
+            {"field-id": 1, "default": None, "name": "snapshot_id", "type": ["null", "long"]},
             {
                 "field-id": 2,
                 "name": "data_file",
@@ -92,7 +92,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"field-id": 1000, "default": "null", "name": "VendorID", "type": ["null", "int"]}],
+                                "fields": [{"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]}],
                             },
                         },
                         {"field-id": 103, "doc": "Number of records in the file", "name": "record_count", "type": "long"},
@@ -101,7 +101,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 108,
                             "doc": "Map of column id to total size on disk",
-                            "default": "null",
+                            "default": None,
                             "name": "column_sizes",
                             "type": [
                                 "null",
@@ -122,7 +122,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 109,
                             "doc": "Map of column id to total count, including null and NaN",
-                            "default": "null",
+                            "default": None,
                             "name": "value_counts",
                             "type": [
                                 "null",
@@ -143,7 +143,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 110,
                             "doc": "Map of column id to null value count",
-                            "default": "null",
+                            "default": None,
                             "name": "null_value_counts",
                             "type": [
                                 "null",
@@ -164,7 +164,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 137,
                             "doc": "Map of column id to number of NaN values in the column",
-                            "default": "null",
+                            "default": None,
                             "name": "nan_value_counts",
                             "type": [
                                 "null",
@@ -185,7 +185,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 125,
                             "doc": "Map of column id to lower bound",
-                            "default": "null",
+                            "default": None,
                             "name": "lower_bounds",
                             "type": [
                                 "null",
@@ -206,7 +206,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 128,
                             "doc": "Map of column id to upper bound",
-                            "default": "null",
+                            "default": None,
                             "name": "upper_bounds",
                             "type": [
                                 "null",
@@ -227,21 +227,21 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                         {
                             "field-id": 131,
                             "doc": "Encryption key metadata blob",
-                            "default": "null",
+                            "default": None,
                             "name": "key_metadata",
                             "type": ["null", "bytes"],
                         },
                         {
                             "field-id": 132,
                             "doc": "Splittable offsets",
-                            "default": "null",
+                            "default": None,
                             "name": "split_offsets",
                             "type": ["null", {"element-id": 133, "type": "array", "items": "long"}],
                         },
                         {
                             "field-id": 140,
                             "doc": "Sort order ID",
-                            "default": "null",
+                            "default": None,
                             "name": "sort_order_id",
                             "type": ["null", "int"],
                         },
@@ -254,7 +254,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
     assert header.get_schema() == iceberg_manifest_entry_schema
 
 
-def test_read_manifest_entry_file(generated_manifest_entry_file: str):
+def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
     with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
         # Consume the generator
         records = list(reader)
@@ -375,7 +375,7 @@ def test_read_manifest_entry_file(generated_manifest_entry_file: str):
     )
 
 
-def test_read_manifest_file_file(generated_manifest_file_file: str):
+def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
     with AvroFile(LocalInputFile(generated_manifest_file_file)) as reader:
         # Consume the generator
         records = list(reader)
@@ -400,7 +400,7 @@ def test_read_manifest_file_file(generated_manifest_file_file: str):
     assert actual == expected
 
 
-def test_null_list_convert_pos_to_dict():
+def test_null_list_convert_pos_to_dict() -> None:
     data = _convert_pos_to_dict(
         Schema(
             NestedField(name="field", field_id=1, field_type=ListType(element_id=2, element=StringType(), element_required=False))
@@ -410,7 +410,7 @@ def test_null_list_convert_pos_to_dict():
     assert data["field"] is None
 
 
-def test_null_dict_convert_pos_to_dict():
+def test_null_dict_convert_pos_to_dict() -> None:
     data = _convert_pos_to_dict(
         Schema(
             NestedField(
@@ -424,7 +424,7 @@ def test_null_dict_convert_pos_to_dict():
     assert data["field"] is None
 
 
-def test_null_struct_convert_pos_to_dict():
+def test_null_struct_convert_pos_to_dict() -> None:
     data = _convert_pos_to_dict(
         Schema(
             NestedField(
@@ -441,59 +441,59 @@ def test_null_struct_convert_pos_to_dict():
     assert data["field"] is None
 
 
-def test_fixed_reader():
+def test_fixed_reader() -> None:
     assert primitive_reader(FixedType(22)) == FixedReader(22)
 
 
-def test_decimal_reader():
+def test_decimal_reader() -> None:
     assert primitive_reader(DecimalType(19, 25)) == DecimalReader(19, 25)
 
 
-def test_boolean_reader():
+def test_boolean_reader() -> None:
     assert primitive_reader(BooleanType()) == BooleanReader()
 
 
-def test_integer_reader():
+def test_integer_reader() -> None:
     assert primitive_reader(IntegerType()) == IntegerReader()
 
 
-def test_long_reader():
+def test_long_reader() -> None:
     assert primitive_reader(LongType()) == IntegerReader()
 
 
-def test_float_reader():
+def test_float_reader() -> None:
     assert primitive_reader(FloatType()) == FloatReader()
 
 
-def test_double_reader():
+def test_double_reader() -> None:
     assert primitive_reader(DoubleType()) == DoubleReader()
 
 
-def test_date_reader():
+def test_date_reader() -> None:
     assert primitive_reader(DateType()) == DateReader()
 
 
-def test_time_reader():
+def test_time_reader() -> None:
     assert primitive_reader(TimeType()) == TimeReader()
 
 
-def test_timestamp_reader():
+def test_timestamp_reader() -> None:
     assert primitive_reader(TimestampType()) == TimestampReader()
 
 
-def test_timestamptz_reader():
+def test_timestamptz_reader() -> None:
     assert primitive_reader(TimestamptzType()) == TimestamptzReader()
 
 
-def test_string_reader():
+def test_string_reader() -> None:
     assert primitive_reader(StringType()) == StringReader()
 
 
-def test_binary_reader():
+def test_binary_reader() -> None:
     assert primitive_reader(BinaryType()) == BinaryReader()
 
 
-def test_unknown_type():
+def test_unknown_type() -> None:
     class UnknownType(PrimitiveType):
         __root__ = "UnknownType"
 

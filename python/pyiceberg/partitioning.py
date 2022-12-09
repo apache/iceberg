@@ -69,7 +69,7 @@ class PartitionField(IcebergBaseModel):
             data["name"] = name
         super().__init__(**data)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
@@ -105,7 +105,7 @@ class PartitionSpec(IcebergBaseModel):
             return False
         return self.spec_id == other.spec_id and self.fields == other.fields
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Produce a human-readable string representation of PartitionSpec
 
@@ -141,7 +141,7 @@ class PartitionSpec(IcebergBaseModel):
         return source_id_to_fields_map
 
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self.source_id_to_fields_map[field_id]
+        return self.source_id_to_fields_map.get(field_id, [])
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """

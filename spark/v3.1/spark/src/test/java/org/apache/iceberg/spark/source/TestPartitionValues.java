@@ -23,6 +23,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -39,6 +41,7 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -51,6 +54,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -435,5 +439,55 @@ public class TestPartitionValues {
             .collectAsList();
 
     Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
+  }
+
+  @Test
+  public void testReadPartitionColumn() throws Exception {
+    Assume.assumeTrue("Temporary skip ORC", !"orc".equals(format));
+
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "innerId", Types.LongType.get()),
+                    Types.NestedField.optional(4, "innerName", Types.StringType.get()))));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
+
+    // create table
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    String baseLocation = temp.newFolder("partition_by_nested_string").toString();
+    Table table = tables.create(nestedSchema, spec, baseLocation);
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+
+    // write into iceberg
+    MapFunction<Long, ComplexRecord> func =
+        value -> new ComplexRecord(value, new NestedRecord(value, "name_" + value));
+    spark
+        .range(0, 10, 1, 1)
+        .map(func, Encoders.bean(ComplexRecord.class))
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(baseLocation);
+
+    List<String> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(baseLocation)
+            .select("struct.innerName")
+            .as(Encoders.STRING())
+            .collectAsList();
+
+    Assert.assertEquals("Number of rows should match", 10, actual.size());
+
+    List<String> inputRecords =
+        IntStream.range(0, 10).mapToObj(i -> "name_" + i).collect(Collectors.toList());
+    Assert.assertEquals("Read object should be matched", inputRecords, actual);
   }
 }

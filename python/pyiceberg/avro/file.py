@@ -23,11 +23,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from io import SEEK_SET, BufferedReader
-from typing import Optional, Type, cast
+from types import TracebackType
+from typing import Optional, Type
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.reader import AvroStruct, ConstructReader, StructReader
+from pyiceberg.avro.reader import AvroStruct, ConstructReader, Reader
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
@@ -89,12 +90,12 @@ class AvroFileHeader:
 
 @dataclass
 class Block:
-    reader: StructReader
+    reader: Reader
     block_records: int
     block_decoder: BinaryDecoder
     position: int = 0
 
-    def __iter__(self):
+    def __iter__(self) -> Block:
         return self
 
     def has_next(self) -> bool:
@@ -113,7 +114,7 @@ class AvroFile:
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
-    reader: StructReader
+    reader: Reader
 
     decoder: BinaryDecoder
     block: Optional[Block] = None
@@ -122,7 +123,7 @@ class AvroFile:
         self.input_file = input_file
         self.read_schema = read_schema
 
-    def __enter__(self):
+    def __enter__(self) -> AvroFile:
         """
         Opens the file and reads the header and generates
         a reader tree to start reading the payload
@@ -130,18 +131,20 @@ class AvroFile:
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = BufferedReader(self.input_file.open())
+        self.input_stream = BufferedReader(self.input_file.open())  # type: ignore
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
             self.reader = visit(self.schema, ConstructReader())
         else:
-            self.reader = cast(StructReader, resolve(self.schema, self.read_schema))
+            self.reader = resolve(self.schema, self.read_schema)
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         self.input_stream.close()
 
     def __iter__(self) -> AvroFile:
