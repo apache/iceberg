@@ -22,15 +22,19 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+from __future__ import annotations
+
 import importlib
 import logging
 from abc import ABC, abstractmethod
 from io import SEEK_SET
+from types import TracebackType
 from typing import (
     Dict,
     List,
     Optional,
     Protocol,
+    Type,
     Union,
     runtime_checkable,
 )
@@ -65,12 +69,13 @@ class InputStream(Protocol):
     def close(self) -> None:
         ...
 
-    @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> InputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 
@@ -91,11 +96,13 @@ class OutputStream(Protocol):  # pragma: no cover
         ...
 
     @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> OutputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 

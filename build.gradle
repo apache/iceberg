@@ -191,6 +191,12 @@ subprojects {
       exceptionFormat "full"
     }
   }
+
+  plugins.withType(ScalaPlugin.class) {
+    tasks.withType(ScalaCompile.class) {
+      scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
+    }
+  }
 }
 
 project(':iceberg-bundled-guava') {

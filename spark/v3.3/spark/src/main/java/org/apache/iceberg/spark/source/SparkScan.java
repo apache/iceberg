@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -35,24 +34,16 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
-import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
-import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.metric.CustomMetric;
-import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
-import org.apache.spark.sql.connector.read.InputPartition;
-import org.apache.spark.sql.connector.read.PartitionReader;
-import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,11 +95,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected abstract List<CombinedScanTask> tasks();
+  protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema, hashCode());
+    return new SparkBatch(sparkContext, table, readConf, taskGroups(), expectedSchema, hashCode());
   }
 
   @Override
@@ -149,7 +140,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
-    long rowsCount = tasks().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount);
   }
@@ -164,89 +155,5 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public CustomMetric[] supportedCustomMetrics() {
     return new CustomMetric[] {new NumSplits(), new NumDeletes()};
-  }
-
-  static class ReaderFactory implements PartitionReaderFactory {
-    private final int batchSize;
-
-    ReaderFactory(int batchSize) {
-      this.batchSize = batchSize;
-    }
-
-    @Override
-    public PartitionReader<InternalRow> createReader(InputPartition partition) {
-      Preconditions.checkArgument(
-          partition instanceof SparkInputPartition,
-          "Unknown input partition type: %s",
-          partition.getClass().getName());
-
-      return new RowReader((SparkInputPartition) partition);
-    }
-
-    @Override
-    public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
-      Preconditions.checkArgument(
-          partition instanceof SparkInputPartition,
-          "Unknown input partition type: %s",
-          partition.getClass().getName());
-
-      return new BatchReader((SparkInputPartition) partition, batchSize);
-    }
-
-    @Override
-    public boolean supportColumnarReads(InputPartition partition) {
-      return batchSize > 1;
-    }
-  }
-
-  private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
-    private static final Logger LOG = LoggerFactory.getLogger(RowReader.class);
-
-    private final long numSplits;
-
-    RowReader(SparkInputPartition partition) {
-      super(
-          partition.taskGroup(),
-          partition.table(),
-          partition.expectedSchema(),
-          partition.isCaseSensitive());
-
-      numSplits = partition.taskGroup().tasks().size();
-      LOG.debug("Reading {} file split(s) for table {}", numSplits, partition.table().name());
-    }
-
-    @Override
-    public CustomTaskMetric[] currentMetricsValues() {
-      return new CustomTaskMetric[] {
-        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
-      };
-    }
-  }
-
-  private static class BatchReader extends BatchDataReader
-      implements PartitionReader<ColumnarBatch> {
-
-    private static final Logger LOG = LoggerFactory.getLogger(BatchReader.class);
-
-    private final long numSplits;
-
-    BatchReader(SparkInputPartition partition, int batchSize) {
-      super(
-          partition.taskGroup(),
-          partition.table(),
-          partition.expectedSchema(),
-          partition.isCaseSensitive(),
-          batchSize);
-
-      numSplits = partition.taskGroup().tasks().size();
-      LOG.debug("Reading {} file split(s) for table {}", numSplits, partition.table().name());
-    }
-
-    @Override
-    public CustomTaskMetric[] currentMetricsValues() {
-      return new CustomTaskMetric[] {
-        new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
-      };
-    }
   }
 }

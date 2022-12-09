@@ -124,7 +124,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
 
 
 @singledispatch
-def visit(obj, visitor: BooleanExpressionVisitor[T]) -> T:
+def visit(obj: BooleanExpression, visitor: BooleanExpressionVisitor[T]) -> T:
     """A generic function for applying a boolean expression visitor to any point within an expression
 
     The function traverses the expression in post-order fashion
@@ -309,7 +309,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit a bound Or predicate"""
 
-    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]):
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit an unbound predicate
         Args:
             predicate (UnboundPredicate[L]): An unbound predicate
@@ -495,7 +495,7 @@ ROWS_CANNOT_MATCH = False
 IN_PREDICATE_LIMIT = 200
 
 
-def _from_byte_buffer(field_type: IcebergType, val: bytes):
+def _from_byte_buffer(field_type: IcebergType, val: bytes) -> Any:
     if not isinstance(field_type, PrimitiveType):
         raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
     return from_bytes(field_type, val)
@@ -505,7 +505,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     partition_fields: List[PartitionFieldSummary]
     partition_filter: BooleanExpression
 
-    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive):
+    def __init__(self, partition_struct_schema: Schema, partition_filter: BooleanExpression, case_sensitive: bool) -> None:
         self.partition_filter = bind(partition_struct_schema, rewrite_not(partition_filter), case_sensitive)
 
     def eval(self, manifest: ManifestFile) -> bool:

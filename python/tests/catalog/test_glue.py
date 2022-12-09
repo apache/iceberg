@@ -17,6 +17,7 @@
 import random
 import re
 import string
+from typing import Set
 
 import pytest
 from moto import mock_glue
@@ -31,6 +32,7 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
     TableAlreadyExistsError,
 )
+from pyiceberg.schema import Schema
 
 BUCKET_NAME = "test_bucket"
 RANDOM_LENGTH = 20
@@ -43,39 +45,35 @@ table_metadata_location_regex = re.compile(
 )
 
 
-def get_random_table_name():
+def get_random_table_name() -> str:
     prefix = "my_iceberg_table-"
     random_tag = "".join(random.choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
     return (prefix + random_tag).lower()
 
 
-def get_random_tables(n):
-    result = set()
-    for _ in range(n):
-        result.add(get_random_table_name())
-    return result
+def get_random_tables(n: int) -> Set[str]:
+    return {get_random_table_name() for _ in range(n)}
 
 
-def get_random_database_name():
+def get_random_database_name() -> str:
     prefix = "my_iceberg_database-"
     random_tag = "".join(random.choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
     return (prefix + random_tag).lower()
 
 
-def get_random_databases(n):
-    result = set()
-    for _ in range(n):
-        result.add(get_random_database_name())
-    return result
+def get_random_databases(n: int) -> Set[str]:
+    return {get_random_database_name() for _ in range(n)}
 
 
 @pytest.fixture(name="_bucket_initialize")
-def fixture_s3_bucket(_s3):
+def fixture_s3_bucket(_s3) -> None:  # type: ignore
     _s3.create_bucket(Bucket=BUCKET_NAME)
 
 
 @mock_glue
-def test_create_table_with_database_location(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_database_location(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -87,7 +85,9 @@ def test_create_table_with_database_location(_bucket_initialize, _patch_aiobotoc
 
 
 @mock_glue
-def test_create_table_with_default_warehouse(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_default_warehouse(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -99,7 +99,9 @@ def test_create_table_with_default_warehouse(_bucket_initialize, _patch_aiobotoc
 
 
 @mock_glue
-def test_create_table_with_given_location(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_given_location(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -113,7 +115,7 @@ def test_create_table_with_given_location(_bucket_initialize, _patch_aiobotocore
 
 
 @mock_glue
-def test_create_table_with_no_location(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_no_location(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -124,7 +126,7 @@ def test_create_table_with_no_location(_bucket_initialize, _patch_aiobotocore, t
 
 
 @mock_glue
-def test_create_table_with_strips(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_strips(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -144,7 +146,7 @@ def test_create_table_with_strips(_bucket_initialize, _patch_aiobotocore, table_
 
 
 @mock_glue
-def test_create_table_with_no_database(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_table_with_no_database(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -154,7 +156,7 @@ def test_create_table_with_no_database(_bucket_initialize, _patch_aiobotocore, t
 
 
 @mock_glue
-def test_create_duplicated_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_create_duplicated_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -166,7 +168,7 @@ def test_create_duplicated_table(_bucket_initialize, _patch_aiobotocore, table_s
 
 
 @mock_glue
-def test_load_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_load_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -179,7 +181,7 @@ def test_load_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested)
 
 
 @mock_glue
-def test_load_non_exist_table(_bucket_initialize, _patch_aiobotocore):
+def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -190,7 +192,7 @@ def test_load_non_exist_table(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_drop_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_drop_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -206,7 +208,7 @@ def test_drop_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested)
 
 
 @mock_glue
-def test_drop_non_exist_table(_bucket_initialize, _patch_aiobotocore):
+def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -216,7 +218,7 @@ def test_drop_non_exist_table(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_rename_table(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_rename_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     new_table_name = get_random_table_name()
@@ -238,7 +240,7 @@ def test_rename_table(_bucket_initialize, _patch_aiobotocore, table_schema_neste
 
 
 @mock_glue
-def test_rename_table_no_params(_glue, _bucket_initialize, _patch_aiobotocore):
+def test_rename_table_no_params(_glue, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
     database_name = get_random_database_name()
     new_database_name = get_random_database_name()
     table_name = get_random_table_name()
@@ -257,7 +259,7 @@ def test_rename_table_no_params(_glue, _bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_rename_non_iceberg_table(_glue, _bucket_initialize, _patch_aiobotocore):
+def test_rename_non_iceberg_table(_glue, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
     database_name = get_random_database_name()
     new_database_name = get_random_database_name()
     table_name = get_random_table_name()
@@ -280,7 +282,7 @@ def test_rename_non_iceberg_table(_glue, _bucket_initialize, _patch_aiobotocore)
 
 
 @mock_glue
-def test_list_tables(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_list_tables(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_list = get_random_tables(LIST_TEST_NUMBER)
     test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
@@ -293,7 +295,7 @@ def test_list_tables(_bucket_initialize, _patch_aiobotocore, table_schema_nested
 
 
 @mock_glue
-def test_list_namespaces(_bucket_initialize, _patch_aiobotocore):
+def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_list = get_random_databases(LIST_TEST_NUMBER)
     test_catalog = GlueCatalog("glue")
     for database_name in database_list:
@@ -304,7 +306,7 @@ def test_list_namespaces(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_create_namespace_no_properties(_bucket_initialize, _patch_aiobotocore):
+def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     test_catalog.create_namespace(namespace=database_name)
@@ -316,7 +318,7 @@ def test_create_namespace_no_properties(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_create_namespace_with_comment_and_location(_bucket_initialize, _patch_aiobotocore):
+def test_create_namespace_with_comment_and_location(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
     test_properties = {
@@ -334,7 +336,7 @@ def test_create_namespace_with_comment_and_location(_bucket_initialize, _patch_a
 
 
 @mock_glue
-def test_create_duplicated_namespace(_bucket_initialize, _patch_aiobotocore):
+def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     test_catalog.create_namespace(namespace=database_name)
@@ -346,7 +348,7 @@ def test_create_duplicated_namespace(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_drop_namespace(_bucket_initialize, _patch_aiobotocore):
+def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     test_catalog.create_namespace(namespace=database_name)
@@ -359,7 +361,7 @@ def test_drop_namespace(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_drop_non_empty_namespace(_bucket_initialize, _patch_aiobotocore, table_schema_nested):
+def test_drop_non_empty_namespace(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
     database_name = get_random_database_name()
     table_name = get_random_table_name()
     identifier = (database_name, table_name)
@@ -372,7 +374,7 @@ def test_drop_non_empty_namespace(_bucket_initialize, _patch_aiobotocore, table_
 
 
 @mock_glue
-def test_drop_non_exist_namespace(_bucket_initialize, _patch_aiobotocore):
+def test_drop_non_exist_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     with pytest.raises(NoSuchNamespaceError):
@@ -380,7 +382,7 @@ def test_drop_non_exist_namespace(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_load_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
     test_properties = {
@@ -399,7 +401,7 @@ def test_load_namespace_properties(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_load_non_exist_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+def test_load_non_exist_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     with pytest.raises(NoSuchNamespaceError):
@@ -407,7 +409,7 @@ def test_load_non_exist_namespace_properties(_bucket_initialize, _patch_aiobotoc
 
 
 @mock_glue
-def test_update_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_properties = {
         "comment": "this is a test description",
@@ -433,7 +435,7 @@ def test_update_namespace_properties(_bucket_initialize, _patch_aiobotocore):
 
 
 @mock_glue
-def test_load_empty_namespace_properties(_bucket_initialize, _patch_aiobotocore):
+def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_catalog = GlueCatalog("glue")
     test_catalog.create_namespace(database_name)
@@ -442,7 +444,7 @@ def test_load_empty_namespace_properties(_bucket_initialize, _patch_aiobotocore)
 
 
 @mock_glue
-def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aiobotocore):
+def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aiobotocore) -> None:  # type: ignore
     database_name = get_random_database_name()
     # simulate creating database with default settings through AWS Glue Web Console
     _glue.create_database(DatabaseInput={"Name": database_name})
@@ -452,7 +454,7 @@ def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aio
 
 
 @mock_glue
-def test_update_namespace_properties_overlap_update_removal(_bucket_initialize, _patch_aiobotocore):
+def test_update_namespace_properties_overlap_update_removal(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
     database_name = get_random_database_name()
     test_properties = {
         "comment": "this is a test description",

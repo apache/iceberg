@@ -158,7 +158,7 @@ class BinaryDecoder:
         """
         return micros_to_timestamp(self.read_int())
 
-    def read_timestamptz_micros(self):
+    def read_timestamptz_micros(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.

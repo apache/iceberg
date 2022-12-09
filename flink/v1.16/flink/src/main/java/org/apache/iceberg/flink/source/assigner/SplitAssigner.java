@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
+import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
@@ -38,8 +39,9 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
  *       single source or across sources.
  * </ul>
  *
- * <p>Enumerator should call the assigner APIs from the coordinator thread. This is to simplify the
- * thread safety for assigner implementation.
+ * <p>Assigner implementation needs to be thread safe. Enumerator call the assigner APIs mostly from
+ * the coordinator thread. But enumerator may call the {@link SplitAssigner#pendingSplitCount()}
+ * from the I/O threads.
  */
 public interface SplitAssigner extends Closeable {
 
@@ -97,4 +99,20 @@ public interface SplitAssigner extends Closeable {
    * the coordinator thread using {@link SplitEnumeratorContext#runInCoordinatorThread(Runnable)}.
    */
   CompletableFuture<Void> isAvailable();
+
+  /**
+   * Return the number of pending splits that haven't been assigned yet.
+   *
+   * <p>The enumerator can poll this API to publish a metric on the number of pending splits.
+   *
+   * <p>The enumerator can also use this information to throttle split discovery for streaming read.
+   * If there are already many pending splits tracked by the assigner, it is undesirable to discover
+   * more splits and track them in the assigner. That will increase the memory footprint and
+   * enumerator checkpoint size.
+   *
+   * <p>Throttling works better together with {@link ScanContext#maxPlanningSnapshotCount()}.
+   * Otherwise, the next split discovery after throttling will just discover all non-enumerated
+   * snapshots and splits, which defeats the purpose of throttling.
+   */
+  int pendingSplitCount();
 }

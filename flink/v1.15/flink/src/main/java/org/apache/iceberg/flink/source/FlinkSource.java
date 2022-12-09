@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -36,11 +38,14 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,6 +85,8 @@ public class FlinkSource {
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private Boolean exposeLocality;
 
+    private final Map<String, String> readOptions = Maps.newHashMap();
+
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
       return this;
@@ -110,53 +117,65 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder set(String property, String value) {
+      readOptions.put(property, value);
+      return this;
+    }
+
+    public Builder setAll(Map<String, String> properties) {
+      readOptions.putAll(properties);
+      return this;
+    }
+
+    /** @deprecated Use {@link #setAll} instead. */
+    @Deprecated
     public Builder properties(Map<String, String> properties) {
-      contextBuilder.fromProperties(properties);
+      readOptions.putAll(properties);
       return this;
     }
 
     public Builder caseSensitive(boolean caseSensitive) {
-      contextBuilder.caseSensitive(caseSensitive);
+      readOptions.put(FlinkReadOptions.CASE_SENSITIVE, Boolean.toString(caseSensitive));
       return this;
     }
 
     public Builder snapshotId(Long snapshotId) {
-      contextBuilder.useSnapshotId(snapshotId);
+      readOptions.put(FlinkReadOptions.SNAPSHOT_ID.key(), Long.toString(snapshotId));
       return this;
     }
 
     public Builder startSnapshotId(Long startSnapshotId) {
-      contextBuilder.startSnapshotId(startSnapshotId);
+      readOptions.put(FlinkReadOptions.START_SNAPSHOT_ID.key(), Long.toString(startSnapshotId));
       return this;
     }
 
     public Builder endSnapshotId(Long endSnapshotId) {
-      contextBuilder.endSnapshotId(endSnapshotId);
+      readOptions.put(FlinkReadOptions.END_SNAPSHOT_ID.key(), Long.toString(endSnapshotId));
       return this;
     }
 
     public Builder asOfTimestamp(Long asOfTimestamp) {
-      contextBuilder.asOfTimestamp(asOfTimestamp);
+      readOptions.put(FlinkReadOptions.AS_OF_TIMESTAMP.key(), Long.toString(asOfTimestamp));
       return this;
     }
 
     public Builder splitSize(Long splitSize) {
-      contextBuilder.splitSize(splitSize);
+      readOptions.put(FlinkReadOptions.SPLIT_SIZE, Long.toString(splitSize));
       return this;
     }
 
     public Builder splitLookback(Integer splitLookback) {
-      contextBuilder.splitLookback(splitLookback);
+      readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK, Integer.toString(splitLookback));
       return this;
     }
 
     public Builder splitOpenFileCost(Long splitOpenFileCost) {
-      contextBuilder.splitOpenFileCost(splitOpenFileCost);
+      readOptions.put(FlinkReadOptions.SPLIT_FILE_OPEN_COST, Long.toString(splitOpenFileCost));
       return this;
     }
 
     public Builder streaming(boolean streaming) {
-      contextBuilder.streaming(streaming);
+      readOptions.put(FlinkReadOptions.STREAMING, Boolean.toString(streaming));
       return this;
     }
 
@@ -166,17 +185,19 @@ public class FlinkSource {
     }
 
     public Builder nameMapping(String nameMapping) {
-      contextBuilder.nameMapping(nameMapping);
+      readOptions.put(DEFAULT_NAME_MAPPING, nameMapping);
       return this;
     }
 
     public Builder monitorInterval(Duration interval) {
-      contextBuilder.monitorInterval(interval);
+      readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, interval.toNanos() + " ns");
       return this;
     }
 
     public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
-      contextBuilder.maxPlanningSnapshotCount(newMaxPlanningSnapshotCount);
+      readOptions.put(
+          FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT,
+          Integer.toString(newMaxPlanningSnapshotCount));
       return this;
     }
 
@@ -218,6 +239,8 @@ public class FlinkSource {
           SourceUtil.isLocalityEnabled(table, readableConfig, exposeLocality));
       contextBuilder.planParallelism(
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
+
+      contextBuilder.resolveConfig(table, readOptions, readableConfig);
 
       return new FlinkInputFormat(
           tableLoader, icebergSchema, io, encryption, contextBuilder.build());
@@ -261,6 +284,6 @@ public class FlinkSource {
   }
 
   public static boolean isBounded(Map<String, String> properties) {
-    return !ScanContext.builder().fromProperties(properties).build().isStreaming();
+    return !PropertyUtil.propertyAsBoolean(properties, FlinkReadOptions.STREAMING, false);
   }
 }

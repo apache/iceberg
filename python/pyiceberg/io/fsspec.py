@@ -17,7 +17,12 @@
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
 import logging
 from functools import lru_cache, partial
-from typing import Callable, Dict, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Union,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -29,13 +34,19 @@ from s3fs import S3FileSystem
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
-from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.io import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from pyiceberg.typedef import Properties
 
 logger = logging.getLogger(__name__)
 
 
-def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSRequest:
+def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_: Any) -> AWSRequest:
     if TOKEN not in properties:
         raise SignError("Signer set, but token is not available")
 
@@ -127,7 +138,7 @@ class FsspecInputFile(InputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def open(self):
+    def open(self) -> InputStream:
         """Create an input stream for reading the contents of the file
 
         Returns:
@@ -161,7 +172,7 @@ class FsspecOutputFile(OutputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def create(self, overwrite: bool = False):
+    def create(self, overwrite: bool = False) -> OutputStream:
         """Create an output stream for reading the contents of the file
 
         Args:
