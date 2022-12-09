@@ -127,7 +127,7 @@ And can be installed using: pip3 install pyiceberg==$VERSION
 Please download, verify, and test.
 
 Please vote in the next 72 hours.
-[ ] +1 Release this as PyIceberg $VERSION
+[ ] +1 Release this as PyIceberg $VERSION_WITHOUT_RC
 [ ] +0
 [ ] -1 Do not release this because...
 EOF
