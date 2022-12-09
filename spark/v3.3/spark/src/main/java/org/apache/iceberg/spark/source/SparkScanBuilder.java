@@ -214,11 +214,24 @@ public class SparkScanBuilder
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.START_SNAPSHOT_ID);
 
+    checkInvalidOptions();
+
     if (startSnapshotId != null) {
       return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
     } else {
       return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
     }
+  }
+
+  private void checkInvalidOptions() {
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+    Preconditions.checkArgument(
+        startTimestamp != null || endTimestamp != null,
+        "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
+            + "changelog scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP);
   }
 
   private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
@@ -291,13 +304,13 @@ public class SparkScanBuilder
 
     Preconditions.checkArgument(
         !(startSnapshotId != null && startTimestamp != null),
-        "Cannot set neither %s nor %s for changelogs",
+        "Cannot set both %s and %s for changelogs",
         SparkReadOptions.START_SNAPSHOT_ID,
         SparkReadOptions.START_TIMESTAMP);
 
     Preconditions.checkArgument(
         !(endSnapshotId != null && endTimestamp != null),
-        "Cannot set neither %s nor %s for changelogs",
+        "Cannot set both %s and %s for changelogs",
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.END_TIMESTAMP);
 

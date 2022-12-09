@@ -75,17 +75,8 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Test
   public void testDataFilters() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
+    createTableWithDefaultRows();
 
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
     sql("INSERT INTO %s VALUES (3, 'c')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -108,17 +99,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Test
   public void testOverwrites() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -140,26 +121,15 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Test
   public void testQueryWithTimeRange() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
     Snapshot snap2 = table.currentSnapshot();
+    long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
 
     sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
-
     table.refresh();
-
     Snapshot snap3 = table.currentSnapshot();
 
     assertEquals(
@@ -184,6 +154,20 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
             row(2, "b", "DELETE", 1, snap3.snapshotId()),
             row(-2, "b", "INSERT", 1, snap3.snapshotId())),
         changelogRecords(snap2.timestampMillis(), null));
+  }
+
+  @Test
+  public void testTimeRangeValidation() {
+    createTableWithDefaultRows();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
 
     assertThrows(
         "Should fail if start time is after end time",
@@ -193,22 +177,12 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     assertThrows(
         "Should fail if start time is after the current snapshot",
         IllegalArgumentException.class,
-        () -> changelogRecords(snap3.timestampMillis() + 1, null));
+        () -> changelogRecords(rightAfterSnap3, null));
   }
 
   @Test
   public void testMetadataDeletes() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -261,17 +235,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Test
   public void testManifestRewritesAreIgnored() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
 
@@ -282,6 +246,27 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "INSERT"), row(2, "INSERT")),
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
+  }
+
+  private void createTableWithDefaultRows() {
+    createTable();
+    insertDefaultRows();
+  }
+
+  private void createTable() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES ( "
+            + " '%s' = '%d' "
+            + ")",
+        tableName, FORMAT_VERSION, formatVersion);
+  }
+
+  private void insertDefaultRows() {
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
   }
 
   private List<Object[]> changelogRecords(Snapshot startSnapshot, Snapshot endSnapshot) {
