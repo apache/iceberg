@@ -26,14 +26,15 @@ lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not s3" ${PYTEST_ARGS}
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m unmarked ${PYTEST_ARGS}
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
 
 test-s3:
 	sh ./dev/run-minio.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m s3 ${PYTEST_ARGS}
+
+test-integration:
+	docker-compose -f dev/docker-compose.yml up -d
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}

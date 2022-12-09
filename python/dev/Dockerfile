@@ -16,6 +16,7 @@ RUN apt-get update && \
 # Optional env variables
 ENV SPARK_HOME=${SPARK_HOME:-"/opt/spark"}
 ENV HADOOP_HOME=${HADOOP_HOME:-"/opt/hadoop"}
+ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.5-src.zip:$PYTHONPATH
 
 RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME} && mkdir -p /home/iceberg/spark-events
 WORKDIR ${SPARK_HOME}
@@ -39,12 +40,12 @@ RUN curl https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-cl
 
 COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
-ENV SPARK_HOME="/opt/spark"
 
 RUN chmod u+x /opt/spark/sbin/* && \
     chmod u+x /opt/spark/bin/*
 
 COPY entrypoint.sh .
+COPY provision.py .
 
 COPY data/ data/
 

@@ -86,7 +86,7 @@ class Table:
     def scan(
         self,
         row_filter: Optional[BooleanExpression] = None,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -169,7 +169,7 @@ S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
 class TableScan(Generic[S], ABC):
     table: Table
     row_filter: BooleanExpression
-    selected_fields: Tuple[str]
+    selected_fields: Tuple[str, ...]
     case_sensitive: bool
     snapshot_id: Optional[int]
     options: Properties

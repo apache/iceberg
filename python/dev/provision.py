@@ -14,19 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import time
 
-
-from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
+from pyspark.sql import SparkSession
 from pyspark.sql.types import DoubleType, IntegerType
 
 spark = SparkSession.builder.getOrCreate()
 
-spark.sql("""
-  CREATE DATABASE IF NOT EXISTS default;
-""")
+print("Create database")
 
-df = spark.read.csv('/opt/spark/data/beers.csv', header=True)
+spark.sql(
+    """
+  CREATE DATABASE default;
+"""
+)
+
+print("Create beers table")
+
+df = spark.read.csv("/opt/spark/data/beers.csv", header=True)
 
 df = (
     df.withColumn("abv", df.abv.cast(DoubleType()))
@@ -35,27 +41,20 @@ df = (
     .withColumn("brewery_id", df.brewery_id.cast(IntegerType()))
     .withColumn("ounces", df.ounces.cast(DoubleType()))
     # Inject a NaN which is nice for testing
-    .withColumn("ibu", F.when(F.col("beer_id") == 2546, float('NaN')).otherwise(F.col("ibu")))
+    .withColumn("ibu", F.when(F.col("beer_id") == 2546, float("NaN")).otherwise(F.col("ibu")))
 )
 
-df.write.mode('overwrite').saveAsTable("default.beers")
+df.write.saveAsTable("default.beers")
 
-spark.sql("""
-CALL system.rewrite_data_files(table => 'default.beers', strategy => 'sort', sort_order => 'brewery_id')
-""").show()
+print("Create breweries table")
 
-df = spark.read.csv('/opt/spark/data/breweries.csv', header=True)
+df = spark.read.csv("/opt/spark/data/breweries.csv", header=True)
 
-df = (
-    df.withColumn("brewery_id", df.brewery_id.cast(IntegerType()))
-)
+df = df.withColumn("brewery_id", df.brewery_id.cast(IntegerType()))
 
-df.write.mode('overwrite').saveAsTable("default.breweries")
+df.write.saveAsTable("default.breweries")
 
-spark.sql("""
-ALTER TABLE default.breweries ADD PARTITION FIELD state
-""").show()
+print("Done!")
 
-spark.sql("""
-CALL system.rewrite_data_files('default.breweries')
-""").show()
+while True:
+    time.sleep(1)
