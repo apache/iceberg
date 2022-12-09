@@ -23,6 +23,7 @@ import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
@@ -58,12 +59,9 @@ class SparkHilbertUDF implements SparkSpaceCurveUDF, Serializable {
 
   byte[] hilbertCurvePosBytes(Seq<Long> points) {
     java.util.List<Long> longs = JavaConverters.seqAsJavaList(points);
-    long[] longs1 = new long[longs.size()];
-    for (int i = 0; i < longs.size(); i++) {
-      longs1[i] = longs.get(i);
-    }
+    long[] data = ArrayUtil.toPrimitive(longs.toArray(new Long[0]));
     HilbertCurve hilbertCurve = HilbertCurve.bits(BITS_NUM).dimensions(points.size());
-    BigInteger index = hilbertCurve.index(longs1);
+    BigInteger index = hilbertCurve.index(data);
     return BinaryUtil.paddingToNByte(index.toByteArray(), BITS_NUM);
   }
 
