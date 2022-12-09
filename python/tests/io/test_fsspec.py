@@ -132,7 +132,7 @@ def test_fsspec_read_specified_bytes_for_file(fsspec_fileio: FsspecFileIO) -> No
 
 @pytest.mark.s3
 def test_fsspec_raise_on_opening_file_not_found(fsspec_fileio: FsspecFileIO) -> None:
-    """Test that an fsppec input file raises appropriately when the s3 file is not found"""
+    """Test that an fsspec input file raises appropriately when the s3 file is not found"""
 
     filename = str(uuid.uuid4())
     input_file = fsspec_fileio.new_input(location=f"s3://warehouse/{filename}")
@@ -291,8 +291,8 @@ def test_fsspec_read_specified_bytes_for_file_adlfs(adlfs_fsspec_fileio: FsspecF
 
     filename = str(uuid.uuid4())
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
-    with output_file.create() as f:
-        f.write(b"foo")
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
 
     input_file = adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}")
     f = input_file.open()
@@ -350,16 +350,16 @@ def test_closing_a_file_adlfs(adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test closing an output file and input file"""
     filename = str(uuid.uuid4())
     output_file = adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}")
-    with output_file.create() as f:
-        f.write(b"foo")
-        assert not f.closed
-    assert f.closed
+    with output_file.create() as write_file:
+        write_file.write(b"foo")
+        assert not write_file.closed  # type: ignore
+    assert write_file.closed  # type: ignore
 
     input_file = adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}")
     f = input_file.open()
-    assert not f.closed
+    assert not f.closed  # type: ignore
     f.close()
-    assert f.closed
+    assert f.closed  # type: ignore
 
     adlfs_fsspec_fileio.delete(f"abfss://tests/{filename}")
 
@@ -374,7 +374,7 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_file
 
 
 @pytest.mark.adlfs
-def test_writing_avro_file_adlfs(generated_manifest_entry_file, adlfs_fsspec_fileio: FsspecFileIO) -> None:
+def test_writing_avro_file_adlfs(generated_manifest_entry_file: Generator[str, None, None], adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
     with LocalInputFile(generated_manifest_entry_file).open() as f:
