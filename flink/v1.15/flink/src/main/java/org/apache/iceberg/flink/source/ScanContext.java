@@ -64,6 +64,7 @@ public class ScanContext implements Serializable {
   private final boolean includeColumnStats;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
+  private final Duration reloadInterval;
 
   private ScanContext(
       boolean caseSensitive,
@@ -89,7 +90,8 @@ public class ScanContext implements Serializable {
       String branch,
       String tag,
       String startTag,
-      String endTag) {
+      String endTag,
+      Duration reloadInterval) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.tag = tag;
@@ -115,6 +117,7 @@ public class ScanContext implements Serializable {
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
+    this.reloadInterval = reloadInterval;
 
     validate();
   }
@@ -159,6 +162,10 @@ public class ScanContext implements Serializable {
 
   public boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  Duration reloadInterval() {
+    return reloadInterval;
   }
 
   public Long snapshotId() {
@@ -277,6 +284,31 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .reloadInterval(reloadInterval)
+        .build();
+  }
+
+  ScanContext copyWithFilters(List<Expression> newFilters) {
+    return ScanContext.builder()
+        .caseSensitive(caseSensitive)
+        .useSnapshotId(snapshotId)
+        .startSnapshotId(null)
+        .endSnapshotId(null)
+        .asOfTimestamp(null)
+        .splitSize(splitSize)
+        .splitLookback(splitLookback)
+        .splitOpenFileCost(splitOpenFileCost)
+        .streaming(isStreaming)
+        .monitorInterval(monitorInterval)
+        .nameMapping(nameMapping)
+        .project(schema)
+        .filters(newFilters)
+        .limit(limit)
+        .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .reloadInterval(reloadInterval)
         .build();
   }
 
@@ -304,6 +336,7 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .reloadInterval(reloadInterval)
         .build();
   }
 
@@ -341,6 +374,8 @@ public class ScanContext implements Serializable {
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
     private int maxPlanningSnapshotCount =
         FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue();
+    private Duration reloadInterval =
+        TimeUtils.parseDuration(FlinkReadOptions.RELOAD_INTERVAL_OPTION.defaultValue());
 
     private Builder() {}
 
@@ -464,6 +499,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder reloadInterval(Duration interval) {
+      this.reloadInterval = interval;
+      return this;
+    }
+
     public Builder resolveConfig(
         Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
       FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
@@ -488,7 +528,8 @@ public class ScanContext implements Serializable {
           .limit(flinkReadConf.limit())
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
-          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount());
+          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
+          .reloadInterval(flinkReadConf.reloadInterval());
     }
 
     public ScanContext build() {
@@ -516,7 +557,8 @@ public class ScanContext implements Serializable {
           branch,
           tag,
           startTag,
-          endTag);
+          endTag,
+          reloadInterval);
     }
   }
 }

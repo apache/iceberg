@@ -105,4 +105,8 @@ public class FlinkReadOptions {
   public static final String LIMIT = "limit";
   public static final ConfigOption<Long> LIMIT_OPTION =
       ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);
+
+  public static final String RELOAD_INTERVAL = "reload-interval";
+  public static final ConfigOption<String> RELOAD_INTERVAL_OPTION =
+      ConfigOptions.key(PREFIX + RELOAD_INTERVAL).stringType().defaultValue("600s");
 }

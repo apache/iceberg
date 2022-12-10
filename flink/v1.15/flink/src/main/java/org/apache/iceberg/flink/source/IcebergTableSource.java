@@ -34,13 +34,16 @@ import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
@@ -56,7 +59,8 @@ public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
-        SupportsLimitPushDown {
+        SupportsLimitPushDown,
+        LookupTableSource {
 
   private int[] projectedFields;
   private Long limit;
@@ -225,5 +229,22 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    RowType rowType = (RowType) getProjectedSchema().toRowDataType().getLogicalType();
+    int[][] keys = context.getKeys();
+    int[] keyIndices = new int[keys.length];
+    int index = 0;
+    for (int[] key : keys) {
+      if (keys.length > 1) {
+        throw new UnsupportedOperationException("Iceberg lookup can not support nested key now");
+      }
+      keyIndices[index] = key[0];
+      index++;
+    }
+    return TableFunctionProvider.of(
+        new FlinkLookupFunction(rowType, keyIndices, loader, properties, readableConfig));
   }
 }
