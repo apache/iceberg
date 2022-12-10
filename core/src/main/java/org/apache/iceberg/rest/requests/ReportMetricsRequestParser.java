@@ -22,10 +22,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Locale;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.CommitReportParser;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.ScanReportParser;
-import org.apache.iceberg.metrics.SnapshotReport;
-import org.apache.iceberg.metrics.SnapshotReportParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest.ReportType;
 import org.apache.iceberg.util.JsonUtil;
@@ -55,8 +55,8 @@ public class ReportMetricsRequestParser {
       ScanReportParser.toJsonWithoutStartEnd((ScanReport) request.report(), gen);
     }
 
-    if (ReportType.SNAPSHOT_REPORT == request.reportType()) {
-      SnapshotReportParser.toJsonWithoutStartEnd((SnapshotReport) request.report(), gen);
+    if (ReportType.COMMIT_REPORT == request.reportType()) {
+      CommitReportParser.toJsonWithoutStartEnd((CommitReport) request.report(), gen);
     }
 
     gen.writeEndObject();
@@ -87,10 +87,10 @@ public class ReportMetricsRequestParser {
           .build();
     }
 
-    if (ReportType.SNAPSHOT_REPORT == type) {
+    if (ReportType.COMMIT_REPORT == type) {
       return ImmutableReportMetricsRequest.builder()
           .reportType(type)
-          .report(SnapshotReportParser.fromJson(json))
+          .report(CommitReportParser.fromJson(json))
           .build();
     }
 

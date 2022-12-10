@@ -24,7 +24,7 @@ import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class SnapshotReportParser {
+public class CommitReportParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String SEQUENCE_NUMBER = "sequence-number";
@@ -32,65 +32,65 @@ public class SnapshotReportParser {
   private static final String METRICS = "metrics";
   private static final String METADATA = "metadata";
 
-  private SnapshotReportParser() {}
+  private CommitReportParser() {}
 
-  public static String toJson(SnapshotReport snapshotReport) {
-    return toJson(snapshotReport, false);
+  public static String toJson(CommitReport commitReport) {
+    return toJson(commitReport, false);
   }
 
-  public static String toJson(SnapshotReport snapshotReport, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(snapshotReport, gen), pretty);
+  public static String toJson(CommitReport commitReport, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(commitReport, gen), pretty);
   }
 
-  public static void toJson(SnapshotReport snapshotReport, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != snapshotReport, "Invalid snapshot report: null");
+  public static void toJson(CommitReport commitReport, JsonGenerator gen) throws IOException {
+    Preconditions.checkArgument(null != commitReport, "Invalid commit report: null");
 
     gen.writeStartObject();
-    toJsonWithoutStartEnd(snapshotReport, gen);
+    toJsonWithoutStartEnd(commitReport, gen);
     gen.writeEndObject();
   }
 
   /**
-   * This serializes the {@link SnapshotReport} without writing a start/end object and is mainly
-   * used by {@link org.apache.iceberg.rest.requests.ReportMetricsRequestParser}.
+   * This serializes the {@link CommitReport} without writing a start/end object and is mainly used
+   * by {@link org.apache.iceberg.rest.requests.ReportMetricsRequestParser}.
    *
-   * @param snapshotReport The {@link SnapshotReport} to serialize
+   * @param commitReport The {@link CommitReport} to serialize
    * @param gen The {@link JsonGenerator} to use
    * @throws IOException If an error occurs while serializing
    */
-  public static void toJsonWithoutStartEnd(SnapshotReport snapshotReport, JsonGenerator gen)
+  public static void toJsonWithoutStartEnd(CommitReport commitReport, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkArgument(null != snapshotReport, "Invalid snapshot report: null");
+    Preconditions.checkArgument(null != commitReport, "Invalid commit report: null");
 
-    gen.writeStringField(TABLE_NAME, snapshotReport.tableName());
-    gen.writeNumberField(SNAPSHOT_ID, snapshotReport.snapshotId());
-    gen.writeNumberField(SEQUENCE_NUMBER, snapshotReport.sequenceNumber());
-    gen.writeStringField(OPERATION, snapshotReport.operation());
+    gen.writeStringField(TABLE_NAME, commitReport.tableName());
+    gen.writeNumberField(SNAPSHOT_ID, commitReport.snapshotId());
+    gen.writeNumberField(SEQUENCE_NUMBER, commitReport.sequenceNumber());
+    gen.writeStringField(OPERATION, commitReport.operation());
 
     gen.writeFieldName(METRICS);
-    SnapshotMetricsResultParser.toJson(snapshotReport.snapshotMetrics(), gen);
+    CommitMetricsResultParser.toJson(commitReport.commitMetrics(), gen);
 
-    if (!snapshotReport.metadata().isEmpty()) {
-      JsonUtil.writeStringMap(METADATA, snapshotReport.metadata(), gen);
+    if (!commitReport.metadata().isEmpty()) {
+      JsonUtil.writeStringMap(METADATA, commitReport.metadata(), gen);
     }
   }
 
-  public static SnapshotReport fromJson(String json) {
-    return JsonUtil.parse(json, SnapshotReportParser::fromJson);
+  public static CommitReport fromJson(String json) {
+    return JsonUtil.parse(json, CommitReportParser::fromJson);
   }
 
-  public static SnapshotReport fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Cannot parse snapshot report from null object");
+  public static CommitReport fromJson(JsonNode json) {
+    Preconditions.checkArgument(null != json, "Cannot parse commit report from null object");
     Preconditions.checkArgument(
-        json.isObject(), "Cannot parse snapshot report from non-object: %s", json);
+        json.isObject(), "Cannot parse commit report from non-object: %s", json);
 
-    ImmutableSnapshotReport.Builder builder =
-        ImmutableSnapshotReport.builder()
+    ImmutableCommitReport.Builder builder =
+        ImmutableCommitReport.builder()
             .tableName(JsonUtil.getString(TABLE_NAME, json))
             .snapshotId(JsonUtil.getLong(SNAPSHOT_ID, json))
             .sequenceNumber(JsonUtil.getLong(SEQUENCE_NUMBER, json))
             .operation(JsonUtil.getString(OPERATION, json))
-            .snapshotMetrics(SnapshotMetricsResultParser.fromJson(JsonUtil.get(METRICS, json)));
+            .commitMetrics(CommitMetricsResultParser.fromJson(JsonUtil.get(METRICS, json)));
 
     if (json.has(METADATA)) {
       builder.metadata(JsonUtil.getStringMap(METADATA, json));

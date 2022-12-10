@@ -25,9 +25,9 @@ import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
-/** A serializable version of {@link SnapshotMetrics} that carries its results. */
+/** A serializable version of {@link CommitMetrics} that carries its results. */
 @Value.Immutable
-public interface SnapshotMetricsResult {
+public interface CommitMetricsResult {
   String ADDED_DATA_FILES = "added-data-files";
   String REMOVED_DATA_FILES = "removed-data-files";
   String TOTAL_DATA_FILES = "total-data-files";
@@ -123,13 +123,13 @@ public interface SnapshotMetricsResult {
   @Nullable
   CounterResult totalEqualityDeletes();
 
-  static SnapshotMetricsResult from(
-      SnapshotMetrics snapshotMetrics, Map<String, String> snapshotSummary) {
-    Preconditions.checkArgument(null != snapshotMetrics, "Invalid snapshot metrics: null");
+  static CommitMetricsResult from(
+      CommitMetrics commitMetrics, Map<String, String> snapshotSummary) {
+    Preconditions.checkArgument(null != commitMetrics, "Invalid commit metrics: null");
     Preconditions.checkArgument(null != snapshotSummary, "Invalid snapshot summary: null");
-    return ImmutableSnapshotMetricsResult.builder()
-        .attempts(CounterResult.fromCounter(snapshotMetrics.attempts()))
-        .totalDuration(TimerResult.fromTimer(snapshotMetrics.totalDuration()))
+    return ImmutableCommitMetricsResult.builder()
+        .attempts(CounterResult.fromCounter(commitMetrics.attempts()))
+        .totalDuration(TimerResult.fromTimer(commitMetrics.totalDuration()))
         .addedDataFiles(counterFrom(snapshotSummary, SnapshotSummary.ADDED_FILES_PROP))
         .removedDataFiles(counterFrom(snapshotSummary, SnapshotSummary.DELETED_FILES_PROP))
         .totalDataFiles(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_DATA_FILES_PROP))

@@ -45,12 +45,12 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.CommitMetrics;
+import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
-import org.apache.iceberg.metrics.ImmutableSnapshotReport;
+import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.metrics.SnapshotMetrics;
-import org.apache.iceberg.metrics.SnapshotMetricsResult;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -92,7 +92,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
-  private SnapshotMetrics snapshotMetrics;
+  private CommitMetrics commitMetrics;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -122,12 +122,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
-  protected SnapshotMetrics snapshotMetrics() {
-    if (snapshotMetrics == null) {
-      this.snapshotMetrics = SnapshotMetrics.of(new DefaultMetricsContext());
+  protected CommitMetrics commitMetrics() {
+    if (commitMetrics == null) {
+      this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
     }
 
-    return snapshotMetrics;
+    return commitMetrics;
   }
 
   protected ThisT reportWith(MetricsReporter newReporter) {
@@ -351,7 +351,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
-    Timed totalDuration = snapshotMetrics().totalDuration().start();
+    Timed totalDuration = commitMetrics().totalDuration().start();
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -361,7 +361,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .countAttempts(snapshotMetrics().attempts())
+          .countAttempts(commitMetrics().attempts())
           .run(
               taskOps -> {
                 Snapshot newSnapshot = apply();
@@ -441,14 +441,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
 
           reporter.report(
-              ImmutableSnapshotReport.builder()
+              ImmutableCommitReport.builder()
                   .tableName(createSnapshotEvent.tableName())
                   .snapshotId(createSnapshotEvent.snapshotId())
                   .operation(createSnapshotEvent.operation())
                   .sequenceNumber(createSnapshotEvent.sequenceNumber())
                   .metadata(EnvironmentContext.get())
-                  .snapshotMetrics(
-                      SnapshotMetricsResult.from(snapshotMetrics(), createSnapshotEvent.summary()))
+                  .commitMetrics(
+                      CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
                   .build());
         }
       }

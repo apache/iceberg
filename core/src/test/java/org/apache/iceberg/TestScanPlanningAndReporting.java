@@ -25,12 +25,12 @@ import java.time.Duration;
 import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.SnapshotReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
@@ -261,14 +261,16 @@ public class TestScanPlanningAndReporting extends TableTestBase {
       if (reports.isEmpty()) {
         return null;
       }
+
       return (ScanReport) reports.get(reports.size() - 1);
     }
 
-    public SnapshotReport lastSnapshotReport() {
+    public CommitReport lastCommitReport() {
       if (reports.isEmpty()) {
         return null;
       }
-      return (SnapshotReport) reports.get(reports.size() - 1);
+
+      return (CommitReport) reports.get(reports.size() - 1);
     }
   }
 }

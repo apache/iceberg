@@ -26,47 +26,47 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-public class TestSnapshotReportParser {
+public class TestCommitReportParser {
 
   @Test
-  public void nullSnapshotReport() {
-    Assertions.assertThatThrownBy(() -> SnapshotReportParser.fromJson((JsonNode) null))
+  public void nullCommitReport() {
+    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse snapshot report from null object");
+        .hasMessage("Cannot parse commit report from null object");
 
-    Assertions.assertThatThrownBy(() -> SnapshotReportParser.toJson(null))
+    Assertions.assertThatThrownBy(() -> CommitReportParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid snapshot report: null");
+        .hasMessage("Invalid commit report: null");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> SnapshotReportParser.fromJson("{}"))
+    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: table-name");
 
     Assertions.assertThatThrownBy(
-            () -> SnapshotReportParser.fromJson("{\"table-name\":\"roundTripTableName\"}"))
+            () -> CommitReportParser.fromJson("{\"table-name\":\"roundTripTableName\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: snapshot-id");
 
     Assertions.assertThatThrownBy(
             () ->
-                SnapshotReportParser.fromJson(
+                CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: sequence-number");
 
     Assertions.assertThatThrownBy(
             () ->
-                SnapshotReportParser.fromJson(
+                CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"sequence-number\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: operation");
 
     Assertions.assertThatThrownBy(
             () ->
-                SnapshotReportParser.fromJson(
+                CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"sequence-number\":24, \"operation\": \"DELETE\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: metrics");
@@ -74,7 +74,7 @@ public class TestSnapshotReportParser {
 
   @Test
   public void invalidTableName() {
-    Assertions.assertThatThrownBy(() -> SnapshotReportParser.fromJson("{\"table-name\":23}"))
+    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson("{\"table-name\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: table-name: 23");
   }
@@ -83,7 +83,7 @@ public class TestSnapshotReportParser {
   public void invalidSnapshotId() {
     Assertions.assertThatThrownBy(
             () ->
-                SnapshotReportParser.fromJson(
+                CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":\"invalid\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: snapshot-id: \"invalid\"");
@@ -92,9 +92,9 @@ public class TestSnapshotReportParser {
   @SuppressWarnings("MethodLength")
   @Test
   public void roundTripSerde() {
-    SnapshotMetrics snapshotMetrics = SnapshotMetrics.of(new DefaultMetricsContext());
-    snapshotMetrics.totalDuration().record(100, TimeUnit.SECONDS);
-    snapshotMetrics.attempts().increment(4);
+    CommitMetrics commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
+    commitMetrics.totalDuration().record(100, TimeUnit.SECONDS);
+    commitMetrics.attempts().increment(4);
     Map<String, String> snapshotSummary =
         com.google.common.collect.ImmutableMap.<String, String>builder()
             .put(SnapshotSummary.ADDED_FILES_PROP, "1")
@@ -122,13 +122,13 @@ public class TestSnapshotReportParser {
             .build();
 
     String tableName = "roundTripTableName";
-    SnapshotReport snapshotReport =
-        ImmutableSnapshotReport.builder()
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .operation("DELETE")
             .sequenceNumber(4L)
-            .snapshotMetrics(SnapshotMetricsResult.from(snapshotMetrics, snapshotSummary))
+            .commitMetrics(CommitMetricsResult.from(commitMetrics, snapshotSummary))
             .build();
 
     String expectedJson =
@@ -238,21 +238,21 @@ public class TestSnapshotReportParser {
             + "  }\n"
             + "}";
 
-    String json = SnapshotReportParser.toJson(snapshotReport, true);
-    Assertions.assertThat(SnapshotReportParser.fromJson(json)).isEqualTo(snapshotReport);
+    String json = CommitReportParser.toJson(commitReport, true);
+    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
   public void roundTripSerdeWithNoopMetrics() {
     String tableName = "roundTripTableName";
-    SnapshotReport snapshotReport =
-        ImmutableSnapshotReport.builder()
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .operation("DELETE")
             .sequenceNumber(4L)
-            .snapshotMetrics(SnapshotMetricsResult.from(SnapshotMetrics.noop(), ImmutableMap.of()))
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
             .build();
 
     String expectedJson =
@@ -264,21 +264,21 @@ public class TestSnapshotReportParser {
             + "  \"metrics\" : { }\n"
             + "}";
 
-    String json = SnapshotReportParser.toJson(snapshotReport, true);
-    Assertions.assertThat(SnapshotReportParser.fromJson(json)).isEqualTo(snapshotReport);
+    String json = CommitReportParser.toJson(commitReport, true);
+    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
   public void roundTripSerdeWithMetadata() {
     String tableName = "roundTripTableName";
-    SnapshotReport snapshotReport =
-        ImmutableSnapshotReport.builder()
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .operation("DELETE")
             .sequenceNumber(4L)
-            .snapshotMetrics(SnapshotMetricsResult.from(SnapshotMetrics.noop(), ImmutableMap.of()))
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
             .metadata(ImmutableMap.of("k1", "v1", "k2", "v2"))
             .build();
 
@@ -295,8 +295,8 @@ public class TestSnapshotReportParser {
             + "  }\n"
             + "}";
 
-    String json = SnapshotReportParser.toJson(snapshotReport, true);
-    Assertions.assertThat(SnapshotReportParser.fromJson(json)).isEqualTo(snapshotReport);
+    String json = CommitReportParser.toJson(commitReport, true);
+    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 }

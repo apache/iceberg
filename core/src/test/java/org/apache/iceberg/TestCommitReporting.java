@@ -22,36 +22,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import org.apache.iceberg.TestScanPlanningAndReporting.TestMetricsReporter;
-import org.apache.iceberg.metrics.SnapshotMetricsResult;
-import org.apache.iceberg.metrics.SnapshotReport;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
-public class TestSnapshotReporting extends TableTestBase {
+public class TestCommitReporting extends TableTestBase {
 
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
-  // FIXME: total metrics are not recorded
-  public TestSnapshotReporting() {
+  public TestCommitReporting() {
     super(2);
   }
 
   @Test
-  public void adddAndDeleteDataFiles() {
+  public void addAndDeleteDataFiles() {
     String tableName = "add-and-delete-data-files";
     Table table =
         TestTables.create(
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_D).commit();
 
-    SnapshotReport report = reporter.lastSnapshotReport();
+    CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
     assertThat(report.operation()).isEqualTo("append");
     assertThat(report.snapshotId()).isEqualTo(1L);
     assertThat(report.sequenceNumber()).isEqualTo(1L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
-    SnapshotMetricsResult metrics = report.snapshotMetrics();
+    CommitMetricsResult metrics = report.commitMetrics();
     assertThat(metrics.addedDataFiles().value()).isEqualTo(2L);
     assertThat(metrics.totalDataFiles().value()).isEqualTo(2L);
 
@@ -63,14 +62,14 @@ public class TestSnapshotReporting extends TableTestBase {
 
     // now remove those 2 data files
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_D).commit();
-    report = reporter.lastSnapshotReport();
+    report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
     assertThat(report.operation()).isEqualTo("delete");
     assertThat(report.snapshotId()).isEqualTo(2L);
     assertThat(report.sequenceNumber()).isEqualTo(2L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
-    metrics = report.snapshotMetrics();
+    metrics = report.commitMetrics();
     assertThat(metrics.removedDataFiles().value()).isEqualTo(2L);
     assertThat(metrics.totalDeleteFiles().value()).isEqualTo(0L);
 
@@ -96,14 +95,14 @@ public class TestSnapshotReporting extends TableTestBase {
         .addDeletes(FILE_C2_DELETES)
         .commit();
 
-    SnapshotReport report = reporter.lastSnapshotReport();
+    CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
     assertThat(report.operation()).isEqualTo("overwrite");
     assertThat(report.snapshotId()).isEqualTo(1L);
     assertThat(report.sequenceNumber()).isEqualTo(1L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
-    SnapshotMetricsResult metrics = report.snapshotMetrics();
+    CommitMetricsResult metrics = report.commitMetrics();
     assertThat(metrics.addedDeleteFiles().value()).isEqualTo(3L);
     assertThat(metrics.totalDeleteFiles().value()).isEqualTo(3L);
     assertThat(metrics.addedPositionalDeleteFiles().value()).isEqualTo(2L);
@@ -128,14 +127,14 @@ public class TestSnapshotReporting extends TableTestBase {
             ImmutableSet.of())
         .commit();
 
-    report = reporter.lastSnapshotReport();
+    report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
     assertThat(report.operation()).isEqualTo("replace");
     assertThat(report.snapshotId()).isEqualTo(2L);
     assertThat(report.sequenceNumber()).isEqualTo(2L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
-    metrics = report.snapshotMetrics();
+    metrics = report.commitMetrics();
     assertThat(metrics.removedDeleteFiles().value()).isEqualTo(3L);
     assertThat(metrics.totalDeleteFiles().value()).isEqualTo(0L);
     assertThat(metrics.removedPositionalDeleteFiles().value()).isEqualTo(2L);
@@ -176,14 +175,14 @@ public class TestSnapshotReporting extends TableTestBase {
 
     rewriteManifests.addManifest(newManifest).commit();
 
-    SnapshotReport report = reporter.lastSnapshotReport();
+    CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
     assertThat(report.operation()).isEqualTo("append");
     assertThat(report.snapshotId()).isEqualTo(2L);
     assertThat(report.sequenceNumber()).isEqualTo(2L);
     assertThat(report.tableName()).isEqualTo(tableName);
 
-    SnapshotMetricsResult metrics = report.snapshotMetrics();
+    CommitMetricsResult metrics = report.commitMetrics();
     assertThat(metrics.addedDataFiles().value()).isEqualTo(1L);
     assertThat(metrics.addedRecords().value()).isEqualTo(1L);
     assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(10L);

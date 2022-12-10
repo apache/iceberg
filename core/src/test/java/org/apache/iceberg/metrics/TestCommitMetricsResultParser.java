@@ -29,33 +29,33 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
-public class TestSnapshotMetricsResultParser {
+public class TestCommitMetricsResultParser {
 
   @Test
   public void nullMetrics() {
-    assertThatThrownBy(() -> SnapshotMetricsResultParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> CommitMetricsResultParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse snapshot metrics from null object");
+        .hasMessage("Cannot parse commit metrics from null object");
 
-    assertThatThrownBy(() -> SnapshotMetricsResultParser.toJson(null))
+    assertThatThrownBy(() -> CommitMetricsResultParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid snapshot metrics: null");
+        .hasMessage("Invalid commit metrics: null");
 
-    assertThatThrownBy(() -> SnapshotMetricsResult.from(null, ImmutableMap.of()))
+    assertThatThrownBy(() -> CommitMetricsResult.from(null, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid snapshot metrics: null");
+        .hasMessage("Invalid commit metrics: null");
 
     assertThatThrownBy(
-            () -> SnapshotMetricsResult.from(SnapshotMetrics.of(new DefaultMetricsContext()), null))
+            () -> CommitMetricsResult.from(CommitMetrics.of(new DefaultMetricsContext()), null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid snapshot summary: null");
   }
 
   @Test
   public void invalidNumberInSnapshotSummary() {
-    SnapshotMetricsResult result =
-        SnapshotMetricsResult.from(
-            SnapshotMetrics.of(new DefaultMetricsContext()),
+    CommitMetricsResult result =
+        CommitMetricsResult.from(
+            CommitMetrics.of(new DefaultMetricsContext()),
             ImmutableMap.of(SnapshotSummary.ADDED_FILES_PROP, "xyz"));
     assertThat(result.addedDataFiles()).isNull();
   }
@@ -63,9 +63,9 @@ public class TestSnapshotMetricsResultParser {
   @SuppressWarnings("MethodLength")
   @Test
   public void roundTripSerde() {
-    SnapshotMetrics snapshotMetrics = SnapshotMetrics.of(new DefaultMetricsContext());
-    snapshotMetrics.totalDuration().record(100, TimeUnit.SECONDS);
-    snapshotMetrics.attempts().increment(4);
+    CommitMetrics commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
+    commitMetrics.totalDuration().record(100, TimeUnit.SECONDS);
+    commitMetrics.attempts().increment(4);
     Map<String, String> snapshotSummary =
         ImmutableMap.<String, String>builder()
             .put(SnapshotSummary.ADDED_FILES_PROP, "1")
@@ -92,7 +92,7 @@ public class TestSnapshotMetricsResultParser {
             .put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "22")
             .build();
 
-    SnapshotMetricsResult result = SnapshotMetricsResult.from(snapshotMetrics, snapshotSummary);
+    CommitMetricsResult result = CommitMetricsResult.from(commitMetrics, snapshotSummary);
     assertThat(result.attempts().value()).isEqualTo(4L);
     assertThat(result.totalDuration().totalDuration()).isEqualTo(Duration.ofSeconds(100));
     assertThat(result.addedDataFiles().value()).isEqualTo(1L);
@@ -219,21 +219,21 @@ public class TestSnapshotMetricsResultParser {
             + "  }\n"
             + "}";
 
-    String json = SnapshotMetricsResultParser.toJson(result, true);
-    assertThat(SnapshotMetricsResultParser.fromJson(json)).isEqualTo(result);
+    String json = CommitMetricsResultParser.toJson(result, true);
+    assertThat(CommitMetricsResultParser.fromJson(json)).isEqualTo(result);
     assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
-  public void roundTripSerdeNoopSnapshotMetrics() {
-    SnapshotMetricsResult snapshotMetricsResult =
-        SnapshotMetricsResult.from(SnapshotMetrics.noop(), SnapshotSummary.builder().build());
+  public void roundTripSerdeNoopCommitMetrics() {
+    CommitMetricsResult commitMetricsResult =
+        CommitMetricsResult.from(CommitMetrics.noop(), SnapshotSummary.builder().build());
     String expectedJson = "{ }";
 
-    String json = SnapshotMetricsResultParser.toJson(snapshotMetricsResult, true);
+    String json = CommitMetricsResultParser.toJson(commitMetricsResult, true);
     System.out.println(json);
     assertThat(json).isEqualTo(expectedJson);
-    assertThat(SnapshotMetricsResultParser.fromJson(json))
-        .isEqualTo(ImmutableSnapshotMetricsResult.builder().build());
+    assertThat(CommitMetricsResultParser.fromJson(json))
+        .isEqualTo(ImmutableCommitMetricsResult.builder().build());
   }
 }

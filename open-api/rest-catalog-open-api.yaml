@@ -1895,7 +1895,7 @@ components:
     ReportMetricsRequest:
       anyOf:
         - $ref: '#/components/schemas/ScanReport'
-        - $ref: '#/components/schemas/SnapshotReport'
+        - $ref: '#/components/schemas/CommitReport'
       required:
         - report-type
       properties:
@@ -1937,7 +1937,7 @@ components:
           additionalProperties:
             type: string
 
-    SnapshotReport:
+    CommitReport:
       type: object
       required:
         - table-name

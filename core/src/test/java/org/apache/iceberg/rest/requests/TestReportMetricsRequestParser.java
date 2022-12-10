@@ -20,15 +20,15 @@ package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.CommitMetrics;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.ImmutableScanReport;
-import org.apache.iceberg.metrics.ImmutableSnapshotReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.SnapshotMetrics;
-import org.apache.iceberg.metrics.SnapshotMetricsResult;
-import org.apache.iceberg.metrics.SnapshotReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -118,20 +118,20 @@ public class TestReportMetricsRequestParser {
   }
 
   @Test
-  public void roundTripSerdeWithSnapshotReport() {
+  public void roundTripSerdeWithCommitReport() {
     String tableName = "roundTripTableName";
-    SnapshotReport snapshotReport =
-        ImmutableSnapshotReport.builder()
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
             .tableName(tableName)
             .snapshotId(23L)
             .sequenceNumber(4L)
             .operation("DELETE")
-            .snapshotMetrics(SnapshotMetricsResult.from(SnapshotMetrics.noop(), ImmutableMap.of()))
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
             .build();
 
     String expectedJson =
         "{\n"
-            + "  \"report-type\" : \"snapshot-report\",\n"
+            + "  \"report-type\" : \"commit-report\",\n"
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
             + "  \"sequence-number\" : 4,\n"
@@ -139,7 +139,7 @@ public class TestReportMetricsRequestParser {
             + "  \"metrics\" : { }\n"
             + "}";
 
-    ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(snapshotReport);
+    ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(commitReport);
 
     String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
     Assertions.assertThat(json).isEqualTo(expectedJson);

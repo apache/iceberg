@@ -1121,7 +1121,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     // counter of custom metrics reporter should have been increased
-    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(1);
+    // 1x for commit metrics / 1x for scan metrics
+    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
   }
 
   public static class CustomMetricsReporter implements MetricsReporter {

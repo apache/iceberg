@@ -18,22 +18,33 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.immutables.value.Value;
 
-/** A Snapshot report that contains all relevant information from a Snapshot. */
+/** Carries all metrics for a particular commit */
 @Value.Immutable
-public interface SnapshotReport extends MetricsReport {
+public abstract class CommitMetrics {
+  public static final String TOTAL_DURATION = "total-duration";
+  public static final String ATTEMPTS = "attempts";
 
-  String tableName();
+  public static CommitMetrics noop() {
+    return CommitMetrics.of(MetricsContext.nullMetrics());
+  }
 
-  long snapshotId();
+  public abstract MetricsContext metricsContext();
 
-  long sequenceNumber();
+  @Value.Derived
+  public Timer totalDuration() {
+    return metricsContext().timer(TOTAL_DURATION, TimeUnit.NANOSECONDS);
+  }
 
-  String operation();
+  @Value.Derived
+  public Counter attempts() {
+    return metricsContext().counter(ATTEMPTS, Unit.COUNT);
+  }
 
-  SnapshotMetricsResult snapshotMetrics();
-
-  Map<String, String> metadata();
+  public static CommitMetrics of(MetricsContext metricsContext) {
+    return ImmutableCommitMetrics.builder().metricsContext(metricsContext).build();
+  }
 }
