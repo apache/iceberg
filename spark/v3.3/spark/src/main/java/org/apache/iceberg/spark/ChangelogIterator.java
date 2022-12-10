@@ -28,9 +28,9 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 
 /**
- * An iterator that transforms rows within a single task.
+ * An iterator that transforms rows from changelog tables within a single Spark task.
  *
- * <p>It marks the carry-over rows to null to be filtered out later. Carry-over rows are unchanged
+ * <p>It marks the carry-over rows to null to for filtering out later. Carry-over rows are unchanged
  * rows in a snapshot but showed as delete-rows and insert-rows in a changelog table due to the
  * copy-on-write(COW) mechanism. For example, there are row1 (id=1, data='a') and row2 (id=2,
  * data='b') in a data file, if we only delete row2, the COW will copy row1 to a new data file and
@@ -55,6 +55,8 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 public class ChangelogIterator implements Iterator<Row>, Serializable {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
+  private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
+  private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
@@ -107,21 +109,24 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
     GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
 
-    // set the change_type to the same value
-    deletedRow.update(changeTypeIndex, "");
-    insertedRow.update(changeTypeIndex, "");
-
-    if (deletedRow.equals(insertedRow)) {
-      // set carry-over rows to null to be filtered out later
+    if (isCarryoverRecord(deletedRow, insertedRow)) {
+      // set carry-over rows to null for filtering out later
       return new Row[] {null, null};
     } else {
-      deletedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_BEFORE.name());
-      insertedRow.update(changeTypeIndex, ChangelogOperation.UPDATE_AFTER.name());
+      deletedRow.update(changeTypeIndex, UPDATE_BEFORE);
+      insertedRow.update(changeTypeIndex, UPDATE_AFTER);
 
       return new Row[] {
         RowFactory.create(deletedRow.values()), RowFactory.create(insertedRow.values())
       };
     }
+  }
+
+  private boolean isCarryoverRecord(GenericInternalRow deletedRow, GenericInternalRow insertedRow) {
+    // set the change_type to the same value
+    deletedRow.update(changeTypeIndex, "");
+    insertedRow.update(changeTypeIndex, "");
+    return deletedRow.equals(insertedRow);
   }
 
   private boolean updated(Row row) {
