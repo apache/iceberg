@@ -34,7 +34,9 @@ import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
@@ -56,7 +58,8 @@ public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
-        SupportsLimitPushDown {
+        SupportsLimitPushDown,
+        LookupTableSource {
 
   private int[] projectedFields;
   private long limit;
@@ -225,5 +228,21 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    String[] lookupKeys = new String[context.getKeys().length];
+    for (int i = 0; i < lookupKeys.length; i++) {
+      int[] innerKeyArr = context.getKeys()[i];
+      Preconditions.checkArgument(
+          innerKeyArr.length == 1, "Don't support nested lookup keys in iceberg now.");
+      lookupKeys[i] = schema.getFieldNames()[innerKeyArr[0]];
+    }
+
+    TableSchema projectedSchema = getProjectedSchema();
+    loader.open();
+    return TableFunctionProvider.of(
+        new FlinkLookupFunction(projectedSchema, lookupKeys, loader, properties, limit, filters));
   }
 }

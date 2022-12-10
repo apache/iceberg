@@ -83,6 +83,19 @@ public class ScanContext implements Serializable {
   private static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
       ConfigOptions.key("max-planning-snapshot-count").intType().defaultValue(Integer.MAX_VALUE);
 
+  public static final ConfigOption<Long> LOOKUP_CACHE_MAX_ROWS =
+      ConfigOptions.key("lookup-join-cache-size")
+          .longType()
+          .defaultValue(-1L)
+          .withDescription(
+              "The max number of rows of lookup cache, over this value, the oldest rows will be eliminated");
+
+  public static final ConfigOption<Long> LOOKUP_CACHE_TTL =
+      ConfigOptions.key("lookup-join-cache-ttl")
+          .longType()
+          .defaultValue(-1L)
+          .withDescription("The cache time to live.");
+
   private final boolean caseSensitive;
   private final boolean exposeLocality;
   private final Long snapshotId;
@@ -104,6 +117,8 @@ public class ScanContext implements Serializable {
   private final boolean includeColumnStats;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
+  private final Long cacheMaxSize;
+  private final Long cacheExpireMs;
 
   private ScanContext(
       boolean caseSensitive,
@@ -125,7 +140,9 @@ public class ScanContext implements Serializable {
       boolean includeColumnStats,
       boolean exposeLocality,
       Integer planParallelism,
-      int maxPlanningSnapshotCount) {
+      int maxPlanningSnapshotCount,
+      long cacheMaxSize,
+      long cacheExpireMs) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startingStrategy = startingStrategy;
@@ -147,6 +164,8 @@ public class ScanContext implements Serializable {
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
+    this.cacheMaxSize = cacheMaxSize;
+    this.cacheExpireMs = cacheExpireMs;
 
     validate();
   }
@@ -174,6 +193,14 @@ public class ScanContext implements Serializable {
 
   public boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  Long cacheMaxSize() {
+    return cacheMaxSize;
+  }
+
+  Long cacheExpireMs() {
+    return cacheExpireMs;
   }
 
   public Long snapshotId() {
@@ -275,6 +302,29 @@ public class ScanContext implements Serializable {
         .build();
   }
 
+  public ScanContext copyWithFilters(List<Expression> newFilters) {
+    return ScanContext.builder()
+        .caseSensitive(caseSensitive)
+        .useSnapshotId(snapshotId)
+        .startSnapshotId(null)
+        .endSnapshotId(null)
+        .asOfTimestamp(null)
+        .splitSize(splitSize)
+        .splitLookback(splitLookback)
+        .splitOpenFileCost(splitOpenFileCost)
+        .streaming(isStreaming)
+        .monitorInterval(monitorInterval)
+        .nameMapping(nameMapping)
+        .project(schema)
+        .filters(newFilters)
+        .limit(limit)
+        .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .build();
+  }
+
   public ScanContext copyWithSnapshotId(long newSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -324,6 +374,8 @@ public class ScanContext implements Serializable {
     private Integer planParallelism =
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
     private int maxPlanningSnapshotCount = MAX_PLANNING_SNAPSHOT_COUNT.defaultValue();
+    private long cacheMaxSize = LOOKUP_CACHE_MAX_ROWS.defaultValue();
+    private long cacheExpireMs = LOOKUP_CACHE_TTL.defaultValue();
 
     private Builder() {}
 
@@ -427,6 +479,16 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    Builder cacheMaxSize(Long newCacheMaxSize) {
+      this.cacheMaxSize = newCacheMaxSize;
+      return this;
+    }
+
+    Builder cacheExpireMs(Long newCacheExpireMs) {
+      this.cacheExpireMs = newCacheExpireMs;
+      return this;
+    }
+
     public Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
@@ -445,7 +507,9 @@ public class ScanContext implements Serializable {
           .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
           .includeColumnStats(config.get(INCLUDE_COLUMN_STATS))
-          .maxPlanningSnapshotCount(config.get(MAX_PLANNING_SNAPSHOT_COUNT));
+          .maxPlanningSnapshotCount(config.get(MAX_PLANNING_SNAPSHOT_COUNT))
+          .cacheMaxSize(config.get(LOOKUP_CACHE_MAX_ROWS))
+          .cacheExpireMs(config.get(LOOKUP_CACHE_TTL));
     }
 
     public ScanContext build() {
@@ -469,7 +533,9 @@ public class ScanContext implements Serializable {
           includeColumnStats,
           exposeLocality,
           planParallelism,
-          maxPlanningSnapshotCount);
+          maxPlanningSnapshotCount,
+          cacheMaxSize,
+          cacheExpireMs);
     }
   }
 }
