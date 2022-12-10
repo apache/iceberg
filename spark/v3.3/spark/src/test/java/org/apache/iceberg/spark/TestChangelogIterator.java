@@ -48,7 +48,7 @@ public class TestChangelogIterator {
   @Test
   public void testUpdatedRows() {
     ChangelogIterator iterator =
-        new ChangelogIterator(rows.iterator(), changeTypeIndex, partitionIdx, true);
+        new ChangelogIterator(rows.iterator(), changeTypeIndex, partitionIdx);
 
     List<Row> result = Lists.newArrayList(Iterators.filter(iterator, Objects::nonNull));
     SparkTestBase.assertEquals(
@@ -56,21 +56,6 @@ public class TestChangelogIterator {
         Lists.newArrayList(
             new Object[] {1, "a", "data", UPDATE_BEFORE.name()},
             new Object[] {1, "a", "new_data", UPDATE_AFTER.name()},
-            new Object[] {2, "b", "data", "DELETE"},
-            new Object[] {3, "c", "data", "INSERT"}),
-        SparkTestBase.rowsToJava(result));
-  }
-
-  @Test
-  public void testNotMarkUpdatedRows() {
-    ChangelogIterator iterator =
-        new ChangelogIterator(rows.iterator(), changeTypeIndex, partitionIdx, false);
-    List<Row> result = Lists.newArrayList(Iterators.filter(iterator, Objects::nonNull));
-    SparkTestBase.assertEquals(
-        "Rows should match",
-        Lists.newArrayList(
-            new Object[] {1, "a", "data", "DELETE"},
-            new Object[] {1, "a", "new_data", "INSERT"},
             new Object[] {2, "b", "data", "DELETE"},
             new Object[] {3, "c", "data", "INSERT"}),
         SparkTestBase.rowsToJava(result));
@@ -94,7 +79,7 @@ public class TestChangelogIterator {
             new GenericRowWithSchema(new Object[] {4, "d", "data", "INSERT"}, null));
 
     ChangelogIterator iterator =
-        new ChangelogIterator(rowsWithDuplication.iterator(), changeTypeIndex, partitionIdx, true);
+        new ChangelogIterator(rowsWithDuplication.iterator(), changeTypeIndex, partitionIdx);
 
     List<Row> result = Lists.newArrayList(Iterators.filter(iterator, Objects::nonNull));
     SparkTestBase.assertEquals(
