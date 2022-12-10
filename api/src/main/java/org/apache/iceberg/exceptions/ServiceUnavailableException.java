@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception thrown on HTTP 503: service is unavailable */
-public class ServiceUnavailableException extends RESTException {
+public class ServiceUnavailableException extends RESTException implements CleanableFailure {
   @FormatMethod
   public ServiceUnavailableException(String message, Object... args) {
     super(message, args);

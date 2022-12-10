@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /** Exception thrown on HTTP 400 - Bad Request */
-public class BadRequestException extends RuntimeException {
+public class BadRequestException extends RuntimeException implements CleanableFailure {
   @FormatMethod
   public BadRequestException(String message, Object... args) {
     super(String.format(message, args));

@@ -232,4 +232,9 @@ class RESTTableOperations implements TableOperations {
       }
     };
   }
+
+  @Override
+  public boolean requireStrictCleanup() {
+    return true;
+  }
 }
