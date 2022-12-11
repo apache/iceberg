@@ -59,6 +59,7 @@ from pyiceberg.typedef import (
 from pyiceberg.types import StructType
 
 if TYPE_CHECKING:
+    import pandas as pd
     import pyarrow as pa
     from duckdb import DuckDBPyConnection
 
@@ -211,7 +212,11 @@ class TableScan(Generic[S], ABC):
         ...
 
     @abstractmethod
-    def to_arrow(self) -> pa.table:
+    def to_arrow(self) -> pa.Table:
+        ...
+
+    @abstractmethod
+    def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
         ...
 
     def update(self: S, **overrides: Any) -> S:
@@ -338,7 +343,7 @@ class DataScan(TableScan["DataScan"]):
 
             yield from (FileScanTask(file) for file in matching_partition_files)
 
-    def to_arrow(self) -> pa.table:
+    def to_arrow(self) -> pa.Table:
         from pyiceberg.io.pyarrow import PyArrowFileIO, expression_to_pyarrow, schema_to_pyarrow
 
         warnings.warn(
@@ -379,6 +384,9 @@ class DataScan(TableScan["DataScan"]):
         )
 
         return ds.to_table(filter=pyarrow_filter, columns=columns)
+
+    def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
+        return self.to_arrow().to_pandas(**kwargs)
 
     def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None) -> DuckDBPyConnection:
         import duckdb
