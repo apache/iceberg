@@ -106,7 +106,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
-  private MetricsReporter reporter = null;
+  private MetricsReporter customMetricsReporter = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -177,7 +177,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.io =
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
-    this.reporter = new LoggingMetricsReporter();
+    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
+    this.customMetricsReporter =
+        null != metricsReporterImpl ? CatalogUtil.loadMetricsReporter(metricsReporterImpl) : null;
 
     super.initialize(name, mergedProps);
   }
@@ -304,7 +306,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         new BaseTable(
             ops,
             fullTableName(loadedIdent),
-            report -> reportMetrics(tableIdentifier, report, session::headers));
+            null != customMetricsReporter
+                ? customMetricsReporter
+                : report -> reportMetrics(tableIdentifier, report, session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -316,7 +320,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       TableIdentifier tableIdentifier,
       MetricsReport report,
       Supplier<Map<String, String>> headers) {
-    reporter.report(report);
+    LoggingMetricsReporter.instance().report(report);
     try {
       client.post(
           paths.metrics(tableIdentifier),
