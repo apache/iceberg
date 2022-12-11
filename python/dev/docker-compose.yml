@@ -18,6 +18,7 @@ version: "3"
 
 services:
   spark-iceberg:
+    image: python-integration
     container_name: pyiceberg-spark
     build: .
     depends_on:

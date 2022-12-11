@@ -40,6 +40,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
     - name: Install poetry
       run: pip install poetry
     - uses: actions/setup-python@v4
@@ -48,6 +50,25 @@ jobs:
         cache: poetry
         cache-dependency-path: |
           ./python/poetry.lock
+    - shell: pwsh
+      id: check_file_changed
+      run: |
+        $diff = git diff --name-only HEAD^ HEAD
+        $SourceDiff = $diff | Where-Object { $_ -match '^python/dev/Dockerfile$' }
+        $HasDiff = $SourceDiff.Length -gt 0
+        Write-Host "::set-output name=docs_changed::$HasDiff"
+    - name: Restore image
+      id: cache-docker
+      uses: actions/cache@v3
+      with:
+        path: ci/cache/docker/python
+        key: cache-docker-integration
+    - name: Update Image Cache if cache miss
+      if: steps.cache-docker.outputs.cache-hit != 'true' || steps.check_file_changed.outputs.docs_changed == 'True'
+      run: docker build -t python-integration && mkdir -p ci/cache/docker/python && docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
+    - name: Use Image Cache if cache hit
+      if: steps.cache-docker.outputs.cache-hit == 'true'
+      run: docker image load --input ./ci/cache/docker/python/python-integration.tar
     - name: Install
       working-directory: ./python
       run: make install
