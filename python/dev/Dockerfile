@@ -15,8 +15,8 @@
 
 FROM python:3.9-bullseye
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get -qq update && \
+    apt-get -qq install -y --no-install-recommends \
       sudo \
       curl \
       vim \
@@ -25,7 +25,7 @@ RUN apt-get update && \
       build-essential \
       software-properties-common \
       ssh && \
-    apt-get clean && \
+    apt-get -qq clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Optional env variables
@@ -37,20 +37,20 @@ RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME} && mkdir -p /home/iceberg/
 WORKDIR ${SPARK_HOME}
 
 # Download spark
-RUN curl https://dlcdn.apache.org/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz -o spark-3.3.1-bin-hadoop3.tgz \
- && tar xvzf spark-3.3.1-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
+RUN curl -s https://dlcdn.apache.org/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz -o spark-3.3.1-bin-hadoop3.tgz \
+ && tar xzf spark-3.3.1-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
  && rm -rf spark-3.3.1-bin-hadoop3.tgz
 
 # Download iceberg spark runtime
-RUN curl https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/1.1.0/iceberg-spark-runtime-3.3_2.12-1.1.0.jar -Lo iceberg-spark-runtime-3.3_2.12-1.1.0.jar \
+RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/1.1.0/iceberg-spark-runtime-3.3_2.12-1.1.0.jar -Lo iceberg-spark-runtime-3.3_2.12-1.1.0.jar \
  && mv iceberg-spark-runtime-3.3_2.12-1.1.0.jar /opt/spark/jars
 
 # Download Java AWS SDK
-RUN curl https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.17.165/bundle-2.17.165.jar -Lo bundle-2.17.165.jar \
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.17.165/bundle-2.17.165.jar -Lo bundle-2.17.165.jar \
  && mv bundle-2.17.165.jar /opt/spark/jars
 
 # Download URL connection client required for S3FileIO
-RUN curl https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-client/2.17.165/url-connection-client-2.17.165.jar -Lo url-connection-client-2.17.165.jar \
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-client/2.17.165/url-connection-client-2.17.165.jar -Lo url-connection-client-2.17.165.jar \
  && mv url-connection-client-2.17.165.jar /opt/spark/jars
 
 COPY spark-defaults.conf /opt/spark/conf

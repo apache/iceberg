@@ -35,21 +35,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint-and-test:
+  integration-test:
     runs-on: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 2
-    - name: Install poetry
-      run: pip install poetry
-    - uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        cache: poetry
-        cache-dependency-path: |
-          ./python/poetry.lock
     - shell: pwsh
       id: check_file_changed
       run: |
@@ -62,19 +54,32 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ci/cache/docker/python
-        key: cache-docker-integration
+        key: cache-mintegration
     - name: Update Image Cache if cache miss
       if: steps.cache-docker.outputs.cache-hit != 'true' || steps.check_file_changed.outputs.docs_changed == 'True'
-      run: docker build -t python-integration && mkdir -p ci/cache/docker/python && docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
+      run: docker build -t python-integration python/dev/ && mkdir -p ci/cache/docker/python && docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
     - name: Use Image Cache if cache hit
       if: steps.cache-docker.outputs.cache-hit == 'true'
       run: docker image load --input ./ci/cache/docker/python/python-integration.tar
+    - name: Run Apache-Spark setup
+      working-directory: ./python/dev
+      run: |
+        docker-compose up -d
+        sleep 10
+    - name: Install poetry
+      run: pip install poetry
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: poetry
+        cache-dependency-path: |
+          ./python/poetry.lock
     - name: Install
       working-directory: ./python
       run: make install
-    - name: Run Apache-Spark setup
-      working-directory: ./python/dev
-      run: docker-compose up
     - name: Tests
       working-directory: ./python
       run: make test-integration
+    - name: Show debug logs
+      if: ${{ failure() }}
+      run: docker-compose -f python/dev/docker-compose.yml logs
