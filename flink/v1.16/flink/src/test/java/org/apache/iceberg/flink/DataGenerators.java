@@ -66,6 +66,7 @@ public class DataGenerators {
         OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
+    private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
 
     private final Schema icebergSchema =
         new Schema(
@@ -126,9 +127,7 @@ public class DataGenerators {
       }
       genericRecord.setField("binary_field", ByteBuffer.wrap(binaryBytes));
 
-      String decimalString = "-1.50";
-      BigDecimal bigDecimal = new BigDecimal(decimalString);
-      genericRecord.setField("decimal_field", bigDecimal);
+      genericRecord.setField("decimal_field", BIG_DECIMAL_NEGATIVE);
 
       return genericRecord;
     }
@@ -161,7 +160,7 @@ public class DataGenerators {
           TimestampData.fromEpochMillis(JODA_DATETIME_20220110.getMillis()),
           uuidBytes,
           binaryBytes,
-          DecimalData.fromBigDecimal(new BigDecimal("-1.50"), 9, 2));
+          DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2));
     }
   }
 
