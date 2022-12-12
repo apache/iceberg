@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+
 class CommitCallbackTransaction implements Transaction {
   static Transaction addCallback(Transaction txn, Runnable callback) {
     return new CommitCallbackTransaction(txn, callback);
@@ -120,5 +122,15 @@ class CommitCallbackTransaction implements Transaction {
   public void commitTransaction() {
     wrapped.commitTransaction();
     callback.run();
+  }
+
+  @Override
+  public void rollback() {
+    wrapped.rollback();
+  }
+
+  @Override
+  public List<PendingUpdate> pendingUpdates() {
+    return wrapped.pendingUpdates();
   }
 }

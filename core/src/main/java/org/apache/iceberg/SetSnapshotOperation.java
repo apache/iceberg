@@ -40,7 +40,7 @@ import org.apache.iceberg.util.Tasks;
  * <p>This update is not exposed though the Table API. Instead, it is a package-private part of the
  * Transaction API intended for use in {@link ManageSnapshots}.
  */
-class SetSnapshotOperation implements PendingUpdate<Snapshot> {
+class SetSnapshotOperation implements PendingUpdate<Snapshot>, TableMetadataDiffAccess {
 
   private final TableOperations ops;
   private TableMetadata base;
@@ -117,12 +117,6 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps -> {
-              Snapshot snapshot = apply();
-              TableMetadata updated =
-                  TableMetadata.buildFrom(base)
-                      .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
-                      .build();
-
               // Do commit this operation even if the metadata has not changed, as we need to
               // advance the hasLastOpCommited for the transaction's commit to work properly.
               // (Without any other operations in the transaction, the commitTransaction() call
@@ -132,7 +126,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
               // this operation retries
               // to ensure that if a concurrent operation assigns the UUID, this operation will not
               // fail.
-              taskOps.commit(base, updated.withUUID());
+              taskOps.commit(base, tableMetadataDiff().updated().withUUID());
             });
   }
 
@@ -163,5 +157,16 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
   private static boolean isCurrentAncestor(TableMetadata meta, long snapshotId) {
     return currentAncestors(meta).contains(snapshotId);
+  }
+
+  @Override
+  public TableMetadataDiff tableMetadataDiff() {
+    TableMetadata original = base;
+    Snapshot snapshot = apply();
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
+            .build();
+    return ImmutableTableMetadataDiff.builder().base(original).updated(updated).build();
   }
 }

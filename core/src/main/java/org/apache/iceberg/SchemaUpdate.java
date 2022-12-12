@@ -45,7 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Schema evolution API implementation. */
-class SchemaUpdate implements UpdateSchema {
+class SchemaUpdate implements UpdateSchema, TableMetadataDiffAccess {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
@@ -430,16 +430,12 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    Schema newSchema =
-        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
-
-    return newSchema;
+    return applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
   }
 
   @Override
   public void commit() {
-    TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
-    ops.commit(base, update);
+    ops.commit(base, tableMetadataDiff().updated());
   }
 
   private int assignNewColumnId() {
@@ -549,6 +545,14 @@ class SchemaUpdate implements UpdateSchema {
         id -> Schema.validateIdentifierField(id, idToField, idToParent));
 
     return new Schema(struct.fields(), freshIdentifierFieldIds);
+  }
+
+  @Override
+  public TableMetadataDiff tableMetadataDiff() {
+    return ImmutableTableMetadataDiff.builder()
+        .base(base)
+        .updated(applyChangesToMetadata(base.updateSchema(apply(), lastColumnId)))
+        .build();
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {

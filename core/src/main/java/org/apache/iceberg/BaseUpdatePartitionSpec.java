@@ -41,7 +41,7 @@ import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
 
-class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
+class BaseUpdatePartitionSpec implements UpdatePartitionSpec, TableMetadataDiffAccess {
   private final TableOperations ops;
   private final TableMetadata base;
   private final int formatVersion;
@@ -328,8 +328,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public void commit() {
-    TableMetadata update = base.updatePartitionSpec(apply());
-    ops.commit(base, update);
+    ops.commit(base, tableMetadataDiff().updated());
   }
 
   private Pair<Integer, Transform<?, ?>> resolve(Term term) {
@@ -394,6 +393,14 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   private boolean isTimeTransform(PartitionField field) {
     return PartitionSpecVisitor.visit(schema, field, IsTimeTransform.INSTANCE);
+  }
+
+  @Override
+  public TableMetadataDiff tableMetadataDiff() {
+    return ImmutableTableMetadataDiff.builder()
+        .base(base)
+        .updated(base.updatePartitionSpec(apply()))
+        .build();
   }
 
   private static class IsTimeTransform implements PartitionSpecVisitor<Boolean> {

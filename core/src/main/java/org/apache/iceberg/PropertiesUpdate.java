@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 
-class PropertiesUpdate implements UpdateProperties {
+class PropertiesUpdate implements UpdateProperties, TableMetadataDiffAccess {
   private final TableOperations ops;
   private final Map<String, String> updates = Maps.newHashMap();
   private final Set<String> removals = Sets.newHashSet();
@@ -106,11 +106,16 @@ class PropertiesUpdate implements UpdateProperties {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              Map<String, String> newProperties = apply();
-              TableMetadata updated = base.replaceProperties(newProperties);
-              taskOps.commit(base, updated);
-            });
+        .run(taskOps -> taskOps.commit(base, tableMetadataDiff().updated()));
+  }
+
+  @Override
+  public TableMetadataDiff tableMetadataDiff() {
+    TableMetadata original = base;
+    Map<String, String> newProperties = apply();
+    return ImmutableTableMetadataDiff.builder()
+        .base(original)
+        .updated(base.replaceProperties(newProperties))
+        .build();
   }
 }

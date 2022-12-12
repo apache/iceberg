@@ -43,6 +43,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -426,10 +427,10 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (PendingUpdateFailedException e) {
-      cleanUpOnCommitFailure();
+      rollback();
       throw e.wrapped();
     } catch (RuntimeException e) {
-      cleanUpOnCommitFailure();
+      rollback();
       throw e;
     }
 
@@ -468,7 +469,8 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void cleanUpOnCommitFailure() {
+  @Override
+  public void rollback() {
     // the commit failed and no files were committed. clean up each update.
     Tasks.foreach(updates)
         .suppressFailureWhenFinished()
@@ -484,6 +486,11 @@ public class BaseTransaction implements Transaction {
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
         .run(ops.io()::deleteFile);
+  }
+
+  @Override
+  public List<PendingUpdate> pendingUpdates() {
+    return ImmutableList.copyOf(updates);
   }
 
   private void applyUpdates(TableOperations underlyingOps) {

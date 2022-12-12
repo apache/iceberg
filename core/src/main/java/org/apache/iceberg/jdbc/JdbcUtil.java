@@ -44,6 +44,10 @@ final class JdbcUtil {
   static final String METADATA_LOCATION = "metadata_location";
   static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
 
+  static final String BEGIN_TX = "BEGIN";
+  static final String COMMIT_TX = "COMMIT";
+  static final String ROLLBACK_TX = "ROLLBACK";
+
   static final String DO_COMMIT_SQL =
       "UPDATE "
           + CATALOG_TABLE_NAME

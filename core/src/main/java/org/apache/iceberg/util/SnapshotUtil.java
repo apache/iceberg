@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
@@ -331,6 +332,15 @@ public class SnapshotUtil {
    *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    return snapshotIdAsOfTimeOptional(table, timestampMillis)
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "Cannot find a snapshot older than "
+                        + DateTimeUtil.formatTimestampMillis(timestampMillis)));
+  }
+
+  public static Optional<Long> snapshotIdAsOfTimeOptional(Table table, long timestampMillis) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : table.history()) {
       if (logEntry.timestampMillis() <= timestampMillis) {
@@ -338,11 +348,7 @@ public class SnapshotUtil {
       }
     }
 
-    Preconditions.checkArgument(
-        snapshotId != null,
-        "Cannot find a snapshot older than %s",
-        DateTimeUtil.formatTimestampMillis(timestampMillis));
-    return snapshotId;
+    return Optional.ofNullable(snapshotId);
   }
 
   /**

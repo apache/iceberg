@@ -28,8 +28,11 @@ import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.rest.RESTCatalogTransaction;
+import org.apache.iceberg.rest.RESTSessionCatalog;
 
 public abstract class BaseSessionCatalog implements SessionCatalog {
   private final Cache<String, Catalog> catalogs =
@@ -62,7 +65,7 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     return task.apply(asCatalog(context));
   }
 
-  public class AsCatalog implements Catalog, SupportsNamespaces {
+  public class AsCatalog implements Catalog, SupportsNamespaces, SupportsCatalogTransactions {
     private final SessionContext context;
 
     private AsCatalog(SessionContext context) {
@@ -158,6 +161,28 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     @Override
     public boolean namespaceExists(Namespace namespace) {
       return BaseSessionCatalog.this.namespaceExists(context, namespace);
+    }
+
+    @Override
+    public Set<CatalogTransaction.IsolationLevel> supportedIsolationLevels() {
+      return ImmutableSet.of(
+          CatalogTransaction.IsolationLevel.SNAPSHOT,
+          CatalogTransaction.IsolationLevel.SERIALIZABLE);
+    }
+
+    @Override
+    public CatalogTransaction startTransaction(CatalogTransaction.IsolationLevel isolationLevel) {
+      Preconditions.checkState(
+          BaseSessionCatalog.this instanceof RESTSessionCatalog,
+          "Only RESTSessionCatalog currently supports CatalogTransactions");
+      Preconditions.checkState(
+          supportedIsolationLevels().contains(isolationLevel),
+          "Invalid isolation level %s. Supported isolation levels: %s",
+          isolationLevel,
+          supportedIsolationLevels());
+
+      return new RESTCatalogTransaction(
+          this, (RESTSessionCatalog) BaseSessionCatalog.this, context, isolationLevel);
     }
   }
 }

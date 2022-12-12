@@ -40,6 +40,7 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.requests.CommitTxRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -130,7 +131,8 @@ public class RESTCatalogAdapter implements RESTClient {
         HTTPMethod.POST,
         "v1/namespaces/{namespace}/tables/{table}/metrics",
         ReportMetricsRequest.class,
-        null);
+        null),
+    COMMIT_TX(HTTPMethod.POST, "v1/commitTransaction", CommitTxRequest.class, null);
 
     private final HTTPMethod method;
     private final int requiredLength;
@@ -354,6 +356,13 @@ public class RESTCatalogAdapter implements RESTClient {
         {
           // nothing to do here other than checking that we're getting the correct request
           castRequest(ReportMetricsRequest.class, body);
+          return null;
+        }
+
+      case COMMIT_TX:
+        {
+          CommitTxRequest commitTxRequest = castRequest(CommitTxRequest.class, body);
+          CatalogHandlers.commitTransaction(catalog, commitTxRequest);
           return null;
         }
 

@@ -41,7 +41,10 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.CatalogTransaction;
+import org.apache.iceberg.catalog.CatalogTransaction.IsolationLevel;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsCatalogTransactions;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -54,6 +57,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
@@ -61,7 +65,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
+    implements Configurable<Configuration>,
+        SupportsNamespaces,
+        Closeable,
+        SupportsCatalogTransactions {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -486,6 +493,26 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted in SQL command");
     }
+  }
+
+  @Override
+  public Set<IsolationLevel> supportedIsolationLevels() {
+    return ImmutableSet.of(IsolationLevel.SNAPSHOT, IsolationLevel.SERIALIZABLE);
+  }
+
+  @Override
+  public CatalogTransaction startTransaction(IsolationLevel isolationLevel) {
+    Preconditions.checkState(
+        supportedIsolationLevels().contains(isolationLevel),
+        "Invalid isolation level %s. Supported isolation levels: %s",
+        isolationLevel,
+        supportedIsolationLevels());
+
+    // there's no isolation between operations on the same connections, so use a new client pool
+    return new JdbcCatalogTransaction(
+        this,
+        isolationLevel,
+        new JdbcClientPool(properties().get(CatalogProperties.URI), properties()));
   }
 
   @FunctionalInterface

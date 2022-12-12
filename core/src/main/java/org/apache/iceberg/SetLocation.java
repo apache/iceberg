@@ -30,7 +30,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.util.Tasks;
 
-public class SetLocation implements UpdateLocation {
+public class SetLocation implements UpdateLocation, TableMetadataDiffAccess {
   private final TableOperations ops;
   private String newLocation;
 
@@ -61,6 +61,14 @@ public class SetLocation implements UpdateLocation {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
+        .run(taskOps -> taskOps.commit(base, tableMetadataDiff().updated()));
+  }
+
+  @Override
+  public TableMetadataDiff tableMetadataDiff() {
+    return ImmutableTableMetadataDiff.builder()
+        .base(ops.current())
+        .updated(ops.current().updateLocation(newLocation))
+        .build();
   }
 }

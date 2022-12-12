@@ -42,6 +42,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.CommitTxRequest;
+import org.apache.iceberg.rest.requests.CommitTxRequestParser;
+import org.apache.iceberg.rest.requests.ImmutableCommitTxRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
@@ -83,7 +86,12 @@ public class RESTSerializers {
         .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
         .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
         .addDeserializer(
-            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
+            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
+        .addSerializer(CommitTxRequest.class, new CommitTxRequestSerializer<>())
+        .addSerializer(ImmutableCommitTxRequest.class, new CommitTxRequestSerializer<>())
+        .addDeserializer(CommitTxRequest.class, new CommitTxRequestDeserializer<>())
+        .addDeserializer(ImmutableCommitTxRequest.class, new CommitTxRequestDeserializer<>());
+
     mapper.registerModule(module);
   }
 
@@ -278,6 +286,24 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) ReportMetricsRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class CommitTxRequestSerializer<T extends CommitTxRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CommitTxRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class CommitTxRequestDeserializer<T extends CommitTxRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) CommitTxRequestParser.fromJson(jsonNode);
     }
   }
 }

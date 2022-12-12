@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 
@@ -172,4 +173,14 @@ public interface Transaction {
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
   void commitTransaction();
+
+  /** Rolls back any pending changes. */
+  default void rollback() {
+    throw new UnsupportedOperationException("Rollback not supported");
+  }
+
+  /** Provides access to the pending changes that are about to be committed. */
+  default List<PendingUpdate> pendingUpdates() {
+    throw new UnsupportedOperationException("Pending Updates not supported");
+  }
 }

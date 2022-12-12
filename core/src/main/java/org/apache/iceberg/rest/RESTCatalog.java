@@ -31,8 +31,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogTransaction;
+import org.apache.iceberg.catalog.CatalogTransaction.IsolationLevel;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.catalog.SupportsCatalogTransactions;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
@@ -41,10 +44,15 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RESTCatalog
-    implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
+    implements Catalog,
+        SupportsNamespaces,
+        Configurable<Configuration>,
+        Closeable,
+        SupportsCatalogTransactions {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
+  private final SupportsCatalogTransactions catalogTxDelegate;
 
   public RESTCatalog() {
     this(
@@ -62,6 +70,7 @@ public class RESTCatalog
     this.sessionCatalog = new RESTSessionCatalog(clientBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
+    this.catalogTxDelegate = (SupportsCatalogTransactions) delegate;
   }
 
   @Override
@@ -249,5 +258,15 @@ public class RESTCatalog
   @Override
   public void close() throws IOException {
     sessionCatalog.close();
+  }
+
+  @Override
+  public Set<IsolationLevel> supportedIsolationLevels() {
+    return catalogTxDelegate.supportedIsolationLevels();
+  }
+
+  @Override
+  public CatalogTransaction startTransaction(IsolationLevel isolationLevel) {
+    return catalogTxDelegate.startTransaction(isolationLevel);
   }
 }
