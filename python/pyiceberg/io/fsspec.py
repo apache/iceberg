@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
+import errno
 import logging
+import os
 from functools import lru_cache, partial
 from typing import (
     Any,
@@ -151,8 +153,15 @@ class FsspecInputFile(InputFile):
 
         Returns:
             OpenFile: An fsspec compliant file-like object
+
+        Raises:
+            FileNotFoundError: If the file does not exist
         """
-        return self._fs.open(self.location, "rb")
+        try:
+            return self._fs.open(self.location, "rb")
+        except FileNotFoundError as e:
+            # To have a consistent error handling experience, make sure exception contains missing file location.
+            raise e if e.filename else FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.location) from e
 
 
 class FsspecOutputFile(OutputFile):

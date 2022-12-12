@@ -317,10 +317,10 @@ def test_fsspec_raise_on_opening_file_not_found_adlfs(adlfs_fsspec_fileio: Fsspe
 
     filename = str(uuid.uuid4())
     input_file = adlfs_fsspec_fileio.new_input(location=f"abfss://tests/{filename}")
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as exc_info:
         input_file.open().read()
 
-    # filename is not propagated in FileNotFoundError for adlfs
+    assert filename in str(exc_info.value)
 
 
 @pytest.mark.adlfs

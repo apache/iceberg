@@ -193,6 +193,10 @@ module = "s3fs.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "azure.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "adlfs.*"
 ignore_missing_imports = true
 
