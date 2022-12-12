@@ -52,7 +52,6 @@ public class ScanContext implements Serializable {
   private final Long splitOpenFileCost;
   private final boolean isStreaming;
   private final Duration monitorInterval;
-  private final int maxPlanningSnapshotCount;
 
   private final String nameMapping;
   private final Schema schema;
@@ -60,6 +59,7 @@ public class ScanContext implements Serializable {
   private final long limit;
   private final boolean includeColumnStats;
   private final Integer planParallelism;
+  private final int maxPlanningSnapshotCount;
 
   private ScanContext(
       boolean caseSensitive,
@@ -94,7 +94,6 @@ public class ScanContext implements Serializable {
     this.splitOpenFileCost = splitOpenFileCost;
     this.isStreaming = isStreaming;
     this.monitorInterval = monitorInterval;
-    this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
 
     this.nameMapping = nameMapping;
     this.schema = schema;
@@ -103,6 +102,7 @@ public class ScanContext implements Serializable {
     this.includeColumnStats = includeColumnStats;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
+    this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
 
     validate();
   }
