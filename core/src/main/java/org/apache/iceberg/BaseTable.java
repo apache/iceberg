@@ -63,6 +63,10 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     return name;
   }
 
+  public MetricsReporter reporter() {
+    return reporter;
+  }
+
   @Override
   public void refresh() {
     ops.refresh();

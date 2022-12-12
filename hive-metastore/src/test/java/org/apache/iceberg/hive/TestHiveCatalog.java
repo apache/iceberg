@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -69,6 +70,8 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -193,6 +196,28 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals(location, table.location());
       Assert.assertEquals(2, table.schema().columns().size());
       Assert.assertTrue(table.spec().isUnpartitioned());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testLoadTableWithCustomMetricReporter() throws Exception {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    HiveCatalog catalog = new HiveCatalog();
+    catalog.initialize(
+        "hive", ImmutableMap.of("metrics-reporter-impl", TestMetricsReporter.class.getName()));
+    try {
+      Transaction txn =
+          catalog.buildTable(tableIdent, schema).withLocation(location).createTransaction();
+      txn.commitTransaction();
+      BaseTable baseTable = (BaseTable) catalog.loadTable(tableIdent);
+      Assertions.assertInstanceOf(TestMetricsReporter.class, baseTable.reporter());
+      TestMetricsReporter reporter = (TestMetricsReporter) baseTable.reporter();
+      Assertions.assertTrue(reporter.initialized);
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -1175,5 +1200,17 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     Assert.assertEquals("s3://bucket/database.db", database.getLocationUri());
+  }
+
+  public static final class TestMetricsReporter implements MetricsReporter {
+    boolean initialized = false;
+
+    @Override
+    public void init(Map<String, String> properties) {
+      initialized = true;
+    }
+
+    @Override
+    public void report(MetricsReport report) {}
   }
 }

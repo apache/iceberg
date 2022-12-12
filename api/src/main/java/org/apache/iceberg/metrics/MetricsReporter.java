@@ -18,9 +18,15 @@
  */
 package org.apache.iceberg.metrics;
 
+import java.util.Map;
+
 /** This interface defines the basic API for reporting metrics for operations to a Table. */
 @FunctionalInterface
 public interface MetricsReporter {
+
+  default void init(Map<String, String> properties) {
+    // To allow configuring metric reporter.
+  }
 
   /**
    * Indicates that a operation is done by reporting a {@link MetricsReport}. A {@link

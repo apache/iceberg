@@ -25,6 +25,8 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -51,7 +53,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         }
 
       } else {
-        result = new BaseTable(ops, fullTableName(name(), identifier));
+        MetricsReporter metricsReporter =
+            properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
+                ? CatalogUtil.loadMetricsReporter(
+                    properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
+                : LoggingMetricsReporter.instance();
+        metricsReporter.init(properties());
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter);
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
