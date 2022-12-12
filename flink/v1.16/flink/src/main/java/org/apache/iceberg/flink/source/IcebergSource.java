@@ -357,13 +357,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (readerFunction == null) {
         RowDataReaderFunction rowDataReaderFunction =
             new RowDataReaderFunction(
-                flinkConfig,
-                table.schema(),
-                context.project(),
-                context.nameMapping(),
-                context.caseSensitive(),
-                table.io(),
-                table.encryption());
+                table, flinkConfig, context.project(), context.caseSensitive());
         this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
       }
 

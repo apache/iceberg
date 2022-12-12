@@ -18,53 +18,45 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
-  private final Schema tableSchema;
   private final Schema readSchema;
-  private final String nameMapping;
   private final boolean caseSensitive;
-  private final FileIO io;
-  private final EncryptionManager encryption;
+  private final Table table;
 
   public RowDataReaderFunction(
-      ReadableConfig config,
-      Schema tableSchema,
-      Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      FileIO io,
-      EncryptionManager encryption) {
+      Table table, ReadableConfig config, Schema projectedSchema, boolean caseSensitive) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
             config,
             new RowDataRecordFactory(
-                FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));
-    this.tableSchema = tableSchema;
-    this.readSchema = readSchema(tableSchema, projectedSchema);
-    this.nameMapping = nameMapping;
+                FlinkSchemaUtil.convert(readSchema(table.schema(), projectedSchema)))));
+    this.readSchema = readSchema(table.schema(), projectedSchema);
     this.caseSensitive = caseSensitive;
-    this.io = io;
-    this.encryption = encryption;
+    this.table = table;
   }
 
   @Override
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
     return new DataIterator<>(
-        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive),
-        split.task(),
-        io,
-        encryption);
+        table,
+        new RowDataFileScanTaskReader(
+            table.schema(),
+            readSchema,
+            table.properties().get(DEFAULT_NAME_MAPPING),
+            caseSensitive),
+        split.task());
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {

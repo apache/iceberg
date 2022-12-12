@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.configuration.Configuration;
@@ -30,11 +31,9 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 
 public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
@@ -42,20 +41,13 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
   private static final DataStructureConverter<Object, Object> rowDataConverter =
       DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
 
-  public TestRowDataReaderFunction(FileFormat fileFormat) {
+  public TestRowDataReaderFunction(FileFormat fileFormat) throws IOException {
     super(fileFormat);
   }
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataReaderFunction(
-        new Configuration(),
-        TestFixtures.SCHEMA,
-        TestFixtures.SCHEMA,
-        null,
-        true,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+    return new RowDataReaderFunction(table(), new Configuration(), TestFixtures.SCHEMA, true);
   }
 
   @Override

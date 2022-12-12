@@ -21,13 +21,17 @@ package org.apache.iceberg.flink.source.reader;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -51,16 +55,28 @@ public abstract class ReaderFunctionTestBase<T> {
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
+  public static final HadoopTables tables = new HadoopTables(new Configuration());
+
   protected abstract ReaderFunction<T> readerFunction();
 
   protected abstract void assertRecords(List<Record> expected, List<T> actual, Schema schema);
 
   private final FileFormat fileFormat;
   private final GenericAppenderFactory appenderFactory;
+  private final Table table;
 
-  public ReaderFunctionTestBase(FileFormat fileFormat) {
+  public ReaderFunctionTestBase(FileFormat fileFormat) throws IOException {
     this.fileFormat = fileFormat;
-    this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
+    this.table =
+        tables
+            .buildTable(TEMPORARY_FOLDER.newFolder().getAbsolutePath(), TestFixtures.SCHEMA)
+            .withProperty(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
+            .create();
+    this.appenderFactory = new GenericAppenderFactory(table);
+  }
+
+  public Table table() {
+    return table;
   }
 
   private void assertRecordsAndPosition(

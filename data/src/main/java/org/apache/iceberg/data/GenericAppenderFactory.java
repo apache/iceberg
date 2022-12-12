@@ -26,6 +26,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -57,6 +58,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
     this(schema, spec, null, null, null);
+  }
+
+  public GenericAppenderFactory(Table table) {
+    this(table.schema(), table.spec(), null, null, null);
   }
 
   public GenericAppenderFactory(

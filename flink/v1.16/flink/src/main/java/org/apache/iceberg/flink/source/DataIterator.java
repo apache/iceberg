@@ -24,6 +24,7 @@ import java.util.Iterator;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
@@ -56,6 +57,23 @@ public class DataIterator<T> implements CloseableIterator<T> {
     this.fileScanTaskReader = fileScanTaskReader;
 
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
+    this.combinedTask = task;
+
+    this.tasks = task.files().iterator();
+    this.currentIterator = CloseableIterator.empty();
+
+    // fileOffset starts at -1 because we started
+    // from an empty iterator that is not from the split files.
+    this.fileOffset = -1;
+    // record offset points to the record that next() should return when called
+    this.recordOffset = 0L;
+  }
+
+  public DataIterator(
+      Table table, FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task) {
+    this.fileScanTaskReader = fileScanTaskReader;
+
+    this.inputFilesDecryptor = new InputFilesDecryptor(task, table.io(), table.encryption());
     this.combinedTask = task;
 
     this.tasks = task.files().iterator();

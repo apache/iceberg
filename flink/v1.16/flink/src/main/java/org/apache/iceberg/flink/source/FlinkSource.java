@@ -31,15 +31,14 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,24 +188,17 @@ public class FlinkSource {
       Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
       Schema icebergSchema;
-      FileIO io;
-      EncryptionManager encryption;
       if (table == null) {
         // load required fields by table loader.
         tableLoader.open();
         try (TableLoader loader = tableLoader) {
           table = loader.loadTable();
-          icebergSchema = table.schema();
-          io = table.io();
-          encryption = table.encryption();
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
-      } else {
-        icebergSchema = table.schema();
-        io = table.io();
-        encryption = table.encryption();
       }
+
+      icebergSchema = table.schema();
 
       if (projectedSchema == null) {
         contextBuilder.project(icebergSchema);
@@ -220,7 +212,7 @@ public class FlinkSource {
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
       return new FlinkInputFormat(
-          tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+          (SerializableTable) SerializableTable.copyOf(table), contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
