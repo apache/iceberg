@@ -298,10 +298,10 @@ class UuidType(pa.PyExtensionType):
     https://arrow.apache.org/docs/python/extending_types.html#defining-extension-types-user-defined-types
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pa.PyExtensionType.__init__(self, pa.binary(16))
 
-    def __reduce__(self):
+    def __reduce__(self) -> Tuple[pa.PyExtensionType, Tuple[Any, ...]]:
         return UuidType, ()
 
 
