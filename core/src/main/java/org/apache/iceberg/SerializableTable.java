@@ -357,6 +357,12 @@ public class SerializableTable implements Table, Serializable {
     throw new UnsupportedOperationException(errorMsg("newTransaction"));
   }
 
+  @Override
+  public IncrementalAppendScan newIncrementalAppendScan() {
+    TableOperations ops = new StaticTableOperations(metadataFileLocation, io, locationProvider);
+    return new BaseIncrementalAppendScan(ops, lazyTable());
+  }
+
   private String errorMsg(String operation) {
     return String.format("Operation %s is not supported after the table is serialized", operation);
   }
