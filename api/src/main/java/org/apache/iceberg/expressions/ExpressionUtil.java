@@ -120,6 +120,26 @@ public class ExpressionUtil {
         caseSensitive);
   }
 
+  public static String describe(Term term) {
+    if (term instanceof UnboundTransform) {
+      return ((UnboundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((UnboundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof BoundTransform) {
+      return ((BoundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((BoundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof NamedReference) {
+      return ((NamedReference<?>) term).name();
+    } else if (term instanceof BoundReference) {
+      return ((BoundReference<?>) term).name();
+    } else {
+      throw new UnsupportedOperationException("Unsupported term: " + term);
+    }
+  }
+
   private static class ExpressionSanitizer
       extends ExpressionVisitors.ExpressionVisitor<Expression> {
     private final long now;
@@ -235,19 +255,9 @@ public class ExpressionUtil {
       throw new UnsupportedOperationException("Cannot sanitize bound predicate: " + pred);
     }
 
-    public String termToString(UnboundTerm<?> term) {
-      if (term instanceof UnboundTransform) {
-        return ((UnboundTransform<?, ?>) term).transform() + "(" + termToString(term.ref()) + ")";
-      } else if (term instanceof NamedReference) {
-        return ((NamedReference<?>) term).name();
-      } else {
-        throw new UnsupportedOperationException("Unsupported term: " + term);
-      }
-    }
-
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
-      String term = termToString(pred.term());
+      String term = describe(pred.term());
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";
