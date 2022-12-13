@@ -19,7 +19,7 @@
 
 # Contributing to the Iceberg Python library
 
-For the development, poetry is used for packing and dependency management. You can install this using:
+For the development, Poetry is used for packing and dependency management. You can install this using:
 
 ```bash
 pip install poetry
@@ -31,7 +31,7 @@ If you have an older version of pip and virtualenv you need to update these:
 pip install --upgrade virtualenv pip
 ```
 
-To get started, you can run `make install`, which will install poetry and it will install all the dependencies of the Iceberg library. This will also install the development dependencies. If you don't want to do this, you need to install using `poetry install --no-dev`.
+To get started, you can run `make install`, which installs Poetry and all the dependencies of the Iceberg library. This also installs the development dependencies. If you don't want to install the development dependencies, you need to install using `poetry install --no-dev`.
 
 If you want to install the library on the host, you can simply run `pip3 install -e .`. If you wish to use a virtual environment, you can run `poetry shell`. Poetry will open up a virtual environment with all the dependencies set.
 
@@ -73,7 +73,7 @@ For Python, `pytest` is used a testing framework in combination with `coverage` 
 make test
 ```
 
-By default, s3 tests are ignored because that require minio to be running. To run the s3 suite:
+By default, S3 tests are ignored because that require minio to be running. To run the S3 suite:
 
 ```bash
 make test-s3
@@ -101,7 +101,7 @@ Below are the formalized conventions that we adhere to in the PyIceberg project.
 
 ## API Compatibility
 
-It is important to keep the Python public API compatible across versions. The Python official [PEP-8](https://peps.python.org/pep-0008/) defines Public methods as: _Public attributes should have no leading underscores_. This means not removing any methods without any notice, or removing or renaming any existing parameters. Adding new optional parameters is okay.
+It is important to keep the Python public API compatible across versions. The Python official [PEP-8](https://peps.python.org/pep-0008/) defines public methods as: _Public attributes should have no leading underscores_. This means not removing any methods without any notice, or removing or renaming any existing parameters. Adding new optional parameters is okay.
 
 If you want to remove a method, please add a deprecation notice by annotating the function using `@deprecated`:
 
