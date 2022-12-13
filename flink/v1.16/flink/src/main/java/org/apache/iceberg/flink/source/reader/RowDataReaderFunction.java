@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
@@ -34,12 +32,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final Table table;
   private final Schema readSchema;
+  private final String nameMapping;
   private final boolean caseSensitive;
 
   public RowDataReaderFunction(
       SerializableTable table,
       ReadableConfig config,
       Schema projectedSchema,
+      String nameMapping,
       boolean caseSensitive) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
@@ -48,6 +48,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
                 FlinkSchemaUtil.convert(readSchema(table.schema(), projectedSchema)))));
     this.table = table;
     this.readSchema = readSchema(table.schema(), projectedSchema);
+    this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
   }
 
@@ -55,11 +56,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
     return new DataIterator<>(
         table,
-        new RowDataFileScanTaskReader(
-            table.schema(),
-            readSchema,
-            table.properties().get(DEFAULT_NAME_MAPPING),
-            caseSensitive),
+        new RowDataFileScanTaskReader(table.schema(), readSchema, nameMapping, caseSensitive),
         split.task());
   }
 

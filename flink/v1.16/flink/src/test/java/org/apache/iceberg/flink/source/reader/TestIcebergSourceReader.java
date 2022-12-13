@@ -109,6 +109,7 @@ public class TestIcebergSourceReader {
             (SerializableTable) SerializableTable.copyOf(tableResource.table()),
             new Configuration(),
             TestFixtures.SCHEMA,
+            null,
             true);
     return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
   }

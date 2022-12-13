@@ -361,6 +361,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
                 (SerializableTable) SerializableTable.copyOf(table),
                 flinkConfig,
                 context.project(),
+                context.nameMapping(),
                 context.caseSensitive());
         this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
       }

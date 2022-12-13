@@ -51,6 +51,7 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
         (SerializableTable) SerializableTable.copyOf(table()),
         new Configuration(),
         TestFixtures.SCHEMA,
+        null,
         true);
   }
 
