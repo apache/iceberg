@@ -62,30 +62,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType posDeleteFlinkSchema = null;
 
   public FlinkAppenderFactory(
-      Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
-    this(null, schema, flinkSchema, props, spec, null, null, null);
-  }
-
-  public FlinkAppenderFactory(
-      Schema schema,
-      RowType flinkSchema,
-      Map<String, String> props,
-      PartitionSpec spec,
-      int[] equalityFieldIds,
-      Schema eqDeleteRowSchema,
-      Schema posDeleteRowSchema) {
-    this(
-        null,
-        schema,
-        flinkSchema,
-        props,
-        spec,
-        equalityFieldIds,
-        eqDeleteRowSchema,
-        posDeleteRowSchema);
-  }
-
-  public FlinkAppenderFactory(
       Table table,
       Schema schema,
       RowType flinkSchema,
