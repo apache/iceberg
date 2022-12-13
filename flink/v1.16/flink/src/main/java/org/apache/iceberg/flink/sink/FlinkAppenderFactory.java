@@ -242,7 +242,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public PositionDeleteWriter<RowData> newPosDeleteWriter(
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig =
-        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(props);
+        table != null ? MetricsConfig.forPositionDelete(table) : MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:
