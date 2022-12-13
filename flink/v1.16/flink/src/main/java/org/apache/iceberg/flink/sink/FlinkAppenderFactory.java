@@ -70,7 +70,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
-    Preconditions.checkNotNull(table, "table should not be null");
+    Preconditions.checkNotNull(table, "Table shouldn't be null");
     this.table = table;
     this.schema = schema;
     this.flinkSchema = flinkSchema;
