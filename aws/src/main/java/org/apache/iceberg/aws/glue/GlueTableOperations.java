@@ -315,8 +315,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .build());
       // Use Optimistic locking with table version id while updating table
       if (!SET_VERSION_ID.isNoop() && lockManager == null) {
-        LOG.debug("Use optimistic locking with table version: {}", glueTable.versionId());
+        LOG.debug("Using optimistic locking with table version: {}", glueTable.versionId());
         SET_VERSION_ID.invoke(updateTableRequest, glueTable.versionId());
+      } else if (lockManager == null) {
+        LOG.warn("Optimistic locking is not available in the environment. Using in-memory lock manager."
+            + " To ensure atomic transaction, you need to setup a DynamoDB lock manager.");
       }
 
       glue.updateTable(updateTableRequest.build());
