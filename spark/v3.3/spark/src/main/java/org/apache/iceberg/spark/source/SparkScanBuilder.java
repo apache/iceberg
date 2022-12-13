@@ -214,16 +214,6 @@ public class SparkScanBuilder
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.START_SNAPSHOT_ID);
 
-    checkInvalidOptions();
-
-    if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
-    } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
-    }
-  }
-
-  private void checkInvalidOptions() {
     Long startTimestamp = readConf.startTimestamp();
     Long endTimestamp = readConf.endTimestamp();
     Preconditions.checkArgument(
@@ -232,6 +222,12 @@ public class SparkScanBuilder
             + "changelog scans.",
         SparkReadOptions.START_TIMESTAMP,
         SparkReadOptions.END_TIMESTAMP);
+
+    if (startSnapshotId != null) {
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+    } else {
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+    }
   }
 
   private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
