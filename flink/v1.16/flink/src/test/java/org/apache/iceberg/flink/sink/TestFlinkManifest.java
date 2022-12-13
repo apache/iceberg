@@ -78,6 +78,7 @@ public class TestFlinkManifest {
         };
     this.appenderFactory =
         new FlinkAppenderFactory(
+            table,
             table.schema(),
             FlinkSchemaUtil.convert(table.schema()),
             table.properties(),
