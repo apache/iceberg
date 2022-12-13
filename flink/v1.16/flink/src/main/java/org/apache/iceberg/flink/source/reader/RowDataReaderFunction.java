@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
@@ -31,20 +32,23 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
+  private final Table table;
   private final Schema readSchema;
   private final boolean caseSensitive;
-  private final Table table;
 
   public RowDataReaderFunction(
-      Table table, ReadableConfig config, Schema projectedSchema, boolean caseSensitive) {
+      SerializableTable table,
+      ReadableConfig config,
+      Schema projectedSchema,
+      boolean caseSensitive) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
             config,
             new RowDataRecordFactory(
                 FlinkSchemaUtil.convert(readSchema(table.schema(), projectedSchema)))));
+    this.table = table;
     this.readSchema = readSchema(table.schema(), projectedSchema);
     this.caseSensitive = caseSensitive;
-    this.table = table;
   }
 
   @Override

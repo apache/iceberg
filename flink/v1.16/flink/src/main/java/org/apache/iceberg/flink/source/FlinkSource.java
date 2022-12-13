@@ -199,7 +199,6 @@ public class FlinkSource {
       }
 
       icebergSchema = table.schema();
-
       if (projectedSchema == null) {
         contextBuilder.project(icebergSchema);
       } else {

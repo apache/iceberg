@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.api.connector.source.SourceReaderContext;
@@ -29,37 +28,31 @@ import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceReader {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  private final GenericAppenderFactory appenderFactory;
-  private final Table table;
+  @Rule
+  public final HadoopTableResource tableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
-  public TestIcebergSourceReader() throws IOException {
-    HadoopTables tables = new HadoopTables(new org.apache.hadoop.conf.Configuration());
-    this.table =
-        tables.create(
-            TestFixtures.SCHEMA,
-            PartitionSpec.unpartitioned(),
-            SortOrder.unsorted(),
-            ImmutableMap.of(),
-            TEMPORARY_FOLDER.newFolder().getAbsolutePath());
-    this.appenderFactory = new GenericAppenderFactory(table);
+  private final GenericAppenderFactory appenderFactory;
+
+  public TestIcebergSourceReader() {
+    this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
   }
 
   @Test
@@ -112,7 +105,11 @@ public class TestIcebergSourceReader {
     IcebergSourceReaderMetrics readerMetrics =
         new IcebergSourceReaderMetrics(metricGroup, "db.tbl");
     RowDataReaderFunction readerFunction =
-        new RowDataReaderFunction(table, new Configuration(), TestFixtures.SCHEMA, true);
+        new RowDataReaderFunction(
+            (SerializableTable) SerializableTable.copyOf(tableResource.table()),
+            new Configuration(),
+            TestFixtures.SCHEMA,
+            true);
     return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
   }
 }

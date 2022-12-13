@@ -258,6 +258,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public IncrementalAppendScan newIncrementalAppendScan() {
+    return lazyTable().newIncrementalAppendScan();
+  }
+
+  @Override
   public Snapshot currentSnapshot() {
     return lazyTable().currentSnapshot();
   }
@@ -355,12 +360,6 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException(errorMsg("newTransaction"));
-  }
-
-  @Override
-  public IncrementalAppendScan newIncrementalAppendScan() {
-    TableOperations ops = new StaticTableOperations(metadataFileLocation, io, locationProvider);
-    return new BaseIncrementalAppendScan(ops, lazyTable());
   }
 
   private String errorMsg(String operation) {

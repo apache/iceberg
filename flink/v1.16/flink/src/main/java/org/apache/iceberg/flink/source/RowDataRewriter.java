@@ -31,6 +31,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -51,7 +52,7 @@ public class RowDataRewriter {
   private final TaskWriterFactory<RowData> taskWriterFactory;
   private final String tableName;
 
-  public RowDataRewriter(Table table, boolean caseSensitive) {
+  public RowDataRewriter(SerializableTable table, boolean caseSensitive) {
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.tableName = table.name();
@@ -84,14 +85,12 @@ public class RowDataRewriter {
     private int attemptId;
 
     private final Table table;
-    private final boolean caseSensitive;
     private final TaskWriterFactory<RowData> taskWriterFactory;
     private final RowDataFileScanTaskReader rowDataReader;
 
     public RewriteMap(
         Table table, boolean caseSensitive, TaskWriterFactory<RowData> taskWriterFactory) {
       this.table = table;
-      this.caseSensitive = caseSensitive;
       this.taskWriterFactory = taskWriterFactory;
       this.rowDataReader =
           new RowDataFileScanTaskReader(

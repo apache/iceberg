@@ -39,9 +39,9 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   private static final long serialVersionUID = 1L;
 
+  private final Table table;
   private final ScanContext context;
   private final RowDataFileScanTaskReader rowDataReader;
-  private final Table table;
 
   private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;

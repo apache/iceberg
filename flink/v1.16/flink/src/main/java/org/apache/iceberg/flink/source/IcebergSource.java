@@ -40,6 +40,7 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -357,7 +358,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (readerFunction == null) {
         RowDataReaderFunction rowDataReaderFunction =
             new RowDataReaderFunction(
-                table, flinkConfig, context.project(), context.caseSensitive());
+                (SerializableTable) SerializableTable.copyOf(table),
+                flinkConfig,
+                context.project(),
+                context.caseSensitive());
         this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
       }
 

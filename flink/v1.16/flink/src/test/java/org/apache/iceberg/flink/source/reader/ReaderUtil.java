@@ -34,16 +34,15 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -81,12 +80,12 @@ public class ReaderUtil {
         residuals);
   }
 
-  public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
+  public static DataIterator<RowData> createDataIterator(
+      SerializableTable table, CombinedScanTask combinedTask) {
     return new DataIterator<>(
+        table,
         new RowDataFileScanTaskReader(TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true),
-        combinedTask,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+        combinedTask);
   }
 
   public static List<List<Record>> createRecordBatchList(

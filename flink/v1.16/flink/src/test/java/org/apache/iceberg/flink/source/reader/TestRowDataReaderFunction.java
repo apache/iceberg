@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.configuration.Configuration;
@@ -30,6 +29,7 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
@@ -41,13 +41,17 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
   private static final DataStructureConverter<Object, Object> rowDataConverter =
       DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
 
-  public TestRowDataReaderFunction(FileFormat fileFormat) throws IOException {
+  public TestRowDataReaderFunction(FileFormat fileFormat) {
     super(fileFormat);
   }
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataReaderFunction(table(), new Configuration(), TestFixtures.SCHEMA, true);
+    return new RowDataReaderFunction(
+        (SerializableTable) SerializableTable.copyOf(table()),
+        new Configuration(),
+        TestFixtures.SCHEMA,
+        true);
   }
 
   @Override

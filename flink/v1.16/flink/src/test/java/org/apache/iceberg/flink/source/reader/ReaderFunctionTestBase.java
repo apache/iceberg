@@ -21,21 +21,20 @@ package org.apache.iceberg.flink.source.reader;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -55,7 +54,10 @@ public abstract class ReaderFunctionTestBase<T> {
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  public static final HadoopTables tables = new HadoopTables(new Configuration());
+  @Rule
+  public final HadoopTableResource tableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
   protected abstract ReaderFunction<T> readerFunction();
 
@@ -63,20 +65,14 @@ public abstract class ReaderFunctionTestBase<T> {
 
   private final FileFormat fileFormat;
   private final GenericAppenderFactory appenderFactory;
-  private final Table table;
 
-  public ReaderFunctionTestBase(FileFormat fileFormat) throws IOException {
+  public ReaderFunctionTestBase(FileFormat fileFormat) {
     this.fileFormat = fileFormat;
-    this.table =
-        tables
-            .buildTable(TEMPORARY_FOLDER.newFolder().getAbsolutePath(), TestFixtures.SCHEMA)
-            .withProperty(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
-            .create();
-    this.appenderFactory = new GenericAppenderFactory(table);
+    this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
   }
 
   public Table table() {
-    return table;
+    return tableResource.table();
   }
 
   private void assertRecordsAndPosition(
