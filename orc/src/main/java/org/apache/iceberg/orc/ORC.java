@@ -88,12 +88,9 @@ import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
-  private static final Logger LOG = LoggerFactory.getLogger(ORC.class);
 
   /** @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead */
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
