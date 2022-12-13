@@ -682,6 +682,22 @@ project(':iceberg-dell') {
   }
 }
 
+project(':iceberg-snowflake') {
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-aws')
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation "commons-dbutils:commons-dbutils:1.7"
+
+    runtimeOnly("net.snowflake:snowflake-jdbc:3.13.22")
+
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
 @Memoized
 boolean versionFileExists() {
   return file('version.txt').exists()
