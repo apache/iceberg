@@ -248,33 +248,30 @@ public class FlinkFilters {
     org.apache.flink.table.expressions.Expression left = args.get(0);
     org.apache.flink.table.expressions.Expression right = args.get(1);
 
+    Optional<Object> lit;
     if (left instanceof FieldReferenceExpression) {
-      Optional<Object> lit = Optional.empty();
-      String name = ((FieldReferenceExpression) left).getName();
-      if (right instanceof ValueLiteralExpression) {
-        lit = convertLiteral((ValueLiteralExpression) right);
-      } else if (right instanceof CallExpression) {
-        lit = convertCallExpression((CallExpression) right);
-      }
-
+      lit = getConvertValue(right);
       if (lit.isPresent()) {
-        return Optional.of(convertLR.apply(name, lit.get()));
+        return Optional.of(convertLR.apply(((FieldReferenceExpression) left).getName(), lit.get()));
       }
     } else if (right instanceof FieldReferenceExpression) {
-      Optional<Object> lit = Optional.empty();
-      String name = ((FieldReferenceExpression) right).getName();
-      if (left instanceof ValueLiteralExpression) {
-        lit = convertLiteral((ValueLiteralExpression) left);
-
-      } else if (left instanceof CallExpression) {
-        lit = convertCallExpression((CallExpression) left);
-      }
-
+      lit = getConvertValue(left);
       if (lit.isPresent()) {
-        return Optional.of(convertRL.apply(name, lit.get()));
+        return Optional.of(
+            convertRL.apply(((FieldReferenceExpression) right).getName(), lit.get()));
       }
     }
 
+    return Optional.empty();
+  }
+
+  private static Optional<Object> getConvertValue(
+      org.apache.flink.table.expressions.Expression expression) {
+    if (expression instanceof ValueLiteralExpression) {
+      return convertLiteral((ValueLiteralExpression) expression);
+    } else if (expression instanceof CallExpression) {
+      return convertCallExpression((CallExpression) expression);
+    }
     return Optional.empty();
   }
 
