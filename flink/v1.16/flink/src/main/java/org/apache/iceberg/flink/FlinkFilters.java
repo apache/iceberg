@@ -250,12 +250,12 @@ public class FlinkFilters {
 
     Optional<Object> lit;
     if (left instanceof FieldReferenceExpression) {
-      lit = getConvertValue(right);
+      lit = convertExpression(right);
       if (lit.isPresent()) {
         return Optional.of(convertLR.apply(((FieldReferenceExpression) left).getName(), lit.get()));
       }
     } else if (right instanceof FieldReferenceExpression) {
-      lit = getConvertValue(left);
+      lit = convertExpression(left);
       if (lit.isPresent()) {
         return Optional.of(
             convertRL.apply(((FieldReferenceExpression) right).getName(), lit.get()));
@@ -265,7 +265,7 @@ public class FlinkFilters {
     return Optional.empty();
   }
 
-  private static Optional<Object> getConvertValue(
+  private static Optional<Object> convertExpression(
       org.apache.flink.table.expressions.Expression expression) {
     if (expression instanceof ValueLiteralExpression) {
       return convertLiteral((ValueLiteralExpression) expression);
