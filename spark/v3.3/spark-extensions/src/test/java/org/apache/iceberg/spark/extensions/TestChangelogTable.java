@@ -121,10 +121,15 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Test
   public void testQueryWithTimeRange() {
-    createTableWithDefaultRows();
+    createTable();
 
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+    long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
 
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
     Snapshot snap2 = table.currentSnapshot();
     long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
 
@@ -140,12 +145,19 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         changelogRecords(rightAfterSnap2, snap3.timestampMillis()));
 
     assertEquals(
+        "Should have expected changed rows only from snapshot 3",
+        ImmutableList.of(
+            row(2, "b", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(snap2.timestampMillis(), snap3.timestampMillis()));
+
+    assertEquals(
         "Should have expected changed rows from snapshot 2 and 3",
         ImmutableList.of(
             row(2, "b", "INSERT", 0, snap2.snapshotId()),
             row(2, "b", "DELETE", 1, snap3.snapshotId()),
             row(-2, "b", "INSERT", 1, snap3.snapshotId())),
-        changelogRecords(snap2.timestampMillis(), snap3.timestampMillis()));
+        changelogRecords(rightAfterSnap1, snap3.timestampMillis()));
 
     assertEquals(
         "Should have expected changed rows up to the current snapshot",
@@ -153,7 +165,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
             row(2, "b", "INSERT", 0, snap2.snapshotId()),
             row(2, "b", "DELETE", 1, snap3.snapshotId()),
             row(-2, "b", "INSERT", 1, snap3.snapshotId())),
-        changelogRecords(snap2.timestampMillis(), null));
+        changelogRecords(rightAfterSnap1, null));
   }
 
   @Test

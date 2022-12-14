@@ -356,7 +356,11 @@ public class SparkScanBuilder
         startTimestamp,
         table.name());
 
-    return oldestSnapshotAfter.parentId();
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
   }
 
   public Scan buildMergeOnReadScan() {
