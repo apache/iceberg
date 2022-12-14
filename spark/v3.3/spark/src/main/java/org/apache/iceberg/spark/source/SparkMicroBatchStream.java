@@ -47,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -172,7 +171,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(0);
+    return new SparkRowReaderFactory();
   }
 
   @Override

@@ -76,7 +76,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.delete.distribution-mode     | hash               | Defines distribution of write delete data          |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
-| write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
+| write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest **tracked** version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 | write.spark.fanout.enabled         | false              | Enables the fanout writer in Spark that does not require data to be clustered; uses more memory |
 | write.object-storage.enabled       | false              | Enables the object storage location provider that adds a hash component to file paths |

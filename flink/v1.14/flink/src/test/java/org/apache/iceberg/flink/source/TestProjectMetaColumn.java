@@ -176,6 +176,7 @@ public class TestProjectMetaColumn {
             SimpleDataUtil.ROW_TYPE,
             TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
             format,
+            table.properties(),
             equalityFieldIds,
             upsert);
 

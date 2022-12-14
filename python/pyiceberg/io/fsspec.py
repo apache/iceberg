@@ -17,7 +17,12 @@
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
 import logging
 from functools import lru_cache, partial
-from typing import Callable, Dict, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Union,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -29,13 +34,19 @@ from s3fs import S3FileSystem
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
-from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.io import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from pyiceberg.typedef import Properties
 
 logger = logging.getLogger(__name__)
 
 
-def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSRequest:
+def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_: Any) -> AWSRequest:
     if TOKEN not in properties:
         raise SignError("Signer set, but token is not available")
 
@@ -71,9 +82,10 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),
         "aws_secret_access_key": properties.get("s3.secret-access-key"),
+        "aws_session_token": properties.get("s3.session-token"),
     }
     config_kwargs = {}
-    register_events: Dict[str, Callable] = {}
+    register_events: Dict[str, Callable[[Properties], None]] = {}
 
     if signer := properties.get("s3.signer"):
         logger.info("Loading signer %s", signer)
@@ -126,7 +138,7 @@ class FsspecInputFile(InputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def open(self):
+    def open(self) -> InputStream:
         """Create an input stream for reading the contents of the file
 
         Returns:
@@ -160,7 +172,7 @@ class FsspecOutputFile(OutputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def create(self, overwrite: bool = False):
+    def create(self, overwrite: bool = False) -> OutputStream:
         """Create an output stream for reading the contents of the file
 
         Args:
@@ -193,7 +205,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], AbstractFileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:

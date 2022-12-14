@@ -99,7 +99,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public void clean() {
     sql("DROP TABLE IF EXISTS %s", TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
-    sql("DROP CATALOG IF EXISTS %s", CATALOG_NAME);
+    dropCatalog(CATALOG_NAME, true);
     BoundedTableFactory.clearDataSets();
   }
 

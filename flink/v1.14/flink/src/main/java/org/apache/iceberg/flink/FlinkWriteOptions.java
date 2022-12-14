@@ -34,6 +34,18 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Long> TARGET_FILE_SIZE_BYTES =
       ConfigOptions.key("target-file-size-bytes").longType().noDefaultValue();
 
+  // Overrides this table's write.<FILE_FORMAT>.compression-codec
+  public static final ConfigOption<String> COMPRESSION_CODEC =
+      ConfigOptions.key("compression-codec").stringType().noDefaultValue();
+
+  // Overrides this table's write.<FILE_FORMAT>.compression-level
+  public static final ConfigOption<String> COMPRESSION_LEVEL =
+      ConfigOptions.key("compression-level").stringType().noDefaultValue();
+
+  // Overrides this table's write.<FILE_FORMAT>.compression-strategy
+  public static final ConfigOption<String> COMPRESSION_STRATEGY =
+      ConfigOptions.key("compression-strategy").stringType().noDefaultValue();
+
   // Overrides this table's write.upsert.enabled
   public static final ConfigOption<Boolean> WRITE_UPSERT_ENABLED =
       ConfigOptions.key("upsert-enabled").booleanType().noDefaultValue();

@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
@@ -62,7 +63,10 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
-  private static final String HIVE_PROPERTY_PREFIX = "hive.";
+
+  public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
+  public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
+  public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -82,14 +86,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     if (conf == null) {
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
       this.conf = new Configuration();
-    }
-
-    // Forward all catalog properties that begin with `hive.` into configuration for use in setting
-    // up the MetastoreClient
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      if (entry.getKey().startsWith(HIVE_PROPERTY_PREFIX)) {
-        this.conf.set(entry.getKey(), entry.getValue());
-      }
     }
 
     if (properties.containsKey(CatalogProperties.URI)) {
@@ -273,7 +269,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         isValidateNamespace(namespace),
         "Cannot support multi part namespace in Hive Metastore: %s",
         namespace);
-
+    Preconditions.checkArgument(
+        meta.get(HMS_DB_OWNER_TYPE) == null || meta.get(HMS_DB_OWNER) != null,
+        "Create namespace setting %s without setting %s is not allowed",
+        HMS_DB_OWNER_TYPE,
+        HMS_DB_OWNER);
     try {
       clients.run(
           client -> {
@@ -365,6 +365,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
+    Preconditions.checkArgument(
+        (properties.get(HMS_DB_OWNER_TYPE) == null) == (properties.get(HMS_DB_OWNER) == null),
+        "Setting %s and %s has to be performed together or not at all",
+        HMS_DB_OWNER_TYPE,
+        HMS_DB_OWNER);
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -380,6 +385,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
+    Preconditions.checkArgument(
+        properties.contains(HMS_DB_OWNER_TYPE) == properties.contains(HMS_DB_OWNER),
+        "Removing %s and %s has to be performed together or not at all",
+        HMS_DB_OWNER_TYPE,
+        HMS_DB_OWNER);
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -518,6 +528,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     if (database.getDescription() != null) {
       meta.put("comment", database.getDescription());
     }
+    if (database.getOwnerName() != null) {
+      meta.put(HMS_DB_OWNER, database.getOwnerName());
+      if (database.getOwnerType() != null) {
+        meta.put(HMS_DB_OWNER_TYPE, database.getOwnerType().name());
+      }
+    }
 
     return meta;
   }
@@ -539,12 +555,22 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             database.setDescription(value);
           } else if (key.equals("location")) {
             database.setLocationUri(value);
+          } else if (key.equals(HMS_DB_OWNER)) {
+            database.setOwnerName(value);
+          } else if (key.equals(HMS_DB_OWNER_TYPE) && value != null) {
+            database.setOwnerType(PrincipalType.valueOf(value));
           } else {
             if (value != null) {
               parameter.put(key, value);
             }
           }
         });
+
+    if (database.getOwnerName() == null) {
+      database.setOwnerName(System.getProperty("user.name"));
+      database.setOwnerType(PrincipalType.USER);
+    }
+
     database.setParameters(parameter);
 
     return database;

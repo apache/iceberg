@@ -23,16 +23,19 @@ with the pyarrow library.
 """
 
 import os
-from functools import lru_cache, singledispatch
+from functools import lru_cache
 from typing import (
+    Any,
     Callable,
     List,
+    Set,
     Tuple,
     Union,
 )
 from urllib.parse import urlparse
 
 import pyarrow as pa
+import pyarrow.compute as pc
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -41,6 +44,9 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
+from pyiceberg.expressions import BooleanExpression, BoundTerm, Literal
+from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor
+from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
     InputFile,
@@ -48,7 +54,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType, visit
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -58,6 +64,7 @@ from pyiceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
@@ -69,7 +76,9 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
+from pyiceberg.utils.singleton import Singleton
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -198,7 +207,7 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     @staticmethod
@@ -213,6 +222,7 @@ class PyArrowFileIO(FileIO):
                 "endpoint_override": self.properties.get("s3.endpoint"),
                 "access_key": self.properties.get("s3.access-key-id"),
                 "secret_key": self.properties.get("s3.secret-access-key"),
+                "session_token": self.properties.get("s3.session-token"),
             }
             return S3FileSystem(**client_kwargs)
         elif scheme == "file":
@@ -281,7 +291,21 @@ def schema_to_pyarrow(schema: Schema) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
-class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
+class UuidType(pa.PyExtensionType):
+    """Custom type for UUID
+
+    For more information:
+    https://arrow.apache.org/docs/python/extending_types.html#defining-extension-types-user-defined-types
+    """
+
+    def __init__(self) -> None:
+        pa.PyExtensionType.__init__(self, pa.binary(16))
+
+    def __reduce__(self) -> Tuple[pa.PyExtensionType, Tuple[Any, ...]]:
+        return UuidType, ()
+
+
+class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleton):
     def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
         return pa.schema(list(struct_result))
 
@@ -302,79 +326,114 @@ class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
     def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
         return pa.map_(key_type=key_result, item_type=value_result)
 
-    def primitive(self, primitive: PrimitiveType) -> pa.DataType:
-        return _iceberg_to_pyarrow_type(primitive)
+    def visit_fixed(self, fixed_type: FixedType) -> pa.DataType:
+        return pa.binary(len(fixed_type))
+
+    def visit_decimal(self, decimal_type: DecimalType) -> pa.DataType:
+        return pa.decimal128(decimal_type.precision, decimal_type.scale)
+
+    def visit_boolean(self, _: BooleanType) -> pa.DataType:
+        return pa.bool_()
+
+    def visit_integer(self, _: IntegerType) -> pa.DataType:
+        return pa.int32()
+
+    def visit_long(self, _: LongType) -> pa.DataType:
+        return pa.int64()
+
+    def visit_float(self, _: FloatType) -> pa.DataType:
+        # 32-bit IEEE 754 floating point
+        return pa.float32()
+
+    def visit_double(self, _: DoubleType) -> pa.DataType:
+        # 64-bit IEEE 754 floating point
+        return pa.float64()
+
+    def visit_date(self, _: DateType) -> pa.DataType:
+        # Date encoded as an int
+        return pa.date32()
+
+    def visit_time(self, _: TimeType) -> pa.DataType:
+        return pa.time64("us")
+
+    def visit_timestamp(self, _: TimestampType) -> pa.DataType:
+        return pa.timestamp(unit="us")
+
+    def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
+        return pa.timestamp(unit="us", tz="+00:00")
+
+    def visit_string(self, _: StringType) -> pa.DataType:
+        return pa.string()
+
+    def visit_uuid(self, _: UUIDType) -> pa.DataType:
+        return UuidType()
+
+    def visit_binary(self, _: BinaryType) -> pa.DataType:
+        return pa.binary()
 
 
-@singledispatch
-def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
-    raise ValueError(f"Unknown type: {primitive}")
+def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
+    if not isinstance(iceberg_type, PrimitiveType):
+        raise ValueError(f"Expected primitive type, got: {iceberg_type}")
+    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
 
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: FixedType) -> pa.DataType:
-    return pa.binary(len(primitive))
+class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
+    def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
+        return pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
+        return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ref.is_null(nan_is_null=True) & ref.is_valid()
+
+    def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
+
+    def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_null(nan_is_null=False)
+
+    def visit_not_null(self, term: BoundTerm[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_valid()
+
+    def visit_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) == _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_not_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) != _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) >= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) > _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) < _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_true(self) -> pc.Expression:
+        return pc.scalar(True)
+
+    def visit_false(self) -> pc.Expression:
+        return pc.scalar(False)
+
+    def visit_not(self, child_result: pc.Expression) -> pc.Expression:
+        return ~child_result
+
+    def visit_and(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result & right_result
+
+    def visit_or(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result | right_result
 
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: DecimalType) -> pa.DataType:
-    return pa.decimal128(primitive.precision, primitive.scale)
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: BooleanType) -> pa.DataType:
-    return pa.bool_()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: IntegerType) -> pa.DataType:
-    return pa.int32()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: LongType) -> pa.DataType:
-    return pa.int64()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: FloatType) -> pa.DataType:
-    # 32-bit IEEE 754 floating point
-    return pa.float32()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: DoubleType) -> pa.DataType:
-    # 64-bit IEEE 754 floating point
-    return pa.float64()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: DateType) -> pa.DataType:
-    # Date encoded as an int
-    return pa.date32()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimeType) -> pa.DataType:
-    return pa.time64("us")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestampType) -> pa.DataType:
-    return pa.timestamp(unit="us")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestamptzType) -> pa.DataType:
-    return pa.timestamp(unit="us", tz="+00:00")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: StringType) -> pa.DataType:
-    return pa.string()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: BinaryType) -> pa.DataType:
-    # Variable length by default
-    return pa.binary()
+def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
+    return boolean_expression_visit(expr, _ConvertToArrowExpression())

@@ -39,13 +39,18 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python: ['3.8', '3.9', '3.10']
+        python: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install poetry
+      run: pip install poetry
     - uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
+        cache: poetry
+        cache-dependency-path: |
+          ./python/poetry.lock
     - name: Install
       working-directory: ./python
       run: make install

@@ -79,7 +79,7 @@ public class UpdateRequirementParser {
               ASSERT_LAST_ASSIGNED_PARTITION_ID)
           .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
           .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
-          .build();
+          .buildOrThrow();
 
   public static String toJson(UpdateRequirement updateRequirement) {
     return toJson(updateRequirement, false);

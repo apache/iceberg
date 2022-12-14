@@ -76,10 +76,14 @@ Old metadata files are kept for history by default. Tables with frequent commits
 
 To automatically clean metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files (up to `write.metadata.previous-versions-max`) and will delete the oldest metadata file after each new one is created.
 
-| Property                                     | Description                                                  |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| `write.metadata.delete-after-commit.enabled` | Whether to delete old metadata files after each table commit |
-| `write.metadata.previous-versions-max`       | The number of old metadata files to keep                     |
+| Property                                     | Description                                                              |
+| -------------------------------------------- |--------------------------------------------------------------------------|
+| `write.metadata.delete-after-commit.enabled` | Whether to delete old **tracked** metadata files after each table commit |
+| `write.metadata.previous-versions-max`       | The number of old metadata files to keep                                 |
+
+Note that this will only delete metadata files that are **tracked** in the metadata log and will not delete orphaned metadata files.
+Example: With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, one will have 10 tracked metadata files and 90 orphaned metadata files after 100 commits.
+Configuring `write.metadata.delete-after-commit.enabled=true` and `write.metadata.previous-versions-max=20` will not automatically delete metadata files. Tracked metadata files would be deleted again when reaching `write.metadata.previous-versions-max=20`.
 
 See [table write properties](../configuration/#write-properties) for more details.
 

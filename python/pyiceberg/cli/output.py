@@ -23,11 +23,11 @@ from rich.console import Console
 from rich.table import Table as RichTable
 from rich.tree import Tree
 
-from pyiceberg.io import FileIO
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table import Table, TableMetadata
 from pyiceberg.typedef import Identifier, Properties
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 class Output(ABC):
@@ -46,7 +46,7 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def files(self, table: Table, io: FileIO, history: bool) -> None:
+    def files(self, table: Table, history: bool) -> None:
         ...
 
     @abstractmethod
@@ -124,7 +124,7 @@ class ConsoleOutput(Output):
         output_table.add_row("Properties", table_properties)
         Console().print(output_table)
 
-    def files(self, table: Table, io: FileIO, history: bool) -> None:
+    def files(self, table: Table, history: bool) -> None:
         if history:
             snapshots = table.metadata.snapshots
         else:
@@ -134,12 +134,13 @@ class ConsoleOutput(Output):
                 snapshots = []
 
         snapshot_tree = Tree(f"Snapshots: {'.'.join(table.identifier)}")
+        io = table.io
 
         for snapshot in snapshots:
             manifest_list_str = f": {snapshot.manifest_list}" if snapshot.manifest_list else ""
             list_tree = snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}{manifest_list_str}")
 
-            manifest_list = snapshot.fetch_manifest_list(io)
+            manifest_list = snapshot.manifests(io)
             for manifest in manifest_list:
                 manifest_tree = list_tree.add(f"Manifest: {manifest.manifest_path}")
                 for manifest_entry in manifest.fetch_manifest_entry(io):
@@ -186,7 +187,14 @@ class JsonOutput(Output):
         self._out([".".join(identifier) for identifier in identifiers])
 
     def describe_table(self, table: Table) -> None:
-        print(table.json())
+        class FauxTable(IcebergBaseModel):
+            """Just to encode it using Pydantic"""
+
+            identifier: Identifier
+            metadata_location: str
+            metadata: TableMetadata
+
+        print(FauxTable(identifier=table.identifier, metadata=table.metadata, metadata_location=table.metadata_location).json())
 
     def describe_properties(self, properties: Properties) -> None:
         self._out(properties)
@@ -197,7 +205,7 @@ class JsonOutput(Output):
     def schema(self, schema: Schema) -> None:
         print(schema.json())
 
-    def files(self, table: Table, io: FileIO, history: bool) -> None:
+    def files(self, table: Table, history: bool) -> None:
         pass
 
     def spec(self, spec: PartitionSpec) -> None:

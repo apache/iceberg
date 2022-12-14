@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs
+	poetry install -E pyarrow -E hive -E s3fs -E glue
 
 check-license:
 	./dev/check-license

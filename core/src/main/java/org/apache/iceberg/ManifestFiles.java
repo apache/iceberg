@@ -345,7 +345,7 @@ public class ManifestFiles {
   }
 
   private static InputFile newInputFile(FileIO io, String path, long length) {
-    boolean enabled = false;
+    boolean enabled;
 
     try {
       enabled = cachingEnabled(io);

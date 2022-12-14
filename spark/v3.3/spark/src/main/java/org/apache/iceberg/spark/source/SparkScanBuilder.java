@@ -21,6 +21,8 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -41,6 +43,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -183,6 +186,8 @@ public class SparkScanBuilder
   public Scan build() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
+    String branch = readConf.branch();
+    String tag = readConf.tag();
 
     Preconditions.checkArgument(
         snapshotId == null || asOfTimestamp == null,
@@ -209,11 +214,28 @@ public class SparkScanBuilder
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.START_SNAPSHOT_ID);
 
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+    Preconditions.checkArgument(
+        startTimestamp == null && endTimestamp == null,
+        "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
+            + "changelog scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP);
+
+    if (startSnapshotId != null) {
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+    } else {
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+    }
+  }
+
+  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan =
+    BatchScan scan =
         table
-            .newScan()
+            .newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema);
@@ -226,12 +248,32 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if (startSnapshotId != null) {
-      if (endSnapshotId != null) {
-        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
-      } else {
-        scan = scan.appendsAfter(startSnapshotId);
-      }
+    if (branch != null) {
+      scan = scan.useRef(branch);
+    }
+
+    if (tag != null) {
+      scan = scan.useRef(tag);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalAppendScan scan =
+        table
+            .newIncrementalAppendScan()
+            .fromSnapshotExclusive(startSnapshotId)
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
     }
 
     scan = configureSplitPlanning(scan);
@@ -241,13 +283,48 @@ public class SparkScanBuilder
 
   public Scan buildChangelogScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
-        "Cannot set neither %s nor %s for changelogs",
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
+        "Cannot set neither %s, %s, %s and %s for changelogs",
         SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+
+    Preconditions.checkArgument(
+        !(startSnapshotId != null && startTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.START_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        !(endSnapshotId != null && endTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.END_TIMESTAMP);
+
+    if (startTimestamp != null && endTimestamp != null) {
+      Preconditions.checkArgument(
+          startTimestamp < endTimestamp,
+          "Cannot set %s to be greater than %s for changelogs",
+          SparkReadOptions.START_TIMESTAMP,
+          SparkReadOptions.END_TIMESTAMP);
+    }
+
+    if (startTimestamp != null) {
+      startSnapshotId = getStartSnapshotId(startTimestamp);
+    }
+
+    if (endTimestamp != null) {
+      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+    }
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
@@ -271,12 +348,32 @@ public class SparkScanBuilder
     return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
+  private Long getStartSnapshotId(Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
+  }
+
   public Scan buildMergeOnReadScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
-        "Cannot set time travel options %s and %s for row-level command scans",
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
+        "Cannot set time travel options %s, %s, %s and %s for row-level command scans",
         SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Preconditions.checkArgument(
         readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
@@ -300,9 +397,9 @@ public class SparkScanBuilder
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan =
+    BatchScan scan =
         table
-            .newScan()
+            .newBatchScan()
             .useSnapshot(snapshotId)
             .caseSensitive(caseSensitive)
             .filter(filterExpression())

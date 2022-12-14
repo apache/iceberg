@@ -24,6 +24,7 @@ from uuid import UUID
 import pytest
 
 from pyiceberg.exceptions import ValidationError
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromByteStream
 from pyiceberg.table import SortOrder
@@ -33,7 +34,6 @@ from pyiceberg.table.metadata import (
     TableMetadataV2,
     new_table_metadata,
 )
-from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.sorting import NullOrder, SortDirection, SortField
 from pyiceberg.transforms import IdentityTransform
@@ -70,24 +70,24 @@ EXAMPLE_TABLE_METADATA_V1 = {
 }
 
 
-def test_from_dict_v1():
+def test_from_dict_v1() -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
     TableMetadataUtil.parse_obj(EXAMPLE_TABLE_METADATA_V1)
 
 
-def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]):
+def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
     TableMetadataUtil.parse_obj(example_table_metadata_v2)
 
 
-def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]):
+def test_from_byte_stream(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test generating a TableMetadata instance from a file-like byte stream"""
     data = bytes(json.dumps(example_table_metadata_v2), encoding="utf-8")
     byte_stream = io.BytesIO(data)
     FromByteStream.table_metadata(byte_stream=byte_stream)
 
 
-def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]):
+def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test retrieving values from a TableMetadata instance of version 2"""
     table_metadata = TableMetadataUtil.parse_obj(example_table_metadata_v2)
 
@@ -110,7 +110,7 @@ def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]):
     assert table_metadata.default_sort_order_id == 3
 
 
-def test_v1_metadata_parsing_directly():
+def test_v1_metadata_parsing_directly() -> None:
     """Test retrieving values from a TableMetadata instance of version 1"""
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
@@ -134,7 +134,7 @@ def test_v1_metadata_parsing_directly():
     assert table_metadata.schemas[0].schema_id == 0
     assert table_metadata.current_schema_id == 0
     assert table_metadata.partition_specs == [
-        PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0)
+        PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"))
     ]
     assert table_metadata.default_spec_id == 0
     assert table_metadata.last_partition_id == 1000
@@ -142,14 +142,14 @@ def test_v1_metadata_parsing_directly():
     assert table_metadata.default_sort_order_id == 0
 
 
-def test_parsing_correct_types(example_table_metadata_v2: Dict[str, Any]):
+def test_parsing_correct_types(example_table_metadata_v2: Dict[str, Any]) -> None:
     table_metadata = TableMetadataV2(**example_table_metadata_v2)
     assert isinstance(table_metadata.schemas[0], Schema)
     assert isinstance(table_metadata.schemas[0].fields[0], NestedField)
     assert isinstance(table_metadata.schemas[0].fields[0].field_type, LongType)
 
 
-def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]):
+def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]) -> None:
     """Test creating a new TableMetadata instance that's an updated version of
     an existing TableMetadata instance"""
     table_metadata = TableMetadataV2(**example_table_metadata_v2)
@@ -174,20 +174,20 @@ def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]):
     assert table_metadata.schemas[-1] == Schema(**new_schema)
 
 
-def test_serialize_v1():
+def test_serialize_v1() -> None:
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
     table_metadata_json = table_metadata.json()
     expected = """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
     assert table_metadata_json == expected
 
 
-def test_serialize_v2(example_table_metadata_v2: Dict[str, Any]):
+def test_serialize_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
     table_metadata = TableMetadataV2(**example_table_metadata_v2).json()
     expected = """{"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "sequence-number": 0, "timestamp-ms": 1515100955770, "manifest-list": "s3://a/b/1.avro", "summary": {"operation": "append"}}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "sequence-number": 1, "timestamp-ms": 1555100955770, "manifest-list": "s3://a/b/2.avro", "summary": {"operation": "append"}, "schema-id": 1}], "snapshot-log": [{"snapshot-id": "3051729675574597004", "timestamp-ms": 1515100955770}, {"snapshot-id": "3055729675574597004", "timestamp-ms": 1555100955770}], "metadata-log": [{"metadata-file": "s3://bucket/.../v1.json", "timestamp-ms": 1515100}], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"test": {"snapshot-id": 3051729675574597004, "type": "tag", "max-ref-age-ms": 10000000}, "main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}"""
     assert table_metadata == expected
 
 
-def test_migrate_v1_schemas():
+def test_migrate_v1_schemas() -> None:
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
     assert isinstance(table_metadata, TableMetadataV1)
@@ -195,7 +195,7 @@ def test_migrate_v1_schemas():
     assert table_metadata.schemas[0] == table_metadata.schema_
 
 
-def test_migrate_v1_partition_specs():
+def test_migrate_v1_partition_specs() -> None:
     # Copy the example, and add a spec
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
     assert isinstance(table_metadata, TableMetadataV1)
@@ -206,7 +206,7 @@ def test_migrate_v1_partition_specs():
     ]
 
 
-def test_invalid_format_version():
+def test_invalid_format_version() -> None:
     """Test the exception when trying to load an unknown version"""
     table_metadata_invalid_format_version = {
         "format-version": -1,
@@ -234,7 +234,7 @@ def test_invalid_format_version():
     assert "Unknown format version: -1" in str(exc_info.value)
 
 
-def test_current_schema_not_found():
+def test_current_schema_not_found() -> None:
     """Test that we raise an exception when the schema can't be found"""
 
     table_metadata_schema_not_found = {
@@ -272,7 +272,7 @@ def test_current_schema_not_found():
     assert "current-schema-id 2 can't be found in the schemas" in str(exc_info.value)
 
 
-def test_sort_order_not_found():
+def test_sort_order_not_found() -> None:
     """Test that we raise an exception when the schema can't be found"""
 
     table_metadata_schema_not_found = {
@@ -318,7 +318,7 @@ def test_sort_order_not_found():
     assert "default-sort-order-id 4 can't be found" in str(exc_info.value)
 
 
-def test_sort_order_unsorted():
+def test_sort_order_unsorted() -> None:
     """Test that we raise an exception when the schema can't be found"""
 
     table_metadata_schema_not_found = {
@@ -356,7 +356,7 @@ def test_sort_order_unsorted():
     assert len(table_metadata.sort_orders) == 0
 
 
-def test_invalid_partition_spec():
+def test_invalid_partition_spec() -> None:
     table_metadata_spec_not_found = {
         "format-version": 2,
         "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
@@ -390,7 +390,7 @@ def test_invalid_partition_spec():
     assert "default-spec-id 1 can't be found" in str(exc_info.value)
 
 
-def test_v1_writing_metadata():
+def test_v1_writing_metadata() -> None:
     """
     https://iceberg.apache.org/spec/#version-2
 
@@ -405,7 +405,7 @@ def test_v1_writing_metadata():
     assert "last-sequence-number" not in metadata_v1
 
 
-def test_v1_metadata_for_v2():
+def test_v1_metadata_for_v2() -> None:
     """
     https://iceberg.apache.org/spec/#version-2
 
@@ -418,7 +418,7 @@ def test_v1_metadata_for_v2():
     assert table_metadata.last_sequence_number == 0
 
 
-def test_v1_write_metadata_for_v2():
+def test_v1_write_metadata_for_v2() -> None:
     """
     https://iceberg.apache.org/spec/#version-2
 
@@ -489,7 +489,7 @@ def test_v1_write_metadata_for_v2():
     assert "partition-spec" not in metadata_v2
 
 
-def test_v2_ref_creation(example_table_metadata_v2: Dict[str, Any]):
+def test_v2_ref_creation(example_table_metadata_v2: Dict[str, Any]) -> None:
     table_metadata = TableMetadataV2(**example_table_metadata_v2)
     assert table_metadata.refs == {
         "main": SnapshotRef(
@@ -509,7 +509,7 @@ def test_v2_ref_creation(example_table_metadata_v2: Dict[str, Any]):
     }
 
 
-def test_metadata_v1():
+def test_metadata_v1() -> None:
     valid_v1 = {
         "format-version": 1,
         "table-uuid": "bf289591-dcc0-4234-ad4f-5c3eed811a29",
@@ -561,7 +561,7 @@ def test_metadata_v1():
 
 
 @patch("time.time", MagicMock(return_value=12345))
-def test_make_metadata_fresh():
+def test_make_metadata_fresh() -> None:
     schema = Schema(
         NestedField(field_id=10, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=22, name="bar", field_type=IntegerType(), required=True),
@@ -611,14 +611,12 @@ def test_make_metadata_fresh():
     )
 
     partition_spec = PartitionSpec(
-        spec_id=10, fields=(PartitionField(source_id=22, field_id=1022, transform=IdentityTransform(), name="bar"),)
+        PartitionField(source_id=22, field_id=1022, transform=IdentityTransform(), name="bar"), spec_id=10
     )
 
     sort_order = SortOrder(
+        SortField(source_id=10, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST),
         order_id=10,
-        fields=[
-            SortField(source_id=10, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST)
-        ],
     )
 
     actual = new_table_metadata(
@@ -668,10 +666,8 @@ def test_make_metadata_fresh():
                         type="list",
                         element_id=13,
                         element_type=StructType(
-                            fields=(
-                                NestedField(field_id=14, name="latitude", field_type=FloatType(), required=False),
-                                NestedField(field_id=15, name="longitude", field_type=FloatType(), required=False),
-                            )
+                            NestedField(field_id=14, name="latitude", field_type=FloatType(), required=False),
+                            NestedField(field_id=15, name="longitude", field_type=FloatType(), required=False),
                         ),
                         element_required=True,
                     ),
@@ -681,10 +677,8 @@ def test_make_metadata_fresh():
                     field_id=7,
                     name="person",
                     field_type=StructType(
-                        fields=(
-                            NestedField(field_id=16, name="name", field_type=StringType(), required=False),
-                            NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
-                        )
+                        NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                        NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
                     ),
                     required=False,
                 ),
@@ -693,11 +687,7 @@ def test_make_metadata_fresh():
             )
         ],
         current_schema_id=0,
-        partition_specs=[
-            PartitionSpec(
-                spec_id=0, fields=(PartitionField(source_id=2, field_id=1000, transform=IdentityTransform(), name="bar"),)
-            )
-        ],
+        partition_specs=[PartitionSpec(PartitionField(source_id=2, field_id=1000, transform=IdentityTransform(), name="bar"))],
         default_spec_id=0,
         last_partition_id=1000,
         properties={},
@@ -707,12 +697,10 @@ def test_make_metadata_fresh():
         metadata_log=[],
         sort_orders=[
             SortOrder(
+                SortField(
+                    source_id=1, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST
+                ),
                 order_id=1,
-                fields=[
-                    SortField(
-                        source_id=1, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_LAST
-                    )
-                ],
             )
         ],
         default_sort_order_id=1,

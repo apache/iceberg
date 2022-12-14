@@ -33,7 +33,7 @@ from pyiceberg.table.snapshots import Operation, Summary
 from tests.io.test_io import LocalInputFile
 
 
-def test_read_manifest_entry(generated_manifest_entry_file: str):
+def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
     input_file = LocalInputFile(generated_manifest_entry_file)
     assert list(read_manifest_entry(input_file)) == [
         ManifestEntry(
@@ -267,7 +267,7 @@ def test_read_manifest_entry(generated_manifest_entry_file: str):
     ]
 
 
-def test_read_manifest_list(generated_manifest_file_file: str):
+def test_read_manifest_list(generated_manifest_file_file: str) -> None:
     input_file = LocalInputFile(generated_manifest_file_file)
     actual = list(read_manifest_list(input_file))
     expected = [
@@ -292,7 +292,7 @@ def test_read_manifest_list(generated_manifest_file_file: str):
     assert actual == expected
 
 
-def test_read_manifest(generated_manifest_file_file: str, generated_manifest_entry_file: str):
+def test_read_manifest(generated_manifest_file_file: str, generated_manifest_entry_file: str) -> None:
     io = load_file_io({})
 
     snapshot = Snapshot(
@@ -303,7 +303,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
-    manifest_list = snapshot.fetch_manifest_list(io)
+    manifest_list = snapshot.manifests(io)
 
     assert manifest_list == [
         ManifestFile(

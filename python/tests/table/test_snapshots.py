@@ -48,22 +48,22 @@ def snapshot_with_properties() -> Snapshot:
     )
 
 
-def test_serialize_summary():
+def test_serialize_summary() -> None:
     assert Summary(Operation.APPEND).json() == """{"operation": "append"}"""
 
 
-def test_serialize_summary_with_properties():
+def test_serialize_summary_with_properties() -> None:
     assert Summary(Operation.APPEND, property="yes").json() == """{"operation": "append", "property": "yes"}"""
 
 
-def test_serialize_snapshot(snapshot: Snapshot):
+def test_serialize_snapshot(snapshot: Snapshot) -> None:
     assert (
         snapshot.json()
         == """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append"}, "schema-id": 3}"""
     )
 
 
-def test_serialize_snapshot_without_sequence_number():
+def test_serialize_snapshot_without_sequence_number() -> None:
     snapshot = Snapshot(
         snapshot_id=25,
         parent_snapshot_id=19,
@@ -77,37 +77,37 @@ def test_serialize_snapshot_without_sequence_number():
     assert actual == expected
 
 
-def test_serialize_snapshot_with_properties(snapshot_with_properties: Snapshot):
+def test_serialize_snapshot_with_properties(snapshot_with_properties: Snapshot) -> None:
     assert (
         snapshot_with_properties.json()
         == """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append", "foo": "bar"}, "schema-id": 3}"""
     )
 
 
-def test_deserialize_summary():
+def test_deserialize_summary() -> None:
     summary = Summary.parse_raw("""{"operation": "append"}""")
     assert summary.operation == Operation.APPEND
 
 
-def test_deserialize_summary_with_properties():
+def test_deserialize_summary_with_properties() -> None:
     summary = Summary.parse_raw("""{"operation": "append", "property": "yes"}""")
     assert summary.operation == Operation.APPEND
     assert summary.additional_properties == {"property": "yes"}
 
 
-def test_deserialize_snapshot(snapshot: Snapshot):
+def test_deserialize_snapshot(snapshot: Snapshot) -> None:
     payload = """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append"}, "schema-id": 3}"""
     actual = Snapshot.parse_raw(payload)
     assert actual == snapshot
 
 
-def test_deserialize_snapshot_with_properties(snapshot_with_properties: Snapshot):
+def test_deserialize_snapshot_with_properties(snapshot_with_properties: Snapshot) -> None:
     payload = """{"snapshot-id": 25, "parent-snapshot-id": 19, "sequence-number": 200, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append", "foo": "bar"}, "schema-id": 3}"""
     snapshot = Snapshot.parse_raw(payload)
     assert snapshot == snapshot_with_properties
 
 
-def test_snapshot_repr(snapshot: Snapshot):
+def test_snapshot_repr(snapshot: Snapshot) -> None:
     assert (
         repr(snapshot)
         == """Snapshot(snapshot_id=25, parent_snapshot_id=19, sequence_number=200, timestamp_ms=1602638573590, manifest_list='s3:/a/b/c.avro', summary=Summary(Operation.APPEND), schema_id=3)"""
@@ -115,7 +115,7 @@ def test_snapshot_repr(snapshot: Snapshot):
     assert snapshot == eval(repr(snapshot))
 
 
-def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot):
+def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot) -> None:
     assert (
         repr(snapshot_with_properties)
         == """Snapshot(snapshot_id=25, parent_snapshot_id=19, sequence_number=200, timestamp_ms=1602638573590, manifest_list='s3:/a/b/c.avro', summary=Summary(Operation.APPEND, **{'foo': 'bar'}), schema_id=3)"""
@@ -123,7 +123,7 @@ def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot):
     assert snapshot_with_properties == eval(repr(snapshot_with_properties))
 
 
-def test_fetch_manifest_list(generated_manifest_file_file: str):
+def test_fetch_manifest_list(generated_manifest_file_file: str) -> None:
     snapshot = Snapshot(
         snapshot_id=25,
         parent_snapshot_id=19,
@@ -134,7 +134,7 @@ def test_fetch_manifest_list(generated_manifest_file_file: str):
         schema_id=3,
     )
     io = PyArrowFileIO()
-    actual = snapshot.fetch_manifest_list(io)
+    actual = snapshot.manifests(io)
     assert actual == [
         ManifestFile(
             manifest_path=actual[0].manifest_path,  # Is a temp path that changes every time

@@ -53,7 +53,10 @@ class BinaryDecoder:
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
         read_bytes = self._input_stream.read(n)
-        if len(read_bytes) != n:
+        read_len = len(read_bytes)
+        if read_len <= 0:
+            raise EOFError
+        elif read_len != n:
             raise ValueError(f"Read {len(read_bytes)} bytes, expected {n} bytes")
         return read_bytes
 
@@ -155,7 +158,7 @@ class BinaryDecoder:
         """
         return micros_to_timestamp(self.read_int())
 
-    def read_timestamptz_micros(self):
+    def read_timestamptz_micros(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.

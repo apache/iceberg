@@ -20,14 +20,14 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
-import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -41,7 +41,7 @@ class SparkBatch implements Batch {
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
-  private final List<CombinedScanTask> taskGroups;
+  private final List<? extends ScanTaskGroup<?>> taskGroups;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
@@ -51,7 +51,7 @@ class SparkBatch implements Batch {
       JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
-      List<CombinedScanTask> taskGroups,
+      List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
       int scanHashCode) {
     this.sparkContext = sparkContext;
@@ -91,47 +91,65 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(batchSize());
-  }
+    if (useParquetBatchReads()) {
+      int batchSize = readConf.parquetBatchSize();
+      return new SparkColumnarReaderFactory(batchSize);
 
-  private int batchSize() {
-    if (parquetOnly() && parquetBatchReadsEnabled()) {
-      return readConf.parquetBatchSize();
-    } else if (orcOnly() && orcBatchReadsEnabled()) {
-      return readConf.orcBatchSize();
+    } else if (useOrcBatchReads()) {
+      int batchSize = readConf.orcBatchSize();
+      return new SparkColumnarReaderFactory(batchSize);
+
     } else {
-      return 0;
+      return new SparkRowReaderFactory();
     }
   }
 
-  private boolean parquetOnly() {
-    return taskGroups.stream()
-        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
-  }
-
-  private boolean parquetBatchReadsEnabled() {
+  // conditions for using Parquet batch reads:
+  // - Parquet vectorization is enabled
+  // - at least one column is projected
+  // - only primitives are projected
+  // - all tasks are of FileScanTask type and read only Parquet files
+  private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
-        && // vectorization enabled
-        expectedSchema.columns().size() > 0
-        && // at least one column is projected
-        expectedSchema.columns().stream()
-            .allMatch(c -> c.type().isPrimitiveType()); // only primitives
+        && expectedSchema.columns().size() > 0
+        && expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType())
+        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
 
-  private boolean orcOnly() {
-    return taskGroups.stream()
-        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
+  private boolean supportsParquetBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsParquetBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      return fileScanTask.file().format() == FileFormat.PARQUET;
+
+    } else {
+      return false;
+    }
   }
 
-  private boolean orcBatchReadsEnabled() {
+  // conditions for using ORC batch reads:
+  // - ORC vectorization is enabled
+  // - all tasks are of type FileScanTask and read only ORC files with no delete files
+  private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
-        && // vectorization enabled
-        taskGroups.stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
+        && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
-  private boolean onlyFileFormat(CombinedScanTask task, FileFormat fileFormat) {
-    return task.files().stream()
-        .allMatch(fileScanTask -> fileScanTask.file().format().equals(fileFormat));
+  private boolean supportsOrcBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsOrcBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      return fileScanTask.file().format() == FileFormat.ORC && fileScanTask.deletes().isEmpty();
+
+    } else {
+      return false;
+    }
   }
 
   @Override

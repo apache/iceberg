@@ -242,7 +242,7 @@ public class TestManifestCaching {
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
             .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
-            .build());
+            .buildOrThrow());
     return hadoopCatalog;
   }
 

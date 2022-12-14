@@ -23,15 +23,44 @@ from functools import singledispatch
 from typing import (
     Any,
     Callable,
+    Generator,
     Generic,
-    Literal,
-    Optional,
-    TypeVar,
 )
+from typing import Literal as LiteralType
+from typing import Optional, TypeVar
 
 import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
+from pydantic.typing import AnyCallable
 
+from pyiceberg.expressions import (
+    BoundEqualTo,
+    BoundGreaterThan,
+    BoundGreaterThanOrEqual,
+    BoundIn,
+    BoundLessThan,
+    BoundLessThanOrEqual,
+    BoundLiteralPredicate,
+    BoundNotIn,
+    BoundPredicate,
+    BoundSetPredicate,
+    BoundTerm,
+    BoundUnaryPredicate,
+    EqualTo,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+    Reference,
+    UnboundPredicate,
+)
+from pyiceberg.expressions.literals import (
+    DateLiteral,
+    DecimalLiteral,
+    Literal,
+    LongLiteral,
+    TimestampLiteral,
+    literal,
+)
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -68,6 +97,11 @@ BUCKET_PARSER = ParseNumberFromBrackets(BUCKET)
 TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
 
 
+def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
+    """Small helper to upwrap the value from the literal, and wrap it again"""
+    return literal(func(lit.value))
+
+
 class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
 
@@ -78,14 +112,14 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     __root__: str = Field()
 
     @classmethod
-    def __get_validators__(cls):
+    def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: Any):
+    def validate(cls, v: Any) -> IcebergBaseModel:
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the transform type ourselves
         if isinstance(v, str):
@@ -121,11 +155,15 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     def result_type(self, source: IcebergType) -> IcebergType:
         ...
 
+    @abstractmethod
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        ...
+
     @property
     def preserves_order(self) -> bool:
         return False
 
-    def satisfies_order_of(self, other) -> bool:
+    def satisfies_order_of(self, other: Any) -> bool:
         return self == other
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
@@ -156,7 +194,7 @@ class BucketTransform(Transform[S, int]):
 
     _num_buckets: PositiveInt = PrivateAttr()
 
-    def __init__(self, num_buckets: int, **data: Any):
+    def __init__(self, num_buckets: int, **data: Any) -> None:
         super().__init__(__root__=f"bucket[{num_buckets}]", **data)
         self._num_buckets = num_buckets
 
@@ -172,6 +210,23 @@ class BucketTransform(Transform[S, int]):
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
+
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        transformer = self.transform(pred.term.ref().field.field_type)
+
+        if isinstance(pred.term, BoundTransform):
+            return _project_transform_predicate(self, name, pred)
+        elif isinstance(pred, BoundUnaryPredicate):
+            return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundEqualTo):
+            return pred.as_unbound(Reference(name), _transform_literal(transformer, pred.literal))
+        elif isinstance(pred, BoundIn):  # NotIn can't be projected
+            return pred.as_unbound(Reference(name), {_transform_literal(transformer, literal) for literal in pred.literals})
+        else:
+            # - Comparison predicates can't be projected, notEq can't be projected
+            # - Small ranges can be projected:
+            #   For example, (x > 0) and (x < 3) can be turned into in({1, 2}) and projected.
+            return None
 
     def can_transform(self, source: IcebergType) -> bool:
         return type(source) in {
@@ -192,22 +247,22 @@ class BucketTransform(Transform[S, int]):
         source_type = type(source)
         if source_type in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(struct.pack("<q", v))
 
         elif source_type == DecimalType:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(decimal_to_bytes(v))
 
         elif source_type in {StringType, FixedType, BinaryType}:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(v)
 
         elif source_type == UUIDType:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(
                     struct.pack(
                         ">QQ",
@@ -243,11 +298,28 @@ class TimeTransform(Transform[S, int], Singleton):
     def granularity(self) -> TimeResolution:
         ...
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         return self.granularity <= other.granularity if hasattr(other, "granularity") else False
 
-    def result_type(self, source: IcebergType) -> IcebergType:
+    def result_type(self, source: IcebergType) -> IntegerType:
         return IntegerType()
+
+    @abstractmethod
+    def transform(self, source: IcebergType) -> Callable[[Optional[Any]], Optional[int]]:
+        ...
+
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        transformer = self.transform(pred.term.ref().field.field_type)
+        if isinstance(pred.term, BoundTransform):
+            return _project_transform_predicate(self, name, pred)
+        elif isinstance(pred, BoundUnaryPredicate):
+            return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundLiteralPredicate):
+            return _truncate_number(name, pred, transformer)
+        elif isinstance(pred, BoundIn):  # NotIn can't be projected
+            return _set_apply_transform(name, pred, transformer)
+        else:
+            return None
 
     @property
     def dedup_name(self) -> str:
@@ -258,7 +330,7 @@ class TimeTransform(Transform[S, int], Singleton):
         return True
 
 
-class YearTransform(TimeTransform):
+class YearTransform(TimeTransform[S]):
     """Transforms a datetime value into a year value.
 
     Example:
@@ -267,18 +339,18 @@ class YearTransform(TimeTransform):
         47
     """
 
-    __root__: Literal["year"] = Field(default="year")
+    __root__: LiteralType["year"] = Field(default="year")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
         if source_type == DateType:
 
-            def year_func(v):
+            def year_func(v: Any) -> int:
                 return datetime.days_to_years(v)
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def year_func(v):
+            def year_func(v: Any) -> int:
                 return datetime.micros_to_years(v)
 
         else:
@@ -304,7 +376,7 @@ class YearTransform(TimeTransform):
         return "YearTransform()"
 
 
-class MonthTransform(TimeTransform):
+class MonthTransform(TimeTransform[S]):
     """Transforms a datetime value into a month value.
 
     Example:
@@ -313,18 +385,18 @@ class MonthTransform(TimeTransform):
         575
     """
 
-    __root__: Literal["month"] = Field(default="month")
+    __root__: LiteralType["month"] = Field(default="month")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
         if source_type == DateType:
 
-            def month_func(v):
+            def month_func(v: Any) -> int:
                 return datetime.days_to_months(v)
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def month_func(v):
+            def month_func(v: Any) -> int:
                 return datetime.micros_to_months(v)
 
         else:
@@ -350,7 +422,7 @@ class MonthTransform(TimeTransform):
         return "MonthTransform()"
 
 
-class DayTransform(TimeTransform):
+class DayTransform(TimeTransform[S]):
     """Transforms a datetime value into a day value.
 
     Example:
@@ -359,18 +431,18 @@ class DayTransform(TimeTransform):
         17501
     """
 
-    __root__: Literal["day"] = Field(default="day")
+    __root__: LiteralType["day"] = Field(default="day")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         source_type = type(source)
         if source_type == DateType:
 
-            def day_func(v):
+            def day_func(v: Any) -> int:
                 return v
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def day_func(v):
+            def day_func(v: Any) -> int:
                 return datetime.micros_to_days(v)
 
         else:
@@ -399,7 +471,7 @@ class DayTransform(TimeTransform):
         return "DayTransform()"
 
 
-class HourTransform(TimeTransform):
+class HourTransform(TimeTransform[S]):
     """Transforms a datetime value into a hour value.
 
     Example:
@@ -408,12 +480,12 @@ class HourTransform(TimeTransform):
         420042
     """
 
-    __root__: Literal["hour"] = Field(default="hour")
+    __root__: LiteralType["hour"] = Field(default="hour")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         if type(source) in {TimestampType, TimestamptzType}:
 
-            def hour_func(v):
+            def hour_func(v: Any) -> int:
                 return datetime.micros_to_hours(v)
 
         else:
@@ -452,7 +524,7 @@ class IdentityTransform(Transform[S, S]):
         'hello-world'
     """
 
-    __root__: Literal["identity"] = Field(default="identity")
+    __root__: LiteralType["identity"] = Field(default="identity")  # noqa: F821
 
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v
@@ -463,11 +535,23 @@ class IdentityTransform(Transform[S, S]):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        if isinstance(pred.term, BoundTransform):
+            return _project_transform_predicate(self, name, pred)
+        elif isinstance(pred, BoundUnaryPredicate):
+            return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundLiteralPredicate):
+            return pred.as_unbound(Reference(name), pred.literal)
+        elif isinstance(pred, (BoundIn, BoundNotIn)):
+            return pred.as_unbound(Reference(name), pred.literals)
+        else:
+            raise ValueError(f"Could not project: {pred}")
+
     @property
     def preserves_order(self) -> bool:
         return True
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         """ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
@@ -511,6 +595,27 @@ class TruncateTransform(Transform[S, S]):
     def source_type(self) -> IcebergType:
         return self._source_type
 
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        field_type = pred.term.ref().field.field_type
+
+        if isinstance(pred.term, BoundTransform):
+            return _project_transform_predicate(self, name, pred)
+
+        # Implement startswith and notstartswith for string (and probably binary)
+        # https://github.com/apache/iceberg/issues/6112
+
+        if isinstance(pred, BoundUnaryPredicate):
+            return pred.as_unbound(Reference(name))
+        elif isinstance(pred, BoundIn):
+            return _set_apply_transform(name, pred, self.transform(field_type))
+        elif isinstance(field_type, (IntegerType, LongType, DecimalType)):
+            if isinstance(pred, BoundLiteralPredicate):
+                return _truncate_number(name, pred, self.transform(field_type))
+        elif isinstance(field_type, (BinaryType, StringType)):
+            if isinstance(pred, BoundLiteralPredicate):
+                return _truncate_array(name, pred, self.transform(field_type))
+        return None
+
     @property
     def width(self) -> int:
         return self._width
@@ -519,17 +624,17 @@ class TruncateTransform(Transform[S, S]):
         source_type = type(source)
         if source_type in {IntegerType, LongType}:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return v - v % self._width
 
         elif source_type in {StringType, BinaryType}:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return v[0 : min(self._width, len(v))]
 
         elif source_type == DecimalType:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return truncate_decimal(v, self._width)
 
         else:
@@ -537,7 +642,7 @@ class TruncateTransform(Transform[S, S]):
 
         return lambda v: truncate_func(v) if v else None
 
-    def satisfies_order_of(self, other: Transform) -> bool:
+    def satisfies_order_of(self, other: Transform[S, T]) -> bool:
         if self == other:
             return True
         elif (
@@ -601,7 +706,7 @@ def _(_type: IcebergType, value: int) -> str:
     return datetime.to_human_timestamptz(value)
 
 
-class UnknownTransform(Transform):
+class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided
     Args:
       source_type (IcebergType): An Iceberg `Type`
@@ -610,7 +715,7 @@ class UnknownTransform(Transform):
       AttributeError: If the apply method is called.
     """
 
-    __root__: Literal["unknown"] = Field(default="unknown")
+    __root__: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821
     _transform: str = PrivateAttr()
 
     def __init__(self, transform: str, **data: Any):
@@ -623,14 +728,17 @@ class UnknownTransform(Transform):
     def can_transform(self, source: IcebergType) -> bool:
         return False
 
-    def result_type(self, source: IcebergType) -> IcebergType:
+    def result_type(self, source: IcebergType) -> StringType:
         return StringType()
+
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        return None
 
     def __repr__(self) -> str:
         return f"UnknownTransform(transform={repr(self._transform)})"
 
 
-class VoidTransform(Transform, Singleton):
+class VoidTransform(Transform[S, None], Singleton):
     """A transform that always returns None"""
 
     __root__ = "void"
@@ -644,8 +752,86 @@ class VoidTransform(Transform, Singleton):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
+    def project(self, name: str, pred: BoundPredicate[L]) -> Optional[UnboundPredicate[Any]]:
+        return None
+
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return "null"
 
     def __repr__(self) -> str:
         return "VoidTransform()"
+
+
+def _truncate_number(
+    name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
+) -> Optional[UnboundPredicate[Any]]:
+    boundary = pred.literal
+
+    if not isinstance(boundary, (LongLiteral, DecimalLiteral, DateLiteral, TimestampLiteral)):
+        raise ValueError(f"Expected a numeric literal, got: {type(boundary)}")
+
+    if isinstance(pred, BoundLessThan):
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary.decrement()))  # type: ignore
+    elif isinstance(pred, BoundLessThanOrEqual):
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundGreaterThan):
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary.increment()))  # type: ignore
+    elif isinstance(pred, BoundGreaterThanOrEqual):
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundEqualTo):
+        return EqualTo(Reference(name), _transform_literal(transform, boundary))
+    else:
+        return None
+
+
+def _truncate_array(
+    name: str, pred: BoundLiteralPredicate[L], transform: Callable[[Optional[L]], Optional[L]]
+) -> Optional[UnboundPredicate[Any]]:
+    boundary = pred.literal
+
+    if type(pred) in {BoundLessThan, BoundLessThanOrEqual}:
+        return LessThanOrEqual(Reference(name), _transform_literal(transform, boundary))
+    elif type(pred) in {BoundGreaterThan, BoundGreaterThanOrEqual}:
+        return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
+    if isinstance(pred, BoundEqualTo):
+        return EqualTo(Reference(name), _transform_literal(transform, boundary))
+    else:
+        return None
+
+
+def _project_transform_predicate(
+    transform: Transform[Any, Any], partition_name: str, pred: BoundPredicate[L]
+) -> Optional[UnboundPredicate[Any]]:
+    term = pred.term
+    if isinstance(term, BoundTransform) and transform == term.transform:
+        return _remove_transform(partition_name, pred)
+    return None
+
+
+def _remove_transform(partition_name: str, pred: BoundPredicate[L]) -> UnboundPredicate[Any]:
+    if isinstance(pred, BoundUnaryPredicate):
+        return pred.as_unbound(Reference(partition_name))
+    elif isinstance(pred, BoundLiteralPredicate):
+        return pred.as_unbound(Reference(partition_name), pred.literal)
+    elif isinstance(pred, (BoundIn, BoundNotIn)):
+        return pred.as_unbound(Reference(partition_name), pred.literals)
+    else:
+        raise ValueError(f"Cannot replace transform in unknown predicate: {pred}")
+
+
+def _set_apply_transform(name: str, pred: BoundSetPredicate[L], transform: Callable[[L], L]) -> UnboundPredicate[Any]:
+    literals = pred.literals
+    if isinstance(pred, BoundSetPredicate):
+        return pred.as_unbound(Reference(name), {_transform_literal(transform, literal) for literal in literals})
+    else:
+        raise ValueError(f"Unknown BoundSetPredicate: {pred}")
+
+
+class BoundTransform(BoundTerm[L]):
+    """A transform expression"""
+
+    transform: Transform[L, Any]
+
+    def __init__(self, term: BoundTerm[L], transform: Transform[L, Any]):
+        self.term: BoundTerm[L] = term
+        self.transform = transform

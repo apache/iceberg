@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -77,6 +79,10 @@ public final class CustomCatalogs {
     Map<String, String> options =
         Arrays.stream(sparkConf.getAllWithPrefix(catalogPrefix + "."))
             .collect(Collectors.toMap(x -> x._1, x -> x._2));
+
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, spark.sparkContext().version());
+    EnvironmentContext.put(CatalogProperties.APP_ID, spark.sparkContext().applicationId());
 
     return CatalogUtil.buildIcebergCatalog(name, options, conf);
   }

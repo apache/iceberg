@@ -25,13 +25,17 @@ from typing import (
     Callable,
     List,
     Optional,
+    Set,
     Union,
+    cast,
 )
 
 from pyiceberg.exceptions import NotInstalledError
+from pyiceberg.io import FileIO, load_file_io
+from pyiceberg.manifest import ManifestFile
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -47,12 +51,21 @@ _ENV_CONFIG = Config()
 
 TOKEN = "token"
 TYPE = "type"
+ICEBERG = "iceberg"
+TABLE_TYPE = "table_type"
+WAREHOUSE_LOCATION = "warehouse"
+METADATA_LOCATION = "metadata_location"
+MANIFEST = "manifest"
+MANIFEST_LIST = "manifest list"
+PREVIOUS_METADATA = "previous metadata"
+METADATA = "metadata"
 URI = "uri"
 
 
 class CatalogType(Enum):
     REST = "rest"
     HIVE = "hive"
+    GLUE = "glue"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -70,9 +83,19 @@ def load_hive(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("Apache Hive support not installed: pip install 'pyiceberg[hive]'") from exc
 
 
+def load_glue(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.glue import GlueCatalog
+
+        return GlueCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
+    CatalogType.GLUE: load_glue,
 }
 
 
@@ -120,18 +143,58 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
             or if it could not determine the catalog based on the properties
     """
     env = _ENV_CONFIG.get_catalog_config(name)
-    conf = merge_config(env or {}, properties)
+    conf: RecursiveDict = merge_config(env or {}, cast(RecursiveDict, properties))
 
     catalog_type: Optional[CatalogType]
-    if provided_catalog_type := conf.get(TYPE):
+    provided_catalog_type = conf.get(TYPE)
+
+    if provided_catalog_type and isinstance(provided_catalog_type, str):
         catalog_type = CatalogType[provided_catalog_type.upper()]
-    else:
+    elif not provided_catalog_type:
         catalog_type = infer_catalog_type(name, conf)
 
     if catalog_type:
-        return AVAILABLE_CATALOGS[catalog_type](name, conf)
+        return AVAILABLE_CATALOGS[catalog_type](name, cast(dict[str, str], conf))
 
     raise ValueError(f"Could not initialize catalog with the following properties: {properties}")
+
+
+def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
+    """Helper to delete files.
+
+    Log warnings if failing to delete any file
+
+    Args:
+        io: The FileIO used to delete the object
+        files_to_delete: A set of file paths to be deleted
+        file_type: The type of the file
+    """
+    for file in files_to_delete:
+        try:
+            io.delete(file)
+        except OSError as exc:
+            logger.warning(msg=f"Failed to delete {file_type} file {file}", exc_info=exc)
+
+
+def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
+    """Helper to delete data files linked to given manifests.
+
+    Log warnings if failing to delete any file
+
+    Args:
+        io: The FileIO used to delete the object
+        manifests_to_delete: A list of manifest contains paths of data files to be deleted
+    """
+    deleted_files: dict[str, bool] = {}
+    for manifest_file in manifests_to_delete:
+        for entry in manifest_file.fetch_manifest_entry(io):
+            path = entry.data_file.file_path
+            if not deleted_files.get(path, False):
+                try:
+                    io.delete(path)
+                except OSError as exc:
+                    logger.warning(msg=f"Failed to delete data file {path}", exc_info=exc)
+                deleted_files[path] = True
 
 
 @dataclass
@@ -161,6 +224,9 @@ class Catalog(ABC):
     def __init__(self, name: str, **properties: str):
         self.name = name
         self.properties = properties
+
+    def _load_file_io(self, properties: Properties = EMPTY_DICT) -> FileIO:
+        return load_file_io({**self.properties, **properties})
 
     @abstractmethod
     def create_table(

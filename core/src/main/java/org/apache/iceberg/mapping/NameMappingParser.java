@@ -72,11 +72,7 @@ public class NameMappingParser {
 
     generator.writeNumberField(FIELD_ID, field.id());
 
-    generator.writeArrayFieldStart(NAMES);
-    for (String name : field.names()) {
-      generator.writeString(name);
-    }
-    generator.writeEndArray();
+    JsonUtil.writeStringArray(NAMES, field.names(), generator);
 
     MappedFields nested = field.nestedMapping();
     if (nested != null) {

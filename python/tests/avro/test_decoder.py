@@ -14,9 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
+from types import TracebackType
+from typing import Optional, Type
 
 import pytest
 
@@ -27,7 +31,7 @@ from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
 
 
-def test_read_decimal_from_fixed():
+def test_read_decimal_from_fixed() -> None:
     mis = MemoryInputStream(b"\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_fixed(28, 15, 12)
@@ -35,19 +39,19 @@ def test_read_decimal_from_fixed():
     assert actual == expected
 
 
-def test_read_boolean_true():
+def test_read_boolean_true() -> None:
     mis = MemoryInputStream(b"\x01")
     decoder = BinaryDecoder(mis)
     assert decoder.read_boolean() is True
 
 
-def test_read_boolean_false():
+def test_read_boolean_false() -> None:
     mis = MemoryInputStream(b"\x00")
     decoder = BinaryDecoder(mis)
     assert decoder.read_boolean() is False
 
 
-def test_skip_boolean():
+def test_skip_boolean() -> None:
     mis = MemoryInputStream(b"\x00")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
@@ -55,13 +59,13 @@ def test_skip_boolean():
     assert mis.tell() == 1
 
 
-def test_read_int():
+def test_read_int() -> None:
     mis = MemoryInputStream(b"\x18")
     decoder = BinaryDecoder(mis)
     assert decoder.read_int() == 12
 
 
-def test_skip_int():
+def test_skip_int() -> None:
     mis = MemoryInputStream(b"\x18")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
@@ -69,7 +73,7 @@ def test_skip_int():
     assert mis.tell() == 1
 
 
-def test_read_decimal():
+def test_read_decimal() -> None:
     mis = MemoryInputStream(b"\x18\x00\x00\x00\x05\x6A\x48\x1C\xFB\x2C\x7C\x50\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_bytes(28, 15)
@@ -77,7 +81,7 @@ def test_read_decimal():
     assert actual == expected
 
 
-def test_decimal_from_fixed_big():
+def test_decimal_from_fixed_big() -> None:
     mis = MemoryInputStream(b"\x0E\xC2\x02\xE9\x06\x16\x33\x49\x77\x67\xA8\x00")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_decimal_from_fixed(28, 15, 12)
@@ -85,7 +89,7 @@ def test_decimal_from_fixed_big():
     assert actual == expected
 
 
-def test_read_negative_bytes():
+def test_read_negative_bytes() -> None:
     mis = MemoryInputStream(b"")
     decoder = BinaryDecoder(mis)
 
@@ -107,10 +111,11 @@ class OneByteAtATimeInputStream(InputStream):
         return int.to_bytes(1, self.pos, byteorder="little")
 
     def seek(self, offset: int, whence: int = SEEK_SET) -> int:
-        pass
+        self.pos = offset
+        return self.pos
 
     def tell(self) -> int:
-        pass
+        return self.pos
 
     @property
     def closed(self) -> bool:
@@ -119,14 +124,16 @@ class OneByteAtATimeInputStream(InputStream):
     def close(self) -> None:
         pass
 
-    def __enter__(self):
-        pass
+    def __enter__(self) -> OneByteAtATimeInputStream:
+        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         self.close()
 
 
-def test_read_single_byte_at_the_time():
+def test_read_single_byte_at_the_time() -> None:
     decoder = BinaryDecoder(OneByteAtATimeInputStream())
 
     with pytest.raises(ValueError) as exc_info:
@@ -135,13 +142,13 @@ def test_read_single_byte_at_the_time():
     assert "Read 1 bytes, expected 2 bytes" in str(exc_info.value)
 
 
-def test_read_float():
+def test_read_float() -> None:
     mis = MemoryInputStream(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     assert decoder.read_float() == 19.25
 
 
-def test_skip_float():
+def test_skip_float() -> None:
     mis = MemoryInputStream(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
@@ -149,13 +156,13 @@ def test_skip_float():
     assert mis.tell() == 4
 
 
-def test_read_double():
+def test_read_double() -> None:
     mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     decoder = BinaryDecoder(mis)
     assert decoder.read_double() == 19.25
 
 
-def test_skip_double():
+def test_skip_double() -> None:
     mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
@@ -163,50 +170,50 @@ def test_skip_double():
     assert mis.tell() == 8
 
 
-def test_read_date():
+def test_read_date() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_date_from_int() == date(1991, 12, 27)
 
 
-def test_read_time_millis():
+def test_read_time_millis() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_time_millis().microsecond == 30000
 
 
-def test_read_time_micros():
+def test_read_time_micros() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_time_micros().microsecond == 8030
 
 
-def test_read_timestamp_micros():
+def test_read_timestamp_micros() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_timestamp_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030)
 
 
-def test_read_timestamptz_micros():
+def test_read_timestamptz_micros() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_timestamptz_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030, tzinfo=timezone.utc)
 
 
-def test_read_bytes():
+def test_read_bytes() -> None:
     mis = MemoryInputStream(b"\x08\x01\x02\x03\x04")
     decoder = BinaryDecoder(mis)
     actual = decoder.read_bytes()
     assert actual == b"\x01\x02\x03\x04"
 
 
-def test_read_utf8():
+def test_read_utf8() -> None:
     mis = MemoryInputStream(b"\x04\x76\x6F")
     decoder = BinaryDecoder(mis)
     assert decoder.read_utf8() == "vo"
 
 
-def test_skip_utf8():
+def test_skip_utf8() -> None:
     mis = MemoryInputStream(b"\x04\x76\x6F")
     decoder = BinaryDecoder(mis)
     assert mis.tell() == 0
@@ -214,7 +221,7 @@ def test_skip_utf8():
     assert mis.tell() == 3
 
 
-def test_read_int_as_float():
+def test_read_int_as_float() -> None:
     mis = MemoryInputStream(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
     reader = promote(FloatType(), DoubleType())

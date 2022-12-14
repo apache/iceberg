@@ -215,7 +215,8 @@ The following properties can be set globally and are not limited to a specific c
 * `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
 * `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
+* `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; negative values like `-1` will disable expiration, value 0 is not allowed to set. default value is `-1`. (Optional)
 
 ### Hive catalog
 
@@ -486,7 +487,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
-2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
+2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#Write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the primary key when creating the table.
 
 ```
 INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
@@ -634,7 +635,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```
@@ -655,7 +656,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .overwrite(true)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```
@@ -674,7 +675,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .upsert(true)
-    .build();
+    .append();
 
 env.execute("Test Iceberg DataStream");
 ```
@@ -683,7 +684,58 @@ env.execute("Test Iceberg DataStream");
 OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
 {{< /hint >}}
 
-## Write options
+## Options
+### Read options
+
+Flink read options are passed when configuring the Flink IcebergSource, like this:
+
+```
+IcebergSource.forRowData()
+    .tableLoader(TableLoader.fromCatalog(...))
+    .assignerFactory(new SimpleSplitAssignerFactory())
+    .streaming(true)
+    .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+    .startSnapshotId(3821550127947089987L)
+    .monitorInterval(Duration.ofMillis(10L)) // or .set("monitor-interval", "10s") \ set(FlinkReadOptions.MONITOR_INTERVAL, "10s")
+    .build()
+```
+For Flink SQL, read options can be passed in via SQL hints like this:
+```
+SELECT * FROM tableName /*+ OPTIONS('monitor-interval'='10s') */
+...
+```
+
+Options can be passed in via Flink configuration, which will be applied to current session. Note that not all options support this mode.
+
+```
+env.getConfig()
+    .getConfiguration()
+    .set(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION, 1000L);
+...
+```
+
+`Read option` has the highest priority, followed by `Flink configuration` and then `Table property`.
+
+| Read option                 | Flink configuration                           | Table property               | Default                          | Description                                                  |
+| --------------------------- | --------------------------------------------- | ---------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| snapshot-id                 | N/A                                           | N/A                          | null                             | For time travel in batch mode. Read data from the specified snapshot-id. |
+| case-sensitive              | connector.iceberg.case-sensitive              | N/A                          | false                            | If true, match column name in a case sensitive way.          |
+| as-of-timestamp             | N/A                                           | N/A                          | null                             | For time travel in batch mode. Read data from the most recent snapshot as of the given time in milliseconds. |
+| starting-strategy           | connector.iceberg.starting-strategy           | N/A                          | INCREMENTAL_FROM_LATEST_SNAPSHOT | Starting strategy for streaming execution. TABLE_SCAN_THEN_INCREMENTAL: Do a regular table scan then switch to the incremental mode. The incremental mode starts from the current snapshot exclusive. INCREMENTAL_FROM_LATEST_SNAPSHOT: Start incremental mode from the latest snapshot inclusive. If it is an empty map, all future append snapshots should be discovered. INCREMENTAL_FROM_EARLIEST_SNAPSHOT: Start incremental mode from the earliest snapshot inclusive. If it is an empty map, all future append snapshots should be discovered. INCREMENTAL_FROM_SNAPSHOT_ID: Start incremental mode from a snapshot with a specific id inclusive. INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP: Start incremental mode from a snapshot with a specific timestamp inclusive. If the timestamp is between two snapshots, it should start from the snapshot after the timestamp. Just for FIP27 Source. |
+| start-snapshot-timestamp    | N/A                                           | N/A                          | null                             | Start to read data from the most recent snapshot as of the given time in milliseconds. |
+| start-snapshot-id           | N/A                                           | N/A                          | null                             | Start to read data from the specified snapshot-id.           |
+| end-snapshot-id             | N/A                                           | N/A                          | The latest snapshot id           | Specifies the end snapshot.                                  |
+| split-size                  | connector.iceberg.split-size                  | read.split.target-size       | 128 MB                           | Target size when combining input splits.                     |
+| split-lookback              | connector.iceberg.split-file-open-cost        | read.split.planning-lookback | 10                               | Number of bins to consider when combining input splits.      |
+| split-file-open-cost        | connector.iceberg.split-file-open-cost        | read.split.open-file-cost    | 4MB                              | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| streaming                   | connector.iceberg.streaming                   | N/A                          | false                            | Sets whether the current task runs in streaming or batch mode. |
+| monitor-interval            | connector.iceberg.monitor-interval            | N/A                          | 60s                              | Monitor interval to discover splits from new snapshots. Applicable only for streaming read. |
+| include-column-stats        | connector.iceberg.include-column-stats        | N/A                          | false                            | Create a new scan from this that loads the column stats with each data file. Column stats include: value count, null value count, lower bounds, and upper bounds. |
+| max-planning-snapshot-count | connector.iceberg.max-planning-snapshot-count | N/A                          | Integer.MAX_VALUE                | Max number of snapshots limited per split enumeration. Applicable only to streaming read. |
+| limit                       | connector.iceberg.limit                       | N/A                          | -1                               | Limited output number of rows.                               |
+
+
+### Write options
 
 Flink write options are passed when configuring the FlinkSink, like this:
 

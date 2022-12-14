@@ -28,13 +28,25 @@ import os
 from tempfile import TemporaryDirectory
 from typing import (
     Any,
+    Callable,
     Dict,
     Generator,
+    Type,
     Union,
 )
+from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
+import aiobotocore.awsrequest
+import aiobotocore.endpoint
+import aiohttp
+import aiohttp.client_reqrep
+import aiohttp.typedefs
+import boto3
+import botocore.awsrequest
+import botocore.model
 import pytest
+from moto import mock_glue, mock_s3
 
 from pyiceberg import schema
 from pyiceberg.io import (
@@ -44,6 +56,7 @@ from pyiceberg.io import (
     OutputStream,
     fsspec,
 )
+from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
@@ -62,7 +75,7 @@ from tests.catalog.test_base import InMemoryCatalog
 from tests.io.test_io import LocalInputFile
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
@@ -75,18 +88,20 @@ def pytest_addoption(parser):
 class FooStruct:
     """An example of an object that abides by StructProtocol"""
 
-    def __init__(self):
+    content: Dict[int, Any]
+
+    def __init__(self) -> None:
         self.content = {}
 
     def get(self, pos: int) -> Any:
         return self.content[pos]
 
-    def set(self, pos: int, value) -> None:
+    def set(self, pos: int, value: Any) -> None:
         self.content[pos] = value
 
 
 @pytest.fixture(scope="session")
-def table_schema_simple():
+def table_schema_simple() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -97,7 +112,7 @@ def table_schema_simple():
 
 
 @pytest.fixture(scope="session")
-def table_schema_nested():
+def table_schema_nested() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -148,7 +163,7 @@ def table_schema_nested():
 
 
 @pytest.fixture(scope="session")
-def foo_struct():
+def foo_struct() -> FooStruct:
     return FooStruct()
 
 
@@ -593,28 +608,28 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                 "name": "added_snapshot_id",
                 "type": ["null", "long"],
                 "doc": "Snapshot ID that added the manifest",
-                "default": "null",
+                "default": None,
                 "field-id": 503,
             },
             {
                 "name": "added_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Added entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 504,
             },
             {
                 "name": "existing_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Existing entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 505,
             },
             {
                 "name": "deleted_data_files_count",
                 "type": ["null", "int"],
                 "doc": "Deleted entry count",
-                "default": "null",
+                "default": None,
                 "field-id": 506,
             },
             {
@@ -637,21 +652,21 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                                     "name": "contains_nan",
                                     "type": ["null", "boolean"],
                                     "doc": "True if any file has a nan partition value",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 518,
                                 },
                                 {
                                     "name": "lower_bound",
                                     "type": ["null", "bytes"],
                                     "doc": "Partition lower bound for all files",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 510,
                                 },
                                 {
                                     "name": "upper_bound",
                                     "type": ["null", "bytes"],
                                     "doc": "Partition upper bound for all files",
-                                    "default": "null",
+                                    "default": None,
                                     "field-id": 511,
                                 },
                             ],
@@ -660,22 +675,22 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                     },
                 ],
                 "doc": "Summary for each partition",
-                "default": "null",
+                "default": None,
                 "field-id": 507,
             },
-            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": "null", "field-id": 512},
+            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None, "field-id": 512},
             {
                 "name": "existing_rows_count",
                 "type": ["null", "long"],
                 "doc": "Existing rows count",
-                "default": "null",
+                "default": None,
                 "field-id": 513,
             },
             {
                 "name": "deleted_rows_count",
                 "type": ["null", "long"],
                 "doc": "Deleted rows count",
-                "default": "null",
+                "default": None,
                 "field-id": 514,
             },
         ],
@@ -689,7 +704,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
         "name": "manifest_entry",
         "fields": [
             {"name": "status", "type": "int", "field-id": 0},
-            {"name": "snapshot_id", "type": ["null", "long"], "default": "null", "field-id": 1},
+            {"name": "snapshot_id", "type": ["null", "long"], "default": None, "field-id": 1},
             {
                 "name": "data_file",
                 "type": {
@@ -708,7 +723,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": "null", "field-id": 1000}],
+                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
                             },
                             "field-id": 102,
                         },
@@ -733,7 +748,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to total size on disk",
-                            "default": "null",
+                            "default": None,
                             "field-id": 108,
                         },
                         {
@@ -754,7 +769,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to total count, including null and NaN",
-                            "default": "null",
+                            "default": None,
                             "field-id": 109,
                         },
                         {
@@ -775,7 +790,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to null value count",
-                            "default": "null",
+                            "default": None,
                             "field-id": 110,
                         },
                         {
@@ -796,7 +811,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to number of NaN values in the column",
-                            "default": "null",
+                            "default": None,
                             "field-id": 137,
                         },
                         {
@@ -817,7 +832,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to lower bound",
-                            "default": "null",
+                            "default": None,
                             "field-id": 125,
                         },
                         {
@@ -838,28 +853,28 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                                 },
                             ],
                             "doc": "Map of column id to upper bound",
-                            "default": "null",
+                            "default": None,
                             "field-id": 128,
                         },
                         {
                             "name": "key_metadata",
                             "type": ["null", "bytes"],
                             "doc": "Encryption key metadata blob",
-                            "default": "null",
+                            "default": None,
                             "field-id": 131,
                         },
                         {
                             "name": "split_offsets",
                             "type": ["null", {"type": "array", "items": "long", "element-id": 133}],
                             "doc": "Splittable offsets",
-                            "default": "null",
+                            "default": None,
                             "field-id": 132,
                         },
                         {
                             "name": "sort_order_id",
                             "type": ["null", "int"],
                             "doc": "Sort order ID",
-                            "default": "null",
+                            "default": None,
                             "field-id": 140,
                         },
                     ],
@@ -871,7 +886,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def simple_struct():
+def simple_struct() -> StructType:
     return StructType(
         NestedField(id=1, name="required_field", field_type=StringType(), required=True, doc="this is a doc"),
         NestedField(id=2, name="optional_field", field_type=IntegerType()),
@@ -879,19 +894,19 @@ def simple_struct():
 
 
 @pytest.fixture(scope="session")
-def simple_list():
+def simple_list() -> ListType:
     return ListType(element_id=22, element=StringType(), element_required=True)
 
 
 @pytest.fixture(scope="session")
-def simple_map():
+def simple_map() -> MapType:
     return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)
 
 
 class LocalOutputFile(OutputFile):
     """An OutputFile implementation for local files (for test use only)"""
 
-    def __init__(self, location: str):
+    def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
         if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
@@ -901,13 +916,13 @@ class LocalOutputFile(OutputFile):
         super().__init__(location=location)
         self._path = parsed_location.path
 
-    def __len__(self):
+    def __len__(self) -> int:
         return os.path.getsize(self._path)
 
-    def exists(self):
+    def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self):
+    def to_input_file(self) -> LocalInputFile:
         return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -920,19 +935,19 @@ class LocalOutputFile(OutputFile):
 class LocalFileIO(FileIO):
     """A FileIO implementation for local files (for test use only)"""
 
-    def new_input(self, location: str):
+    def new_input(self, location: str) -> LocalInputFile:
         return LocalInputFile(location=location)
 
-    def new_output(self, location: str):
+    def new_output(self, location: str) -> LocalOutputFile:
         return LocalOutputFile(location=location)
 
-    def delete(self, location: Union[str, InputFile, OutputFile]):
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         os.remove(location)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture():
+def LocalFileIOFixture() -> Type[LocalFileIO]:
     return LocalFileIO
 
 
@@ -1135,10 +1150,112 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 
 @pytest.fixture
-def fsspec_fileio(request):
+def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     properties = {
         "s3.endpoint": request.config.getoption("--s3.endpoint"),
         "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
         "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
     }
     return fsspec.FsspecFileIO(properties=properties)
+
+
+class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
+    """
+    A mocked aws response implementation (for test use only)
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
+        self._moto_response = response
+        self.status_code = response.status_code
+        self.raw = MockHttpClientResponse(response)
+
+    # adapt async methods to use moto's response
+    async def _content_prop(self) -> bytes:
+        return self._moto_response.content
+
+    async def _text_prop(self) -> str:
+        return self._moto_response.text
+
+
+class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
+    """
+    A mocked http client response implementation (for test use only)
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
+        async def read(*_: Any) -> bytes:
+            # streaming/range requests. used by s3fs
+            return response.content
+
+        self.content = MagicMock(aiohttp.StreamReader)
+        self.content.read = read
+        self.response = response
+
+    @property
+    def raw_headers(self) -> aiohttp.typedefs.RawHeaders:
+        # Return the headers encoded the way that aiobotocore expects them
+        return {k.encode("utf-8"): str(v).encode("utf-8") for k, v in self.response.headers.items()}.items()
+
+
+def patch_aiobotocore() -> None:
+    """
+    Patch aiobotocore to work with moto
+    See https://github.com/aio-libs/aiobotocore/issues/755
+    """
+
+    def factory(original: Callable) -> Callable:  # type: ignore
+        def patched_convert_to_response_dict(  # type: ignore
+            http_response: botocore.awsrequest.AWSResponse, operation_model: botocore.model.OperationModel
+        ):
+            return original(MockAWSResponse(http_response), operation_model)
+
+        return patched_convert_to_response_dict
+
+    aiobotocore.endpoint.convert_to_response_dict = factory(aiobotocore.endpoint.convert_to_response_dict)
+
+
+@pytest.fixture(name="_patch_aiobotocore")
+def fixture_aiobotocore():  # type: ignore
+    """
+    Patch aiobotocore to work with moto
+    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
+    """
+    stored_method = aiobotocore.endpoint.convert_to_response_dict
+    yield patch_aiobotocore()
+    # restore the changed method after the fixture is destroyed
+    aiobotocore.endpoint.convert_to_response_dict = stored_method
+
+
+def aws_credentials() -> None:
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"
+    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+
+@pytest.fixture(name="_aws_credentials")
+def fixture_aws_credentials() -> Generator[None, None, None]:
+    """Mocked AWS Credentials for moto."""
+    yield aws_credentials()  # type: ignore
+    os.environ.pop("AWS_ACCESS_KEY_ID")
+    os.environ.pop("AWS_SECRET_ACCESS_KEY")
+    os.environ.pop("AWS_SECURITY_TOKEN")
+    os.environ.pop("AWS_SESSION_TOKEN")
+    os.environ.pop("AWS_DEFAULT_REGION")
+
+
+@pytest.fixture(name="_s3")
+def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
+    """Mocked S3 client"""
+    with mock_s3():
+        yield boto3.client("s3", region_name="us-east-1")
+
+
+@pytest.fixture(name="_glue")
+def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
+    """Mocked glue client"""
+    with mock_glue():
+        yield boto3.client("glue", region_name="us-east-1")

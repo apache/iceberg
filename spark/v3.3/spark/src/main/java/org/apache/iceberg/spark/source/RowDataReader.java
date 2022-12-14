@@ -30,17 +30,45 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
+import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class RowDataReader extends BaseRowReader<FileScanTask> {
+class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionReader<InternalRow> {
   private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
 
+  private final long numSplits;
+
+  RowDataReader(SparkInputPartition partition) {
+    this(
+        partition.table(),
+        partition.taskGroup(),
+        partition.expectedSchema(),
+        partition.isCaseSensitive());
+  }
+
   RowDataReader(
-      ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(table, task, expectedSchema, caseSensitive);
+      Table table,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive) {
+
+    super(table, taskGroup, expectedSchema, caseSensitive);
+
+    numSplits = taskGroup.tasks().size();
+    LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+  }
+
+  @Override
+  public CustomTaskMetric[] currentMetricsValues() {
+    return new CustomTaskMetric[] {
+      new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+    };
   }
 
   @Override

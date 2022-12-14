@@ -16,6 +16,7 @@
 # under the License.
 from enum import Enum
 from typing import (
+    Any,
     Dict,
     List,
     Optional,
@@ -69,8 +70,8 @@ class Summary(IcebergBaseModel):
         return values
 
     def __init__(
-        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data
-    ):
+        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
+    ) -> None:
         super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
         self._additional_properties = {
             k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
@@ -110,7 +111,7 @@ class Snapshot(IcebergBaseModel):
         result_str = f"{operation}id={self.snapshot_id}{parent_id}{schema_id}"
         return result_str
 
-    def fetch_manifest_list(self, io: FileIO) -> List[ManifestFile]:
+    def manifests(self, io: FileIO) -> List[ManifestFile]:
         if self.manifest_list is not None:
             file = io.new_input(self.manifest_list)
             return list(read_manifest_list(file))

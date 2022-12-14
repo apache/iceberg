@@ -18,15 +18,18 @@
  */
 package org.apache.iceberg;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -195,41 +198,75 @@ public class Partitioning {
   }
 
   /**
-   * Builds a common partition type for all specs in a table.
+   * Builds a grouping key type considering all provided specs.
    *
-   * <p>Whenever a table has multiple specs, the partition type is a struct containing all columns
-   * that have ever been a part of any spec in the table.
+   * <p>A grouping key defines how data is split between files and consists of partition fields with
+   * non-void transforms that are present in each provided spec. Iceberg guarantees that records
+   * with different values for the grouping key are disjoint and are stored in separate files.
+   *
+   * <p>If there is only one spec, the grouping key will include all partition fields with non-void
+   * transforms from that spec. Whenever there are multiple specs, the grouping key will represent
+   * an intersection of all partition fields with non-void transforms. If a partition field is
+   * present only in a subset of specs, Iceberg cannot guarantee data distribution on that field.
+   * That's why it will not be part of the grouping key. Unpartitioned tables or tables with
+   * non-overlapping specs have empty grouping keys.
+   *
+   * <p>When partition fields are dropped in v1 tables, they are replaced with new partition fields
+   * that have the same field ID but use a void transform under the hood. Such fields cannot be part
+   * of the grouping key as void transforms always return null.
+   *
+   * @param specs one or many specs
+   * @return the constructed grouping key type
+   */
+  public static StructType groupingKeyType(Collection<PartitionSpec> specs) {
+    return buildPartitionProjectionType("grouping key", specs, commonActiveFieldIds(specs));
+  }
+
+  /**
+   * Builds a unified partition type considering all specs in a table.
+   *
+   * <p>If there is only one spec, the partition type is that spec's partition type. Whenever there
+   * are multiple specs, the partition type is a struct containing all fields that have ever been a
+   * part of any spec in the table. In other words, the struct fields represent a union of all known
+   * partition fields.
    *
    * @param table a table with one or many specs
-   * @return the constructed common partition type
+   * @return the constructed unified partition type
    */
   public static StructType partitionType(Table table) {
+    Collection<PartitionSpec> specs = table.specs().values();
+    return buildPartitionProjectionType("table partition", specs, allFieldIds(specs));
+  }
+
+  private static StructType buildPartitionProjectionType(
+      String typeName, Collection<PartitionSpec> specs, Set<Integer> projectedFieldIds) {
+
     // we currently don't know the output type of unknown transforms
-    List<Transform<?, ?>> unknownTransforms = collectUnknownTransforms(table);
+    List<Transform<?, ?>> unknownTransforms = collectUnknownTransforms(specs);
     ValidationException.check(
         unknownTransforms.isEmpty(),
-        "Cannot build table partition type, unknown transforms: %s",
+        "Cannot build %s type, unknown transforms: %s",
+        typeName,
         unknownTransforms);
-
-    if (table.specs().size() == 1) {
-      return table.spec().partitionType();
-    }
 
     Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
     Map<Integer, Type> typeMap = Maps.newHashMap();
     Map<Integer, String> nameMap = Maps.newHashMap();
 
-    // sort the spec IDs in descending order to pick up the most recent field names
-    List<Integer> specIds =
-        table.specs().keySet().stream()
-            .sorted(Collections.reverseOrder())
+    // sort specs by ID in descending order to pick up the most recent field names
+    List<PartitionSpec> sortedSpecs =
+        specs.stream()
+            .sorted(Comparator.comparingLong(PartitionSpec::specId).reversed())
             .collect(Collectors.toList());
 
-    for (Integer specId : specIds) {
-      PartitionSpec spec = table.specs().get(specId);
-
+    for (PartitionSpec spec : sortedSpecs) {
       for (PartitionField field : spec.fields()) {
         int fieldId = field.fieldId();
+
+        if (!projectedFieldIds.contains(fieldId)) {
+          continue;
+        }
+
         NestedField structField = spec.partitionType().field(fieldId);
         PartitionField existingField = fieldMap.get(fieldId);
 
@@ -269,19 +306,15 @@ public class Partitioning {
     return field.transform().equals(Transforms.alwaysNull());
   }
 
-  private static List<Transform<?, ?>> collectUnknownTransforms(Table table) {
+  private static List<Transform<?, ?>> collectUnknownTransforms(Collection<PartitionSpec> specs) {
     List<Transform<?, ?>> unknownTransforms = Lists.newArrayList();
 
-    table
-        .specs()
-        .values()
-        .forEach(
-            spec -> {
-              spec.fields().stream()
-                  .map(PartitionField::transform)
-                  .filter(transform -> transform instanceof UnknownTransform)
-                  .forEach(unknownTransforms::add);
-            });
+    for (PartitionSpec spec : specs) {
+      spec.fields().stream()
+          .map(PartitionField::transform)
+          .filter(transform -> transform instanceof UnknownTransform)
+          .forEach(unknownTransforms::add);
+    }
 
     return unknownTransforms;
   }
@@ -297,5 +330,38 @@ public class Partitioning {
     return t1.equals(t2)
         || t1.equals(Transforms.alwaysNull())
         || t2.equals(Transforms.alwaysNull());
+  }
+
+  // collects IDs of all partition field used across specs
+  private static Set<Integer> allFieldIds(Collection<PartitionSpec> specs) {
+    return FluentIterable.from(specs)
+        .transformAndConcat(PartitionSpec::fields)
+        .transform(PartitionField::fieldId)
+        .toSet();
+  }
+
+  // collects IDs of partition fields with non-void transforms that are present in each spec
+  private static Set<Integer> commonActiveFieldIds(Collection<PartitionSpec> specs) {
+    Set<Integer> commonActiveFieldIds = Sets.newHashSet();
+
+    int specIndex = 0;
+    for (PartitionSpec spec : specs) {
+      if (specIndex == 0) {
+        commonActiveFieldIds.addAll(activeFieldIds(spec));
+      } else {
+        commonActiveFieldIds.retainAll(activeFieldIds(spec));
+      }
+
+      specIndex++;
+    }
+
+    return commonActiveFieldIds;
+  }
+
+  private static List<Integer> activeFieldIds(PartitionSpec spec) {
+    return spec.fields().stream()
+        .filter(field -> !isVoidTransform(field))
+        .map(PartitionField::fieldId)
+        .collect(Collectors.toList());
   }
 }

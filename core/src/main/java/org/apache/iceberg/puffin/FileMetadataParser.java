@@ -70,11 +70,7 @@ public final class FileMetadataParser {
     generator.writeEndArray();
 
     if (!fileMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : fileMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, fileMetadata.properties(), generator);
     }
 
     generator.writeEndObject();
@@ -104,11 +100,7 @@ public final class FileMetadataParser {
 
     generator.writeStringField(TYPE, blobMetadata.type());
 
-    generator.writeArrayFieldStart(FIELDS);
-    for (int field : blobMetadata.inputFields()) {
-      generator.writeNumber(field);
-    }
-    generator.writeEndArray();
+    JsonUtil.writeIntegerArray(FIELDS, blobMetadata.inputFields(), generator);
     generator.writeNumberField(SNAPSHOT_ID, blobMetadata.snapshotId());
     generator.writeNumberField(SEQUENCE_NUMBER, blobMetadata.sequenceNumber());
 
@@ -120,11 +112,7 @@ public final class FileMetadataParser {
     }
 
     if (!blobMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : blobMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, blobMetadata.properties(), generator);
     }
 
     generator.writeEndObject();

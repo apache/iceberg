@@ -50,7 +50,7 @@ class SparkFilesScan extends SparkScan {
   }
 
   @Override
-  protected List<CombinedScanTask> tasks() {
+  protected List<CombinedScanTask> taskGroups() {
     if (tasks == null) {
       FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
       List<FileScanTask> files = taskSetManager.fetchTasks(table(), taskSetID);

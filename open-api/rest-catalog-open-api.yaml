@@ -506,10 +506,10 @@ paths:
 
         The response contains both configuration and table metadata. The configuration, if non-empty is used
         as additional configuration for the table that overrides catalog configuration. For example, this
-        configuration may change the FileIO implemented used for the table.
+        configuration may change the FileIO implementation to be used for the table.
 
 
-        The response also contains the table's full metadata.
+        The response also contains the table's full metadata, matching the table metadata JSON file.
 
 
         The catalog configuration may contain credentials that should be used for subsequent requests for the
@@ -614,6 +614,20 @@ paths:
               }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
+        502:
+          description:
+            A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
+                }
+              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -2385,6 +2399,13 @@ components:
   securitySchemes:
     OAuth2:
       type: oauth2
+      description:
+        This scheme is used for OAuth2 authorization.
+
+
+        For unauthorized requests, services should return an appropriate 401 or
+        403 response. Implementations must not return altered success (200)
+        responses when a request is unauthenticated or unauthorized.
       flows:
         clientCredentials:
           tokenUrl: /v1/oauth/tokens

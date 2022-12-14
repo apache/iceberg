@@ -41,9 +41,20 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.unsafe.types.UTF8String;
 
-class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
+class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
+    implements PartitionReader<InternalRow> {
+
+  ChangelogRowReader(SparkInputPartition partition) {
+    this(
+        partition.table(),
+        partition.taskGroup(),
+        partition.expectedSchema(),
+        partition.isCaseSensitive());
+  }
+
   ChangelogRowReader(
       Table table,
       ScanTaskGroup<ChangelogScanTask> taskGroup,

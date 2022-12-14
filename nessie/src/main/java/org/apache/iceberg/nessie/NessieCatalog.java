@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -199,10 +200,16 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
+    String location;
     if (table.hasNamespace()) {
-      return SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
+      location = SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
+    } else {
+      location = SLASH.join(warehouseLocation, table.name());
     }
-    return SLASH.join(warehouseLocation, table.name());
+    // Different tables with same table name can exist across references in Nessie.
+    // To avoid sharing same table path between two tables with same name, use uuid in the table
+    // path.
+    return location + "_" + UUID.randomUUID();
   }
 
   @Override

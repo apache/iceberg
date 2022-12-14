@@ -29,8 +29,8 @@ from typing import (
 from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
+from pyiceberg.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.schema import Schema, assign_fresh_schema_ids
-from pyiceberg.table.partitioning import PartitionSpec, assign_fresh_partition_spec_ids
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import MetadataLogEntry, Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import (
@@ -99,7 +99,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
     @root_validator(skip_on_failure=True)
-    def cleanup_snapshot_id(cls, data: Dict[str, Any]):
+    def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         if data[CURRENT_SNAPSHOT_ID] == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
@@ -107,7 +107,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_refs(cls, data: Dict[str, Any]):
+    def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         # This is going to be much nicer as soon as refs is an actual pydantic object
         if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
             if MAIN_BRANCH not in data[REFS]:
@@ -277,7 +277,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def set_sort_orders(cls, data: Dict[str, Any]):
+    def set_sort_orders(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets the sort_orders if not provided
 
         For V1 sort_orders is optional, and if they aren't set, we'll set them
@@ -329,15 +329,15 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     """
 
     @root_validator(skip_on_failure=True)
-    def check_schemas(cls, values: Dict[str, Any]):
+    def check_schemas(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_schemas(values)
 
     @root_validator
-    def check_partition_specs(cls, values: Dict[str, Any]):
+    def check_partition_specs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_partition_specs(values)
 
     @root_validator(skip_on_failure=True)
-    def check_sort_orders(cls, values: Dict[str, Any]):
+    def check_sort_orders(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_sort_orders(values)
 
     format_version: Literal[2] = Field(alias="format-version", default=2)
@@ -381,7 +381,7 @@ class TableMetadataUtil:
     # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]
 
     @staticmethod
-    def parse_obj(data: dict) -> TableMetadata:
+    def parse_obj(data: Dict[str, Any]) -> TableMetadata:
         if "format-version" not in data:
             raise ValidationError(f"Missing format-version in TableMetadata: {data}")
 

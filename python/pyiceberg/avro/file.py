@@ -22,12 +22,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from io import SEEK_SET
+from io import SEEK_SET, BufferedReader
+from types import TracebackType
 from typing import Optional, Type
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.reader import AvroStruct, ConstructReader, StructReader
+from pyiceberg.avro.reader import AvroStruct, ConstructReader, Reader
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
@@ -89,12 +90,12 @@ class AvroFileHeader:
 
 @dataclass
 class Block:
-    reader: StructReader
+    reader: Reader
     block_records: int
     block_decoder: BinaryDecoder
     position: int = 0
 
-    def __iter__(self):
+    def __iter__(self) -> Block:
         return self
 
     def has_next(self) -> bool:
@@ -113,8 +114,7 @@ class AvroFile:
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
-    file_length: int
-    reader: StructReader
+    reader: Reader
 
     decoder: BinaryDecoder
     block: Optional[Block] = None
@@ -123,7 +123,7 @@ class AvroFile:
         self.input_file = input_file
         self.read_schema = read_schema
 
-    def __enter__(self):
+    def __enter__(self) -> AvroFile:
         """
         Opens the file and reads the header and generates
         a reader tree to start reading the payload
@@ -131,11 +131,10 @@ class AvroFile:
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = self.input_file.open()
+        self.input_stream = BufferedReader(self.input_file.open())  # type: ignore
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
-        self.file_length = len(self.input_file)
         if not self.read_schema:
             self.reader = visit(self.schema, ConstructReader())
         else:
@@ -143,7 +142,9 @@ class AvroFile:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         self.input_stream.close()
 
     def __iter__(self) -> AvroFile:
@@ -155,8 +156,6 @@ class AvroFile:
             sync_marker = self.decoder.read(SYNC_SIZE)
             if sync_marker != self.header.sync:
                 raise ValueError(f"Expected sync bytes {self.header.sync!r}, but got {sync_marker!r}")
-            if self.is_EOF():
-                raise StopIteration
         block_records = self.decoder.read_int()
 
         block_bytes_len = self.decoder.read_int()
@@ -173,7 +172,10 @@ class AvroFile:
         if self.block and self.block.has_next():
             return next(self.block)
 
-        new_block = self._read_block()
+        try:
+            new_block = self._read_block()
+        except EOFError as exc:
+            raise StopIteration from exc
 
         if new_block > 0:
             return self.__next__()
@@ -184,6 +186,3 @@ class AvroFile:
         reader = visit(META_SCHEMA, ConstructReader())
         _header = reader.read(self.decoder)
         return AvroFileHeader(magic=_header.get(0), meta=_header.get(1), sync=_header.get(2))
-
-    def is_EOF(self) -> bool:
-        return self.input_stream.tell() == self.file_length

@@ -86,7 +86,7 @@ public class SparkV2Filters {
           .put(OR, Operation.OR)
           .put(NOT, Operation.NOT)
           .put(STARTS_WITH, Operation.STARTS_WITH)
-          .build();
+          .buildOrThrow();
 
   private SparkV2Filters() {}
 

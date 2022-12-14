@@ -34,6 +34,7 @@ from functools import singledispatch
 from typing import (
     Any,
     Callable,
+    Dict,
     List,
     Optional,
     Tuple,
@@ -42,8 +43,8 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, SchemaVisitor
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -67,7 +68,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.singleton import Singleton
 
 
-def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
+def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:
     """Skips over an array or map
 
     Both the array and map are encoded similar, and we can re-use
@@ -224,7 +225,7 @@ class FixedReader(Reader):
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip(len(self))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._len
 
 
@@ -294,7 +295,7 @@ class StructReader(Reader):
 class ListReader(Reader):
     element: Reader
 
-    def read(self, decoder: BinaryDecoder) -> list:
+    def read(self, decoder: BinaryDecoder) -> List[Any]:
         read_items = []
         block_count = decoder.read_int()
         while block_count != 0:
@@ -315,7 +316,7 @@ class MapReader(Reader):
     key: Reader
     value: Reader
 
-    def read(self, decoder: BinaryDecoder) -> dict:
+    def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
         read_items = {}
         block_count = decoder.read_int()
         while block_count != 0:
@@ -331,7 +332,7 @@ class MapReader(Reader):
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        def skip():
+        def skip() -> None:
             self.key.skip(decoder)
             self.value.skip(decoder)
 

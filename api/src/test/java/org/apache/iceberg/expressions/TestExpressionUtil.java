@@ -538,7 +538,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeDateToday() {
-    String today = LocalDate.now().toString();
+    String today = LocalDate.now(ZoneOffset.UTC).toString();
 
     assertEquals(
         Expressions.equal("test", "(date-today)"),
@@ -558,7 +558,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeDateLastWeek() {
-    String lastWeek = LocalDate.now().minusWeeks(1).toString();
+    String lastWeek = LocalDate.now(ZoneOffset.UTC).minusWeeks(1).toString();
 
     assertEquals(
         Expressions.equal("test", "(date-7-days-ago)"),
@@ -578,7 +578,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeDateNextWeek() {
-    String nextWeek = LocalDate.now().plusWeeks(1).toString();
+    String nextWeek = LocalDate.now(ZoneOffset.UTC).plusWeeks(1).toString();
 
     assertEquals(
         Expressions.equal("test", "(date-7-days-from-now)"),
