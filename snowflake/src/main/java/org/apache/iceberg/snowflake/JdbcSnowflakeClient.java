@@ -26,6 +26,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
 import org.apache.iceberg.snowflake.entities.SnowflakeTable;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
@@ -47,9 +48,15 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(JdbcSnowflakeClient.class);
   private final JdbcClientPool connectionPool;
+  private QueryRunner queryRunner = new QueryRunner(true);
 
   JdbcSnowflakeClient(JdbcClientPool conn) {
     connectionPool = conn;
+  }
+
+  @VisibleForTesting
+  void setQueryRunner(QueryRunner queryRunner) {
+    this.queryRunner = queryRunner;
   }
 
   @Override
@@ -68,13 +75,13 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
 
     final String finalQuery = baseQuery.toString();
     final Object[] finalQueryParams = queryParams;
-    QueryRunner run = new QueryRunner(true);
     List<SnowflakeSchema> schemas;
     try {
       schemas =
           connectionPool.run(
               conn ->
-                  run.query(conn, finalQuery, SnowflakeSchema.createHandler(), finalQueryParams));
+                  queryRunner.query(
+                      conn, finalQuery, SnowflakeSchema.createHandler(), finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(
           e,
@@ -111,13 +118,13 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
 
     final String finalQuery = baseQuery.toString();
     final Object[] finalQueryParams = queryParams;
-    QueryRunner run = new QueryRunner(true);
     List<SnowflakeTable> tables;
     try {
       tables =
           connectionPool.run(
               conn ->
-                  run.query(conn, finalQuery, SnowflakeTable.createHandler(), finalQueryParams));
+                  queryRunner.query(
+                      conn, finalQuery, SnowflakeTable.createHandler(), finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(
           e, "Failed to list tables for namespace %s", namespace.toString());
@@ -129,15 +136,13 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
 
   @Override
   public SnowflakeTableMetadata getTableMetadata(TableIdentifier tableIdentifier) {
-    QueryRunner run = new QueryRunner(true);
-
     SnowflakeTableMetadata tableMeta;
     try {
       final String finalQuery = "SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION(?) AS METADATA";
       tableMeta =
           connectionPool.run(
               conn ->
-                  run.query(
+                  queryRunner.query(
                       conn,
                       finalQuery,
                       SnowflakeTableMetadata.createHandler(),

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -31,9 +32,12 @@ public class SnowflakeTableMetadata {
       Pattern.compile("azure://([^/]+)/([^/]+)/(.*)");
 
   private String snowflakeMetadataLocation;
-  private String status;
   private String icebergMetadataLocation;
+  private String status;
 
+  // Note: Since not all sources will necessarily come from a raw JSON representation, this raw
+  // JSON should only be considered a convenient debugging field. Equality of two
+  // SnowflakeTableMetadata instances should not depend on equality of this field.
   private String rawJsonVal;
 
   public SnowflakeTableMetadata(
@@ -59,6 +63,34 @@ public class SnowflakeTableMetadata {
 
   public String getStatus() {
     return status;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    } else if (!(o instanceof SnowflakeTableMetadata)) {
+      return false;
+    }
+
+    // Only consider parsed fields, not the raw JSON that may or may not be the original source of
+    // this instance.
+    SnowflakeTableMetadata that = (SnowflakeTableMetadata) o;
+    return Objects.equal(this.snowflakeMetadataLocation, that.snowflakeMetadataLocation)
+        && Objects.equal(this.icebergMetadataLocation, that.icebergMetadataLocation)
+        && Objects.equal(this.status, that.status);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(snowflakeMetadataLocation, icebergMetadataLocation, status);
+  }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "snowflakeMetadataLocation: '%s', icebergMetadataLocation: '%s', status: '%s",
+        snowflakeMetadataLocation, icebergMetadataLocation, status);
   }
 
   /**

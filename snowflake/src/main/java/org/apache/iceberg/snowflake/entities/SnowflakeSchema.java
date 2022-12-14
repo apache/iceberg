@@ -20,6 +20,7 @@ package org.apache.iceberg.snowflake.entities;
 
 import java.util.List;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnowflakeSchema {
@@ -37,6 +38,29 @@ public class SnowflakeSchema {
 
   public String getDatabase() {
     return databaseName;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    } else if (!(o instanceof SnowflakeSchema)) {
+      return false;
+    }
+
+    SnowflakeSchema that = (SnowflakeSchema) o;
+    return Objects.equal(this.databaseName, that.databaseName)
+        && Objects.equal(this.name, that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(databaseName, name);
+  }
+
+  @Override
+  public String toString() {
+    return String.format("%s.%s", databaseName, name);
   }
 
   public static ResultSetHandler<List<SnowflakeSchema>> createHandler() {
