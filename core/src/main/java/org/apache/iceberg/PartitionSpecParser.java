@@ -24,7 +24,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Iterator;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -86,13 +85,7 @@ public class PartitionSpecParser {
   public static PartitionSpec fromJson(Schema schema, String json) {
     return SPEC_CACHE.get(
         Pair.of(schema.asStruct(), json),
-        schemaJsonPair -> {
-          try {
-            return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-        });
+        schemaJsonPair -> JsonUtil.parse(json, node -> PartitionSpecParser.fromJson(schema, node)));
   }
 
   static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {
@@ -123,11 +116,7 @@ public class PartitionSpecParser {
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, String json) {
-    try {
-      return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse partition spec fields: %s", json);
-    }
+    return JsonUtil.parse(json, node -> PartitionSpecParser.fromJsonFields(schema, specId, node));
   }
 
   private static void buildFromJsonFields(UnboundPartitionSpec.Builder builder, JsonNode json) {

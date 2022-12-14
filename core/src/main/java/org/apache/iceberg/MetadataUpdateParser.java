@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -225,11 +224,7 @@ public class MetadataUpdateParser {
    * @return a MetadataUpdate object
    */
   public static MetadataUpdate fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, MetadataUpdateParser::fromJson);
   }
 
   public static MetadataUpdate fromJson(JsonNode jsonNode) {
