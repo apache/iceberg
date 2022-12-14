@@ -95,15 +95,15 @@ abstract class FileCleanupStrategy {
   }
 
   private Set<String> allStatisticsFilesLocation(TableMetadata tableMetadata) {
-    Set<String> allStatisticsFilesLocation;
+    Set<String> allStatisticsFilesLocation = Sets.newHashSet();
+
     if (tableMetadata.statisticsFiles() != null) {
       allStatisticsFilesLocation =
           tableMetadata.statisticsFiles().stream()
               .map(StatisticsFile::path)
               .collect(Collectors.toSet());
-    } else {
-      allStatisticsFilesLocation = Sets.newHashSet();
     }
+
     return allStatisticsFilesLocation;
   }
 }
