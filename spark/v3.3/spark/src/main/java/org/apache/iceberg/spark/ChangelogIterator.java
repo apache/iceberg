@@ -129,10 +129,10 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     return deletedRow.equals(insertedRow);
   }
 
-  private boolean updated(Row row) {
-    return row != null
-        && !row.getString(changeTypeIndex).equals(DELETE)
-        && !row.getString(changeTypeIndex).equals(INSERT);
+  private boolean updated(Row cachedRow) {
+    return cachedRow != null
+        && !cachedRow.getString(changeTypeIndex).equals(DELETE)
+        && !cachedRow.getString(changeTypeIndex).equals(INSERT);
   }
 
   private Row currentRow() {
