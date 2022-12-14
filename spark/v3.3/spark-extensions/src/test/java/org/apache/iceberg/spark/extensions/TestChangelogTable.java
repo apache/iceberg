@@ -137,7 +137,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(2, "b", "DELETE", 0, snap3.snapshotId()),
             row(-2, "b", "INSERT", 0, snap3.snapshotId())),
-        changelogRecords(snap2.timestampMillis() + 1, snap3.timestampMillis()));
+        changelogRecords(rightAfterSnap2, snap3.timestampMillis()));
 
     assertEquals(
         "Should have expected changed rows from snapshot 2 and 3",
