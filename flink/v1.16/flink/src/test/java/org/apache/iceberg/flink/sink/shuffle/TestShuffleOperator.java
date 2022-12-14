@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.OperatorStateStore;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -44,6 +47,8 @@ import org.apache.flink.streaming.runtime.tasks.OneInputStreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamMockEnvironment;
 import org.apache.flink.streaming.util.MockOutput;
 import org.apache.flink.streaming.util.MockStreamConfig;
+import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Before;
@@ -114,6 +119,24 @@ public class TestShuffleOperator {
     assertEquals(1L, (long) operator.localDataStatisticsMap().get("b"));
   }
 
+  @Test
+  public void testOperatorOutput() throws Exception {
+    try (OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>>
+        testHarness = createHarness(this.operator)) {
+      testHarness.processElement(new StreamRecord<>("a"));
+      testHarness.processElement(new StreamRecord<>("b"));
+      testHarness.processElement(new StreamRecord<>("b"));
+
+      List<String> recordsOutput =
+          testHarness.extractOutputValues().stream()
+              .filter(ShuffleRecordWrapper::hasRecord)
+              .map(ShuffleRecordWrapper::record)
+              .collect(Collectors.toList());
+      assertThat(recordsOutput)
+          .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
+    }
+  }
+
   // ---------------- helper methods -------------------------
 
   private StateInitializationContext getStateContext() throws Exception {
@@ -128,5 +151,14 @@ public class TestShuffleOperator {
     CloseableRegistry cancelStreamRegistry = new CloseableRegistry();
     return abstractStateBackend.createOperatorStateBackend(
         env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
+  }
+
+  private OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>>
+      createHarness(final ShuffleOperator<String, String> operator) throws Exception {
+    OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>> harness =
+        new OneInputStreamOperatorTestHarness<>(operator, 1, 1, 0);
+    harness.setup();
+    harness.open();
+    return harness;
   }
 }

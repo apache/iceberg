@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -37,14 +38,14 @@ public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializ
 
   private static final long serialVersionUID = 1L;
 
-  private final Map<K, Long> globalDataDistributionWeight;
+  private final Map<K, Long> globalDataStatistics;
   private final T record;
 
-  private ShuffleRecordWrapper(T record, Map<K, Long> globalDataDistributionWeight) {
+  private ShuffleRecordWrapper(T record, Map<K, Long> globalDataStatistics) {
     Preconditions.checkArgument(
-        record != null ^ globalDataDistributionWeight != null,
-        "A ShuffleRecordWrapper has to contain exactly one of record and stats, not neither or both");
-    this.globalDataDistributionWeight = globalDataDistributionWeight;
+        record != null ^ globalDataStatistics != null,
+        "A ShuffleRecordWrapper contain either record and stats, not neither or both");
+    this.globalDataStatistics = globalDataStatistics;
     this.record = record;
   }
 
@@ -52,13 +53,13 @@ public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializ
     return new ShuffleRecordWrapper<>(record, null);
   }
 
-  static <T, K extends Serializable> ShuffleRecordWrapper<T, K> fromDistribution(
-      Map<K, Long> globalDataDistributionWeight) {
-    return new ShuffleRecordWrapper<>(null, globalDataDistributionWeight);
+  static <T, K extends Serializable> ShuffleRecordWrapper<T, K> fromStatistics(
+      Map<K, Long> globalDataStatistics) {
+    return new ShuffleRecordWrapper<>(null, globalDataStatistics);
   }
 
   boolean hasGlobalDataDistributionWeight() {
-    return globalDataDistributionWeight != null;
+    return globalDataStatistics != null;
   }
 
   boolean hasRecord() {
@@ -66,7 +67,7 @@ public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializ
   }
 
   Map<K, Long> globalDataDistributionWeight() {
-    return globalDataDistributionWeight;
+    return globalDataStatistics;
   }
 
   T record() {
@@ -75,8 +76,9 @@ public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializ
 
   @Override
   public String toString() {
-    return String.format(
-        "ShuffleRecordWrapper[globalDataDistributionWeight = %s, record = %s)",
-        globalDataDistributionWeight, record);
+    return MoreObjects.toStringHelper(this)
+        .add("globalDataStatistics", globalDataStatistics)
+        .add("record", record)
+        .toString();
   }
 }
