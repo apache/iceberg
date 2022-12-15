@@ -23,7 +23,7 @@
 [![](https://github.com/apache/iceberg/actions/workflows/python-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/python-ci.yml)
 [![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://apache-iceberg.slack.com/)
 
-Iceberg is a high-performance format for huge analytic tables. Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
+Apache Iceberg is a high-performance format for huge analytic tables. Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
 
 Background and documentation is available at <https://iceberg.apache.org>
 
@@ -34,7 +34,7 @@ Iceberg is under active development at the Apache Software Foundation.
 
 The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on adding row-level deletes and upserts, and integration work with new engines like Flink and Hive.
 
-The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
+The [Iceberg format specification][iceberg-spec] is being actively updated (as the Java reference implementation changes) and is open for comments. Until the specification is complete and released, it carries no compatibility guarantees.
 
 [Java API javadocs][iceberg-javadocs] are available for the master.
 
@@ -44,11 +44,12 @@ The [Iceberg format specification][iceberg-spec] is being actively updated and i
 
 ## Collaboration
 
-Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
+Iceberg tracks issues in [GitHub][github-issues] and prefers to receive contributions as pull requests.
 
 Community discussions happen primarily on the [dev mailing list][dev-list] or on specific issues.
 
 [dev-list]: mailto:dev@iceberg.apache.org
+[github-issues]: https://github.com/apache/iceberg/issues
 
 
 ### Building
