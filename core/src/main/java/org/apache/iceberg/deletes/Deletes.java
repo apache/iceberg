@@ -37,8 +37,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.ThreadPools;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA =
@@ -144,7 +146,18 @@ public class Deletes {
             deletes ->
                 CloseableIterable.transform(
                     locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    return toPositionIndex(CloseableIterable.concat(positions));
+    return toPositionIndex(positions);
+  }
+
+  public static PositionDeleteIndex toPositionIndex(List<CloseableIterable<Long>> positions) {
+    PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
+    try (CloseableIterable<Long> itr =
+        new ParallelIterable<>(positions, ThreadPools.getWorkerPool())) {
+      itr.forEach(positionDeleteIndex::delete);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+    return positionDeleteIndex;
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {
