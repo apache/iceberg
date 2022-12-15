@@ -73,10 +73,17 @@ For Python, `pytest` is used a testing framework in combination with `coverage` 
 make test
 ```
 
-By default, S3 tests are ignored because that require minio to be running. To run the S3 suite:
+By default, S3 and ADLFS tests are ignored because that require minio and azurite to be running.  
+To run the S3 suite:
 
 ```bash
 make test-s3
+```
+
+To run the ADLFS suite:
+
+```bash
+make test-adlfs
 ```
 
 To pass additional arguments to pytest, you can use `PYTEST_ARGS`.
@@ -132,4 +139,4 @@ PyIceberg offers support from Python 3.8 onwards, we can't use the [type hints f
 
 ## Third party libraries
 
-PyIceberg naturally integrates into the rich Python ecosystem, however it is important to be hesistant to add third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.
+PyIceberg naturally integrates into the rich Python ecosystem, however it is important to be hesistant to add third party packages. Adding a lot of packages makes the library heavyweight, and causes incompatibilities with other projects if they use a different version of the library. Also, big libraries such as `s3fs`, `adlfs`, `pyarrow`, `thrift` should be optional to avoid downloading everything, while not being sure if is actually being used.

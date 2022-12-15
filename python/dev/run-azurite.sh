@@ -20,12 +20,12 @@
 
 set -ex
 
-if [[ $(docker ps -q --filter "name=azurite" --filter "status=running" ) ]]; then
+if [ $(docker ps -q --filter "name=azurite" --filter "status=running" ) ]; then
     echo "Azurite backend running"
 else
     docker-compose -f dev/docker-compose-azurite.yml kill
     docker-compose -f dev/docker-compose-azurite.yml up -d
-    while [[ -z $(docker ps -q --filter "name=azurite" --filter "status=running" ) ]]
+    while [ -z $(docker ps -q --filter "name=azurite" --filter "status=running" ) ]
     do
       echo "Waiting for Azurite"
       sleep 1
