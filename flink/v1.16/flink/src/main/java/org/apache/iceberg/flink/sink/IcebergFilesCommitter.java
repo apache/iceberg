@@ -228,6 +228,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (checkpointId > maxCommittedCheckpointId) {
       commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
+    } else {
+      LOG.info(
+          "Skipping committing checkpoint {}. {} is already committed.",
+          checkpointId,
+          maxCommittedCheckpointId);
     }
   }
 
@@ -361,7 +366,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       String description,
       String newFlinkJobId,
       long checkpointId) {
-    LOG.info("Committing {} to table {} with summary: {}", description, table.name(), summary);
+    LOG.info(
+        "Committing {} to table: {}, checkpointId: {} with summary: {}",
+        description,
+        table.name(),
+        checkpointId,
+        summary);
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
@@ -372,9 +382,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     operation.commit(); // abort is automatically called if this fails.
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
-        "Committed {} to table {} in {} ms with summary: {}",
+        "Committed {} to table: {}, checkpointId {} in {} ms with summary: {}",
         description,
         table.name(),
+        checkpointId,
         durationMs,
         summary);
     committerMetrics.commitDuration(durationMs);
