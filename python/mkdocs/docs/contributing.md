@@ -73,7 +73,7 @@ For Python, `pytest` is used a testing framework in combination with `coverage` 
 make test
 ```
 
-By default, S3 and ADLFS tests are ignored because that require minio and azurite to be running.  
+By default, S3 and ADLFS tests are ignored because that require minio and azurite to be running.
 To run the S3 suite:
 
 ```bash
