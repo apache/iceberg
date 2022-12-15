@@ -35,7 +35,7 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
-from pyiceberg.typedef import StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -247,6 +247,11 @@ class Schema(IcebergBaseModel):
             raise ValueError(f"Could not find column: {e}") from e
 
         return prune_columns(self, ids)
+
+    @property
+    def field_ids(self) -> Set[int]:
+        """Returns the IDs of the current schema"""
+        return set(self._name_to_id.values())
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -727,9 +732,12 @@ def index_by_name(schema_or_type: Union[Schema, IcebergType]) -> Dict[str, int]:
     Returns:
         Dict[str, int]: An index of field names to field IDs
     """
-    indexer = _IndexByName()
-    visit(schema_or_type, indexer)
-    return indexer.by_name()
+    if len(schema_or_type.fields) > 0:
+        indexer = _IndexByName()
+        visit(schema_or_type, indexer)
+        return indexer.by_name()
+    else:
+        return EMPTY_DICT
 
 
 def index_name_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, str]:

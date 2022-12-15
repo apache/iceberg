@@ -222,5 +222,9 @@ ignore_missing_imports = true
 module = "pyparsing.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "numpy.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ['pyiceberg/']

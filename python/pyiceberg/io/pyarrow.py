@@ -25,8 +25,10 @@ with the pyarrow library.
 import os
 from functools import lru_cache
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
+    Iterable,
     List,
     Set,
     Tuple,
@@ -36,6 +38,8 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import pyarrow.compute as pc
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -44,8 +48,13 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
-from pyiceberg.expressions import BooleanExpression, BoundTerm, Literal
-from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor
+from pyiceberg.expressions import (
+    AlwaysTrue,
+    BooleanExpression,
+    BoundTerm,
+    Literal,
+)
+from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor, bind, project_expression
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
@@ -54,7 +63,13 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType, visit
+from pyiceberg.schema import (
+    Schema,
+    SchemaVisitor,
+    SchemaVisitorPerPrimitiveType,
+    prune_columns,
+    visit,
+)
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -79,6 +94,11 @@ from pyiceberg.types import (
     UUIDType,
 )
 from pyiceberg.utils.singleton import Singleton
+
+if TYPE_CHECKING:
+    from pyiceberg.table import FileScanTask, Table
+
+ICEBERG_SCHEMA = b"iceberg.schema"
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -287,7 +307,7 @@ class PyArrowFileIO(FileIO):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
 
 
-def schema_to_pyarrow(schema: Schema) -> pa.schema:
+def schema_to_pyarrow(schema: Union[Schema, IcebergType]) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
@@ -437,3 +457,103 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
 
 def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
+
+
+class _ConstructFinalSchema(SchemaVisitor[pa.ChunkedArray]):
+    file_schema: Schema
+    table: pa.Table
+
+    def __init__(self, file_schema: Schema, table: pa.Table):
+        self.file_schema = file_schema
+        self.table = table
+
+    def schema(self, schema: Schema, struct_result: List[pa.ChunkedArray]) -> pa.Table:
+        return pa.table(struct_result, schema=schema_to_pyarrow(schema))
+
+    def struct(self, _: StructType, field_results: List[pa.ChunkedArray]) -> List[pa.ChunkedArray]:
+        return field_results
+
+    def field(self, field: NestedField, _: pa.ChunkedArray) -> pa.ChunkedArray:
+        column_name = self.file_schema.find_column_name(field.field_id)
+
+        if column_name:
+            column_idx = self.table.schema.get_field_index(column_name)
+        else:
+            column_idx = -1
+
+        expected_arrow_type = schema_to_pyarrow(field.field_type)
+
+        # The idx will be -1 when the column can't be found
+        if column_idx >= 0:
+            column_field: pa.Field = self.table.schema[column_idx]
+            column_arrow_type: pa.DataType = column_field.type
+            column_data: pa.ChunkedArray = self.table[column_idx]
+
+            # In case of schema evolution
+            if column_arrow_type != expected_arrow_type:
+                column_data = column_data.cast(expected_arrow_type)
+        else:
+            import numpy as np
+
+            column_data = pa.array(np.full(shape=len(self.table), fill_value=None), type=expected_arrow_type)
+        return column_data
+
+    def list(self, _: ListType, element_result: pa.ChunkedArray) -> pa.ChunkedArray:
+        pass
+
+    def map(self, _: MapType, key_result: pa.ChunkedArray, value_result: pa.ChunkedArray) -> pa.DataType:
+        pass
+
+    def primitive(self, primitive: PrimitiveType) -> pa.ChunkedArray:
+        pass
+
+
+def to_final_schema(final_schema: Schema, schema: Schema, table: pa.Table) -> pa.Table:
+    return visit(final_schema, _ConstructFinalSchema(schema, table))
+
+
+def project_table(
+    files: Iterable["FileScanTask"], table: "Table", row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
+) -> pa.Table:
+    if isinstance(table.io, PyArrowFileIO):
+        scheme, path = PyArrowFileIO.parse_location(table.location())
+        fs = table.io.get_fs(scheme)
+    else:
+        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+
+    projected_field_ids = projected_schema.field_ids
+
+    tables = []
+    for task in files:
+        _, path = PyArrowFileIO.parse_location(task.file.file_path)
+
+        # Get the schema
+        with fs.open_input_file(path) as fout:
+            parquet_schema = pq.read_schema(fout)
+            schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
+            file_schema = Schema.parse_raw(schema_raw)
+
+        file_project_schema = prune_columns(file_schema, projected_field_ids)
+
+        pyarrow_filter = None
+        if row_filter is not AlwaysTrue():
+            row_filter = project_expression(row_filter, table.schema(), file_schema, case_sensitive=case_sensitive)
+            bound_row_filter = bind(file_schema, row_filter, case_sensitive=case_sensitive)
+            pyarrow_filter = expression_to_pyarrow(bound_row_filter)
+
+        if file_schema is None:
+            raise ValueError(f"Iceberg schema not encoded in Parquet file: {path}")
+
+        # Prune the stuff that we don't need anyway
+        file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
+
+        arrow_table = ds.dataset(
+            source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
+        ).to_table(filter=pyarrow_filter)
+
+        tables.append(to_final_schema(table.schema(), file_schema, arrow_table))
+
+    if len(tables) > 1:
+        return pa.concat_tables(tables)
+    else:
+        return tables[0]
