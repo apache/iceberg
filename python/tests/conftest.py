@@ -85,6 +85,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
     )
     # ADLFS options
+    # Azurite provides default account name and key.  Those can be customized using env variables.
+    # For more information, see README file at https://github.com/azure/azurite#default-storage-account
     parser.addoption(
         "--adlfs.endpoint",
         action="store",
