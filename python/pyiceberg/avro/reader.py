@@ -104,15 +104,21 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> N
         block_count = decoder.read_int()
 
 
-@dataclass(frozen=True)
 class AvroStruct(StructProtocol):
-    _data: List[Union[Any, StructProtocol]] = dataclassfield()
+    _data: List[Union[Any, StructProtocol]]
+
+    def __init__(self, data: Optional[List[Union[Any, StructProtocol]]] = None) -> None:
+        self._data = data or []
 
     def set(self, pos: int, value: Any) -> None:
         self._data[pos] = value
 
     def get(self, pos: int) -> Any:
         return self._data[pos]
+
+    def __eq__(self, other: Any) -> bool:
+        # For testing
+        return True if isinstance(other, AvroStruct) and other._data == self._data else False
 
 
 class Reader(Singleton):

@@ -36,6 +36,7 @@ from pyiceberg.avro.reader import (
     TimestamptzReader,
     primitive_reader,
 )
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import _convert_pos_to_dict
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
@@ -58,11 +59,10 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
-from tests.io.test_io import LocalInputFile
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
         header = reader._read_header()
 
     assert header.magic == b"Obj\x01"
@@ -255,20 +255,20 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
 
 
 def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
         # Consume the generator
         records = list(reader)
 
     assert len(records) == 2, f"Expected 2 records, got {len(records)}"
     assert records[0] == AvroStruct(
-        _data=[
+        data=[
             1,
             8744736658442914487,
             AvroStruct(
-                _data=[
+                data=[
                     "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
                     "PARQUET",
-                    AvroStruct(_data=[None]),
+                    AvroStruct(data=[None]),
                     19513,
                     388872,
                     67108864,
@@ -376,14 +376,14 @@ def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
 
 
 def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_file_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_file_file)) as reader:
         # Consume the generator
         records = list(reader)
 
     assert len(records) == 1, f"Expected 1 records, got {len(records)}"
     actual = records[0]
     expected = AvroStruct(
-        _data=[
+        data=[
             actual.get(0),
             7989,
             0,
@@ -391,7 +391,7 @@ def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
             3,
             0,
             0,
-            [AvroStruct(_data=[True, False, b"\x01\x00\x00\x00", b"\x02\x00\x00\x00"])],
+            [AvroStruct(data=[True, False, b"\x01\x00\x00\x00", b"\x02\x00\x00\x00"])],
             237993,
             0,
             0,

@@ -79,29 +79,6 @@ from pyiceberg.types import (
     PrimitiveType,
     StringType,
 )
-from pyiceberg.utils.singleton import Singleton
-
-
-class ExpressionA(BooleanExpression, Singleton):
-    def __invert__(self) -> BooleanExpression:
-        return ExpressionB()
-
-    def __repr__(self) -> str:
-        return "ExpressionA()"
-
-    def __str__(self) -> str:
-        return "testexpra"
-
-
-class ExpressionB(BooleanExpression, Singleton):
-    def __invert__(self) -> BooleanExpression:
-        return ExpressionA()
-
-    def __repr__(self) -> str:
-        return "ExpressionB()"
-
-    def __str__(self) -> str:
-        return "testexprb"
 
 
 class ExampleVisitor(BooleanExpressionVisitor[List[str]]):
@@ -135,32 +112,12 @@ class ExampleVisitor(BooleanExpressionVisitor[List[str]]):
         return self.visit_history
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[Any]) -> List[str]:
-        self.visit_history.append("UNBOUND PREDICATE")
+        self.visit_history.append(str(predicate.__class__.__name__).upper())
         return self.visit_history
 
     def visit_bound_predicate(self, predicate: BoundPredicate[Any]) -> List[str]:
-        self.visit_history.append("BOUND PREDICATE")
+        self.visit_history.append(str(predicate.__class__.__name__).upper())
         return self.visit_history
-
-    def visit_test_expression_a(self) -> List[str]:
-        self.visit_history.append("ExpressionA")
-        return self.visit_history
-
-    def visit_test_expression_b(self) -> List[str]:
-        self.visit_history.append("ExpressionB")
-        return self.visit_history
-
-
-@visit.register(ExpressionA)
-def _(obj: ExpressionA, visitor: ExampleVisitor) -> List[str]:
-    """Visit a ExpressionA with a BooleanExpressionVisitor"""
-    return visitor.visit_test_expression_a()
-
-
-@visit.register(ExpressionB)
-def _(obj: ExpressionB, visitor: ExampleVisitor) -> List[str]:
-    """Visit a ExpressionB with a BooleanExpressionVisitor"""
-    return visitor.visit_test_expression_b()
 
 
 class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]]):
@@ -250,26 +207,26 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
 def test_boolean_expression_visitor() -> None:
     """Test post-order traversal of boolean expression visit method"""
     expr = And(
-        Or(Not(ExpressionA()), Not(ExpressionB()), ExpressionA(), ExpressionB()),
-        Not(ExpressionA()),
-        ExpressionB(),
+        Or(Not(EqualTo("a", 1)), Not(NotEqualTo("b", 0)), EqualTo("a", 1), NotEqualTo("b", 0)),
+        Not(EqualTo("a", 1)),
+        NotEqualTo("b", 0),
     )
     visitor = ExampleVisitor()
     result = visit(expr, visitor=visitor)
     assert result == [
-        "ExpressionA",
+        "EQUALTO",
         "NOT",
-        "ExpressionB",
+        "NOTEQUALTO",
         "NOT",
         "OR",
-        "ExpressionA",
+        "EQUALTO",
         "OR",
-        "ExpressionB",
+        "NOTEQUALTO",
         "OR",
-        "ExpressionA",
+        "EQUALTO",
         "NOT",
         "AND",
-        "ExpressionB",
+        "NOTEQUALTO",
         "AND",
     ]
 
