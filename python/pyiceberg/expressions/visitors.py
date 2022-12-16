@@ -39,19 +39,18 @@ from pyiceberg.expressions import (
     BoundIsNull,
     BoundLessThan,
     BoundLessThanOrEqual,
+    BoundLiteralPredicate,
     BoundNotEqualTo,
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
     BoundPredicate,
+    BoundSetPredicate,
     BoundTerm,
+    BoundUnaryPredicate,
     L,
-    LiteralPredicate,
     Not,
     Or,
-    Reference,
-    SetPredicate,
-    UnaryPredicate,
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal
@@ -759,8 +758,8 @@ def inclusive_projection(
     return InclusiveProjection(schema, spec, case_sensitive).project
 
 
-class _ExpressionProjector(BooleanExpressionVisitor[BooleanExpression]):
-    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
+class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
+    """Converts the column names with the ones in the actual file
 
     Args:
       table_schema (Schema): The schema of the table
@@ -768,15 +767,14 @@ class _ExpressionProjector(BooleanExpressionVisitor[BooleanExpression]):
       case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
 
     Raises:
-        TypeError: In the case a predicate is already bound
+        TypeError: In the case of an UnboundPredicate
+        ValueError: When a column name cannot be found
     """
 
-    table_schema: Schema
     file_schema: Schema
     case_sensitive: bool
 
-    def __init__(self, table_schema: Schema, file_schema: Schema, case_sensitive: bool) -> None:
-        self.table_schema = table_schema
+    def __init__(self, file_schema: Schema, case_sensitive: bool) -> None:
         self.file_schema = file_schema
         self.case_sensitive = case_sensitive
 
@@ -796,29 +794,23 @@ class _ExpressionProjector(BooleanExpressionVisitor[BooleanExpression]):
         return Or(left=left_result, right=right_result)
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
-        if not isinstance(predicate.term, Reference):
-            raise ValueError(f"Exprected reference: {predicate.term}")
+        raise TypeError(f"Expected Bound Predicate, got: {predicate.term}")
 
-        field = self.table_schema.find_field(predicate.term.name, case_sensitive=self.case_sensitive)
-        file_column_name = self.file_schema.find_column_name(field.field_id)
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
+        file_column_name = self.file_schema.find_column_name(predicate.term.ref().field.field_id)
 
         if not file_column_name:
             raise ValueError(f"Not found in schema: {file_column_name}")
 
-        if isinstance(predicate, UnaryPredicate):
-            return predicate.__class__(Reference(file_column_name))
-        elif isinstance(predicate, LiteralPredicate):
-            return predicate.__class__(Reference(file_column_name), predicate.literal)
-        elif isinstance(predicate, SetPredicate):
-            return predicate.__class__(Reference(file_column_name), predicate.literals)
+        if isinstance(predicate, BoundUnaryPredicate):
+            return predicate.as_unbound(file_column_name)
+        elif isinstance(predicate, BoundLiteralPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literal)
+        elif isinstance(predicate, BoundSetPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literals)
         else:
             raise ValueError(f"Unknown predicate: {predicate}")
 
-    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
-        raise ValueError(f"Did not expect bound predicate: {predicate}")
 
-
-def project_expression(
-    expr: BooleanExpression, table_schema: Schema, file_schema: Schema, case_sensitive: bool
-) -> BooleanExpression:
-    return visit(expr, _ExpressionProjector(table_schema, file_schema, case_sensitive))
+def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_sensitive: bool) -> BooleanExpression:
+    return visit(expr, _ColumnNameTranslator(file_schema, case_sensitive))

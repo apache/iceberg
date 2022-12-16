@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-outer-name
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -54,7 +55,7 @@ from pyiceberg.expressions import (
     BoundTerm,
     Literal,
 )
-from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor, bind, project_expression
+from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor, bind, translate_column_names
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
@@ -522,6 +523,7 @@ def project_table(
         raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
 
     projected_field_ids = projected_schema.field_ids
+    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
     tables = []
     for task in files:
@@ -537,12 +539,12 @@ def project_table(
 
         pyarrow_filter = None
         if row_filter is not AlwaysTrue():
-            row_filter = project_expression(row_filter, table.schema(), file_schema, case_sensitive=case_sensitive)
+            row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
             bound_row_filter = bind(file_schema, row_filter, case_sensitive=case_sensitive)
             pyarrow_filter = expression_to_pyarrow(bound_row_filter)
 
         if file_schema is None:
-            raise ValueError(f"Iceberg schema not encoded in Parquet file: {path}")
+            raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
         # Prune the stuff that we don't need anyway
         file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
