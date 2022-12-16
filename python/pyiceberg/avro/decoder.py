@@ -18,6 +18,7 @@ import decimal
 import struct
 from datetime import date, datetime, time
 from io import SEEK_CUR
+from uuid import UUID
 
 from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import (
@@ -135,6 +136,10 @@ class BinaryDecoder:
         the unix epoch, 1 January 1970 (ISO calendar).
         """
         return days_to_date(self.read_int())
+
+    def read_uuid_from_fixed(self) -> UUID:
+        """Reads a UUID as a fixed[16]"""
+        return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
         """
