@@ -28,9 +28,9 @@ from typing import (
 from pydantic import Field
 
 from pyiceberg.avro.file import AvroFile
-from pyiceberg.typedef import Record
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     IcebergType,
     ListType,

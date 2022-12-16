@@ -35,10 +35,10 @@ from pyiceberg.avro.reader import (
     TimestamptzReader,
     primitive_reader,
 )
-from pyiceberg.typedef import Record
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import _convert_pos_to_dict
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -92,14 +92,11 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [
-                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]}],
+                                "fields": [{"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]}],
                             },
                         },
-                        {"field-id": 103, "doc": "Number of records in the file", "name": "record_count",
-                         "type": "long"},
-                        {"field-id": 104, "doc": "Total file size in bytes", "name": "file_size_in_bytes",
-                         "type": "long"},
+                        {"field-id": 103, "doc": "Number of records in the file", "name": "record_count", "type": "long"},
+                        {"field-id": 104, "doc": "Total file size in bytes", "name": "file_size_in_bytes", "type": "long"},
                         {"field-id": 105, "name": "block_size_in_bytes", "type": "long"},
                         {
                             "field-id": 108,
@@ -369,7 +366,7 @@ def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
             },
             None,
             [4],
-            0
+            0,
         ),
     )
 
@@ -400,8 +397,7 @@ def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
 def test_null_list_convert_pos_to_dict() -> None:
     data = _convert_pos_to_dict(
         Schema(
-            NestedField(name="field", field_id=1,
-                        field_type=ListType(element_id=2, element=StringType(), element_required=False))
+            NestedField(name="field", field_id=1, field_type=ListType(element_id=2, element=StringType(), element_required=False))
         ),
         Record(None),
     )
@@ -414,8 +410,7 @@ def test_null_dict_convert_pos_to_dict() -> None:
             NestedField(
                 name="field",
                 field_id=1,
-                field_type=MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(),
-                                   value_required=False),
+                field_type=MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=False),
             )
         ),
         Record(None),
@@ -430,8 +425,7 @@ def test_null_struct_convert_pos_to_dict() -> None:
                 name="field",
                 field_id=1,
                 field_type=StructType(
-                    NestedField(2, "required_field", StringType(), True),
-                    NestedField(3, "optional_field", IntegerType())
+                    NestedField(2, "required_field", StringType(), True), NestedField(3, "optional_field", IntegerType())
                 ),
                 required=False,
             )

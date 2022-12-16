@@ -23,7 +23,6 @@ from typing import Any
 import pytest
 from typing_extensions import assert_type
 
-from pyiceberg.typedef import Record
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -62,6 +61,7 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.literals import Literal, literal
 from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     FloatType,

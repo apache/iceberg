@@ -44,7 +44,7 @@ from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.schema import Schema, SchemaVisitor
-from pyiceberg.typedef import StructProtocol, Record
+from pyiceberg.typedef import Record, StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,

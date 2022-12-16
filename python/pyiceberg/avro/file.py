@@ -29,11 +29,11 @@ from typing import Optional, Type
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.reader import ConstructReader, Reader
-from pyiceberg.typedef import Record
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema, visit
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     FixedType,
     MapType,

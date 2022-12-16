@@ -22,11 +22,12 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Protocol,
     Tuple,
     TypeVar,
     Union,
-    runtime_checkable, List,
+    runtime_checkable,
 )
 from uuid import UUID
 

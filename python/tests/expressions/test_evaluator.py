@@ -43,7 +43,6 @@ from pyiceberg.types import (
     StringType,
 )
 
-
 SIMPLE_SCHEMA = Schema(
     NestedField(id=1, name="id", field_type=LongType()), NestedField(id=2, name="data", field_type=StringType(), required=False)
 )
