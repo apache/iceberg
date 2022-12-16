@@ -116,13 +116,13 @@ public class TestChangelogIterator {
     }
   }
 
-  private void permute(List<RowType> arr, int k, List<Object[]> pm) {
-    for (int i = k; i < arr.size(); i++) {
-      Collections.swap(arr, i, k);
-      permute(arr, k + 1, pm);
-      Collections.swap(arr, k, i);
+  private void permute(List<RowType> arr, int start, List<Object[]> pm) {
+    for (int i = start; i < arr.size(); i++) {
+      Collections.swap(arr, i, start);
+      permute(arr, start + 1, pm);
+      Collections.swap(arr, start, i);
     }
-    if (k == arr.size() - 1) {
+    if (start == arr.size() - 1) {
       pm.add(arr.toArray());
     }
   }
