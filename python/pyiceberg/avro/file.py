@@ -28,7 +28,8 @@ from typing import Optional, Type
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.reader import AvroStruct, ConstructReader, Reader
+from pyiceberg.avro.reader import ConstructReader, Reader
+from pyiceberg.typedef import Record
 from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
@@ -101,7 +102,7 @@ class Block:
     def has_next(self) -> bool:
         return self.position < self.block_records
 
-    def __next__(self) -> AvroStruct:
+    def __next__(self) -> Record:
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
@@ -168,7 +169,7 @@ class AvroFile:
         )
         return block_records
 
-    def __next__(self) -> AvroStruct:
+    def __next__(self) -> Record:
         if self.block and self.block.has_next():
             return next(self.block)
 

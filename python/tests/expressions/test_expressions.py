@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 from typing_extensions import assert_type
 
-from pyiceberg.avro.reader import AvroStruct
+from pyiceberg.typedef import Record
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -605,7 +605,7 @@ def test_invert_always() -> None:
 def test_accessor_base_class() -> None:
     """Test retrieving a value at a position of a container using an accessor"""
 
-    struct = AvroStruct([None] * 12)
+    struct = Record(*([None] * 12))
 
     uuid_value = uuid.uuid4()
 
@@ -902,7 +902,7 @@ def test_less_than_or_equal() -> None:
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-    struct = AvroStruct([None] * 4)
+    struct = Record(None, None, None, None)
 
     struct.set(pos=1, value="foovalue")
     struct.set(pos=2, value=123)

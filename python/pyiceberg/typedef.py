@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from abc import abstractmethod
 from decimal import Decimal
 from typing import (
@@ -24,7 +26,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    runtime_checkable,
+    runtime_checkable, List, Optional,
 )
 from uuid import UUID
 
@@ -78,3 +80,20 @@ class StructProtocol(Protocol):  # pragma: no cover
     @abstractmethod
     def set(self, pos: int, value: Any) -> None:
         ...
+
+
+class Record(StructProtocol):
+    _data: List[Union[Any, StructProtocol]]
+
+    def __init__(self, *data: Union[Any, StructProtocol]) -> None:
+        self._data = list(data)
+
+    def set(self, pos: int, value: Any) -> None:
+        self._data[pos] = value
+
+    def get(self, pos: int) -> Any:
+        return self._data[pos]
+
+    def __eq__(self, other: Any) -> bool:
+        # For testing
+        return True if isinstance(other, Record) and other._data == self._data else False

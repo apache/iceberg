@@ -44,7 +44,7 @@ from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.schema import Schema, SchemaVisitor
-from pyiceberg.typedef import StructProtocol
+from pyiceberg.typedef import StructProtocol, Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -102,23 +102,6 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> N
             for _ in range(block_count):
                 skip_entry()
         block_count = decoder.read_int()
-
-
-class AvroStruct(StructProtocol):
-    _data: List[Union[Any, StructProtocol]]
-
-    def __init__(self, data: Optional[List[Union[Any, StructProtocol]]] = None) -> None:
-        self._data = data or []
-
-    def set(self, pos: int, value: Any) -> None:
-        self._data[pos] = value
-
-    def get(self, pos: int) -> Any:
-        return self._data[pos]
-
-    def __eq__(self, other: Any) -> bool:
-        # For testing
-        return True if isinstance(other, AvroStruct) and other._data == self._data else False
 
 
 class Reader(Singleton):
@@ -282,7 +265,7 @@ class OptionReader(Reader):
 class StructReader(Reader):
     fields: Tuple[Tuple[Optional[int], Reader], ...] = dataclassfield()
 
-    def read(self, decoder: BinaryDecoder) -> AvroStruct:
+    def read(self, decoder: BinaryDecoder) -> Record:
         result: List[Union[Any, StructProtocol]] = [None] * len(self.fields)
         for (pos, field) in self.fields:
             if pos is not None:
@@ -290,7 +273,7 @@ class StructReader(Reader):
             else:
                 field.skip(decoder)
 
-        return AvroStruct(result)
+        return Record(*result)
 
     def skip(self, decoder: BinaryDecoder) -> None:
         for _, field in self.fields:
