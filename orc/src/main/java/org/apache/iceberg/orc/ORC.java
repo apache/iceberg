@@ -779,15 +779,6 @@ public class ORC {
     }
   }
 
-  @Deprecated
-  static Reader newFileReader(String location, ReaderOptions readerOptions) {
-    try {
-      return OrcFile.createReader(new Path(location), readerOptions);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
-    }
-  }
-
   static Reader newFileReader(InputFile file, Configuration config) {
     ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
     if (file instanceof HadoopInputFile) {

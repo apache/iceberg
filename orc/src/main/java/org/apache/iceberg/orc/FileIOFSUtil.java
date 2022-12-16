@@ -34,7 +34,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class FileIOFSUtil {
+class FileIOFSUtil {
   private FileIOFSUtil() {}
 
   private static class NullFileSystem extends FileSystem {
