@@ -131,16 +131,16 @@ public class TestChangelogIterator {
   public void testRowsWithNullValue() {
     final List<Row> rowsWithNull =
         Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {2, null, null, "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {3, null, null, "INSERT"}, null),
-            new GenericRowWithSchema(new Object[] {4, null, null, "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {4, null, null, "INSERT"}, null),
+            new GenericRowWithSchema(new Object[] {2, null, null, DELETE}, null),
+            new GenericRowWithSchema(new Object[] {3, null, null, INSERT}, null),
+            new GenericRowWithSchema(new Object[] {4, null, null, DELETE}, null),
+            new GenericRowWithSchema(new Object[] {4, null, null, INSERT}, null),
             // mixed null and non-null value in non-identifier columns
-            new GenericRowWithSchema(new Object[] {5, null, null, "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {5, null, "data", "INSERT"}, null),
+            new GenericRowWithSchema(new Object[] {5, null, null, DELETE}, null),
+            new GenericRowWithSchema(new Object[] {5, null, "data", INSERT}, null),
             // mixed null and non-null value in identifier columns
-            new GenericRowWithSchema(new Object[] {6, null, null, "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {6, "name", null, "INSERT"}, null));
+            new GenericRowWithSchema(new Object[] {6, null, null, DELETE}, null),
+            new GenericRowWithSchema(new Object[] {6, "name", null, INSERT}, null));
 
     Iterator<Row> iterator =
         ChangelogIterator.iterator(rowsWithNull.iterator(), 3, Lists.newArrayList(0, 1));
@@ -163,17 +163,17 @@ public class TestChangelogIterator {
     List<Row> rowsWithDuplication =
         Lists.newArrayList(
             // next two rows are identical
-            new GenericRowWithSchema(new Object[] {1, "a", "data", "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "data", "DELETE"}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE}, null),
             // next two rows are identical
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data", "INSERT"}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data", "INSERT"}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT}, null),
             // next two rows are identical
-            new GenericRowWithSchema(new Object[] {4, "d", "data", "DELETE"}, null),
-            new GenericRowWithSchema(new Object[] {4, "d", "data", "DELETE"}, null),
+            new GenericRowWithSchema(new Object[] {4, "d", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {4, "d", "data", DELETE}, null),
             // next two rows are identical
-            new GenericRowWithSchema(new Object[] {4, "d", "data", "INSERT"}, null),
-            new GenericRowWithSchema(new Object[] {4, "d", "data", "INSERT"}, null));
+            new GenericRowWithSchema(new Object[] {4, "d", "data", INSERT}, null),
+            new GenericRowWithSchema(new Object[] {4, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
         ChangelogIterator.iterator(rowsWithDuplication.iterator(), changeTypeIndex, partitionIdx);
