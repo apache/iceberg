@@ -21,21 +21,24 @@ package org.apache.iceberg.spark;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 
 /**
- * An iterator that transforms rows from changelog tables within a single Spark task.
+ * An iterator that transforms rows from changelog tables within a single Spark task. It assumes
+ * that rows are sorted by identifier columns and change type.
  *
- * <p>It marks the carry-over rows to null to for filtering out later. Carry-over rows are unchanged
- * rows in a snapshot but showed as delete-rows and insert-rows in a changelog table due to the
- * copy-on-write(COW) mechanism. For example, there are row1 (id=1, data='a') and row2 (id=2,
- * data='b') in a data file, if we only delete row2, the COW will copy row1 to a new data file and
- * delete the whole old data file. The changelog table will have two delete-rows(row1 and row2), and
- * one insert-row(row1). Row1 is a carry-over row.
+ * <p>It removes the carry-over rows. Carry-over rows are unchanged rows in a snapshot but showed as
+ * delete-rows and insert-rows in a changelog table due to the copy-on-write(COW) mechanism. For
+ * example, there are row1 (id=1, data='a') and row2 (id=2, data='b') in a data file, if we only
+ * delete row2, the COW will copy row1 to a new data file and delete the whole old data file. The
+ * changelog table will have two delete-rows(row1 and row2), and one insert-row(row1). Row1 is a
+ * carry-over row.
  *
  * <p>The iterator marks the delete-row and insert-row to be the update-rows. For example, these two
  * rows
@@ -45,7 +48,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
  *   <li>(id=1, data='b', op='INSERT')
  * </ul>
  *
- * will be marked as update-rows:
+ * <p>will be marked as update-rows:
  *
  * <ul>
  *   <li>(id=1, data='a', op='UPDATE_BEFORE')
@@ -64,11 +67,18 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
 
   private Row cachedRow = null;
 
-  public ChangelogIterator(
+  private ChangelogIterator(
       Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> partitionIdx) {
     this.rowIterator = rowIterator;
     this.changeTypeIndex = changeTypeIndex;
     this.partitionIdx = partitionIdx;
+  }
+
+  public static Iterator<Row> iterator(
+      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> partitionIdx) {
+    ChangelogIterator changelogIterator =
+        new ChangelogIterator(rowIterator, changeTypeIndex, partitionIdx);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
   @Override
@@ -82,7 +92,7 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   @Override
   public Row next() {
     // if there is an updated cached row, return it directly
-    if (updated(cachedRow)) {
+    if (cachedUpdateRecord(cachedRow)) {
       Row row = cachedRow;
       cachedRow = null;
       return row;
@@ -94,42 +104,51 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
       GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
       cachedRow = nextRow;
 
-      if (updateOrCarryoverRecord(currentRow, nextRow)) {
-        Row[] rows = update((GenericRowWithSchema) currentRow, nextRow);
-
-        currentRow = rows[0];
-        cachedRow = rows[1];
+      if (isUpdateOrCarryoverRecord(currentRow, nextRow)) {
+        if (isCarryoverRecord(currentRow, nextRow)) {
+          // set carry-over rows to null for filtering out later
+          currentRow = null;
+          cachedRow = null;
+        } else {
+          Row[] rows = createUpdateChangelog((GenericRowWithSchema) currentRow, nextRow);
+          currentRow = rows[0];
+          cachedRow = rows[1];
+        }
       }
     }
 
     return currentRow;
   }
 
-  private Row[] update(GenericRowWithSchema currentRow, GenericRowWithSchema nextRow) {
+  private Row[] createUpdateChangelog(
+      GenericRowWithSchema currentRow, GenericRowWithSchema nextRow) {
     GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
     GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
 
-    if (isCarryoverRecord(deletedRow, insertedRow)) {
-      // set carry-over rows to null for filtering out later
-      return new Row[] {null, null};
-    } else {
-      deletedRow.update(changeTypeIndex, UPDATE_BEFORE);
-      insertedRow.update(changeTypeIndex, UPDATE_AFTER);
+    deletedRow.update(changeTypeIndex, UPDATE_BEFORE);
+    insertedRow.update(changeTypeIndex, UPDATE_AFTER);
 
-      return new Row[] {
-        RowFactory.create(deletedRow.values()), RowFactory.create(insertedRow.values())
-      };
+    return new Row[] {
+      RowFactory.create(deletedRow.values()), RowFactory.create(insertedRow.values())
+    };
+  }
+
+  private boolean isCarryoverRecord(Row currentRow, Row nextRow) {
+    int length = currentRow.length();
+    for (int i = 0; i < length; i++) {
+      if (i == changeTypeIndex) {
+        continue;
+      }
+
+      if (!isColumnSame(currentRow, nextRow, i)) {
+        return false;
+      }
     }
+
+    return true;
   }
 
-  private boolean isCarryoverRecord(GenericInternalRow deletedRow, GenericInternalRow insertedRow) {
-    // set the change_type to the same value
-    deletedRow.update(changeTypeIndex, "");
-    insertedRow.update(changeTypeIndex, "");
-    return deletedRow.equals(insertedRow);
-  }
-
-  private boolean updated(Row cachedRow) {
+  private boolean cachedUpdateRecord(Row cachedRow) {
     return cachedRow != null
         && !cachedRow.getString(changeTypeIndex).equals(DELETE)
         && !cachedRow.getString(changeTypeIndex).equals(INSERT);
@@ -145,18 +164,32 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     }
   }
 
-  private boolean updateOrCarryoverRecord(Row currentRow, Row nextRow) {
-    return withinPartition(currentRow, nextRow)
+  private boolean isUpdateOrCarryoverRecord(Row currentRow, Row nextRow) {
+    return sameLogicalRow(currentRow, nextRow)
         && currentRow.getString(changeTypeIndex).equals(DELETE)
         && nextRow.getString(changeTypeIndex).equals(INSERT);
   }
 
-  private boolean withinPartition(Row currentRow, Row nextRow) {
+  private boolean sameLogicalRow(Row currentRow, Row nextRow) {
     for (int idx : partitionIdx) {
-      if (!nextRow.get(idx).equals(currentRow.get(idx))) {
+      if (!isColumnSame(currentRow, nextRow, idx)) {
         return false;
       }
     }
     return true;
+  }
+
+  private static boolean isColumnSame(Row currentRow, Row nextRow, int idx) {
+    if (currentRow.isNullAt(idx) && nextRow.isNullAt(idx)) {
+      return true;
+    }
+
+    if (!currentRow.isNullAt(idx)
+        && !nextRow.isNullAt(idx)
+        && nextRow.get(idx).equals(currentRow.get(idx))) {
+      return true;
+    }
+
+    return false;
   }
 }
