@@ -697,6 +697,10 @@ project(':iceberg-dell') {
 }
 
 project(':iceberg-snowflake') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
