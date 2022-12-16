@@ -24,6 +24,7 @@ from pyiceberg.avro.reader import (
     AvroStruct,
     BinaryReader,
     BooleanReader,
+    ConstructReader,
     DateReader,
     DecimalReader,
     DoubleReader,
@@ -35,7 +36,6 @@ from pyiceberg.avro.reader import (
     TimestampReader,
     TimestamptzReader,
     UUIDReader,
-    ConstructReader,
 )
 from pyiceberg.manifest import _convert_pos_to_dict
 from pyiceberg.schema import Schema, visit

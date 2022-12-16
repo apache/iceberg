@@ -22,7 +22,15 @@ from typing import (
     Union,
 )
 
-from pyiceberg.avro.reader import ConstructReader, ListReader, MapReader, NoneReader, OptionReader, Reader, StructReader
+from pyiceberg.avro.reader import (
+    ConstructReader,
+    ListReader,
+    MapReader,
+    NoneReader,
+    OptionReader,
+    Reader,
+    StructReader,
+)
 from pyiceberg.schema import Schema, visit
 from pyiceberg.types import (
     BinaryType,
@@ -154,7 +162,7 @@ def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
 def _(file_type: FloatType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, DoubleType):
         # We should just read the float, and return it, since it both returns a float
-        return visit(read_type, ConstructReader())
+        return visit(file_type, ConstructReader())
     else:
         raise ResolveException(f"Cannot promote an float to {read_type}")
 
