@@ -26,6 +26,7 @@ import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType
 
+from pyiceberg.avro.resolver import ResolveException
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -588,10 +589,44 @@ def schema_int() -> Schema:
 
 
 @pytest.fixture
+def schema_str() -> Schema:
+    return Schema(NestedField(2, "data", IntegerType()), schema_id=1)
+
+
+@pytest.fixture
+def schema_long() -> Schema:
+    return Schema(NestedField(3, "id", LongType()), schema_id=1)
+
+
+@pytest.fixture
 def table_int(schema_int: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
 
     target_file = f"file:{tmpdir}/a.parquet"
+
+    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
+        writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
+
+    return target_file
+
+
+@pytest.fixture
+def table_str(schema_str: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
+
+    target_file = f"file:{tmpdir}/b.parquet"
+
+    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
+        writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
+
+    return target_file
+
+
+@pytest.fixture
+def table_long(schema_long: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
+
+    target_file = f"file:{tmpdir}/c.parquet"
 
     with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
         writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
@@ -794,6 +829,7 @@ def test_projection_filter(schema_int: Schema, table_int: str) -> None:
 
 
 def test_projection_filter_renamed_column(schema_int: Schema, table_int: str) -> None:
+    """Filter on a renamed column"""
     result_table = project_table(
         [
             FileScanTask(
@@ -827,3 +863,106 @@ def test_projection_filter_renamed_column(schema_int: Schema, table_int: str) ->
     )
     assert len(result_table.columns[0]) == 1  # Just 2
     assert repr(result_table.schema) == "other_id: int32 not null"
+
+
+def test_projection_filter_add_column(schema_int: Schema, table_int: str, table_str: str) -> None:
+    """We have one file that has the column, and the other one doesn't"""
+    result_table = project_table(
+        [
+            FileScanTask(
+                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+            ),
+            FileScanTask(
+                DataFile(file_path=table_str, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+            ),
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/c.parquet",
+                last_column_id=1,
+                format_version=2,
+                schemas=[
+                    Schema(
+                        # Reuses the id 1
+                        NestedField(1, "id", IntegerType())
+                    )
+                ],
+                partition_specs=[PartitionSpec()],
+                current_schema_id=0,
+            ),
+            metadata_location="file://a/b/c.parquet",
+            io=PyArrowFileIO(),
+        ),
+        AlwaysTrue(),
+        Schema(
+            # Reuses the id 1
+            NestedField(1, "id", IntegerType())
+        ),
+        case_sensitive=True,
+    )
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2, None, None, None]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 6
+    assert repr(result_table.schema) == "id: int32 not null"
+
+
+def test_projection_filter_add_column_promote(schema_int: Schema, table_int: str) -> None:
+    """We have one file that has the column, and the other one doesn't"""
+    result_table = project_table(
+        [
+            FileScanTask(
+                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+            ),
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/c.parquet",
+                last_column_id=1,
+                format_version=2,
+                schemas=[Schema(NestedField(1, "id", LongType()))],
+                partition_specs=[PartitionSpec()],
+                current_schema_id=0,
+            ),
+            metadata_location="file://a/b/c.parquet",
+            io=PyArrowFileIO(),
+        ),
+        AlwaysTrue(),
+        Schema(NestedField(1, "id", LongType())),
+        case_sensitive=True,
+    )
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "id: int64 not null"
+
+
+def test_projection_filter_add_column_demote(schema_long: Schema, table_long: str) -> None:
+    with pytest.raises(ResolveException) as exc_info:
+        project_table(
+            [
+                FileScanTask(
+                    DataFile(
+                        file_path=table_long, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                    )
+                ),
+            ],
+            Table(
+                ("namespace", "table"),
+                metadata=TableMetadataV2(
+                    location="file://a/b/c.parquet",
+                    last_column_id=1,
+                    format_version=2,
+                    schemas=[Schema(NestedField(3, "id", IntegerType()))],
+                    partition_specs=[PartitionSpec()],
+                    current_schema_id=0,
+                ),
+                metadata_location="file://a/b/c.parquet",
+                io=PyArrowFileIO(),
+            ),
+            AlwaysTrue(),
+            Schema(NestedField(3, "id", IntegerType())),
+            case_sensitive=True,
+        )
+    assert "Cannot promote long to int" in str(exc_info.value)

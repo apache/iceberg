@@ -49,6 +49,7 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
+from pyiceberg.avro.resolver import promote
 from pyiceberg.expressions import (
     AlwaysTrue,
     BooleanExpression,
@@ -489,9 +490,12 @@ class _ConstructFinalSchema(SchemaVisitor[pa.ChunkedArray]):
             column_field: pa.Field = self.table.schema[column_idx]
             column_arrow_type: pa.DataType = column_field.type
             column_data: pa.ChunkedArray = self.table[column_idx]
+            file_type = self.file_schema.find_type(field.field_id)
 
             # In case of schema evolution
             if column_arrow_type != expected_arrow_type:
+                # To check if the promotion is allowed
+                _ = promote(file_type, field.field_type)
                 column_data = column_data.cast(expected_arrow_type)
         else:
             import numpy as np
@@ -516,6 +520,19 @@ def to_final_schema(final_schema: Schema, schema: Schema, table: pa.Table) -> pa
 def project_table(
     files: Iterable["FileScanTask"], table: "Table", row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
 ) -> pa.Table:
+    """Resolves the right columns based on the identifier
+
+    Args:
+        files(Iterable[FileScanTask]): A URI or a path to a local file
+        table(Table): The table that's being queried
+        row_filter(BooleanExpression): The expression for filtering rows
+        projected_schema(Schema): The output schema
+        case_sensitive(bool): Case sensitivity when looking up column names
+
+    Raises:
+        ResolveException: When an incompatible query is done
+    """
+
     if isinstance(table.io, PyArrowFileIO):
         scheme, path = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
