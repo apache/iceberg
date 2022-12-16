@@ -26,7 +26,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    runtime_checkable, List, Optional,
+    runtime_checkable, List,
 )
 from uuid import UUID
 

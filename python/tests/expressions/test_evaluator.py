@@ -35,7 +35,7 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import expression_evaluator
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import StructProtocol, Record
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     LongType,
