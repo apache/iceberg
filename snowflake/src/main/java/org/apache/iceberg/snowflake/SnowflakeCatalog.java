@@ -199,12 +199,6 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    Preconditions.checkArgument(
-        tableIdentifier.namespace().length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "Snowflake doesn't support more than %s levels of namespace, got %s",
-        SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        tableIdentifier);
-
     return new SnowflakeTableOperations(
         snowflakeClient, fileIO, catalogProperties, catalogName, tableIdentifier);
   }

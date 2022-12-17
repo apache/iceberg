@@ -46,6 +46,11 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> properties,
       String catalogName,
       TableIdentifier tableIdentifier) {
+    Preconditions.checkArgument(
+        tableIdentifier.namespace().length() == SnowflakeResources.MAX_NAMESPACE_DEPTH,
+        "tableIdentifier must be exactly %s levels of namespace, got %s",
+        SnowflakeResources.MAX_NAMESPACE_DEPTH,
+        tableIdentifier);
     this.snowflakeClient = snowflakeClient;
     this.fileIO = fileIO;
     this.catalogProperties = properties;

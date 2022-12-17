@@ -243,6 +243,22 @@ public class SnowflakeCatalogTest {
   }
 
   @Test
+  public void testLoadTableWithMalformedTableIdentifier() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                catalog.loadTable(
+                    TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1", "BAD_NS_LEVEL"), "TAB_1")))
+        .withMessageContaining("levels of namespace")
+        .withMessageContaining("DB_1.SCHEMA_1.BAD_NS_LEVEL.TAB_1");
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () -> catalog.loadTable(TableIdentifier.of(Namespace.of("DB_WITHOUT_SCHEMA"), "TAB_1")))
+        .withMessageContaining("levels of namespace")
+        .withMessageContaining("DB_WITHOUT_SCHEMA.TAB_1");
+  }
+
+  @Test
   public void testCloseBeforeInitialize() throws IOException {
     catalog = new SnowflakeCatalog();
     catalog.close();
