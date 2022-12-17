@@ -20,10 +20,7 @@ package org.apache.iceberg.snowflake;
 
 import java.io.Closeable;
 import java.util.List;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
-import org.apache.iceberg.snowflake.entities.SnowflakeTable;
+import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 
 /**
@@ -33,9 +30,27 @@ import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
  * other underlying libraries/protocols.
  */
 public interface SnowflakeClient extends Closeable {
-  List<SnowflakeSchema> listSchemas(Namespace namespace);
+  /**
+   * Lists all Snowflake schemas within a given scope. Returned SnowflakeIdentifiers must have
+   * getType() == SnowflakeIdentifier.Type.SCHEMA.
+   *
+   * @param scope The scope in which to list, which may be ROOT or a single DATABASE.
+   */
+  List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope);
 
-  List<SnowflakeTable> listIcebergTables(Namespace namespace);
+  /**
+   * Lists all Snowflake Iceberg tables within a given scope. Returned SnowflakeIdentifiers must
+   * have getType() == SnowflakeIdentifier.Type.TABLE.
+   *
+   * @param scope The scope in which to list, which may be ROOT, a DATABASE, or a SCHEMA.
+   */
+  List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope);
 
-  SnowflakeTableMetadata getTableMetadata(TableIdentifier tableIdentifier);
+  /**
+   * Returns Snowflake-level metadata containing locations to more detailed metadata.
+   *
+   * @param tableIdentifier The fully-qualified identifier that must be of type
+   *     SnowflakeIdentifier.Type.TABLE.
+   */
+  SnowflakeTableMetadata getTableMetadata(SnowflakeIdentifier tableIdentifier);
 }

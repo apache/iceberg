@@ -169,7 +169,7 @@ public class SnowflakeCatalogTest {
     String schemaName = "SCHEMA_4";
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> catalog.listNamespaces(Namespace.of(dbName, schemaName)))
-        .withMessageContaining("more than 2 levels of namespace")
+        .withMessageContaining("level")
         .withMessageContaining("DB_3.SCHEMA_4");
   }
 
@@ -249,12 +249,12 @@ public class SnowflakeCatalogTest {
             () ->
                 catalog.loadTable(
                     TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1", "BAD_NS_LEVEL"), "TAB_1")))
-        .withMessageContaining("levels of namespace")
-        .withMessageContaining("DB_1.SCHEMA_1.BAD_NS_LEVEL.TAB_1");
+        .withMessageContaining("level")
+        .withMessageContaining("DB_1.SCHEMA_1.BAD_NS_LEVEL");
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () -> catalog.loadTable(TableIdentifier.of(Namespace.of("DB_WITHOUT_SCHEMA"), "TAB_1")))
-        .withMessageContaining("levels of namespace")
+        .withMessageContaining("level")
         .withMessageContaining("DB_WITHOUT_SCHEMA.TAB_1");
   }
 

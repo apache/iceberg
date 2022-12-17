@@ -38,13 +38,14 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
-import org.apache.iceberg.snowflake.entities.SnowflakeTable;
+import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Object> {
+  public static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
+  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
 
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeCatalog.class);
 
@@ -60,18 +61,22 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     LOG.debug("listTables with namespace: {}", namespace);
+    SnowflakeIdentifier scope = NamespaceHelpers.getSnowflakeIdentifierForNamespace(namespace);
     Preconditions.checkArgument(
-        namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "Snowflake doesn't support more than %s levels of namespace, got %s",
-        SnowflakeResources.MAX_NAMESPACE_DEPTH,
+        scope.getType() == SnowflakeIdentifier.Type.ROOT
+            || scope.getType() == SnowflakeIdentifier.Type.DATABASE
+            || scope.getType() == SnowflakeIdentifier.Type.SCHEMA,
+        "listTables must be at ROOT, DATABASE, or SCHEMA level; got %s from namespace %s",
+        scope,
         namespace);
 
-    List<SnowflakeTable> sfTables = snowflakeClient.listIcebergTables(namespace);
+    List<SnowflakeIdentifier> sfTables = snowflakeClient.listIcebergTables(scope);
 
     return sfTables.stream()
         .map(
             table ->
-                TableIdentifier.of(table.getDatabase(), table.getSchemaName(), table.getName()))
+                TableIdentifier.of(
+                    table.getDatabaseName(), table.getSchemaName(), table.getTableName()))
         .collect(Collectors.toList());
   }
 
@@ -107,7 +112,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     }
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
-    String fileIOImpl = SnowflakeResources.DEFAULT_FILE_IO_IMPL;
+    String fileIOImpl = DEFAULT_FILE_IO_IMPL;
     if (properties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
       fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     }
@@ -132,7 +137,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
       String name, SnowflakeClient snowflakeClient, FileIO fileIO, Map<String, String> properties) {
     Preconditions.checkArgument(null != snowflakeClient, "snowflakeClient must be non-null");
     Preconditions.checkArgument(null != fileIO, "fileIO must be non-null");
-    this.catalogName = name == null ? SnowflakeResources.DEFAULT_CATALOG_NAME : name;
+    this.catalogName = name == null ? DEFAULT_CATALOG_NAME : name;
     this.snowflakeClient = snowflakeClient;
     this.fileIO = fileIO;
     this.catalogProperties = properties;
@@ -158,16 +163,26 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     LOG.debug("listNamespaces with namespace: {}", namespace);
+    SnowflakeIdentifier scope = NamespaceHelpers.getSnowflakeIdentifierForNamespace(namespace);
     Preconditions.checkArgument(
-        namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH - 1,
-        "Snowflake doesn't support more than %s levels of namespace, tried to list under %s",
-        SnowflakeResources.MAX_NAMESPACE_DEPTH,
+        scope.getType() == SnowflakeIdentifier.Type.ROOT
+            || scope.getType() == SnowflakeIdentifier.Type.DATABASE,
+        "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
+        scope,
         namespace);
-    List<SnowflakeSchema> sfSchemas = snowflakeClient.listSchemas(namespace);
+    List<SnowflakeIdentifier> sfSchemas = snowflakeClient.listSchemas(scope);
 
     List<Namespace> namespaceList =
         sfSchemas.stream()
-            .map(schema -> Namespace.of(schema.getDatabase(), schema.getName()))
+            .map(
+                schema -> {
+                  Preconditions.checkState(
+                      schema.getType() == SnowflakeIdentifier.Type.SCHEMA,
+                      "Got identifier of type %s from listSchemas for %s",
+                      schema.getType(),
+                      namespace);
+                  return Namespace.of(schema.getDatabaseName(), schema.getSchemaName());
+                })
             .collect(Collectors.toList());
     return namespaceList;
   }

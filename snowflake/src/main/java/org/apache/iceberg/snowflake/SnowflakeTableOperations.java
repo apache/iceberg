@@ -24,6 +24,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
 
   private final FileIO fileIO;
   private final TableIdentifier tableIdentifier;
+  private final SnowflakeIdentifier snowflakeIdentifierForTable;
 
   private final SnowflakeClient snowflakeClient;
 
@@ -46,16 +48,13 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> properties,
       String catalogName,
       TableIdentifier tableIdentifier) {
-    Preconditions.checkArgument(
-        tableIdentifier.namespace().length() == SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "tableIdentifier must be exactly %s levels of namespace, got %s",
-        SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        tableIdentifier);
     this.snowflakeClient = snowflakeClient;
     this.fileIO = fileIO;
     this.catalogProperties = properties;
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
+    this.snowflakeIdentifierForTable =
+        NamespaceHelpers.getSnowflakeIdentifierForTableIdentifier(tableIdentifier);
   }
 
   @Override
@@ -81,17 +80,17 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
   }
 
   private String getTableMetadataLocation() {
-    SnowflakeTableMetadata metadata = snowflakeClient.getTableMetadata(tableIdentifier);
+    SnowflakeTableMetadata metadata = snowflakeClient.getTableMetadata(snowflakeIdentifierForTable);
 
     if (metadata == null) {
-      throw new NoSuchTableException("Cannot find table %s", tableIdentifier);
+      throw new NoSuchTableException("Cannot find table %s", snowflakeIdentifierForTable);
     }
     if (!metadata.getStatus().equals("success")) {
       LOG.warn(
           "Got non-successful table metadata: {} with metadataLocation {} for table {}",
           metadata.getStatus(),
           metadata.getIcebergMetadataLocation(),
-          tableIdentifier);
+          snowflakeIdentifierForTable);
     }
     return metadata.getIcebergMetadataLocation();
   }

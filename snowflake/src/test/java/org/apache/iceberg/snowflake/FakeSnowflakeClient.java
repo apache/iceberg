@@ -20,14 +20,11 @@ package org.apache.iceberg.snowflake;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
-import org.apache.iceberg.snowflake.entities.SnowflakeTable;
+import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 
 public class FakeSnowflakeClient implements SnowflakeClient {
@@ -57,108 +54,111 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   }
 
   @Override
-  public List<SnowflakeSchema> listSchemas(Namespace namespace) {
+  public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     Preconditions.checkState(!closed, "Cannot call listSchemas after calling close()");
-    Preconditions.checkArgument(
-        namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "Namespace {} must have namespace of length <= {}",
-        namespace,
-        SnowflakeResources.MAX_NAMESPACE_DEPTH);
-    List<SnowflakeSchema> schemas = Lists.newArrayList();
-    if (namespace.length() == 0) {
-      // "account-level" listing.
-      for (Map.Entry<String, Map<String, Map<String, SnowflakeTableMetadata>>> db :
-          databases.entrySet()) {
-        for (String schema : db.getValue().keySet()) {
-          schemas.add(new SnowflakeSchema(db.getKey(), schema));
+    List<SnowflakeIdentifier> schemas = Lists.newArrayList();
+    switch (scope.getType()) {
+      case ROOT:
+        // "account-level" listing.
+        for (Map.Entry<String, Map<String, Map<String, SnowflakeTableMetadata>>> db :
+            databases.entrySet()) {
+          for (String schema : db.getValue().keySet()) {
+            schemas.add(SnowflakeIdentifier.ofSchema(db.getKey(), schema));
+          }
         }
-      }
-    } else if (namespace.length() == SnowflakeResources.NAMESPACE_DB_LEVEL) {
-      String dbName = namespace.level(SnowflakeResources.NAMESPACE_DB_LEVEL - 1);
-      if (databases.containsKey(dbName)) {
-        for (String schema : databases.get(dbName).keySet()) {
-          schemas.add(new SnowflakeSchema(dbName, schema));
+        break;
+      case DATABASE:
+        String dbName = scope.getDatabaseName();
+        if (databases.containsKey(dbName)) {
+          for (String schema : databases.get(dbName).keySet()) {
+            schemas.add(SnowflakeIdentifier.ofSchema(dbName, schema));
+          }
+        } else {
+          throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
         }
-      } else {
-        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
-      }
-    } else {
-      throw new IllegalArgumentException(
-          String.format(
-              "Tried to listSchemas using a namespace with too many levels: '%s'", namespace));
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unsupported scope type for listSchemas: '%s'", scope));
     }
     return schemas;
   }
 
   @Override
-  public List<SnowflakeTable> listIcebergTables(Namespace namespace) {
+  public List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope) {
     Preconditions.checkState(!closed, "Cannot call listIcebergTables after calling close()");
-    Preconditions.checkArgument(
-        namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "Namespace {} must have namespace of length <= {}",
-        namespace,
-        SnowflakeResources.MAX_NAMESPACE_DEPTH);
-    List<SnowflakeTable> tables = Lists.newArrayList();
-    if (namespace.length() == 0) {
-      // "account-level" listing.
-      for (Map.Entry<String, Map<String, Map<String, SnowflakeTableMetadata>>> db :
-          databases.entrySet()) {
-        for (Map.Entry<String, Map<String, SnowflakeTableMetadata>> schema :
-            db.getValue().entrySet()) {
-          for (String tableName : schema.getValue().keySet()) {
-            tables.add(new SnowflakeTable(db.getKey(), schema.getKey(), tableName));
+    List<SnowflakeIdentifier> tables = Lists.newArrayList();
+    switch (scope.getType()) {
+      case ROOT:
+        {
+          // "account-level" listing.
+          for (Map.Entry<String, Map<String, Map<String, SnowflakeTableMetadata>>> db :
+              databases.entrySet()) {
+            for (Map.Entry<String, Map<String, SnowflakeTableMetadata>> schema :
+                db.getValue().entrySet()) {
+              for (String tableName : schema.getValue().keySet()) {
+                tables.add(SnowflakeIdentifier.ofTable(db.getKey(), schema.getKey(), tableName));
+              }
+            }
           }
+          break;
         }
-      }
-    } else if (namespace.length() == SnowflakeResources.NAMESPACE_DB_LEVEL) {
-      String dbName = namespace.level(SnowflakeResources.NAMESPACE_DB_LEVEL - 1);
-      if (databases.containsKey(dbName)) {
-        for (Map.Entry<String, Map<String, SnowflakeTableMetadata>> schema :
-            databases.get(dbName).entrySet()) {
-          for (String tableName : schema.getValue().keySet()) {
-            tables.add(new SnowflakeTable(dbName, schema.getKey(), tableName));
+      case DATABASE:
+        {
+          String dbName = scope.getDatabaseName();
+          if (databases.containsKey(dbName)) {
+            for (Map.Entry<String, Map<String, SnowflakeTableMetadata>> schema :
+                databases.get(dbName).entrySet()) {
+              for (String tableName : schema.getValue().keySet()) {
+                tables.add(SnowflakeIdentifier.ofTable(dbName, schema.getKey(), tableName));
+              }
+            }
+          } else {
+            throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
           }
+          break;
         }
-      } else {
-        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
-      }
-    } else {
-      String dbName = namespace.level(SnowflakeResources.NAMESPACE_DB_LEVEL - 1);
-      if (databases.containsKey(dbName)) {
-        String schemaName = namespace.level(SnowflakeResources.NAMESPACE_SCHEMA_LEVEL - 1);
-        if (databases.get(dbName).containsKey(schemaName)) {
-          for (String tableName : databases.get(dbName).get(schemaName).keySet()) {
-            tables.add(new SnowflakeTable(dbName, schemaName, tableName));
+      case SCHEMA:
+        {
+          String dbName = scope.getDatabaseName();
+          if (databases.containsKey(dbName)) {
+            String schemaName = scope.getSchemaName();
+            if (databases.get(dbName).containsKey(schemaName)) {
+              for (String tableName : databases.get(dbName).get(schemaName).keySet()) {
+                tables.add(SnowflakeIdentifier.ofTable(dbName, schemaName, tableName));
+              }
+            } else {
+              throw new UncheckedSQLException(
+                  "Object does not exist: database.schema: '%s.%s'", dbName, schemaName);
+            }
+          } else {
+            throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
           }
-        } else {
-          throw new UncheckedSQLException(
-              "Object does not exist: database.schema: '%s.%s'", dbName, schemaName);
+          break;
         }
-      } else {
-        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
-      }
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unsupported scope type for listing tables: %s", scope));
     }
     return tables;
   }
 
   @Override
-  public SnowflakeTableMetadata getTableMetadata(TableIdentifier tableIdentifier) {
+  public SnowflakeTableMetadata getTableMetadata(SnowflakeIdentifier tableIdentifier) {
     Preconditions.checkState(!closed, "Cannot call getTableMetadata after calling close()");
 
-    Namespace ns = tableIdentifier.namespace();
     Preconditions.checkArgument(
-        ns.length() == SnowflakeResources.MAX_NAMESPACE_DEPTH,
-        "TableIdentifier {} must have namespace of length {}",
-        tableIdentifier,
-        SnowflakeResources.MAX_NAMESPACE_DEPTH);
-    String dbName = ns.level(SnowflakeResources.NAMESPACE_DB_LEVEL - 1);
-    String schemaName = ns.level(SnowflakeResources.NAMESPACE_SCHEMA_LEVEL - 1);
+        tableIdentifier.getType() == SnowflakeIdentifier.Type.TABLE,
+        "tableIdentifier must be type TABLE, get: %s",
+        tableIdentifier);
+    String dbName = tableIdentifier.getDatabaseName();
+    String schemaName = tableIdentifier.getSchemaName();
     if (!databases.containsKey(dbName)
         || !databases.get(dbName).containsKey(schemaName)
-        || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.name())) {
+        || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.getTableName())) {
       throw new UncheckedSQLException("Object does not exist: object: '%s'", tableIdentifier);
     }
-    return databases.get(dbName).get(schemaName).get(tableIdentifier.name());
+    return databases.get(dbName).get(schemaName).get(tableIdentifier.getTableName());
   }
 
   public boolean isClosed() {

@@ -31,14 +31,10 @@ import java.util.List;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
-import org.apache.iceberg.snowflake.entities.SnowflakeTable;
+import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -97,8 +93,8 @@ public class JdbcSnowflakeClientTest {
   }
 
   /**
-   * For the root/empty Namespace, expect an underlying query to list schemas at the ACCOUNT level
-   * with no query parameters.
+   * For the root scope, expect an underlying query to list schemas at the ACCOUNT level with no
+   * query parameters.
    */
   @Test
   public void testListSchemasInAccount() throws SQLException {
@@ -112,7 +108,8 @@ public class JdbcSnowflakeClientTest {
         .thenReturn("SCHEMA_2")
         .thenReturn("SCHEMA_3");
 
-    List<SnowflakeSchema> actualList = snowflakeClient.listSchemas(Namespace.of());
+    List<SnowflakeIdentifier> actualList =
+        snowflakeClient.listSchemas(SnowflakeIdentifier.ofRoot());
 
     verify(mockQueryRunner)
         .query(
@@ -121,17 +118,16 @@ public class JdbcSnowflakeClientTest {
             any(ResultSetHandler.class),
             eq((Object[]) null));
 
-    List<SnowflakeSchema> expectedList =
-        Lists.newArrayList(
-            new SnowflakeSchema("DB_1", "SCHEMA_1"),
-            new SnowflakeSchema("DB_1", "SCHEMA_2"),
-            new SnowflakeSchema("DB_2", "SCHEMA_3"));
-    Assertions.assertThat(actualList).hasSameElementsAs(expectedList);
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1"),
+            SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2"),
+            SnowflakeIdentifier.ofSchema("DB_2", "SCHEMA_3"));
   }
 
   /**
-   * For a 1-level Namespace, expect an underlying query to list schemas at the DATABASE level and
-   * supply the Namespace as a query param in an IDENTIFIER.
+   * For a DATABASE scope, expect an underlying query to list schemas at the DATABASE level and
+   * supply the database as a query param in an IDENTIFIER.
    */
   @Test
   public void testListSchemasInDatabase() throws SQLException {
@@ -139,7 +135,8 @@ public class JdbcSnowflakeClientTest {
     when(mockResultSet.getString("database_name")).thenReturn("DB_1").thenReturn("DB_1");
     when(mockResultSet.getString("name")).thenReturn("SCHEMA_1").thenReturn("SCHEMA_2");
 
-    List<SnowflakeSchema> actualList = snowflakeClient.listSchemas(Namespace.of("DB_1"));
+    List<SnowflakeIdentifier> actualList =
+        snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -148,10 +145,10 @@ public class JdbcSnowflakeClientTest {
             any(ResultSetHandler.class),
             eq("DB_1"));
 
-    List<SnowflakeSchema> expectedList =
-        Lists.newArrayList(
-            new SnowflakeSchema("DB_1", "SCHEMA_1"), new SnowflakeSchema("DB_1", "SCHEMA_2"));
-    Assertions.assertThat(actualList).hasSameElementsAs(expectedList);
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1"),
+            SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2"));
   }
 
   /**
@@ -163,7 +160,8 @@ public class JdbcSnowflakeClientTest {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new SQLException("Fake SQL exception"));
     Assert.assertThrows(
-        UncheckedSQLException.class, () -> snowflakeClient.listSchemas(Namespace.of("DB_1")));
+        UncheckedSQLException.class,
+        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")));
   }
 
   /**
@@ -176,12 +174,12 @@ public class JdbcSnowflakeClientTest {
         .thenThrow(new InterruptedException("Fake interrupted exception"));
     Assert.assertThrows(
         UncheckedInterruptedException.class,
-        () -> snowflakeClient.listSchemas(Namespace.of("DB_1")));
+        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")));
   }
 
   /**
-   * For the root/empty Namespace, expect an underlying query to list tables at the ACCOUNT level
-   * with no query parameters.
+   * For the root/empty scope, expect an underlying query to list tables at the ACCOUNT level with
+   * no query parameters.
    */
   @Test
   public void testListIcebergTablesInAccount() throws SQLException {
@@ -207,7 +205,8 @@ public class JdbcSnowflakeClientTest {
         .thenReturn("TABLE_3")
         .thenReturn("TABLE_4");
 
-    List<SnowflakeTable> actualList = snowflakeClient.listIcebergTables(Namespace.of());
+    List<SnowflakeIdentifier> actualList =
+        snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofRoot());
 
     verify(mockQueryRunner)
         .query(
@@ -216,18 +215,17 @@ public class JdbcSnowflakeClientTest {
             any(ResultSetHandler.class),
             eq((Object[]) null));
 
-    List<SnowflakeTable> expectedList =
-        Lists.newArrayList(
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_1"),
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_2"),
-            new SnowflakeTable("DB_1", "SCHEMA_2", "TABLE_3"),
-            new SnowflakeTable("DB_2", "SCHEMA_3", "TABLE_4"));
-    Assertions.assertThat(actualList).hasSameElementsAs(expectedList);
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"),
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_2"),
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_2", "TABLE_3"),
+            SnowflakeIdentifier.ofTable("DB_2", "SCHEMA_3", "TABLE_4"));
   }
 
   /**
-   * For a 1-level Namespace, expect an underlying query to list tables at the DATABASE level and
-   * supply the Namespace as a query param in an IDENTIFIER.
+   * For a DATABASE scope, expect an underlying query to list tables at the DATABASE level and
+   * supply the database as a query param in an IDENTIFIER.
    */
   @Test
   public void testListIcebergTablesInDatabase() throws SQLException {
@@ -245,7 +243,8 @@ public class JdbcSnowflakeClientTest {
         .thenReturn("TABLE_2")
         .thenReturn("TABLE_3");
 
-    List<SnowflakeTable> actualList = snowflakeClient.listIcebergTables(Namespace.of("DB_1"));
+    List<SnowflakeIdentifier> actualList =
+        snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -254,17 +253,16 @@ public class JdbcSnowflakeClientTest {
             any(ResultSetHandler.class),
             eq("DB_1"));
 
-    List<SnowflakeTable> expectedList =
-        Lists.newArrayList(
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_1"),
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_2"),
-            new SnowflakeTable("DB_1", "SCHEMA_2", "TABLE_3"));
-    Assertions.assertThat(actualList).hasSameElementsAs(expectedList);
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"),
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_2"),
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_2", "TABLE_3"));
   }
 
   /**
-   * For a 2-level Namespace, expect an underlying query to list tables at the SCHEMA level and
-   * supply the Namespace as a query param in an IDENTIFIER.
+   * For a SCHEMA scope, expect an underlying query to list tables at the SCHEMA level and supply
+   * the schema as a query param in an IDENTIFIER.
    */
   @Test
   public void testListIcebergTablesInSchema() throws SQLException {
@@ -273,8 +271,8 @@ public class JdbcSnowflakeClientTest {
     when(mockResultSet.getString("schema_name")).thenReturn("SCHEMA_1").thenReturn("SCHEMA_1");
     when(mockResultSet.getString("name")).thenReturn("TABLE_1").thenReturn("TABLE_2");
 
-    List<SnowflakeTable> actualList =
-        snowflakeClient.listIcebergTables(Namespace.of("DB_1", "SCHEMA_1"));
+    List<SnowflakeIdentifier> actualList =
+        snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -283,11 +281,10 @@ public class JdbcSnowflakeClientTest {
             any(ResultSetHandler.class),
             eq("DB_1.SCHEMA_1"));
 
-    List<SnowflakeTable> expectedList =
-        Lists.newArrayList(
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_1"),
-            new SnowflakeTable("DB_1", "SCHEMA_1", "TABLE_2"));
-    Assertions.assertThat(actualList).hasSameElementsAs(expectedList);
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"),
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_2"));
   }
 
   /**
@@ -299,7 +296,8 @@ public class JdbcSnowflakeClientTest {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new SQLException("Fake SQL exception"));
     Assert.assertThrows(
-        UncheckedSQLException.class, () -> snowflakeClient.listIcebergTables(Namespace.of("DB_1")));
+        UncheckedSQLException.class,
+        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")));
   }
 
   /**
@@ -313,7 +311,7 @@ public class JdbcSnowflakeClientTest {
         .thenThrow(new InterruptedException("Fake interrupted exception"));
     Assert.assertThrows(
         UncheckedInterruptedException.class,
-        () -> snowflakeClient.listIcebergTables(Namespace.of("DB_1")));
+        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")));
   }
 
   /**
@@ -329,7 +327,7 @@ public class JdbcSnowflakeClientTest {
 
     SnowflakeTableMetadata actualMetadata =
         snowflakeClient.getTableMetadata(
-            TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1"));
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -360,7 +358,7 @@ public class JdbcSnowflakeClientTest {
 
     SnowflakeTableMetadata actualMetadata =
         snowflakeClient.getTableMetadata(
-            TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1"));
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -391,7 +389,7 @@ public class JdbcSnowflakeClientTest {
 
     SnowflakeTableMetadata actualMetadata =
         snowflakeClient.getTableMetadata(
-            TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1"));
+            SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
         .query(
@@ -418,7 +416,7 @@ public class JdbcSnowflakeClientTest {
         IllegalArgumentException.class,
         () ->
             snowflakeClient.getTableMetadata(
-                TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1")));
+                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
   }
 
   /**
@@ -433,7 +431,7 @@ public class JdbcSnowflakeClientTest {
         UncheckedSQLException.class,
         () ->
             snowflakeClient.getTableMetadata(
-                TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1")));
+                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
   }
 
   /**
@@ -448,7 +446,7 @@ public class JdbcSnowflakeClientTest {
         UncheckedInterruptedException.class,
         () ->
             snowflakeClient.getTableMetadata(
-                TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TABLE_1")));
+                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
   }
 
   /** Calling close() propagates to closing underlying client pool. */
