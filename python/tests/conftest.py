@@ -1259,3 +1259,9 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
+
+
+@pytest.fixture(scope="session")
+def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
+    home_path = str(tmp_path_factory.mktemp("home"))
+    return home_path
