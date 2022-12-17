@@ -38,7 +38,4 @@ public interface SnowflakeClient extends Closeable {
   List<SnowflakeTable> listIcebergTables(Namespace namespace);
 
   SnowflakeTableMetadata getTableMetadata(TableIdentifier tableIdentifier);
-
-  @Override
-  void close();
 }

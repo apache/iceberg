@@ -37,7 +37,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
 import org.apache.iceberg.snowflake.entities.SnowflakeTable;
 import org.slf4j.Logger;
@@ -176,9 +176,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
     LOG.debug("loadNamespaceMetadata with namespace: {}", namespace);
-    Map<String, String> nameSpaceMetadata = Maps.newHashMap();
-    nameSpaceMetadata.put("name", namespace.toString());
-    return nameSpaceMetadata;
+    return ImmutableMap.of();
   }
 
   @Override
@@ -213,7 +211,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    return null;
+    throw new UnsupportedOperationException(
+        String.format(
+            "defaultWarehouseLocation not supported; attempted for tableIdentifier '%s'",
+            tableIdentifier));
   }
 
   @Override
