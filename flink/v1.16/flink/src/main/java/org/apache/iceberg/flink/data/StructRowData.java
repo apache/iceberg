@@ -23,10 +23,14 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -118,6 +122,8 @@ public class StructRowData implements RowData {
       return (int) integer;
     } else if (integer instanceof LocalDate) {
       return (int) ((LocalDate) integer).toEpochDay();
+    } else if (integer instanceof LocalTime) {
+      return (int) (((LocalTime) integer).toNanoOfDay() / 1000_000);
     } else {
       throw new IllegalStateException(
           "Unknown type for int field. Type name: " + integer.getClass().getName());
@@ -134,6 +140,12 @@ public class StructRowData implements RowData {
       return Duration.between(Instant.EPOCH, (OffsetDateTime) longVal).toNanos() / 1000;
     } else if (longVal instanceof LocalDate) {
       return ((LocalDate) longVal).toEpochDay();
+    } else if (longVal instanceof LocalTime) {
+      return ((LocalTime) longVal).toNanoOfDay();
+    } else if (longVal instanceof LocalDateTime) {
+      return Duration.between(Instant.EPOCH, ((LocalDateTime) longVal).atOffset(ZoneOffset.UTC))
+              .toNanos()
+          / 1000;
     } else {
       throw new IllegalStateException(
           "Unknown type for long field. Type name: " + longVal.getClass().getName());
@@ -195,6 +207,12 @@ public class StructRowData implements RowData {
       return ByteBuffers.toByteArray((ByteBuffer) bytes);
     } else if (bytes instanceof byte[]) {
       return (byte[]) bytes;
+    } else if (bytes instanceof UUID) {
+      UUID uuid = (UUID) bytes;
+      ByteBuffer bb = ByteBuffer.allocate(16);
+      bb.putLong(uuid.getMostSignificantBits());
+      bb.putLong(uuid.getLeastSignificantBits());
+      return bb.array();
     } else {
       throw new IllegalStateException(
           "Unknown type for binary field. Type name: " + bytes.getClass().getName());
@@ -206,7 +224,7 @@ public class StructRowData implements RowData {
     return isNullAt(pos)
         ? null
         : (ArrayData)
-            coverValue(type.fields().get(pos).type().asListType(), struct.get(pos, List.class));
+            convertValue(type.fields().get(pos).type().asListType(), struct.get(pos, List.class));
   }
 
   @Override
@@ -214,7 +232,7 @@ public class StructRowData implements RowData {
     return isNullAt(pos)
         ? null
         : (MapData)
-            coverValue(type.fields().get(pos).type().asMapType(), struct.get(pos, Map.class));
+            convertValue(type.fields().get(pos).type().asMapType(), struct.get(pos, Map.class));
   }
 
   @Override
@@ -227,7 +245,7 @@ public class StructRowData implements RowData {
         type.fields().get(pos).type().asStructType(), struct.get(pos, StructLike.class));
   }
 
-  private Object coverValue(Type elementType, Object value) {
+  private Object convertValue(Type elementType, Object value) {
     switch (elementType.typeId()) {
       case BOOLEAN:
       case INTEGER:
@@ -250,7 +268,7 @@ public class StructRowData implements RowData {
       case STRUCT:
         return new StructRowData(elementType.asStructType(), (StructLike) value);
       case LIST:
-        List<?> list = (List<?>) value;
+        List<Object> list = (List<Object>) value;
         Object[] array = new Object[list.size()];
 
         int index = 0;
@@ -258,7 +276,7 @@ public class StructRowData implements RowData {
           if (element == null) {
             array[index] = null;
           } else {
-            array[index] = coverValue(elementType.asListType().elementType(), element);
+            array[index] = convertValue(elementType.asListType().elementType(), element);
           }
 
           index += 1;
@@ -269,8 +287,8 @@ public class StructRowData implements RowData {
         Set<? extends Map.Entry<?, ?>> entries = ((Map<?, ?>) value).entrySet();
         Map<Object, Object> result = Maps.newHashMap();
         for (Map.Entry<?, ?> entry : entries) {
-          final Object keyValue = coverValue(mapType.keyType(), entry.getKey());
-          final Object valueValue = coverValue(mapType.valueType(), entry.getValue());
+          final Object keyValue = convertValue(mapType.keyType(), entry.getKey());
+          final Object valueValue = convertValue(mapType.valueType(), entry.getValue());
           result.put(keyValue, valueValue);
         }
 

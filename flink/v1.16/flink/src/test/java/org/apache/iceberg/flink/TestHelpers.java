@@ -285,10 +285,13 @@ public class TestHelpers {
         break;
       case UUID:
         Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
+        ByteBuffer bb = ByteBuffer.wrap((byte[]) actual);
+        long firstLong = bb.getLong();
+        long secondLong = bb.getLong();
         Assert.assertEquals(
             "UUID should be equal",
             expected.toString(),
-            UUID.nameUUIDFromBytes((byte[]) actual).toString());
+            new UUID(firstLong, secondLong).toString());
         break;
       case FIXED:
         Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
@@ -441,10 +444,13 @@ public class TestHelpers {
         break;
       case UUID:
         Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
+        ByteBuffer bb = ByteBuffer.wrap((byte[]) actual);
+        long firstLong = bb.getLong();
+        long secondLong = bb.getLong();
         Assert.assertEquals(
             "UUID should be equal",
             expected.toString(),
-            UUID.nameUUIDFromBytes((byte[]) actual).toString());
+            new UUID(firstLong, secondLong).toString());
         break;
       case FIXED:
         Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
