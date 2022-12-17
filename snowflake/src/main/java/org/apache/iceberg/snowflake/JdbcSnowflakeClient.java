@@ -27,6 +27,7 @@ import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
 import org.apache.iceberg.snowflake.entities.SnowflakeTable;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
@@ -48,10 +49,12 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(JdbcSnowflakeClient.class);
   private final JdbcClientPool connectionPool;
-  private QueryRunner queryRunner = new QueryRunner(true);
+  private QueryRunner queryRunner;
 
   JdbcSnowflakeClient(JdbcClientPool conn) {
+    Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
     connectionPool = conn;
+    queryRunner = new QueryRunner(true);
   }
 
   @VisibleForTesting

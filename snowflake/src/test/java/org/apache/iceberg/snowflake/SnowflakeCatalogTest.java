@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.snowflake;
 
-import java.util.List;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -28,11 +28,10 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -40,52 +39,53 @@ public class SnowflakeCatalogTest {
 
   static final String TEST_CATALOG_NAME = "slushLog";
   private SnowflakeCatalog catalog;
+  private FakeSnowflakeClient fakeClient;
+  private InMemoryFileIO fakeFileIO;
+  private Map<String, String> properties;
 
   @Before
   public void before() {
     catalog = new SnowflakeCatalog();
 
-    FakeSnowflakeClient client = new FakeSnowflakeClient();
-    client.addTable(
+    fakeClient = new FakeSnowflakeClient();
+    fakeClient.addTable(
         "DB_1",
         "SCHEMA_1",
         "TAB_1",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"s3://tab1/metadata/v3.metadata.json\",\"status\":\"success\"}"));
-    client.addTable(
+    fakeClient.addTable(
         "DB_1",
         "SCHEMA_1",
         "TAB_2",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"s3://tab2/metadata/v1.metadata.json\",\"status\":\"success\"}"));
-    client.addTable(
+    fakeClient.addTable(
         "DB_2",
         "SCHEMA_2",
         "TAB_3",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"azure://myaccount.blob.core.windows.net/mycontainer/tab3/metadata/v334.metadata.json\",\"status\":\"success\"}"));
-    client.addTable(
+    fakeClient.addTable(
         "DB_2",
         "SCHEMA_2",
         "TAB_4",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"azure://myaccount.blob.core.windows.net/mycontainer/tab4/metadata/v323.metadata.json\",\"status\":\"success\"}"));
-    client.addTable(
+    fakeClient.addTable(
         "DB_3",
         "SCHEMA_3",
         "TAB_5",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"gcs://tab5/metadata/v793.metadata.json\",\"status\":\"success\"}"));
-    client.addTable(
+    fakeClient.addTable(
         "DB_3",
         "SCHEMA_4",
         "TAB_6",
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"gcs://tab6/metadata/v123.metadata.json\",\"status\":\"success\"}"));
 
-    catalog.setSnowflakeClient(client);
-
-    InMemoryFileIO fakeFileIO = new InMemoryFileIO();
+    fakeFileIO = new InMemoryFileIO();
 
     Schema schema =
         new Schema(
@@ -115,29 +115,39 @@ public class SnowflakeCatalogTest {
                     schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()))
             .getBytes());
 
-    catalog.setFileIO(fakeFileIO);
+    properties = Maps.newHashMap();
+    catalog.initialize(TEST_CATALOG_NAME, fakeClient, fakeFileIO, properties);
+  }
 
-    Map<String, String> properties = Maps.newHashMap();
-    catalog.initialize(TEST_CATALOG_NAME, properties);
+  @Test
+  public void testInitializeNullClient() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> catalog.initialize(TEST_CATALOG_NAME, null, fakeFileIO, properties))
+        .withMessageContaining("snowflakeClient must be non-null");
+  }
+
+  @Test
+  public void testInitializeNullFileIO() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> catalog.initialize(TEST_CATALOG_NAME, fakeClient, null, properties))
+        .withMessageContaining("fileIO must be non-null");
   }
 
   @Test
   public void testListNamespace() {
-    List<Namespace> namespaces = catalog.listNamespaces();
-    Assert.assertEquals(
-        Lists.newArrayList(
+    Assertions.assertThat(catalog.listNamespaces())
+        .containsExactly(
             Namespace.of("DB_1", "SCHEMA_1"),
             Namespace.of("DB_2", "SCHEMA_2"),
             Namespace.of("DB_3", "SCHEMA_3"),
-            Namespace.of("DB_3", "SCHEMA_4")),
-        namespaces);
+            Namespace.of("DB_3", "SCHEMA_4"));
   }
 
   @Test
   public void testListNamespaceWithinDB() {
     String dbName = "DB_1";
-    List<Namespace> namespaces = catalog.listNamespaces(Namespace.of(dbName));
-    Assert.assertEquals(Lists.newArrayList(Namespace.of(dbName, "SCHEMA_1")), namespaces);
+    Assertions.assertThat(catalog.listNamespaces(Namespace.of(dbName)))
+        .containsExactly(Namespace.of(dbName, "SCHEMA_1"));
   }
 
   @Test
@@ -145,7 +155,10 @@ public class SnowflakeCatalogTest {
     // Existence check for nonexistent parent namespaces is optional in the SupportsNamespaces
     // interface.
     String dbName = "NONEXISTENT_DB";
-    Assert.assertThrows(RuntimeException.class, () -> catalog.listNamespaces(Namespace.of(dbName)));
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> catalog.listNamespaces(Namespace.of(dbName)))
+        .withMessageContaining("does not exist")
+        .withMessageContaining(dbName);
   }
 
   @Test
@@ -154,78 +167,95 @@ public class SnowflakeCatalogTest {
     // a database.schema.
     String dbName = "DB_3";
     String schemaName = "SCHEMA_4";
-    Assert.assertThrows(
-        IllegalArgumentException.class,
-        () -> catalog.listNamespaces(Namespace.of(dbName, schemaName)));
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> catalog.listNamespaces(Namespace.of(dbName, schemaName)))
+        .withMessageContaining("more than 2 levels of namespace")
+        .withMessageContaining("DB_3.SCHEMA_4");
   }
 
   @Test
   public void testListTables() {
-    List<TableIdentifier> tables = catalog.listTables(Namespace.empty());
-    Assert.assertEquals(
-        Lists.newArrayList(
+    Assertions.assertThat(catalog.listTables(Namespace.empty()))
+        .containsExactly(
             TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"),
             TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2"),
             TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_3"),
             TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_4"),
             TableIdentifier.of("DB_3", "SCHEMA_3", "TAB_5"),
-            TableIdentifier.of("DB_3", "SCHEMA_4", "TAB_6")),
-        tables);
+            TableIdentifier.of("DB_3", "SCHEMA_4", "TAB_6"));
   }
 
   @Test
   public void testListTablesWithinDB() {
     String dbName = "DB_1";
-    List<TableIdentifier> tables = catalog.listTables(Namespace.of(dbName));
-    Assert.assertEquals(
-        Lists.newArrayList(
+    Assertions.assertThat(catalog.listTables(Namespace.of(dbName)))
+        .containsExactly(
             TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"),
-            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2")),
-        tables);
+            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2"));
   }
 
   @Test
   public void testListTablesWithinNonexistentDB() {
     String dbName = "NONEXISTENT_DB";
-    Assert.assertThrows(RuntimeException.class, () -> catalog.listTables(Namespace.of(dbName)));
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> catalog.listTables(Namespace.of(dbName)))
+        .withMessageContaining("does not exist")
+        .withMessageContaining(dbName);
   }
 
   @Test
   public void testListTablesWithinSchema() {
     String dbName = "DB_2";
     String schemaName = "SCHEMA_2";
-    List<TableIdentifier> tables = catalog.listTables(Namespace.of(dbName, schemaName));
-    Assert.assertEquals(
-        Lists.newArrayList(
+    Assertions.assertThat(catalog.listTables(Namespace.of(dbName, schemaName)))
+        .containsExactly(
             TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_3"),
-            TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_4")),
-        tables);
+            TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_4"));
   }
 
   @Test
   public void testListTablesWithinNonexistentSchema() {
     String dbName = "DB_2";
-    String schemaName = "NONEXISTENT_DB";
-    Assert.assertThrows(
-        RuntimeException.class, () -> catalog.listTables(Namespace.of(dbName, schemaName)));
+    String schemaName = "NONEXISTENT_SCHEMA";
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> catalog.listTables(Namespace.of(dbName, schemaName)))
+        .withMessageContaining("does not exist")
+        .withMessageContaining("DB_2.NONEXISTENT_SCHEMA");
   }
 
   @Test
   public void testLoadS3Table() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TAB_1"));
-    Assert.assertEquals(table.location(), "s3://tab1/");
+    Assertions.assertThat(table.location()).isEqualTo("s3://tab1/");
   }
 
   @Test
   public void testLoadAzureTable() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_2", "SCHEMA_2"), "TAB_3"));
-    Assert.assertEquals(
-        table.location(), "wasbs://mycontainer@myaccount.blob.core.windows.net/tab1/");
+    Assertions.assertThat(table.location())
+        .isEqualTo("wasbs://mycontainer@myaccount.blob.core.windows.net/tab1/");
   }
 
   @Test
   public void testLoadGcsTable() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_3", "SCHEMA_3"), "TAB_5"));
-    Assert.assertEquals(table.location(), "gs://tab5/");
+    Assertions.assertThat(table.location()).isEqualTo("gs://tab5/");
+  }
+
+  @Test
+  public void testCloseBeforeInitialize() throws IOException {
+    catalog = new SnowflakeCatalog();
+    catalog.close();
+  }
+
+  @Test
+  public void testClose() throws IOException {
+    catalog.close();
+    Assertions.assertThat(fakeClient.isClosed())
+        .overridingErrorMessage("expected close() to propagate to snowflakeClient")
+        .isTrue();
+    Assertions.assertThat(fakeFileIO.isClosed())
+        .overridingErrorMessage("expected close() to propagate to fileIO")
+        .isTrue();
   }
 }

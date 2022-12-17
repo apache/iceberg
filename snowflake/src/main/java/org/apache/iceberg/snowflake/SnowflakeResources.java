@@ -19,7 +19,7 @@
 package org.apache.iceberg.snowflake;
 
 final class SnowflakeResources {
-  static final String DEFAULT_CATALOG_NAME = "snowlog";
+  static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
   static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   static final int MAX_NAMESPACE_DEPTH = 2;
   static final int NAMESPACE_DB_LEVEL = 1;

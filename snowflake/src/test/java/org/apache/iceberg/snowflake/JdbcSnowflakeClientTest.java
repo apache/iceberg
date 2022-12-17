@@ -89,6 +89,13 @@ public class JdbcSnowflakeClientTest {
             ArgumentMatchers.<Object>any());
   }
 
+  @Test
+  public void testNullClientPoolInConstructor() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> new JdbcSnowflakeClient(null))
+        .withMessageContaining("JdbcClientPool must be non-null");
+  }
+
   /**
    * For the root/empty Namespace, expect an underlying query to list schemas at the ACCOUNT level
    * with no query parameters.

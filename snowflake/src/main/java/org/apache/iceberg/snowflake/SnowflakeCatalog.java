@@ -19,6 +19,7 @@
 package org.apache.iceberg.snowflake;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,9 +33,9 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.jdbc.JdbcClientPool;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.snowflake.entities.SnowflakeSchema;
@@ -47,23 +48,14 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeCatalog.class);
 
+  private CloseableGroup closeableGroup;
   private Object conf;
-  private String catalogName = SnowflakeResources.DEFAULT_CATALOG_NAME;
-  private Map<String, String> catalogProperties = null;
+  private String catalogName;
+  private Map<String, String> catalogProperties;
   private FileIO fileIO;
   private SnowflakeClient snowflakeClient;
 
   public SnowflakeCatalog() {}
-
-  @VisibleForTesting
-  void setSnowflakeClient(SnowflakeClient snowflakeClient) {
-    this.snowflakeClient = snowflakeClient;
-  }
-
-  @VisibleForTesting
-  void setFileIO(FileIO fileIO) {
-    this.fileIO = fileIO;
-  }
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
@@ -97,49 +89,64 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    catalogProperties = properties;
+    String uri = properties.get(CatalogProperties.URI);
+    Preconditions.checkNotNull(uri, "JDBC connection URI is required");
+    try {
+      // We'll ensure the expected JDBC driver implementation class is initialized through
+      // reflection
+      // regardless of which classloader ends up using this JdbcSnowflakeClient, but we'll only
+      // warn if the expected driver fails to load, since users may use repackaged or custom
+      // JDBC drivers for Snowflake communcation.
+      Class.forName(JdbcSnowflakeClient.EXPECTED_JDBC_IMPL);
+    } catch (ClassNotFoundException cnfe) {
+      LOG.warn(
+          "Failed to load expected JDBC SnowflakeDriver - if queries fail by failing"
+              + " to find a suitable driver for jdbc:snowflake:// URIs, you must add the Snowflake "
+              + " JDBC driver to your jars/packages",
+          cnfe);
+    }
+    JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
-    if (name != null) {
-      this.catalogName = name;
+    String fileIOImpl = SnowflakeResources.DEFAULT_FILE_IO_IMPL;
+    if (properties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
+      fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     }
 
-    if (snowflakeClient == null) {
-      String uri = properties.get(CatalogProperties.URI);
-      Preconditions.checkNotNull(uri, "JDBC connection URI is required");
+    initialize(
+        name,
+        new JdbcSnowflakeClient(connectionPool),
+        CatalogUtil.loadFileIO(fileIOImpl, properties, conf),
+        properties);
+  }
 
-      try {
-        // We'll ensure the expected JDBC driver implementation class is initialized through
-        // reflection
-        // regardless of which classloader ends up using this JdbcSnowflakeClient, but we'll only
-        // warn if the expected driver fails to load, since users may use repackaged or custom
-        // JDBC drivers for Snowflake communcation.
-        Class.forName(JdbcSnowflakeClient.EXPECTED_JDBC_IMPL);
-      } catch (ClassNotFoundException cnfe) {
-        LOG.warn(
-            "Failed to load expected JDBC SnowflakeDriver - if queries fail by failing"
-                + " to find a suitable driver for jdbc:snowflake:// URIs, you must add the Snowflake "
-                + " JDBC driver to your jars/packages",
-            cnfe);
-      }
-
-      JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
-      snowflakeClient = new JdbcSnowflakeClient(connectionPool);
-    }
-
-    if (fileIO == null) {
-      String fileIOImpl = SnowflakeResources.DEFAULT_FILE_IO_IMPL;
-
-      if (catalogProperties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
-        fileIOImpl = catalogProperties.get(CatalogProperties.FILE_IO_IMPL);
-      }
-
-      fileIO = CatalogUtil.loadFileIO(fileIOImpl, catalogProperties, conf);
-    }
+  /**
+   * Initialize using caller-supplied SnowflakeClient and FileIO.
+   *
+   * @param name The name of the catalog, defaults to "snowflake_catalog"
+   * @param snowflakeClient The client encapsulating network communication with Snowflake
+   * @param fileIO The {@link FileIO} to use for table operations
+   * @param properties The catalog options to use and propagate to dependencies
+   */
+  @SuppressWarnings("checkstyle:HiddenField")
+  public void initialize(
+      String name, SnowflakeClient snowflakeClient, FileIO fileIO, Map<String, String> properties) {
+    Preconditions.checkArgument(null != snowflakeClient, "snowflakeClient must be non-null");
+    Preconditions.checkArgument(null != fileIO, "fileIO must be non-null");
+    this.catalogName = name == null ? SnowflakeResources.DEFAULT_CATALOG_NAME : name;
+    this.snowflakeClient = snowflakeClient;
+    this.fileIO = fileIO;
+    this.catalogProperties = properties;
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(snowflakeClient);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
-  public void close() {
-    snowflakeClient.close();
+  public void close() throws IOException {
+    if (null != closeableGroup) {
+      closeableGroup.close();
+    }
   }
 
   @Override

@@ -34,6 +34,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   // In-memory lookup by database/schema/tableName to table metadata.
   private Map<String, Map<String, Map<String, SnowflakeTableMetadata>>> databases =
       Maps.newTreeMap();
+  private boolean closed = false;
 
   public FakeSnowflakeClient() {}
 
@@ -43,6 +44,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
    */
   public void addTable(
       String database, String schema, String tableName, SnowflakeTableMetadata metadata) {
+    Preconditions.checkState(!closed, "Cannot call addTable after calling close()");
     if (!databases.containsKey(database)) {
       databases.put(database, Maps.newTreeMap());
     }
@@ -56,6 +58,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
 
   @Override
   public List<SnowflakeSchema> listSchemas(Namespace namespace) {
+    Preconditions.checkState(!closed, "Cannot call listSchemas after calling close()");
     Preconditions.checkArgument(
         namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
         "Namespace {} must have namespace of length <= {}",
@@ -77,7 +80,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
           schemas.add(new SnowflakeSchema(dbName, schema));
         }
       } else {
-        throw new UncheckedSQLException("Nonexistent database: '%s'", dbName);
+        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
       }
     } else {
       throw new IllegalArgumentException(
@@ -89,6 +92,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
 
   @Override
   public List<SnowflakeTable> listIcebergTables(Namespace namespace) {
+    Preconditions.checkState(!closed, "Cannot call listIcebergTables after calling close()");
     Preconditions.checkArgument(
         namespace.length() <= SnowflakeResources.MAX_NAMESPACE_DEPTH,
         "Namespace {} must have namespace of length <= {}",
@@ -116,7 +120,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
           }
         }
       } else {
-        throw new UncheckedSQLException("Nonexistent database: '%s'", dbName);
+        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
       }
     } else {
       String dbName = namespace.level(SnowflakeResources.NAMESPACE_DB_LEVEL - 1);
@@ -128,10 +132,10 @@ public class FakeSnowflakeClient implements SnowflakeClient {
           }
         } else {
           throw new UncheckedSQLException(
-              "Nonexistent datbase.schema: '%s.%s'", dbName, schemaName);
+              "Object does not exist: database.schema: '%s.%s'", dbName, schemaName);
         }
       } else {
-        throw new UncheckedSQLException("Nonexistent database: '%s'", dbName);
+        throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
       }
     }
     return tables;
@@ -139,6 +143,8 @@ public class FakeSnowflakeClient implements SnowflakeClient {
 
   @Override
   public SnowflakeTableMetadata getTableMetadata(TableIdentifier tableIdentifier) {
+    Preconditions.checkState(!closed, "Cannot call getTableMetadata after calling close()");
+
     Namespace ns = tableIdentifier.namespace();
     Preconditions.checkArgument(
         ns.length() == SnowflakeResources.MAX_NAMESPACE_DEPTH,
@@ -150,11 +156,17 @@ public class FakeSnowflakeClient implements SnowflakeClient {
     if (!databases.containsKey(dbName)
         || !databases.get(dbName).containsKey(schemaName)
         || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.name())) {
-      throw new UncheckedSQLException("Nonexistent object: '%s'", tableIdentifier);
+      throw new UncheckedSQLException("Object does not exist: object: '%s'", tableIdentifier);
     }
     return databases.get(dbName).get(schemaName).get(tableIdentifier.name());
   }
 
+  public boolean isClosed() {
+    return closed;
+  }
+
   @Override
-  public void close() {}
+  public void close() {
+    closed = true;
+  }
 }

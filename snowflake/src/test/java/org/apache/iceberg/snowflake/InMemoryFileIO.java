@@ -24,18 +24,22 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InMemoryInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class InMemoryFileIO implements FileIO {
 
   private Map<String, InMemoryInputFile> inMemoryFiles = Maps.newHashMap();
+  private boolean closed = false;
 
   public void addFile(String path, byte[] contents) {
+    Preconditions.checkState(!closed, "Cannot call addFile after calling close()");
     inMemoryFiles.put(path, new InMemoryInputFile(path, contents));
   }
 
   @Override
   public InputFile newInputFile(String path) {
+    Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
     if (!inMemoryFiles.containsKey(path)) {
       throw new NotFoundException("No in-memory file found for path: %s", path);
     }
@@ -44,9 +48,22 @@ public class InMemoryFileIO implements FileIO {
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return null;
+    throw new UnsupportedOperationException(
+        String.format("newOutputFile not supported; attempted for path '%s'", path));
   }
 
   @Override
-  public void deleteFile(String path) {}
+  public void deleteFile(String path) {
+    throw new UnsupportedOperationException(
+        String.format("deleteFile not supported; attempted for path '%s'", path));
+  }
+
+  public boolean isClosed() {
+    return closed;
+  }
+
+  @Override
+  public void close() {
+    closed = true;
+  }
 }
