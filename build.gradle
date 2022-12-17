@@ -708,9 +708,9 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-aws')
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "commons-dbutils:commons-dbutils:1.7"
+    implementation "commons-dbutils:commons-dbutils"
 
-    runtimeOnly("net.snowflake:snowflake-jdbc:3.13.22")
+    runtimeOnly("net.snowflake:snowflake-jdbc")
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
