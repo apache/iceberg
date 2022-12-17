@@ -37,7 +37,6 @@ import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -159,9 +158,9 @@ public class JdbcSnowflakeClientTest {
   public void testListSchemasSQLException() throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new SQLException("Fake SQL exception"));
-    Assert.assertThrows(
-        UncheckedSQLException.class,
-        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")));
+    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
+        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .withStackTraceContaining("Fake SQL exception");
   }
 
   /**
@@ -172,9 +171,9 @@ public class JdbcSnowflakeClientTest {
   public void testListSchemasInterruptedException() throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assert.assertThrows(
-        UncheckedInterruptedException.class,
-        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")));
+    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
+        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .withStackTraceContaining("Fake interrupted exception");
   }
 
   /**
@@ -295,9 +294,9 @@ public class JdbcSnowflakeClientTest {
   public void testListIcebergTablesSQLException() throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new SQLException("Fake SQL exception"));
-    Assert.assertThrows(
-        UncheckedSQLException.class,
-        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")));
+    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
+        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .withStackTraceContaining("Fake SQL exception");
   }
 
   /**
@@ -309,9 +308,9 @@ public class JdbcSnowflakeClientTest {
       throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assert.assertThrows(
-        UncheckedInterruptedException.class,
-        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")));
+    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
+        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .withStackTraceContaining("Fake interrupted exception");
   }
 
   /**
@@ -342,7 +341,7 @@ public class JdbcSnowflakeClientTest {
             "s3://tab1/metadata/v3.metadata.json",
             "success",
             null);
-    Assert.assertEquals(expectedMetadata, actualMetadata);
+    Assertions.assertThat(actualMetadata).isEqualTo(expectedMetadata);
   }
 
   /**
@@ -373,7 +372,7 @@ public class JdbcSnowflakeClientTest {
             "wasbs://mycontainer@myaccount.blob.core.windows.net/tab3/metadata/v334.metadata.json",
             "success",
             null);
-    Assert.assertEquals(expectedMetadata, actualMetadata);
+    Assertions.assertThat(actualMetadata).isEqualTo(expectedMetadata);
   }
 
   /**
@@ -404,7 +403,7 @@ public class JdbcSnowflakeClientTest {
             "gs://tab5/metadata/v793.metadata.json",
             "success",
             null);
-    Assert.assertEquals(expectedMetadata, actualMetadata);
+    Assertions.assertThat(actualMetadata).isEqualTo(expectedMetadata);
   }
 
   /** Malformed JSON from a ResultSet should propagate as an IllegalArgumentException. */
@@ -412,11 +411,12 @@ public class JdbcSnowflakeClientTest {
   public void testGetTableMetadataMalformedJson() throws SQLException {
     when(mockResultSet.next()).thenReturn(true);
     when(mockResultSet.getString("METADATA")).thenReturn("{\"malformed_no_closing_bracket");
-    Assert.assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            snowflakeClient.getTableMetadata(
-                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () ->
+                snowflakeClient.getTableMetadata(
+                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
+        .withMessageContaining("{\"malformed_no_closing_bracket");
   }
 
   /**
@@ -427,11 +427,12 @@ public class JdbcSnowflakeClientTest {
   public void testGetTableMetadataSQLException() throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new SQLException("Fake SQL exception"));
-    Assert.assertThrows(
-        UncheckedSQLException.class,
-        () ->
-            snowflakeClient.getTableMetadata(
-                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
+    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
+        .isThrownBy(
+            () ->
+                snowflakeClient.getTableMetadata(
+                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
+        .withStackTraceContaining("Fake SQL exception");
   }
 
   /**
@@ -442,11 +443,12 @@ public class JdbcSnowflakeClientTest {
   public void testGetTableMetadataInterruptedException() throws SQLException, InterruptedException {
     when(mockClientPool.run(any(ClientPool.Action.class)))
         .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assert.assertThrows(
-        UncheckedInterruptedException.class,
-        () ->
-            snowflakeClient.getTableMetadata(
-                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")));
+    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
+        .isThrownBy(
+            () ->
+                snowflakeClient.getTableMetadata(
+                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
+        .withStackTraceContaining("Fake interrupted exception");
   }
 
   /** Calling close() propagates to closing underlying client pool. */
