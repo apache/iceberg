@@ -21,12 +21,19 @@ package org.apache.iceberg.spark;
 import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 
 public interface ExtendedParser extends ParserInterface {
+  String ICEBERG_SPARK_SQL_EXTENSIONS_PARSER_CLASS =
+      "org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser";
+  String PARSE_SORT_ORDER_METHOD = "parseSortOrder";
+
   class RawOrderField {
     private final Term term;
     private final SortDirection direction;
@@ -61,8 +68,28 @@ public interface ExtendedParser extends ParserInterface {
             String.format("Unable to parse sortOrder: %s", orderString), e);
       }
     } else {
-      throw new IllegalStateException(
-          "Cannot parse order: parser is not an Iceberg ExtendedParser");
+      try {
+        Class<?> sqlExtensionsParserClass =
+            DynClasses.builder().impl(ICEBERG_SPARK_SQL_EXTENSIONS_PARSER_CLASS).buildChecked();
+        DynConstructors.Ctor<?> sqlExtensionsParserCtor =
+            DynConstructors.builder()
+                .loader(sqlExtensionsParserClass.getClassLoader())
+                .impl(sqlExtensionsParserClass)
+                .buildChecked();
+        return DynMethods.builder(PARSE_SORT_ORDER_METHOD)
+            .impl(sqlExtensionsParserClass, String.class)
+            .buildChecked(sqlExtensionsParserCtor.newInstance())
+            .invoke(orderString);
+      } catch (ClassNotFoundException e) {
+        throw new IllegalArgumentException("Cannot load IcebergSparkSqlExtensionsParser class", e);
+      } catch (NoSuchMethodException e) {
+        throw new IllegalArgumentException(
+            "Cannot initialize IcebergSparkSqlExtensionsParser ctor " + "or parseSortOrder method",
+            e);
+      } catch (RuntimeException e) {
+        throw new IllegalArgumentException(
+            String.format("Unable to parse sortOrder: %s", orderString), e);
+      }
     }
   }
 
