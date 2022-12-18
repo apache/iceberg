@@ -21,9 +21,9 @@ import pytest
 
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
-    AvroStruct,
     BinaryReader,
     BooleanReader,
+    ConstructReader,
     DateReader,
     DecimalReader,
     DoubleReader,
@@ -34,10 +34,12 @@ from pyiceberg.avro.reader import (
     TimeReader,
     TimestampReader,
     TimestamptzReader,
-    primitive_reader,
+    UUIDReader,
 )
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import _convert_pos_to_dict
-from pyiceberg.schema import Schema
+from pyiceberg.schema import Schema, visit
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -57,12 +59,12 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
-from tests.io.test_io import LocalInputFile
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
         header = reader._read_header()
 
     assert header.magic == b"Obj\x01"
@@ -255,147 +257,141 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
 
 
 def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_entry_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
         # Consume the generator
         records = list(reader)
 
     assert len(records) == 2, f"Expected 2 records, got {len(records)}"
-    assert records[0] == AvroStruct(
-        _data=[
-            1,
-            8744736658442914487,
-            AvroStruct(
-                _data=[
-                    "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
-                    "PARQUET",
-                    AvroStruct(_data=[None]),
-                    19513,
-                    388872,
-                    67108864,
-                    {
-                        1: 53,
-                        2: 98153,
-                        3: 98693,
-                        4: 53,
-                        5: 53,
-                        6: 53,
-                        7: 17425,
-                        8: 18528,
-                        9: 53,
-                        10: 44788,
-                        11: 35571,
-                        12: 53,
-                        13: 1243,
-                        14: 2355,
-                        15: 12750,
-                        16: 4029,
-                        17: 110,
-                        18: 47194,
-                        19: 2948,
-                    },
-                    {
-                        1: 19513,
-                        2: 19513,
-                        3: 19513,
-                        4: 19513,
-                        5: 19513,
-                        6: 19513,
-                        7: 19513,
-                        8: 19513,
-                        9: 19513,
-                        10: 19513,
-                        11: 19513,
-                        12: 19513,
-                        13: 19513,
-                        14: 19513,
-                        15: 19513,
-                        16: 19513,
-                        17: 19513,
-                        18: 19513,
-                        19: 19513,
-                    },
-                    {
-                        1: 19513,
-                        2: 0,
-                        3: 0,
-                        4: 19513,
-                        5: 19513,
-                        6: 19513,
-                        7: 0,
-                        8: 0,
-                        9: 19513,
-                        10: 0,
-                        11: 0,
-                        12: 19513,
-                        13: 0,
-                        14: 0,
-                        15: 0,
-                        16: 0,
-                        17: 0,
-                        18: 0,
-                        19: 0,
-                    },
-                    {16: 0, 17: 0, 18: 0, 19: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0},
-                    {
-                        2: b"2020-04-01 00:00",
-                        3: b"2020-04-01 00:12",
-                        7: b"\x03\x00\x00\x00",
-                        8: b"\x01\x00\x00\x00",
-                        10: b"\xf6(\\\x8f\xc2\x05S\xc0",
-                        11: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                        13: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                        14: b"\x00\x00\x00\x00\x00\x00\xe0\xbf",
-                        15: b")\\\x8f\xc2\xf5(\x08\xc0",
-                        16: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                        17: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                        18: b"\xf6(\\\x8f\xc2\xc5S\xc0",
-                        19: b"\x00\x00\x00\x00\x00\x00\x04\xc0",
-                    },
-                    {
-                        2: b"2020-04-30 23:5:",
-                        3: b"2020-05-01 00:41",
-                        7: b"\t\x01\x00\x00",
-                        8: b"\t\x01\x00\x00",
-                        10: b"\xcd\xcc\xcc\xcc\xcc,_@",
-                        11: b"\x1f\x85\xebQ\\\xe2\xfe@",
-                        13: b"\x00\x00\x00\x00\x00\x00\x12@",
-                        14: b"\x00\x00\x00\x00\x00\x00\xe0?",
-                        15: b"q=\n\xd7\xa3\xf01@",
-                        16: b"\x00\x00\x00\x00\x00`B@",
-                        17: b"333333\xd3?",
-                        18: b"\x00\x00\x00\x00\x00\x18b@",
-                        19: b"\x00\x00\x00\x00\x00\x00\x04@",
-                    },
-                    None,
-                    [4],
-                    0,
-                ]
-            ),
-        ]
+    assert records[0] == Record(
+        1,
+        8744736658442914487,
+        Record(
+            "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
+            "PARQUET",
+            Record(None),
+            19513,
+            388872,
+            67108864,
+            {
+                1: 53,
+                2: 98153,
+                3: 98693,
+                4: 53,
+                5: 53,
+                6: 53,
+                7: 17425,
+                8: 18528,
+                9: 53,
+                10: 44788,
+                11: 35571,
+                12: 53,
+                13: 1243,
+                14: 2355,
+                15: 12750,
+                16: 4029,
+                17: 110,
+                18: 47194,
+                19: 2948,
+            },
+            {
+                1: 19513,
+                2: 19513,
+                3: 19513,
+                4: 19513,
+                5: 19513,
+                6: 19513,
+                7: 19513,
+                8: 19513,
+                9: 19513,
+                10: 19513,
+                11: 19513,
+                12: 19513,
+                13: 19513,
+                14: 19513,
+                15: 19513,
+                16: 19513,
+                17: 19513,
+                18: 19513,
+                19: 19513,
+            },
+            {
+                1: 19513,
+                2: 0,
+                3: 0,
+                4: 19513,
+                5: 19513,
+                6: 19513,
+                7: 0,
+                8: 0,
+                9: 19513,
+                10: 0,
+                11: 0,
+                12: 19513,
+                13: 0,
+                14: 0,
+                15: 0,
+                16: 0,
+                17: 0,
+                18: 0,
+                19: 0,
+            },
+            {16: 0, 17: 0, 18: 0, 19: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0},
+            {
+                2: b"2020-04-01 00:00",
+                3: b"2020-04-01 00:12",
+                7: b"\x03\x00\x00\x00",
+                8: b"\x01\x00\x00\x00",
+                10: b"\xf6(\\\x8f\xc2\x05S\xc0",
+                11: b"\x00\x00\x00\x00\x00\x00\x00\x00",
+                13: b"\x00\x00\x00\x00\x00\x00\x00\x00",
+                14: b"\x00\x00\x00\x00\x00\x00\xe0\xbf",
+                15: b")\\\x8f\xc2\xf5(\x08\xc0",
+                16: b"\x00\x00\x00\x00\x00\x00\x00\x00",
+                17: b"\x00\x00\x00\x00\x00\x00\x00\x00",
+                18: b"\xf6(\\\x8f\xc2\xc5S\xc0",
+                19: b"\x00\x00\x00\x00\x00\x00\x04\xc0",
+            },
+            {
+                2: b"2020-04-30 23:5:",
+                3: b"2020-05-01 00:41",
+                7: b"\t\x01\x00\x00",
+                8: b"\t\x01\x00\x00",
+                10: b"\xcd\xcc\xcc\xcc\xcc,_@",
+                11: b"\x1f\x85\xebQ\\\xe2\xfe@",
+                13: b"\x00\x00\x00\x00\x00\x00\x12@",
+                14: b"\x00\x00\x00\x00\x00\x00\xe0?",
+                15: b"q=\n\xd7\xa3\xf01@",
+                16: b"\x00\x00\x00\x00\x00`B@",
+                17: b"333333\xd3?",
+                18: b"\x00\x00\x00\x00\x00\x18b@",
+                19: b"\x00\x00\x00\x00\x00\x00\x04@",
+            },
+            None,
+            [4],
+            0,
+        ),
     )
 
 
 def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
-    with AvroFile(LocalInputFile(generated_manifest_file_file)) as reader:
+    with AvroFile(PyArrowFileIO().new_input(generated_manifest_file_file)) as reader:
         # Consume the generator
         records = list(reader)
 
     assert len(records) == 1, f"Expected 1 records, got {len(records)}"
     actual = records[0]
-    expected = AvroStruct(
-        _data=[
-            actual.get(0),
-            7989,
-            0,
-            9182715666859759686,
-            3,
-            0,
-            0,
-            [AvroStruct(_data=[True, False, b"\x01\x00\x00\x00", b"\x02\x00\x00\x00"])],
-            237993,
-            0,
-            0,
-        ]
+    expected = Record(
+        actual.get(0),
+        7989,
+        0,
+        9182715666859759686,
+        3,
+        0,
+        0,
+        [Record(True, False, b"\x01\x00\x00\x00", b"\x02\x00\x00\x00")],
+        237993,
+        0,
+        0,
     )
     assert actual == expected
 
@@ -405,7 +401,7 @@ def test_null_list_convert_pos_to_dict() -> None:
         Schema(
             NestedField(name="field", field_id=1, field_type=ListType(element_id=2, element=StringType(), element_required=False))
         ),
-        AvroStruct([None]),
+        Record(None),
     )
     assert data["field"] is None
 
@@ -419,7 +415,7 @@ def test_null_dict_convert_pos_to_dict() -> None:
                 field_type=MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=False),
             )
         ),
-        AvroStruct([None]),
+        Record(None),
     )
     assert data["field"] is None
 
@@ -436,61 +432,61 @@ def test_null_struct_convert_pos_to_dict() -> None:
                 required=False,
             )
         ),
-        AvroStruct([None]),
+        Record(None),
     )
     assert data["field"] is None
 
 
 def test_fixed_reader() -> None:
-    assert primitive_reader(FixedType(22)) == FixedReader(22)
+    assert visit(FixedType(22), ConstructReader()) == FixedReader(22)
 
 
 def test_decimal_reader() -> None:
-    assert primitive_reader(DecimalType(19, 25)) == DecimalReader(19, 25)
+    assert visit(DecimalType(19, 25), ConstructReader()) == DecimalReader(19, 25)
 
 
 def test_boolean_reader() -> None:
-    assert primitive_reader(BooleanType()) == BooleanReader()
+    assert visit(BooleanType(), ConstructReader()) == BooleanReader()
 
 
 def test_integer_reader() -> None:
-    assert primitive_reader(IntegerType()) == IntegerReader()
+    assert visit(IntegerType(), ConstructReader()) == IntegerReader()
 
 
 def test_long_reader() -> None:
-    assert primitive_reader(LongType()) == IntegerReader()
+    assert visit(LongType(), ConstructReader()) == IntegerReader()
 
 
 def test_float_reader() -> None:
-    assert primitive_reader(FloatType()) == FloatReader()
+    assert visit(FloatType(), ConstructReader()) == FloatReader()
 
 
 def test_double_reader() -> None:
-    assert primitive_reader(DoubleType()) == DoubleReader()
+    assert visit(DoubleType(), ConstructReader()) == DoubleReader()
 
 
 def test_date_reader() -> None:
-    assert primitive_reader(DateType()) == DateReader()
+    assert visit(DateType(), ConstructReader()) == DateReader()
 
 
 def test_time_reader() -> None:
-    assert primitive_reader(TimeType()) == TimeReader()
+    assert visit(TimeType(), ConstructReader()) == TimeReader()
 
 
 def test_timestamp_reader() -> None:
-    assert primitive_reader(TimestampType()) == TimestampReader()
+    assert visit(TimestampType(), ConstructReader()) == TimestampReader()
 
 
 def test_timestamptz_reader() -> None:
-    assert primitive_reader(TimestamptzType()) == TimestamptzReader()
+    assert visit(TimestamptzType(), ConstructReader()) == TimestamptzReader()
 
 
 def test_string_reader() -> None:
-    assert primitive_reader(StringType()) == StringReader()
+    assert visit(StringType(), ConstructReader()) == StringReader()
 
 
 def test_binary_reader() -> None:
-    assert primitive_reader(BinaryType()) == BinaryReader()
+    assert visit(BinaryType(), ConstructReader()) == BinaryReader()
 
 
 def test_unknown_type() -> None:
@@ -498,6 +494,10 @@ def test_unknown_type() -> None:
         __root__ = "UnknownType"
 
     with pytest.raises(ValueError) as exc_info:
-        primitive_reader(UnknownType())
+        visit(UnknownType(), ConstructReader())
 
     assert "Unknown type:" in str(exc_info.value)
+
+
+def test_uuid_reader() -> None:
+    assert visit(UUIDType(), ConstructReader()) == UUIDReader()

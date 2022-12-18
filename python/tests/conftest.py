@@ -31,8 +31,6 @@ from typing import (
     Callable,
     Dict,
     Generator,
-    Type,
-    Union,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -49,14 +47,9 @@ import pytest
 from moto import mock_glue, mock_s3
 
 from pyiceberg import schema
-from pyiceberg.io import (
-    FileIO,
-    InputFile,
-    OutputFile,
-    OutputStream,
-    fsspec,
-)
+from pyiceberg.io import OutputFile, OutputStream, fsspec
 from pyiceberg.io.fsspec import FsspecFileIO
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
@@ -72,7 +65,6 @@ from pyiceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
-from tests.io.test_io import LocalInputFile
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -102,21 +94,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
         help="The ADLS secret account key for tests marked as adlfs",
     )
-
-
-class FooStruct:
-    """An example of an object that abides by StructProtocol"""
-
-    content: Dict[int, Any]
-
-    def __init__(self) -> None:
-        self.content = {}
-
-    def get(self, pos: int) -> Any:
-        return self.content[pos]
-
-    def set(self, pos: int, value: Any) -> None:
-        self.content[pos] = value
 
 
 @pytest.fixture(scope="session")
@@ -179,11 +156,6 @@ def table_schema_nested() -> Schema:
         schema_id=1,
         identifier_field_ids=[1],
     )
-
-
-@pytest.fixture(scope="session")
-def foo_struct() -> FooStruct:
-    return FooStruct()
 
 
 @pytest.fixture(scope="session")
@@ -941,33 +913,14 @@ class LocalOutputFile(OutputFile):
     def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self) -> LocalInputFile:
-        return LocalInputFile(location=self.location)
+    def to_input_file(self) -> PyArrowFile:
+        return PyArrowFileIO().new_input(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self._path, "wb" if overwrite else "xb")
         if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
-
-
-class LocalFileIO(FileIO):
-    """A FileIO implementation for local files (for test use only)"""
-
-    def new_input(self, location: str) -> LocalInputFile:
-        return LocalInputFile(location=location)
-
-    def new_output(self, location: str) -> LocalOutputFile:
-        return LocalOutputFile(location=location)
-
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        os.remove(location)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture() -> Type[LocalFileIO]:
-    return LocalFileIO
 
 
 @pytest.fixture(scope="session")
@@ -1297,3 +1250,9 @@ def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileI
     bbs.create_container("tests")
     yield fsspec.FsspecFileIO(properties=properties)
     bbs.delete_container("tests")
+
+
+@pytest.fixture(scope="session")
+def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
+    home_path = str(tmp_path_factory.mktemp("home"))
+    return home_path

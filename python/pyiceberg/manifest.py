@@ -28,9 +28,9 @@ from typing import (
 from pydantic import Field
 
 from pyiceberg.avro.file import AvroFile
-from pyiceberg.avro.reader import AvroStruct
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     IcebergType,
     ListType,
@@ -158,14 +158,14 @@ def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
 
 
 @singledispatch
-def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: AvroStruct) -> Dict[str, Any]:
+def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: Record) -> Dict[str, Any]:
     """Converts the positions in the field names
 
     This makes it easy to map it onto a Pydantic model. Might change later on depending on the performance
 
      Args:
          schema (Schema | IcebergType): The schema of the file
-         struct (AvroStruct): The struct containing the data by positions
+         struct (Record): The struct containing the data by positions
 
      Raises:
          NotImplementedError: If attempting to handle an unknown type in the schema
@@ -174,12 +174,12 @@ def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: AvroStruct)
 
 
 @_convert_pos_to_dict.register
-def _(schema: Schema, struct: AvroStruct) -> Dict[str, Any]:
+def _(schema: Schema, struct: Record) -> Dict[str, Any]:
     return _convert_pos_to_dict(schema.as_struct(), struct)
 
 
 @_convert_pos_to_dict.register
-def _(struct_type: StructType, values: AvroStruct) -> Dict[str, Any]:
+def _(struct_type: StructType, values: Record) -> Dict[str, Any]:
     """Iterates over all the fields in the dict, and gets the data from the struct"""
     return (
         {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}

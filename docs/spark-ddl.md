@@ -446,3 +446,29 @@ ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
 ```
+
+### `ALTER TABLE ... SET IDENTIFIER FIELDS`
+
+Iceberg supports setting identifier fields to a spec using `SET IDENTIFIER FIELDS`:
+
+```sql
+ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id
+-- single column
+ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id, data
+-- multiple columns
+```
+
+identifier fields must be `NOT NULL`, The later `ALTER` statement will overwrite the previous setting.
+
+### `ALTER TABLE ... DROP IDENTIFIER FIELDS`
+
+Identifier fields can be removed using `DROP IDENTIFIER FIELDS`:
+
+```sql
+ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id
+-- single column
+ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id, data
+-- multiple columns
+```
+
+Note that although the identifier is removed, the column will still exist in the table schema.

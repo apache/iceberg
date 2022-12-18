@@ -134,14 +134,17 @@ MOCK_CATALOG = MockCatalog("production", uri="http://somewhere")
 MOCK_ENVIRONMENT = {"PYICEBERG_CATALOG__PRODUCTION__URI": "test://doesnotexist"}
 
 
-def test_missing_uri() -> None:
-    runner = CliRunner()
-    result = runner.invoke(run, ["list"])
-    assert result.exit_code == 1
-    assert (
-        result.output
-        == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
-    )
+def test_missing_uri(empty_home_dir_path: str) -> None:
+
+    # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
+    with mock.patch.dict(os.environ, {"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path}):
+        runner = CliRunner()
+        result = runner.invoke(run, ["list"])
+        assert result.exit_code == 1
+        assert (
+            result.output
+            == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
+        )
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)

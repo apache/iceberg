@@ -16,7 +16,6 @@
 # under the License.
 
 import uuid
-from typing import Generator
 
 import pytest
 from botocore.awsrequest import AWSRequest
@@ -25,12 +24,12 @@ from requests_mock import Mocker
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import fsspec
 from pyiceberg.io.fsspec import FsspecFileIO, s3v4_rest_signer
-from tests.io.test_io import LocalInputFile
+from pyiceberg.io.pyarrow import PyArrowFileIO
 
 
 @pytest.mark.s3
 def test_fsspec_new_input_file(fsspec_fileio: FsspecFileIO) -> None:
-    """Test creating a new input file from an fsspec file-io"""
+    """Test creating a new input file from a fsspec file-io"""
     filename = str(uuid.uuid4())
 
     input_file = fsspec_fileio.new_input(f"s3://warehouse/{filename}")
@@ -193,10 +192,10 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile(fsspec_fileio: FsspecFi
 
 
 @pytest.mark.s3
-def test_writing_avro_file(generated_manifest_entry_file: Generator[str, None, None], fsspec_fileio: FsspecFileIO) -> None:
+def test_writing_avro_file(generated_manifest_entry_file: str, fsspec_fileio: FsspecFileIO) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
-    with LocalInputFile(generated_manifest_entry_file).open() as f:
+    with PyArrowFileIO().new_input(location=generated_manifest_entry_file).open() as f:
         b1 = f.read()
         with fsspec_fileio.new_output(location=f"s3://warehouse/{filename}").create() as out_f:
             out_f.write(b1)
