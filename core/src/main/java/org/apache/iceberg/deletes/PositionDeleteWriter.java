@@ -41,6 +41,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final ByteBuffer keyMetadata;
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
+  private Long minDataSequenceNumber = null;
 
   public PositionDeleteWriter(
       FileAppender<StructLike> appender,
@@ -82,12 +83,17 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
               .withEncryptionKeyMetadata(keyMetadata)
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
+              .withMinDataSequenceNumber(minDataSequenceNumber)
               .build();
     }
   }
 
   public CharSequenceSet referencedDataFiles() {
     return referencedDataFiles;
+  }
+
+  public void setMinDataSequenceNumber(Long minDataSequenceNumber) {
+    this.minDataSequenceNumber = minDataSequenceNumber;
   }
 
   public DeleteFile toDeleteFile() {

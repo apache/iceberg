@@ -251,6 +251,7 @@ class V2Metadata {
         ManifestEntry.SNAPSHOT_ID,
         ManifestEntry.SEQUENCE_NUMBER,
         ManifestEntry.FILE_SEQUENCE_NUMBER,
+        ManifestEntry.MIN_DATA_SEQUENCE_NUMBER,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
@@ -332,6 +333,8 @@ class V2Metadata {
         case 3:
           return wrapped.fileSequenceNumber();
         case 4:
+          return wrapped.minDataSequenceNumber();
+        case 5:
           return fileWrapper.wrap(wrapped.file());
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
@@ -376,6 +379,11 @@ class V2Metadata {
     @Override
     public Long fileSequenceNumber() {
       return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public Long minDataSequenceNumber() {
+      return wrapped.minDataSequenceNumber();
     }
 
     @Override

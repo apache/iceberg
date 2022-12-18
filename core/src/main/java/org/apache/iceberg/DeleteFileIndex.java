@@ -162,6 +162,11 @@ class DeleteFileIndex {
   }
 
   private static boolean canContainPosDeletesForFile(DataFile dataFile, DeleteFile deleteFile) {
+    if (deleteFile.minDataSequenceNumber() != null
+        && deleteFile.minDataSequenceNumber() > dataFile.dataSequenceNumber()) {
+      return false;
+    }
+
     // check that the delete file can contain the data file's file_path
     Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
     Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();

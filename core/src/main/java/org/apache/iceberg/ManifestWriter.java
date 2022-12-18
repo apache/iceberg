@@ -121,14 +121,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * @param dataSequenceNumber a data sequence number for the file
    */
   public void add(F addedFile, long dataSequenceNumber) {
-    addEntry(reused.wrapAppend(snapshotId, dataSequenceNumber, addedFile));
+    addEntry(reused.wrapAppend(snapshotId, dataSequenceNumber, null, addedFile));
   }
 
   void add(ManifestEntry<F> entry) {
     if (entry.dataSequenceNumber() != null && entry.dataSequenceNumber() >= 0) {
-      addEntry(reused.wrapAppend(snapshotId, entry.dataSequenceNumber(), entry.file()));
+      addEntry(
+          reused.wrapAppend(
+              snapshotId, entry.dataSequenceNumber(), entry.minDataSequenceNumber(), entry.file()));
     } else {
-      addEntry(reused.wrapAppend(snapshotId, entry.file()));
+      addEntry(reused.wrapAppend(snapshotId, null, entry.minDataSequenceNumber(), entry.file()));
     }
   }
 
@@ -146,7 +148,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    */
   @Deprecated
   public void existing(F existingFile, long fileSnapshotId, long dataSequenceNumber) {
-    addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, null, existingFile));
+    addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, null, null, existingFile));
   }
 
   /**
@@ -162,7 +164,35 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    */
   public void existing(
       F existingFile, long fileSnapshotId, long dataSequenceNumber, Long fileSequenceNumber) {
-    reused.wrapExisting(fileSnapshotId, dataSequenceNumber, fileSequenceNumber, existingFile);
+    reused.wrapExisting(fileSnapshotId, dataSequenceNumber, fileSequenceNumber, null, existingFile);
+    addEntry(reused);
+  }
+
+  /**
+   * Add an existing entry for a file.
+   *
+   * <p>The original data and file sequence numbers, snapshot ID, which were assigned at commit,
+   * must be preserved when adding an existing entry.
+   *
+   * @param existingFile a file
+   * @param fileSnapshotId snapshot ID when the data file was added to the table
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
+   * @param fileSequenceNumber a file sequence number (assigned when the file was added)
+   * @param minReferredDataSequenceNumber the minimum data sequence number of the data files that a
+   *     delete file referred.
+   */
+  public void existing(
+      F existingFile,
+      long fileSnapshotId,
+      long dataSequenceNumber,
+      Long fileSequenceNumber,
+      Long minReferredDataSequenceNumber) {
+    reused.wrapExisting(
+        fileSnapshotId,
+        dataSequenceNumber,
+        fileSequenceNumber,
+        minReferredDataSequenceNumber,
+        existingFile);
     addEntry(reused);
   }
 
@@ -197,7 +227,34 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * @param fileSequenceNumber a file sequence number (assigned when the file was added)
    */
   public void delete(F deletedFile, long dataSequenceNumber, Long fileSequenceNumber) {
-    addEntry(reused.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, deletedFile));
+    addEntry(
+        reused.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, null, deletedFile));
+  }
+
+  /**
+   * Add a delete entry for a file.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. However, the original data and
+   * file sequence numbers of the file must be preserved when the file is marked as deleted.
+   *
+   * @param deletedFile a file
+   * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
+   * @param fileSequenceNumber a file sequence number (assigned when the file was added)
+   * @param minReferredDataSequenceNumber the minimum data sequence number of the data files that a
+   *     delete file referred.
+   */
+  public void delete(
+      F deletedFile,
+      long dataSequenceNumber,
+      Long fileSequenceNumber,
+      Long minReferredDataSequenceNumber) {
+    addEntry(
+        reused.wrapDelete(
+            snapshotId,
+            dataSequenceNumber,
+            fileSequenceNumber,
+            minReferredDataSequenceNumber,
+            deletedFile));
   }
 
   void delete(ManifestEntry<F> entry) {

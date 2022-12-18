@@ -32,6 +32,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
   private Long dataSequenceNumber = null;
   private Long sequenceNumber = null;
   private Long fileSequenceNumber = null;
+  private Long minDataSequenceNumber = null;
   private F file = null;
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
@@ -49,51 +50,72 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.sequenceNumber = toCopy.sequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
+    this.minDataSequenceNumber = toCopy.minDataSequenceNumber;
     this.file = toCopy.file().copy(fullCopy);
   }
 
   ManifestEntry<F> wrapExisting(ManifestEntry<F> entry) {
     return wrapExisting(
-        entry.snapshotId(), entry.dataSequenceNumber(), entry.fileSequenceNumber(), entry.file());
+        entry.snapshotId(),
+        entry.dataSequenceNumber(),
+        entry.fileSequenceNumber(),
+        entry.minDataSequenceNumber(),
+        entry.file());
   }
 
   ManifestEntry<F> wrapExisting(
-      Long newSnapshotId, Long newDataSequenceNumber, Long newFileSequenceNumber, F newFile) {
+      Long newSnapshotId,
+      Long newDataSequenceNumber,
+      Long newFileSequenceNumber,
+      Long newMinSequenceNumber,
+      F newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = newDataSequenceNumber;
     this.fileSequenceNumber = newFileSequenceNumber;
+    this.minDataSequenceNumber = newMinSequenceNumber;
     this.file = newFile;
     return this;
   }
 
   ManifestEntry<F> wrapAppend(Long newSnapshotId, F newFile) {
-    return wrapAppend(newSnapshotId, null, newFile);
+    return wrapAppend(newSnapshotId, null, newFile.minDataSequenceNumber(), newFile);
   }
 
-  ManifestEntry<F> wrapAppend(Long newSnapshotId, Long newDataSequenceNumber, F newFile) {
+  ManifestEntry<F> wrapAppend(
+      Long newSnapshotId, Long newDataSequenceNumber, Long newMinSequenceNumber, F newFile) {
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = newDataSequenceNumber;
     this.fileSequenceNumber = null;
+    this.minDataSequenceNumber = newMinSequenceNumber;
     this.file = newFile;
     return this;
   }
 
   ManifestEntry<F> wrapDelete(Long newSnapshotId, ManifestEntry<F> entry) {
     return wrapDelete(
-        newSnapshotId, entry.dataSequenceNumber(), entry.fileSequenceNumber(), entry.file());
+        newSnapshotId,
+        entry.dataSequenceNumber(),
+        entry.fileSequenceNumber(),
+        entry.minDataSequenceNumber(),
+        entry.file());
   }
 
   ManifestEntry<F> wrapDelete(
-      Long newSnapshotId, Long newDataSequenceNumber, Long newFileSequenceNumber, F newFile) {
+      Long newSnapshotId,
+      Long newDataSequenceNumber,
+      Long newFileSequenceNumber,
+      Long newMinSequenceNumber,
+      F newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.sequenceNumber = null;
     this.fileSequenceNumber = newFileSequenceNumber;
+    this.minDataSequenceNumber = newMinSequenceNumber;
     this.file = newFile;
     return this;
   }
@@ -127,6 +149,11 @@ class GenericManifestEntry<F extends ContentFile<F>>
   @Override
   public Long fileSequenceNumber() {
     return fileSequenceNumber;
+  }
+
+  @Override
+  public Long minDataSequenceNumber() {
+    return minDataSequenceNumber;
   }
 
   /** @return a file */
@@ -186,6 +213,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
         this.fileSequenceNumber = (Long) v;
         return;
       case 4:
+        this.minDataSequenceNumber = (Long) v;
+        return;
+      case 5:
         this.file = (F) v;
         return;
       default:
@@ -210,6 +240,8 @@ class GenericManifestEntry<F extends ContentFile<F>>
       case 3:
         return fileSequenceNumber;
       case 4:
+        return minDataSequenceNumber;
+      case 5:
         return file;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
@@ -238,6 +270,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
         .add("snapshot_id", snapshotId)
         .add("data_sequence_number", dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber)
+        .add(
+            "min_data_sequence_number",
+            minDataSequenceNumber == null ? "null" : minDataSequenceNumber)
         .add("file", file)
         .toString();
   }

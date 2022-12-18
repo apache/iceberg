@@ -47,8 +47,14 @@ interface ManifestEntry<F extends ContentFile<F>> {
   Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
   Types.NestedField FILE_SEQUENCE_NUMBER =
       optional(4, "file_sequence_number", Types.LongType.get());
+  Types.NestedField MIN_DATA_SEQUENCE_NUMBER =
+      optional(
+          5,
+          "min_data_sequence_number",
+          Types.LongType.get(),
+          "Lowest data sequence number of data files that the delete file is referenced");
   int DATA_FILE_ID = 2;
-  // next ID to assign: 5
+  // next ID to assign: 6
 
   static Schema getSchema(StructType partitionType) {
     return wrapFileSchema(DataFile.getType(partitionType));
@@ -60,6 +66,7 @@ interface ManifestEntry<F extends ContentFile<F>> {
         SNAPSHOT_ID,
         SEQUENCE_NUMBER,
         FILE_SEQUENCE_NUMBER,
+        MIN_DATA_SEQUENCE_NUMBER,
         required(DATA_FILE_ID, "data_file", fileType));
   }
 
@@ -137,6 +144,12 @@ interface ManifestEntry<F extends ContentFile<F>> {
    * status EXISTING or DELETED (older Iceberg versions).
    */
   Long fileSequenceNumber();
+
+  /**
+   * Returns the minimum data sequence number of the data files that the delete file referenced. It
+   * returns null when the manifest entry is data file.
+   */
+  Long minDataSequenceNumber();
 
   /**
    * Sets the file sequence number for this manifest entry.

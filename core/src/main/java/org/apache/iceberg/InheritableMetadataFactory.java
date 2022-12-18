@@ -54,6 +54,7 @@ class InheritableMetadataFactory {
     }
 
     @Override
+    @SuppressWarnings("CyclomaticComplexity")
     public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
       if (manifestEntry.file() instanceof BaseFile) {
         BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
@@ -80,6 +81,25 @@ class InheritableMetadataFactory {
       if (manifestEntry.fileSequenceNumber() == null
           && (sequenceNumber == 0 || manifestEntry.status() == ManifestEntry.Status.ADDED)) {
         manifestEntry.setFileSequenceNumber(sequenceNumber);
+      }
+
+      if (manifestEntry.file() instanceof BaseFile) {
+        BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
+        file.setDataSequenceNumber(manifestEntry.dataSequenceNumber());
+      }
+
+      if (manifestEntry.file() instanceof GenericDeleteFile) {
+        BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
+        if (DeleteFile.LAZY_MIN_DATA_SEQUENCE_NUMBER.equals(
+            manifestEntry.minDataSequenceNumber())) {
+          // In case of the writer doesn't know the sequence number of data files when
+          // committing, such as flink upsert writer which set the minimum number to a lazy value,
+          // the minimum sequence number of the delete file should set to snapshot sequence number.
+          file.setMinDataSequenceNumber(sequenceNumber);
+        } else {
+          // In other cases, the minimum sequence number of the referenced data files is determined.
+          file.setMinDataSequenceNumber(manifestEntry.minDataSequenceNumber());
+        }
       }
 
       return manifestEntry;
