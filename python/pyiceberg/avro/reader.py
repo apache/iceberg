@@ -30,7 +30,6 @@ from dataclasses import dataclass
 from dataclasses import field as dataclassfield
 from datetime import date, datetime, time
 from decimal import Decimal
-from functools import singledispatch
 from typing import (
     Any,
     Callable,
@@ -43,7 +42,7 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.schema import Schema, SchemaVisitor
+from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
     BinaryType,
@@ -58,12 +57,12 @@ from pyiceberg.types import (
     LongType,
     MapType,
     NestedField,
-    PrimitiveType,
     StringType,
     StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -209,10 +208,10 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
-        return UUID(decoder.read_utf8())
+        return decoder.read_uuid_from_fixed()
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_utf8()
+        decoder.skip(16)
 
 
 @dataclass(frozen=True)
@@ -339,7 +338,7 @@ class MapReader(Reader):
         _skip_map_array(decoder, skip)
 
 
-class ConstructReader(SchemaVisitor[Reader]):
+class ConstructReader(SchemaVisitorPerPrimitiveType[Reader]):
     def schema(self, schema: Schema, struct_result: Reader) -> Reader:
         return struct_result
 
@@ -357,77 +356,44 @@ class ConstructReader(SchemaVisitor[Reader]):
         value_reader = value_result if map_type.value_required else OptionReader(value_result)
         return MapReader(key_result, value_reader)
 
-    def primitive(self, primitive: PrimitiveType) -> Reader:
-        return primitive_reader(primitive)
+    def visit_fixed(self, fixed_type: FixedType) -> Reader:
+        return FixedReader(len(fixed_type))
 
+    def visit_decimal(self, decimal_type: DecimalType) -> Reader:
+        return DecimalReader(decimal_type.precision, decimal_type.scale)
 
-@singledispatch
-def primitive_reader(primitive: PrimitiveType) -> Reader:
-    raise ValueError(f"Unknown type: {primitive}")
+    def visit_boolean(self, boolean_type: BooleanType) -> Reader:
+        return BooleanReader()
 
+    def visit_integer(self, integer_type: IntegerType) -> Reader:
+        return IntegerReader()
 
-@primitive_reader.register
-def _(primitive: FixedType) -> Reader:
-    return FixedReader(len(primitive))
+    def visit_long(self, long_type: LongType) -> Reader:
+        return IntegerReader()
 
+    def visit_float(self, float_type: FloatType) -> Reader:
+        return FloatReader()
 
-@primitive_reader.register
-def _(primitive: DecimalType) -> Reader:
-    return DecimalReader(primitive.precision, primitive.scale)
+    def visit_double(self, double_type: DoubleType) -> Reader:
+        return DoubleReader()
 
+    def visit_date(self, date_type: DateType) -> Reader:
+        return DateReader()
 
-@primitive_reader.register
-def _(_: BooleanType) -> Reader:
-    return BooleanReader()
+    def visit_time(self, time_type: TimeType) -> Reader:
+        return TimeReader()
 
+    def visit_timestamp(self, timestamp_type: TimestampType) -> Reader:
+        return TimestampReader()
 
-@primitive_reader.register
-def _(_: IntegerType) -> Reader:
-    return IntegerReader()
+    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> Reader:
+        return TimestamptzReader()
 
+    def visit_string(self, string_type: StringType) -> Reader:
+        return StringReader()
 
-@primitive_reader.register
-def _(_: LongType) -> Reader:
-    # Ints and longs are encoded the same way in Python and
-    # also binary compatible in Avro
-    return IntegerReader()
+    def visit_uuid(self, uuid_type: UUIDType) -> Reader:
+        return UUIDReader()
 
-
-@primitive_reader.register
-def _(_: FloatType) -> Reader:
-    return FloatReader()
-
-
-@primitive_reader.register
-def _(_: DoubleType) -> Reader:
-    return DoubleReader()
-
-
-@primitive_reader.register
-def _(_: DateType) -> Reader:
-    return DateReader()
-
-
-@primitive_reader.register
-def _(_: TimeType) -> Reader:
-    return TimeReader()
-
-
-@primitive_reader.register
-def _(_: TimestampType) -> Reader:
-    return TimestampReader()
-
-
-@primitive_reader.register
-def _(_: TimestamptzType) -> Reader:
-    return TimestamptzReader()
-
-
-@primitive_reader.register
-def _(_: StringType) -> Reader:
-    return StringReader()
-
-
-@primitive_reader.register
-def _(_: BinaryType) -> Reader:
-    return BinaryReader()
+    def visit_binary(self, binary_ype: BinaryType) -> Reader:
+        return BinaryReader()
