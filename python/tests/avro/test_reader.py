@@ -38,8 +38,8 @@ from pyiceberg.avro.reader import (
 )
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import _convert_pos_to_dict
-from pyiceberg.typedef import Record
 from pyiceberg.schema import Schema, visit
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
