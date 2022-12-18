@@ -37,7 +37,7 @@ public interface ActionsProvider {
 
   default MigrateDeltaLakeTable migrateDeltaLakeTable(String tableIdent, String deltaS3Location) {
     throw new UnsupportedOperationException(
-            this.getClass().getName() + " does not implement migrateDeltaLakeTable");
+        this.getClass().getName() + " does not implement migrateDeltaLakeTable");
   }
 
   /** Instantiates an action to delete orphan files. */

@@ -293,6 +293,7 @@ project(':iceberg-core') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+
     compileOnly "io.delta:delta-standalone_2.12"
 
     testImplementation "org.eclipse.jetty:jetty-servlet"

@@ -42,7 +42,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
 
-class SparkTypeToType extends SparkTypeVisitor<Type> {
+public class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
 
@@ -50,7 +50,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     this.root = null;
   }
 
-  SparkTypeToType(StructType root) {
+  public SparkTypeToType(StructType root) {
     this.root = root;
     // the root struct's fields use the first ids
     this.nextId = root.fields().length;

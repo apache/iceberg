@@ -79,7 +79,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     // TODO: check whether we need more info when initializing the table
     Table icebergTable =
         this.icebergCatalog.createTable(
-                newTableIdentifier,
+            newTableIdentifier,
             schema,
             partitionSpec,
             destTableProperties(
@@ -271,9 +271,9 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   }
 
   protected static Map<String, String> destTableProperties(
-          io.delta.standalone.Snapshot deltaSnapshot,
-          String tableLocation,
-          Map<String, String> additionalProperties) {
+      io.delta.standalone.Snapshot deltaSnapshot,
+      String tableLocation,
+      Map<String, String> additionalProperties) {
     Map<String, String> properties = Maps.newHashMap();
 
     properties.putAll(deltaSnapshot.getMetadata().getConfiguration());

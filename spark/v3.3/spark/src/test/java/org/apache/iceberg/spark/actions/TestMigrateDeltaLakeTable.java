@@ -44,165 +44,165 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
 
 public class TestMigrateDeltaLakeTable extends SparkCatalogTestBase {
-    private static final String NAMESPACE = "default";
+  private static final String NAMESPACE = "default";
 
-    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private String partitionedIdentifier;
-    private String unpartitionedIdentifier;
+  private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  private String partitionedIdentifier;
+  private String unpartitionedIdentifier;
 
-    @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
-    public static Object[][] parameters() {
-        return new Object[][] {
-                new Object[] {
-                        "delta",
-                        DeltaCatalog.class.getName(),
-                        ImmutableMap.of(
-                                "type", "hive",
-                                "default-namespace", "default",
-                                "parquet-enabled", "true",
-                                "cache-enabled",
-                                "false" // Spark will delete tables using v1, leaving the cache out of sync
-                        )
-                }
-        };
+  @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {
+        "delta",
+        DeltaCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "parquet-enabled", "true",
+            "cache-enabled",
+                "false" // Spark will delete tables using v1, leaving the cache out of sync
+            )
+      }
+    };
+  }
+
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder other = new TemporaryFolder();
+
+  private final String partitionedTableName = "partitioned_table";
+  private final String unpartitionedTableName = "unpartitioned_table";
+
+  private final String defaultSparkCatalog = "spark_catalog";
+  private String partitionedLocation;
+  private String unpartitionedLocation;
+  private final String type;
+  private TableCatalog catalog;
+
+  private String catalogName;
+
+  public TestMigrateDeltaLakeTable(
+      String catalogName, String implementation, Map<String, String> config) {
+    super(catalogName, implementation, config);
+    spark
+        .conf()
+        .set("spark.sql.catalog." + defaultSparkCatalog, SparkSessionCatalog.class.getName());
+    this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    this.type = config.get("type");
+    this.catalogName = catalogName;
+  }
+
+  @Before
+  public void before() {
+    try {
+      File partitionedFolder = temp.newFolder();
+      File unpartitionedFolder = other.newFolder();
+      partitionedLocation = partitionedFolder.toURI().toString();
+      unpartitionedLocation = unpartitionedFolder.toURI().toString();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
 
-    @Rule public TemporaryFolder temp = new TemporaryFolder();
-    @Rule public TemporaryFolder other = new TemporaryFolder();
+    partitionedIdentifier = destName(partitionedTableName);
+    unpartitionedIdentifier = destName(unpartitionedTableName);
 
-    private final String partitionedTableName = "partitioned_table";
-    private final String unpartitionedTableName = "unpartitioned_table";
+    CatalogExtension delta =
+        (CatalogExtension) spark.sessionState().catalogManager().catalog("delta");
+    // This needs to be set, otherwise Delta operations fail as the catalog is designed to override
+    // the default catalog (spark_catalog).
+    delta.setDelegateCatalog(spark.sessionState().catalogManager().currentCatalog());
 
-    private final String defaultSparkCatalog = "spark_catalog";
-    private String partitionedLocation;
-    private String unpartitionedLocation;
-    private final String type;
-    private TableCatalog catalog;
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
 
-    private String catalogName;
+    // Create a partitioned and unpartitioned table, doing a few inserts on each
+    IntStream.range(0, 3)
+        .forEach(
+            i -> {
+              List<SimpleRecord> record =
+                  Lists.newArrayList(new SimpleRecord(i, ALPHABET.substring(i, i + 1)));
 
-    public TestMigrateDeltaLakeTable(
-            String catalogName, String implementation, Map<String, String> config) {
-        super(catalogName, implementation, config);
-        spark
-                .conf()
-                .set("spark.sql.catalog." + defaultSparkCatalog, SparkSessionCatalog.class.getName());
-        this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
-        this.type = config.get("type");
-        this.catalogName = catalogName;
+              Dataset<Row> df = spark.createDataFrame(record, SimpleRecord.class);
+
+              df.write()
+                  .format("delta")
+                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
+                  .partitionBy("id")
+                  .option("path", partitionedLocation)
+                  .saveAsTable(partitionedIdentifier);
+
+              df.write()
+                  .format("delta")
+                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
+                  .option("path", unpartitionedLocation)
+                  .saveAsTable(unpartitionedIdentifier);
+            });
+
+    // Delete a record from the table
+    spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=0");
+    spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=0");
+
+    // Update a record
+    spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
+    spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
+  }
+
+  @After
+  public void after() throws IOException {
+    // Drop the hive table.
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(partitionedTableName)));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(unpartitionedTableName)));
+  }
+
+  @Test
+  public void testMigratePartitioned() {
+    // This will test the scenario that the user switches the configuration and sets the default
+    // catalog to be Iceberg
+    // AFTER they had made it Delta and written a delta table there
+    spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
+
+    catalogName = defaultSparkCatalog;
+    String newTableIdentifier = destName("iceberg_table");
+    MigrateDeltaLakeTable.Result result =
+        SparkActions.get().migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
+
+    // Compare the results
+    List<Row> oldResults = spark.sql("SELECT * FROM " + partitionedIdentifier).collectAsList();
+    List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
+
+    Assert.assertEquals(oldResults.size(), newResults.size());
+    Assert.assertTrue(newResults.containsAll(oldResults));
+    Assert.assertTrue(oldResults.containsAll(newResults));
+  }
+
+  @Test
+  public void testMigrateUnpartitioned() {
+    // This will test the scenario that the user switches the configuration and sets the default
+    // catalog to be Iceberg
+    // AFTER they had made it Delta and written a delta table there
+    spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
+
+    catalogName = defaultSparkCatalog;
+    String newTableIdentifier = destName("iceberg_table_unpartitioned");
+    MigrateDeltaLakeTable.Result result =
+        SparkActions.get()
+            .migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation)
+            .execute();
+
+    // Compare the results
+    List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
+    List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
+
+    Assert.assertEquals(oldResults.size(), newResults.size());
+    Assert.assertTrue(newResults.containsAll(oldResults));
+    Assert.assertTrue(oldResults.containsAll(newResults));
+  }
+
+  private String destName(String dest) {
+    if (catalogName.equals("spark_catalog")) {
+      return NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
+    } else {
+      return catalogName + "." + NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
     }
-
-    @Before
-    public void before() {
-        try {
-            File partitionedFolder = temp.newFolder();
-            File unpartitionedFolder = other.newFolder();
-            partitionedLocation = partitionedFolder.toURI().toString();
-            unpartitionedLocation = unpartitionedFolder.toURI().toString();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        partitionedIdentifier = destName(partitionedTableName);
-        unpartitionedIdentifier = destName(unpartitionedTableName);
-
-        CatalogExtension delta =
-                (CatalogExtension) spark.sessionState().catalogManager().catalog("delta");
-        // This needs to be set, otherwise Delta operations fail as the catalog is designed to override
-        // the default catalog (spark_catalog).
-        delta.setDelegateCatalog(spark.sessionState().catalogManager().currentCatalog());
-
-        spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
-        spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
-
-        // Create a partitioned and unpartitioned table, doing a few inserts on each
-        IntStream.range(0, 3)
-                .forEach(
-                        i -> {
-                            List<SimpleRecord> record =
-                                    Lists.newArrayList(new SimpleRecord(i, ALPHABET.substring(i, i + 1)));
-
-                            Dataset<Row> df = spark.createDataFrame(record, SimpleRecord.class);
-
-                            df.write()
-                                    .format("delta")
-                                    .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
-                                    .partitionBy("id")
-                                    .option("path", partitionedLocation)
-                                    .saveAsTable(partitionedIdentifier);
-
-                            df.write()
-                                    .format("delta")
-                                    .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
-                                    .option("path", unpartitionedLocation)
-                                    .saveAsTable(unpartitionedIdentifier);
-                        });
-
-        // Delete a record from the table
-        spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=0");
-        spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=0");
-
-        // Update a record
-        spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
-        spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
-    }
-
-    @After
-    public void after() throws IOException {
-        // Drop the hive table.
-        spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(partitionedTableName)));
-        spark.sql(String.format("DROP TABLE IF EXISTS %s", destName(unpartitionedTableName)));
-    }
-
-    @Test
-    public void testMigratePartitioned() {
-        // This will test the scenario that the user switches the configuration and sets the default
-        // catalog to be Iceberg
-        // AFTER they had made it Delta and written a delta table there
-        spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
-
-        catalogName = defaultSparkCatalog;
-        String newTableIdentifier = destName("iceberg_table");
-        MigrateDeltaLakeTable.Result result =
-                SparkActions.get().migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
-
-        // Compare the results
-        List<Row> oldResults = spark.sql("SELECT * FROM " + partitionedIdentifier).collectAsList();
-        List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
-
-        Assert.assertEquals(oldResults.size(), newResults.size());
-        Assert.assertTrue(newResults.containsAll(oldResults));
-        Assert.assertTrue(oldResults.containsAll(newResults));
-    }
-
-    @Test
-    public void testMigrateUnpartitioned() {
-        // This will test the scenario that the user switches the configuration and sets the default
-        // catalog to be Iceberg
-        // AFTER they had made it Delta and written a delta table there
-        spark.sessionState().catalogManager().setCurrentCatalog(defaultSparkCatalog);
-
-        catalogName = defaultSparkCatalog;
-        String newTableIdentifier = destName("iceberg_table_unpartitioned");
-        MigrateDeltaLakeTable.Result result =
-                SparkActions.get()
-                        .migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation)
-                        .execute();
-
-        // Compare the results
-        List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
-        List<Row> newResults = spark.sql("SELECT * FROM " + newTableIdentifier).collectAsList();
-
-        Assert.assertEquals(oldResults.size(), newResults.size());
-        Assert.assertTrue(newResults.containsAll(oldResults));
-        Assert.assertTrue(oldResults.containsAll(newResults));
-    }
-
-    private String destName(String dest) {
-        if (catalogName.equals("spark_catalog")) {
-            return NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
-        } else {
-            return catalogName + "." + NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
-        }
-    }
+  }
 }

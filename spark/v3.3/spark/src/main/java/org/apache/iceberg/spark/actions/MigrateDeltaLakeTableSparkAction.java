@@ -23,16 +23,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.BaseMigrateDeltaLakeTableAction;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.*;
 import org.apache.iceberg.actions.BaseMigrateDeltaLakeTableActionResult;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.TableMigrationUtil;
@@ -57,14 +48,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
 
-public class MigrateDeltaLakeLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
+/**
+ * Takes a Delta Lake table and attempts to transform it into an Iceberg table in the same location
+ * with the same identifier. Once complete the identifier which previously referred to a non-Iceberg
+ * table will refer to the newly migrated Iceberg table.
+ */
+public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
 
-  private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeLakeTableSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeTableSparkAction.class);
+
   private final SparkSession spark;
   private final StagingTableCatalog destCatalog;
   private final Identifier newIdentifier;
 
-  public MigrateDeltaLakeLakeTableSparkAction(
+  MigrateDeltaLakeTableSparkAction(
       SparkSession spark,
       CatalogPlugin destCatalog,
       String deltaTableLocation,
