@@ -177,7 +177,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.io =
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
-    this.reporter = new LoggingMetricsReporter();
+    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
+    this.reporter =
+        null != metricsReporterImpl
+            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
+            : LoggingMetricsReporter.instance();
 
     super.initialize(name, mergedProps);
   }
@@ -316,8 +320,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       TableIdentifier tableIdentifier,
       MetricsReport report,
       Supplier<Map<String, String>> headers) {
-    reporter.report(report);
     try {
+      reporter.report(report);
       client.post(
           paths.metrics(tableIdentifier),
           ReportMetricsRequest.of(report),
