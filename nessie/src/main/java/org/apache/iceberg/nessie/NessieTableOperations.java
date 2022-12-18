@@ -24,6 +24,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -54,6 +55,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   private final ContentKey key;
   private IcebergTable table;
   private final FileIO fileIO;
+  private final EncryptionManagerFactory encryptionManagerFactory;
   private final Map<String, String> catalogOptions;
 
   /** Create a nessie table operations given a table identifier. */
@@ -61,16 +63,23 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       ContentKey key,
       NessieIcebergClient client,
       FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
       Map<String, String> catalogOptions) {
     this.key = key;
     this.client = client;
     this.fileIO = fileIO;
+    this.encryptionManagerFactory = encryptionManagerFactory;
     this.catalogOptions = catalogOptions;
   }
 
   @Override
   protected String tableName() {
     return key.toString();
+  }
+
+  @Override
+  protected EncryptionManagerFactory encryptionManagerFactory() {
+    return encryptionManagerFactory;
   }
 
   private TableMetadata loadTableMetadata(String metadataLocation, Reference reference) {

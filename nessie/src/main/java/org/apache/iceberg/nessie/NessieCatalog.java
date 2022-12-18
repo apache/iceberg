@@ -34,6 +34,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.encryption.EncryptionManagerFactory;
+import org.apache.iceberg.encryption.PlaintextEncryptionManagerFactory;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -70,6 +72,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
   private Configuration config;
   private String name;
   private FileIO fileIO;
+  private EncryptionManagerFactory encryptionManagerFactory;
   private Map<String, String> catalogOptions;
   private CloseableGroup closeableGroup;
 
@@ -99,6 +102,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
         fileIOImpl == null
             ? new HadoopFileIO(config)
             : CatalogUtil.loadFileIO(fileIOImpl, options, config),
+        CatalogUtil.loadEncryptionManagerFactory(options),
         catalogOptions);
   }
 
@@ -114,15 +118,29 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @SuppressWarnings("checkstyle:HiddenField")
   public void initialize(
       String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
+    initialize(name, client, fileIO, PlaintextEncryptionManagerFactory.INSTANCE, catalogOptions);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  public void initialize(
+      String name,
+      NessieIcebergClient client,
+      FileIO fileIO,
+      EncryptionManagerFactory encryptionManagerFactory,
+      Map<String, String> catalogOptions) {
     this.name = name == null ? "nessie" : name;
     this.client = Preconditions.checkNotNull(client, "client must be non-null");
     this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
+    this.encryptionManagerFactory =
+        Preconditions.checkNotNull(
+            encryptionManagerFactory, "encryptionManagerFactory must be non-null");
     this.catalogOptions =
         Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(client);
     closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(encryptionManagerFactory);
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -195,6 +213,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
             tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
         fileIO,
+        encryptionManagerFactory,
         catalogOptions);
   }
 
