@@ -28,6 +28,7 @@ org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.immutables:value = 2.9.2
+io.delta:delta-standalone_2.12 = 0.5.0
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2
@@ -44,3 +45,4 @@ org.mock-server:mockserver-netty = 5.13.2
 org.mock-server:mockserver-client-java = 5.13.2
 com.esotericsoftware:kryo = 4.0.2
 org.eclipse.jetty:* = 9.4.43.v20210629
+io.delta:delta-core_2.12 = 2.1.0

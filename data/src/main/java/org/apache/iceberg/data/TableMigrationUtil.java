@@ -161,8 +161,8 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getParquetMetrics(
-      Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
+  public static Metrics getParquetMetrics(
+          Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
       return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
