@@ -31,6 +31,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -66,10 +67,10 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
       CatalogPlugin destCatalog,
       String deltaTableLocation,
       Identifier newIdentifier) {
-    super(
-        null,
+    // TODO: need further test the correctness of the name
+    super(Spark3Util.loadIcebergCatalog(spark, spark.sessionState().catalogManager().currentCatalog().name()),
         deltaTableLocation,
-        TableIdentifier.of(newIdentifier.name()),
+        TableIdentifier.parse(newIdentifier.toString()),
         spark.sessionState().newHadoopConf());
     this.spark = spark;
     this.destCatalog = checkDestinationCatalog(destCatalog);
