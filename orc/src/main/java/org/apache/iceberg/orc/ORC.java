@@ -131,19 +131,6 @@ public class ORC {
       return this;
     }
 
-    /**
-     * Setting a specific configuration value for the writer.
-     *
-     * @param property The property to set
-     * @param value The value to set
-     * @return The resulting builder for chaining purposes
-     * @deprecated Please use #set(String, String) instead
-     */
-    @Deprecated
-    public WriteBuilder config(String property, String value) {
-      return set(property, value);
-    }
-
     public WriteBuilder set(String property, String value) {
       config.put(property, value);
       return this;
