@@ -30,7 +30,6 @@ from pyiceberg.avro.reader import (
     OptionReader,
     Reader,
     StructReader,
-    primitive_reader,
 )
 from pyiceberg.schema import Schema, visit
 from pyiceberg.types import (
@@ -133,7 +132,7 @@ def _(file_type: PrimitiveType, read_type: IcebergType) -> Reader:
     # In the case of a promotion, we want to check if it is valid
     if file_type != read_type:
         return promote(file_type, read_type)
-    return primitive_reader(read_type)
+    return visit(read_type, ConstructReader())
 
 
 @singledispatch
@@ -154,7 +153,7 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> Reader:
 def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, LongType):
         # Ints/Longs are binary compatible in Avro, so this is okay
-        return primitive_reader(read_type)
+        return visit(read_type, ConstructReader())
     else:
         raise ResolveException(f"Cannot promote an int to {read_type}")
 
@@ -163,7 +162,7 @@ def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
 def _(file_type: FloatType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, DoubleType):
         # We should just read the float, and return it, since it both returns a float
-        return primitive_reader(file_type)
+        return visit(file_type, ConstructReader())
     else:
         raise ResolveException(f"Cannot promote an float to {read_type}")
 
@@ -171,7 +170,7 @@ def _(file_type: FloatType, read_type: IcebergType) -> Reader:
 @promote.register(StringType)
 def _(file_type: StringType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, BinaryType):
-        return primitive_reader(read_type)
+        return visit(read_type, ConstructReader())
     else:
         raise ResolveException(f"Cannot promote an string to {read_type}")
 
@@ -179,7 +178,7 @@ def _(file_type: StringType, read_type: IcebergType) -> Reader:
 @promote.register(BinaryType)
 def _(file_type: BinaryType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, StringType):
-        return primitive_reader(read_type)
+        return visit(read_type, ConstructReader())
     else:
         raise ResolveException(f"Cannot promote an binary to {read_type}")
 
@@ -188,7 +187,7 @@ def _(file_type: BinaryType, read_type: IcebergType) -> Reader:
 def _(file_type: DecimalType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, DecimalType):
         if file_type.precision <= read_type.precision and file_type.scale == file_type.scale:
-            return primitive_reader(read_type)
+            return visit(read_type, ConstructReader())
         else:
             raise ResolveException(f"Cannot reduce precision from {file_type} to {read_type}")
     else:

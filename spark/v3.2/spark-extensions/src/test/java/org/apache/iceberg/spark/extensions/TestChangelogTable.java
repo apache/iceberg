@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
@@ -39,7 +40,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized.Parameters;
 
-public class TestChangelogBatchReads extends SparkExtensionsTestBase {
+public class TestChangelogTable extends SparkExtensionsTestBase {
 
   @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
   public static Object[][] parameters() {
@@ -61,7 +62,7 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
   private final int formatVersion;
 
-  public TestChangelogBatchReads(
+  public TestChangelogTable(
       int formatVersion, String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
     this.formatVersion = formatVersion;
@@ -74,17 +75,8 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
   @Test
   public void testDataFilters() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
+    createTableWithDefaultRows();
 
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
     sql("INSERT INTO %s VALUES (3, 'c')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -107,17 +99,7 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
   @Test
   public void testOverwrites() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -138,18 +120,81 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMetadataDeletes() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
+  public void testQueryWithTimeRange() {
+    createTable();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+    long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
+
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+    long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Should have expected changed rows only from snapshot 3",
+        ImmutableList.of(
+            row(2, "b", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap2, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows only from snapshot 3",
+        ImmutableList.of(
+            row(2, "b", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(snap2.timestampMillis(), snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 2 and 3",
+        ImmutableList.of(
+            row(2, "b", "INSERT", 0, snap2.snapshotId()),
+            row(2, "b", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap1, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows up to the current snapshot",
+        ImmutableList.of(
+            row(2, "b", "INSERT", 0, snap2.snapshotId()),
+            row(2, "b", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap1, null));
+  }
+
+  @Test
+  public void testTimeRangeValidation() {
+    createTableWithDefaultRows();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
+
+    assertThrows(
+        "Should fail if start time is after end time",
+        IllegalArgumentException.class,
+        () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()));
+
+    assertThrows(
+        "Should fail if start time is after the current snapshot",
+        IllegalArgumentException.class,
+        () -> changelogRecords(rightAfterSnap3, null));
+  }
+
+  @Test
+  public void testMetadataDeletes() {
+    createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -202,17 +247,7 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
   @Test
   public void testManifestRewritesAreIgnored() {
-    sql(
-        "CREATE TABLE %s (id INT, data STRING) "
-            + "USING iceberg "
-            + "PARTITIONED BY (data) "
-            + "TBLPROPERTIES ( "
-            + " '%s' = '%d' "
-            + ")",
-        tableName, FORMAT_VERSION, formatVersion);
-
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    createTableWithDefaultRows();
 
     sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
 
@@ -225,6 +260,27 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
   }
 
+  private void createTableWithDefaultRows() {
+    createTable();
+    insertDefaultRows();
+  }
+
+  private void createTable() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES ( "
+            + " '%s' = '%d' "
+            + ")",
+        tableName, FORMAT_VERSION, formatVersion);
+  }
+
+  private void insertDefaultRows() {
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+  }
+
   private List<Object[]> changelogRecords(Snapshot startSnapshot, Snapshot endSnapshot) {
     DataFrameReader reader = spark.read();
 
@@ -234,6 +290,20 @@ public class TestChangelogBatchReads extends SparkExtensionsTestBase {
 
     if (endSnapshot != null) {
       reader = reader.option(SparkReadOptions.END_SNAPSHOT_ID, endSnapshot.snapshotId());
+    }
+
+    return rowsToJava(collect(reader));
+  }
+
+  private List<Object[]> changelogRecords(Long startTimestamp, Long endTimeStamp) {
+    DataFrameReader reader = spark.read();
+
+    if (startTimestamp != null) {
+      reader = reader.option(SparkReadOptions.START_TIMESTAMP, startTimestamp);
+    }
+
+    if (endTimeStamp != null) {
+      reader = reader.option(SparkReadOptions.END_TIMESTAMP, endTimeStamp);
     }
 
     return rowsToJava(collect(reader));

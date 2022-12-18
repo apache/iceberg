@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -261,14 +260,6 @@ public class SchemaParser {
       Caffeine.newBuilder().weakValues().build();
 
   public static Schema fromJson(String json) {
-    return SCHEMA_CACHE.get(
-        json,
-        jsonKey -> {
-          try {
-            return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-        });
+    return SCHEMA_CACHE.get(json, jsonKey -> JsonUtil.parse(json, SchemaParser::fromJson));
   }
 }

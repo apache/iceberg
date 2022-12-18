@@ -136,20 +136,14 @@ public class FlinkSplitPlanner {
       refinedScan = refinedScan.includeColumnStats();
     }
 
-    if (context.splitSize() != null) {
-      refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
-    }
+    refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
 
-    if (context.splitLookback() != null) {
-      refinedScan =
-          refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
-    }
+    refinedScan =
+        refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
 
-    if (context.splitOpenFileCost() != null) {
-      refinedScan =
-          refinedScan.option(
-              TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
-    }
+    refinedScan =
+        refinedScan.option(
+            TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
 
     if (context.filters() != null) {
       for (Expression filter : context.filters()) {

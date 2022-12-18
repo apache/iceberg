@@ -493,6 +493,40 @@ CALL spark_catalog.system.add_files(
 )
 ```
 
+### `register_table`
+
+Creates a catalog entry for a metadata.json file which already exists but does not have a corresponding catalog identifier.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which is to be registered |
+| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+
+{{< hint warning >}}
+Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
+Only use this procedure when the table is no longer registered in an existing catalog, or you are moving a table between catalogs.
+{{< /hint >}}
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `current_snapshot_id` | long | The current snapshot ID of the newly registered Iceberg table |
+| `total_records_count` | long | Total records count of the newly registered Iceberg table |
+| `total_data_files_count` | long | Total data files count of the newly registered Iceberg table |
+
+#### Examples
+
+Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json file `path/to/metadata/file.json`.
+```sql
+CALL spark_catalog.system.register_table(
+  table => 'db.tbl',
+  metadata_file => 'path/to/metadata/file.json'
+)
+```
+
 ## Metadata information
 
 ### `ancestors_of`

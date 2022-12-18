@@ -26,7 +26,6 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class FlinkConfParser {
 
@@ -35,7 +34,7 @@ class FlinkConfParser {
   private final ReadableConfig readableConfig;
 
   FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
-    this.tableProperties = table == null ? Maps.newHashMap() : table.properties();
+    this.tableProperties = table.properties();
     this.options = options;
     this.readableConfig = readableConfig;
   }
