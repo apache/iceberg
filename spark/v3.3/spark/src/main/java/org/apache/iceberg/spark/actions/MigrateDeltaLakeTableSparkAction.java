@@ -68,7 +68,9 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
       String deltaTableLocation,
       Identifier newIdentifier) {
     // TODO: need further test the correctness of the name
-    super(Spark3Util.loadIcebergCatalog(spark, spark.sessionState().catalogManager().currentCatalog().name()),
+    super(
+        Spark3Util.loadIcebergCatalog(
+            spark, spark.sessionState().catalogManager().currentCatalog().name()),
         deltaTableLocation,
         TableIdentifier.parse(newIdentifier.toString()),
         spark.sessionState().newHadoopConf());
