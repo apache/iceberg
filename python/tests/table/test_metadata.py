@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-outer-name
 
 import io
 import json
@@ -49,30 +50,33 @@ from pyiceberg.types import (
     StructType,
 )
 
-EXAMPLE_TABLE_METADATA_V1 = {
-    "format-version": 1,
-    "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
-    "location": "s3://bucket/test/location",
-    "last-updated-ms": 1602638573874,
-    "last-column-id": 3,
-    "schema": {
-        "type": "struct",
-        "fields": [
-            {"id": 1, "name": "x", "required": True, "type": "long"},
-            {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
-            {"id": 3, "name": "z", "required": True, "type": "long"},
-        ],
-    },
-    "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-    "properties": {},
-    "current-snapshot-id": -1,
-    "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
-}
+
+@pytest.fixture(scope="session")
+def example_table_metadata_v1() -> Dict[str, Any]:
+    return {
+        "format-version": 1,
+        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schema": {
+            "type": "struct",
+            "fields": [
+                {"id": 1, "name": "x", "required": True, "type": "long"},
+                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                {"id": 3, "name": "z", "required": True, "type": "long"},
+            ],
+        },
+        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
+    }
 
 
-def test_from_dict_v1() -> None:
+def test_from_dict_v1(example_table_metadata_v1: Dict[str, Any]) -> None:
     """Test initialization of a TableMetadata instance from a dictionary"""
-    TableMetadataUtil.parse_obj(EXAMPLE_TABLE_METADATA_V1)
+    TableMetadataUtil.parse_obj(example_table_metadata_v1)
 
 
 def test_from_dict_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
@@ -110,9 +114,9 @@ def test_v2_metadata_parsing(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert table_metadata.default_sort_order_id == 3
 
 
-def test_v1_metadata_parsing_directly() -> None:
+def test_v1_metadata_parsing_directly(example_table_metadata_v1: Dict[str, Any]) -> None:
     """Test retrieving values from a TableMetadata instance of version 1"""
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+    table_metadata = TableMetadataV1(**example_table_metadata_v1)
 
     assert isinstance(table_metadata, TableMetadataV1)
 
@@ -174,8 +178,8 @@ def test_updating_metadata(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert table_metadata.schemas[-1] == Schema(**new_schema)
 
 
-def test_serialize_v1() -> None:
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+def test_serialize_v1(example_table_metadata_v1: Dict[str, Any]) -> None:
+    table_metadata = TableMetadataV1(**example_table_metadata_v1)
     table_metadata_json = table_metadata.json()
     expected = """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
     assert table_metadata_json == expected
@@ -187,17 +191,17 @@ def test_serialize_v2(example_table_metadata_v2: Dict[str, Any]) -> None:
     assert table_metadata == expected
 
 
-def test_migrate_v1_schemas() -> None:
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+def test_migrate_v1_schemas(example_table_metadata_v1: Dict[str, Any]) -> None:
+    table_metadata = TableMetadataV1(**example_table_metadata_v1)
 
     assert isinstance(table_metadata, TableMetadataV1)
     assert len(table_metadata.schemas) == 1
     assert table_metadata.schemas[0] == table_metadata.schema_
 
 
-def test_migrate_v1_partition_specs() -> None:
+def test_migrate_v1_partition_specs(example_table_metadata_v1: Dict[str, Any]) -> None:
     # Copy the example, and add a spec
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+    table_metadata = TableMetadataV1(**example_table_metadata_v1)
     assert isinstance(table_metadata, TableMetadataV1)
     assert len(table_metadata.partition_specs) == 1
     # Spec ID gets added automatically
@@ -390,7 +394,7 @@ def test_invalid_partition_spec() -> None:
     assert "default-spec-id 1 can't be found" in str(exc_info.value)
 
 
-def test_v1_writing_metadata() -> None:
+def test_v1_writing_metadata(example_table_metadata_v1: Dict[str, Any]) -> None:
     """
     https://iceberg.apache.org/spec/#version-2
 
@@ -398,14 +402,14 @@ def test_v1_writing_metadata() -> None:
         - Table metadata field last-sequence-number should not be written
     """
 
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+    table_metadata = TableMetadataV1(**example_table_metadata_v1)
     metadata_v1_json = table_metadata.json()
     metadata_v1 = json.loads(metadata_v1_json)
 
     assert "last-sequence-number" not in metadata_v1
 
 
-def test_v1_metadata_for_v2() -> None:
+def test_v1_metadata_for_v2(example_table_metadata_v1: Dict[str, Any]) -> None:
     """
     https://iceberg.apache.org/spec/#version-2
 
@@ -413,7 +417,7 @@ def test_v1_metadata_for_v2() -> None:
         - Table metadata field last-sequence-number must default to 0
     """
 
-    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1).to_v2()
+    table_metadata = TableMetadataV1(**example_table_metadata_v1).to_v2()
 
     assert table_metadata.last_sequence_number == 0
 
