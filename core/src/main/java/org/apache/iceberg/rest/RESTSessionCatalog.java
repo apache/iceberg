@@ -88,6 +88,7 @@ import org.slf4j.LoggerFactory;
 public class RESTSessionCatalog extends BaseSessionCatalog
     implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
+  private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
   private static final List<String> TOKEN_PREFERENCE_ORDER =
@@ -107,6 +108,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private boolean reportingViaRestEnabled;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -183,6 +185,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
             : LoggingMetricsReporter.instance();
 
+    this.reportingViaRestEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
   }
 
@@ -322,12 +326,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       Supplier<Map<String, String>> headers) {
     try {
       reporter.report(report);
-      client.post(
-          paths.metrics(tableIdentifier),
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
+      if (reportingViaRestEnabled) {
+        client.post(
+            paths.metrics(tableIdentifier),
+            ReportMetricsRequest.of(report),
+            null,
+            headers,
+            ErrorHandlers.defaultErrorHandler());
+      }
     } catch (Exception e) {
       LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
     }
