@@ -1895,6 +1895,7 @@ components:
     ReportMetricsRequest:
       anyOf:
         - $ref: '#/components/schemas/ScanReport'
+        - $ref: '#/components/schemas/CommitReport'
       required:
         - report-type
       properties:
@@ -1931,6 +1932,36 @@ components:
             type: string
         metrics:
           $ref: '#/components/schemas/Metrics'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    CommitReport:
+      type: object
+      required:
+        - table-name
+        - snapshot-id
+        - sequence-number
+        - operation
+        - metrics
+      properties:
+        table-name:
+          type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        sequence-number:
+          type: integer
+          format: int64
+        operation:
+          type: string
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
 
   #############################
