@@ -40,8 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.util.DeltaLakeDataTypeVisitor;
-import org.apache.iceberg.util.DeltaLakeTypeToType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,7 +75,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   @Override
   public Result execute() {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
-    Schema schema = getSchemaFromDeltaSnapshot(updatedSnapshot);
+    Schema schema = convertDeltaLakeSchemaToSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
     // TODO: check whether we need more info when initializing the table
     Table icebergTable =
@@ -87,10 +85,8 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
             partitionSpec,
             destTableProperties(
                 updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
-    copyFromDeltaLakeToIceberg(icebergTable, partitionSpec);
 
-    // TODO: can we do things similar to stageTable.commitStagedChanges in spark to avoid redundant
-    //  IO?
+    copyFromDeltaLakeToIceberg(icebergTable, partitionSpec);
 
     Snapshot snapshot = icebergTable.currentSnapshot();
     long totalDataFiles =
@@ -102,20 +98,8 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
   }
 
-  /** TODO: check the correctness for nested schema*/
-  private Schema getSchemaFromDeltaSnapshot(io.delta.standalone.Snapshot deltaSnapshot) {
-    io.delta.standalone.types.StructType deltaSchema = deltaSnapshot.getMetadata().getSchema();
-    io.delta.standalone.types.StructField[] fields =
-        Optional.ofNullable(deltaSchema)
-            .map(io.delta.standalone.types.StructType::getFields)
-            .orElseThrow(() -> new RuntimeException("Cannot determine table schema!"));
-    Schema icebergSchema = convertDeltaLakeStructToSchema(deltaSchema);
-    LOG.info("Usual delta schema {}", deltaSchema.toJson());
-    LOG.info("converted iceberg schema {}", SchemaParser.toJson(icebergSchema));
-    return icebergSchema;
-  }
-
-  private Schema convertDeltaLakeStructToSchema(io.delta.standalone.types.StructType deltaSchema) {
+  /** TODO: check the correctness for nested schema */
+  private Schema convertDeltaLakeSchemaToSchema(io.delta.standalone.types.StructType deltaSchema) {
     Type converted =
         DeltaLakeDataTypeVisitor.visit(deltaSchema, new DeltaLakeTypeToType(deltaSchema));
     return new Schema(converted.asNestedType().asStructType().fields());
@@ -134,7 +118,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     return builder.build();
   }
 
-  protected void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
+  private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
     // TODO: double check the arguments' meaning here
     Iterator<VersionLog> it = deltaLog.getChanges(0, false);
 
@@ -220,7 +204,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     return icebergTransactionType;
   }
 
-  protected DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
+  private DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
     String path;
     long size;
     Map<String, String> partitionValues;
@@ -283,7 +267,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
         .build();
   }
 
-  protected static Map<String, String> destTableProperties(
+  private static Map<String, String> destTableProperties(
       io.delta.standalone.Snapshot deltaSnapshot,
       String tableLocation,
       Map<String, String> additionalProperties) {
