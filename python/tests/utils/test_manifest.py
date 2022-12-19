@@ -16,6 +16,7 @@
 # under the License.
 
 from pyiceberg.io import load_file_io
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import (
     DataFile,
     DataFileContent,
@@ -30,11 +31,10 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
-from tests.io.test_io import LocalInputFile
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
-    input_file = LocalInputFile(generated_manifest_entry_file)
+    input_file = PyArrowFileIO().new_input(location=generated_manifest_entry_file)
     assert list(read_manifest_entry(input_file)) == [
         ManifestEntry(
             status=1,
@@ -268,7 +268,7 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
 
 
 def test_read_manifest_list(generated_manifest_file_file: str) -> None:
-    input_file = LocalInputFile(generated_manifest_file_file)
+    input_file = PyArrowFileIO().new_input(generated_manifest_file_file)
     actual = list(read_manifest_list(input_file))
     expected = [
         ManifestFile(

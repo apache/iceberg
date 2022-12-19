@@ -368,7 +368,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         elif isinstance(primitive, BinaryType):
             return self.visit_binary(primitive)
         else:
-            raise ValueError(f"Found unknown type: {primitive}")
+            raise ValueError(f"Unknown type: {primitive}")
 
     @abstractmethod
     def visit_fixed(self, fixed_type: FixedType) -> T:

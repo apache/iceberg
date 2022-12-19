@@ -31,7 +31,6 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
-
   private final RowType rowType;
 
   public TestFlinkAppenderFactory(String fileFormat, boolean partitioned) {
@@ -43,6 +42,7 @@ public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
   protected FileAppenderFactory<RowData> createAppenderFactory(
       List<Integer> equalityFieldIds, Schema eqDeleteSchema, Schema posDeleteRowSchema) {
     return new FlinkAppenderFactory(
+        table,
         table.schema(),
         rowType,
         table.properties(),

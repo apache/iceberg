@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -279,11 +278,7 @@ public class OAuth2Util {
   }
 
   public static OAuthTokenResponse tokenResponseFromJson(String json) {
-    try {
-      return tokenResponseFromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.parse(json, OAuth2Util::tokenResponseFromJson);
   }
 
   public static OAuthTokenResponse tokenResponseFromJson(JsonNode json) {

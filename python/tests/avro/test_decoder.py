@@ -21,6 +21,7 @@ from decimal import Decimal
 from io import SEEK_SET
 from types import TracebackType
 from typing import Optional, Type
+from uuid import UUID
 
 import pytest
 
@@ -174,6 +175,12 @@ def test_read_date() -> None:
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_date_from_int() == date(1991, 12, 27)
+
+
+def test_read_uuid_from_fixed() -> None:
+    mis = MemoryInputStream(b"\x12\x34\x56\x78" * 4)
+    decoder = BinaryDecoder(mis)
+    assert decoder.read_uuid_from_fixed() == UUID("{12345678-1234-5678-1234-567812345678}")
 
 
 def test_read_time_millis() -> None:

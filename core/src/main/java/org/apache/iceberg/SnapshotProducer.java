@@ -163,36 +163,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * <p>Child operations can override this to add custom validation.
    *
    * @param currentMetadata current table metadata to validate
-   * @deprecated Will be removed in 1.2.0, use {@link SnapshotProducer#validate(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  protected void validate(TableMetadata currentMetadata) {
-    validate(currentMetadata, base.currentSnapshot());
-  }
-
-  /**
-   * Validate the current metadata.
-   *
-   * <p>Child operations can override this to add custom validation.
-   *
-   * @param currentMetadata current table metadata to validate
    * @param snapshot ending snapshot on the lineage which is being validated
    */
   protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {}
-
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param metadataToUpdate the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   * @deprecated Will be removed in 1.2.0, use {@link SnapshotProducer#apply(TableMetadata,
-   *     Snapshot)}.
-   */
-  @Deprecated
-  protected List<ManifestFile> apply(TableMetadata metadataToUpdate) {
-    return apply(metadataToUpdate, base.currentSnapshot());
-  }
 
   /**
    * Apply the update's changes to the given metadata and snapshot. Return the new manifest list.

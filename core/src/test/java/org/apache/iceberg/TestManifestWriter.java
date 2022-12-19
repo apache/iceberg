@@ -116,10 +116,6 @@ public class TestManifestWriter extends TableTestBase {
           1000L,
           (long) entry.dataSequenceNumber());
       Assert.assertEquals(
-          "Custom sequence number should be used for all manifest entries",
-          1000L,
-          (long) entry.sequenceNumber());
-      Assert.assertEquals(
           "File sequence number must be unassigned",
           ManifestWriter.UNASSIGNED_SEQ,
           entry.fileSequenceNumber().longValue());

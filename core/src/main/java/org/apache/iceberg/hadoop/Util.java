@@ -72,14 +72,6 @@ public class Util {
     return locationSets.toArray(new String[0]);
   }
 
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link Util#blockLocations(FileIO, ContentScanTask)}.
-   */
-  @Deprecated
-  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
-    return blockLocations(io, (ScanTaskGroup<FileScanTask>) task);
-  }
-
   public static String[] blockLocations(FileIO io, ScanTaskGroup<?> taskGroup) {
     Set<String> locations = Sets.newHashSet();
 

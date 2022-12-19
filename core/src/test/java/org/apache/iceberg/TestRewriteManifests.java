@@ -913,7 +913,7 @@ public class TestRewriteManifests extends TableTestBase {
     ManifestEntry<DataFile> entry =
         manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
-    entry.setSequenceNumber(firstSnapshot.sequenceNumber());
+    entry.setDataSequenceNumber(firstSnapshot.sequenceNumber());
     ManifestFile newManifest = writeManifest("manifest-file-1.avro", entry);
 
     RewriteManifests rewriteManifests =

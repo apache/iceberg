@@ -31,16 +31,23 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -1074,5 +1081,55 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(LoadTableResponse.class),
             eq(refreshedCatalogHeader),
             any());
+  }
+
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    this.restCatalog =
+        new RESTCatalog(
+            new SessionCatalog.SessionContext(
+                UUID.randomUUID().toString(),
+                "user",
+                ImmutableMap.of("credential", "user:12345"),
+                ImmutableMap.of()),
+            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+    restCatalog.setConf(new Configuration());
+    restCatalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "http://localhost:8181/",
+            "credential",
+            "catalog:12345",
+            CatalogProperties.METRICS_REPORTER_IMPL,
+            CustomMetricsReporter.class.getName()));
+
+    restCatalog.buildTable(TABLE, SCHEMA).create();
+    Table table = restCatalog.loadTable(TABLE);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks.iterator()).hasNext();
+    }
+
+    // counter of custom metrics reporter should have been increased
+    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(1);
+  }
+
+  public static class CustomMetricsReporter implements MetricsReporter {
+    static final AtomicInteger COUNTER = new AtomicInteger(0);
+
+    @Override
+    public void report(MetricsReport report) {
+      COUNTER.incrementAndGet();
+    }
   }
 }
