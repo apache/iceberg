@@ -71,12 +71,7 @@ public class SparkActions implements ActionsProvider {
   @Override
   public MigrateDeltaLakeTable migrateDeltaLakeTable(
       String newTableIdentifier, String deltaTableLocation) {
-    String ctx = "migrate delta target";
-    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new MigrateDeltaLakeTableSparkAction(
-        spark, catalogAndIdent.catalog(), deltaTableLocation, catalogAndIdent.identifier());
+    return new MigrateDeltaLakeTableSparkAction(spark, deltaTableLocation, newTableIdentifier);
   }
 
   @Override
