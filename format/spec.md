@@ -684,7 +684,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
 
 | v1 | v2 | Field name | Type | Description |
 |----|----|------------|------|-------------|
-| _required_ | _required_ | **`snapshot-id`** | `string` | ID of the Iceberg table's snapshot the statistics were computed from. |
+| _required_ | _required_ | **`snapshot-id`** | `string` | ID of the Iceberg table's snapshot the statistics file is associated with. |
 | _required_ | _required_ | **`statistics-path`** | `string` | Path of the statistics file. See [Puffin file format](../puffin-spec). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the statistics file. |
 | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long` | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](../puffin-spec) for footer definition. |
