@@ -367,7 +367,17 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("_nans_and_nulls"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("_nans_and_nulls column should contain null values", shouldRead);
+    Assert.assertTrue("Should read: _nans_and_nulls column will contain null values", shouldRead);
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: _nans_and_nulls column will contain NaN values which are not null", shouldRead);
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: _nans_and_nulls column will contain NaN values", shouldRead);
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("_nans_and_nulls"))
