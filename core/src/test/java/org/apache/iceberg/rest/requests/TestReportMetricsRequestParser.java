@@ -20,11 +20,16 @@ package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.CommitMetrics;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.ImmutableScanReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -78,7 +83,7 @@ public class TestReportMetricsRequestParser {
   }
 
   @Test
-  public void roundTripSerde() {
+  public void roundTripSerdeWithScanReport() {
     String tableName = "roundTripTableName";
     ScanReport scanReport =
         ImmutableScanReport.builder()
@@ -104,6 +109,37 @@ public class TestReportMetricsRequestParser {
             + "}";
 
     ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(scanReport);
+
+    String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+
+    Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
+        .isEqualTo(metricsRequest.report());
+  }
+
+  @Test
+  public void roundTripSerdeWithCommitReport() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .sequenceNumber(4L)
+            .operation("DELETE")
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"report-type\" : \"commit-report\",\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"sequence-number\" : 4,\n"
+            + "  \"operation\" : \"DELETE\",\n"
+            + "  \"metrics\" : { }\n"
+            + "}";
+
+    ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(commitReport);
 
     String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
     Assertions.assertThat(json).isEqualTo(expectedJson);

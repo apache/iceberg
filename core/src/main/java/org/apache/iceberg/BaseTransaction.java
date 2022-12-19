@@ -39,6 +39,8 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -71,9 +73,19 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+  private final MetricsReporter reporter;
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
+    this(tableName, ops, type, start, LoggingMetricsReporter.instance());
+  }
+
+  BaseTransaction(
+      String tableName,
+      TableOperations ops,
+      TransactionType type,
+      TableMetadata start,
+      MetricsReporter reporter) {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
@@ -84,6 +96,7 @@ public class BaseTransaction implements Transaction {
     this.base = ops.current();
     this.type = type;
     this.hasLastOpCommitted = true;
+    this.reporter = reporter;
   }
 
   @Override
@@ -148,7 +161,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new MergeAppend(tableName, transactionOps);
+    AppendFiles append = new MergeAppend(tableName, transactionOps).reportWith(reporter);
     append.deleteWith(enqueueDelete);
     updates.add(append);
     return append;
@@ -157,7 +170,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public AppendFiles newFastAppend() {
     checkLastOperationCommitted("AppendFiles");
-    AppendFiles append = new FastAppend(tableName, transactionOps);
+    AppendFiles append = new FastAppend(tableName, transactionOps).reportWith(reporter);
     updates.add(append);
     return append;
   }
@@ -165,7 +178,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
-    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps);
+    RewriteFiles rewrite = new BaseRewriteFiles(tableName, transactionOps).reportWith(reporter);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -174,7 +187,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps);
+    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps).reportWith(reporter);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;
@@ -183,7 +196,8 @@ public class BaseTransaction implements Transaction {
   @Override
   public OverwriteFiles newOverwrite() {
     checkLastOperationCommitted("OverwriteFiles");
-    OverwriteFiles overwrite = new BaseOverwriteFiles(tableName, transactionOps);
+    OverwriteFiles overwrite =
+        new BaseOverwriteFiles(tableName, transactionOps).reportWith(reporter);
     overwrite.deleteWith(enqueueDelete);
     updates.add(overwrite);
     return overwrite;
@@ -192,7 +206,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public RowDelta newRowDelta() {
     checkLastOperationCommitted("RowDelta");
-    RowDelta delta = new BaseRowDelta(tableName, transactionOps);
+    RowDelta delta = new BaseRowDelta(tableName, transactionOps).reportWith(reporter);
     delta.deleteWith(enqueueDelete);
     updates.add(delta);
     return delta;
@@ -201,7 +215,8 @@ public class BaseTransaction implements Transaction {
   @Override
   public ReplacePartitions newReplacePartitions() {
     checkLastOperationCommitted("ReplacePartitions");
-    ReplacePartitions replacePartitions = new BaseReplacePartitions(tableName, transactionOps);
+    ReplacePartitions replacePartitions =
+        new BaseReplacePartitions(tableName, transactionOps).reportWith(reporter);
     replacePartitions.deleteWith(enqueueDelete);
     updates.add(replacePartitions);
     return replacePartitions;
@@ -210,7 +225,7 @@ public class BaseTransaction implements Transaction {
   @Override
   public DeleteFiles newDelete() {
     checkLastOperationCommitted("DeleteFiles");
-    DeleteFiles delete = new StreamingDelete(tableName, transactionOps);
+    DeleteFiles delete = new StreamingDelete(tableName, transactionOps).reportWith(reporter);
     delete.deleteWith(enqueueDelete);
     updates.add(delete);
     return delete;
@@ -235,7 +250,8 @@ public class BaseTransaction implements Transaction {
 
   CherryPickOperation cherryPick() {
     checkLastOperationCommitted("CherryPick");
-    CherryPickOperation cherrypick = new CherryPickOperation(tableName, transactionOps);
+    CherryPickOperation cherrypick =
+        new CherryPickOperation(tableName, transactionOps).reportWith(reporter);
     updates.add(cherrypick);
     return cherrypick;
   }
