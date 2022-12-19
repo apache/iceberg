@@ -39,6 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.DeltaLakeDataTypeVisitor;
+import org.apache.iceberg.util.DeltaLakeTypeToType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,13 +102,23 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
   }
 
-  /** TODO: Check whether toJson and fromJson works */
+  /** TODO: check the correctness for nested schema*/
   private Schema getSchemaFromDeltaSnapshot(io.delta.standalone.Snapshot deltaSnapshot) {
     io.delta.standalone.types.StructType deltaSchema = deltaSnapshot.getMetadata().getSchema();
-    if (deltaSchema == null) {
-      throw new IllegalStateException("Could not find schema in existing Delta Lake table.");
-    }
-    return SchemaParser.fromJson(deltaSchema.toJson());
+    io.delta.standalone.types.StructField[] fields =
+        Optional.ofNullable(deltaSchema)
+            .map(io.delta.standalone.types.StructType::getFields)
+            .orElseThrow(() -> new RuntimeException("Cannot determine table schema!"));
+    Schema icebergSchema = convertDeltaLakeStructToSchema(deltaSchema);
+    LOG.info("Usual delta schema {}", deltaSchema.toJson());
+    LOG.info("converted iceberg schema {}", SchemaParser.toJson(icebergSchema));
+    return icebergSchema;
+  }
+
+  private Schema convertDeltaLakeStructToSchema(io.delta.standalone.types.StructType deltaSchema) {
+    Type converted =
+        DeltaLakeDataTypeVisitor.visit(deltaSchema, new DeltaLakeTypeToType(deltaSchema));
+    return new Schema(converted.asNestedType().asStructType().fields());
   }
 
   private PartitionSpec getPartitionSpecFromDeltaSnapshot(Schema schema) {
