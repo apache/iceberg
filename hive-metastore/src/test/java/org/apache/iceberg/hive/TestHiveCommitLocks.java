@@ -32,7 +32,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +53,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
@@ -80,7 +80,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   LockResponse waitLockResponse = new LockResponse(dummyLockId, LockState.WAITING);
   LockResponse acquiredLockResponse = new LockResponse(dummyLockId, LockState.ACQUIRED);
   LockResponse notAcquiredLockResponse = new LockResponse(dummyLockId, LockState.NOT_ACQUIRED);
-  ShowLocksResponse emptyLocks = new ShowLocksResponse(new ArrayList<>());
+  ShowLocksResponse emptyLocks = new ShowLocksResponse(Lists.newArrayList());
 
   @BeforeClass
   public static void startMetastore() throws Exception {
@@ -213,7 +213,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .lock(lockRequestCaptor.capture());
 
     // Capture the lockRequest, and generate a response simulating that we have a lock
-    ShowLocksResponse showLocksResponse = new ShowLocksResponse(new ArrayList<>());
+    ShowLocksResponse showLocksResponse = new ShowLocksResponse(Lists.newArrayList());
     ShowLocksResponseElement showLocksElement =
         new ShowLocksResponseElementWrapper(lockRequestCaptor);
     showLocksResponse.getLocks().add(showLocksElement);
@@ -269,7 +269,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .lock(lockRequestCaptor.capture());
 
     // Capture the lockRequest, and generate a response simulating that we have a lock
-    ShowLocksResponse showLocksResponse = new ShowLocksResponse(new ArrayList<>());
+    ShowLocksResponse showLocksResponse = new ShowLocksResponse(Lists.newArrayList());
     ShowLocksResponseElement showLocksElement =
         new ShowLocksResponseElementWrapper(lockRequestCaptor);
     showLocksResponse.getLocks().add(showLocksElement);
