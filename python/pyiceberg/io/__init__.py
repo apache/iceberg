@@ -257,6 +257,8 @@ SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
     "gcs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
+    "abfs": [FSSPEC_FILE_IO],
+    "abfss": [FSSPEC_FILE_IO],
 }
 
 
