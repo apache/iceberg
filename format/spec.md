@@ -41,7 +41,7 @@ All version 1 data and metadata files are valid after upgrading a table to versi
 
 Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
-The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+The primary change in version 2 adds delete files to encode rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
 
 In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
