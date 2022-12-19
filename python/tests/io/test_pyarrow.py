@@ -585,21 +585,35 @@ def test_always_false_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 @pytest.fixture
 def schema_int() -> Schema:
-    return Schema(NestedField(1, "id", IntegerType()), schema_id=1)
+    return Schema(NestedField(1, "id", IntegerType()))
 
 
 @pytest.fixture
 def schema_str() -> Schema:
-    return Schema(NestedField(2, "data", IntegerType()), schema_id=1)
+    return Schema(NestedField(2, "data", IntegerType()))
 
 
 @pytest.fixture
 def schema_long() -> Schema:
-    return Schema(NestedField(3, "id", LongType()), schema_id=1)
+    return Schema(NestedField(3, "id", LongType()))
 
 
 @pytest.fixture
-def table_int(schema_int: Schema, tmpdir: str) -> str:
+def schema_struct() -> Schema:
+    return Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType()),
+                NestedField(42, "long", DoubleType()),
+            ),
+        )
+    )
+
+
+@pytest.fixture
+def file_integer(schema_int: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
 
     target_file = f"file:{tmpdir}/a.parquet"
@@ -611,7 +625,7 @@ def table_int(schema_int: Schema, tmpdir: str) -> str:
 
 
 @pytest.fixture
-def table_str(schema_str: Schema, tmpdir: str) -> str:
+def file_string(schema_str: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
 
     target_file = f"file:{tmpdir}/b.parquet"
@@ -623,7 +637,7 @@ def table_str(schema_str: Schema, tmpdir: str) -> str:
 
 
 @pytest.fixture
-def table_long(schema_long: Schema, tmpdir: str) -> str:
+def file_long(schema_long: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
 
     target_file = f"file:{tmpdir}/c.parquet"
@@ -634,7 +648,28 @@ def table_long(schema_long: Schema, tmpdir: str) -> str:
     return target_file
 
 
-def test_projection_add_column(schema_int: Schema, table_int: str) -> None:
+@pytest.fixture
+def file_struct(schema_struct: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.json()})
+
+    target_file = f"file:{tmpdir}/d.parquet"
+
+    table = pa.Table.from_pylist(
+        [
+            {"location": {"lat": 52.371807, "long": 4.896029}},
+            {"location": {"lat": 52.387386, "long": 4.646219}},
+            {"location": {"lat": 52.078663, "long": 4.288788}},
+        ],
+        schema=pyarrow_schema,
+    )
+
+    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
+        writer.write_table(table)
+
+    return target_file
+
+
+def test_projection_add_column(schema_int: Schema, file_integer: str) -> None:
     schema = Schema(
         # All new IDs
         NestedField(10, "id", IntegerType(), required=False),
@@ -645,12 +680,21 @@ def test_projection_add_column(schema_int: Schema, table_int: str) -> None:
             MapType(key_id=31, key_type=IntegerType(), value_id=32, value_type=StringType(), value_required=False),
             required=False,
         ),
-        NestedField(40, "location", StructType(NestedField(41, "lat", DoubleType()), NestedField(42, "lon", DoubleType()))),
+        NestedField(
+            40,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType(), required=False), NestedField(42, "lon", DoubleType(), required=False)
+            ),
+            required=False,
+        ),
     )
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             )
         ],
         Table(
@@ -662,7 +706,7 @@ def test_projection_add_column(schema_int: Schema, table_int: str) -> None:
                 schemas=[schema],
                 partition_specs=[PartitionSpec()],
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -672,6 +716,7 @@ def test_projection_add_column(schema_int: Schema, table_int: str) -> None:
 
     # Everything should be None
     for col in result_table.columns:
+        assert len(col) == 3
         for r in col:
             assert r.as_py() is None
 
@@ -690,7 +735,7 @@ location: struct<lat: double not null, lon: double not null> not null
     )
 
 
-def test_projection_add_column_struct(schema_int: Schema, table_int: str) -> None:
+def test_projection_add_column_struct(schema_int: Schema, file_integer: str) -> None:
     schema = Schema(
         # A new ID
         NestedField(
@@ -703,7 +748,9 @@ def test_projection_add_column_struct(schema_int: Schema, table_int: str) -> Non
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             )
         ],
         Table(
@@ -715,7 +762,7 @@ def test_projection_add_column_struct(schema_int: Schema, table_int: str) -> Non
                 schemas=[schema],
                 partition_specs=[PartitionSpec()],
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -735,7 +782,45 @@ def test_projection_add_column_struct(schema_int: Schema, table_int: str) -> Non
     )
 
 
-def test_projection_rename_column(schema_int: Schema, table_int: str) -> None:
+def test_projection_add_column_struct_required(schema_int: Schema, file_integer: str) -> None:
+    schema = Schema(
+        # A new ID
+        NestedField(
+            2,
+            "other_id",
+            IntegerType(),
+            required=True,
+        )
+    )
+    with pytest.raises(ResolveException) as exc_info:
+        project_table(
+            [
+                FileScanTask(
+                    DataFile(
+                        file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                    )
+                )
+            ],
+            Table(
+                ("namespace", "table"),
+                metadata=TableMetadataV2(
+                    location="file://a/b/c.parquet",
+                    last_column_id=1,
+                    format_version=2,
+                    schemas=[schema],
+                    partition_specs=[PartitionSpec()],
+                ),
+                metadata_location="file://a/b/c.json",
+                io=PyArrowFileIO(),
+            ),
+            AlwaysTrue(),
+            schema,
+            case_sensitive=True,
+        )
+    assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
+
+
+def test_projection_rename_column(schema_int: Schema, file_integer: str) -> None:
     schema = Schema(
         # Reuses the id 1
         NestedField(1, "other_id", IntegerType())
@@ -743,7 +828,9 @@ def test_projection_rename_column(schema_int: Schema, table_int: str) -> None:
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             )
         ],
         Table(
@@ -755,7 +842,7 @@ def test_projection_rename_column(schema_int: Schema, table_int: str) -> None:
                 schemas=[schema],
                 partition_specs=[PartitionSpec()],
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -768,11 +855,13 @@ def test_projection_rename_column(schema_int: Schema, table_int: str) -> None:
     assert repr(result_table.schema) == "other_id: int32 not null"
 
 
-def test_projection_concat_files(schema_int: Schema, table_int: str) -> None:
+def test_projection_concat_files(schema_int: Schema, file_integer: str) -> None:
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             ),
         ]
         * 2,
@@ -784,9 +873,8 @@ def test_projection_concat_files(schema_int: Schema, table_int: str) -> None:
                 format_version=2,
                 schemas=[schema_int],
                 partition_specs=[PartitionSpec()],
-                current_schema_id=1,
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -799,11 +887,13 @@ def test_projection_concat_files(schema_int: Schema, table_int: str) -> None:
     assert repr(result_table.schema) == "id: int32 not null"
 
 
-def test_projection_filter(schema_int: Schema, table_int: str) -> None:
+def test_projection_filter(schema_int: Schema, file_integer: str) -> None:
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             ),
         ]
         * 2,
@@ -815,9 +905,8 @@ def test_projection_filter(schema_int: Schema, table_int: str) -> None:
                 format_version=2,
                 schemas=[schema_int],
                 partition_specs=[PartitionSpec()],
-                current_schema_id=1,
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         GreaterThan("id", 4),
@@ -828,12 +917,14 @@ def test_projection_filter(schema_int: Schema, table_int: str) -> None:
     assert repr(result_table.schema) == "id: int32 not null"
 
 
-def test_projection_filter_renamed_column(schema_int: Schema, table_int: str) -> None:
+def test_projection_filter_renamed_column(schema_int: Schema, file_integer: str) -> None:
     """Filter on a renamed column"""
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             )
         ],
         Table(
@@ -849,9 +940,8 @@ def test_projection_filter_renamed_column(schema_int: Schema, table_int: str) ->
                     )
                 ],
                 partition_specs=[PartitionSpec()],
-                current_schema_id=0,
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         GreaterThan("other_id", 1),
@@ -861,19 +951,23 @@ def test_projection_filter_renamed_column(schema_int: Schema, table_int: str) ->
         ),
         case_sensitive=True,
     )
-    assert len(result_table.columns[0]) == 1  # Just 2
+    assert len(result_table.columns[0]) == 1
     assert repr(result_table.schema) == "other_id: int32 not null"
 
 
-def test_projection_filter_add_column(schema_int: Schema, table_int: str, table_str: str) -> None:
+def test_projection_filter_add_column(schema_int: Schema, file_integer: str, file_string: str) -> None:
     """We have one file that has the column, and the other one doesn't"""
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             ),
             FileScanTask(
-                DataFile(file_path=table_str, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_string, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             ),
         ],
         Table(
@@ -889,9 +983,8 @@ def test_projection_filter_add_column(schema_int: Schema, table_int: str, table_
                     )
                 ],
                 partition_specs=[PartitionSpec()],
-                current_schema_id=0,
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -907,12 +1000,14 @@ def test_projection_filter_add_column(schema_int: Schema, table_int: str, table_
     assert repr(result_table.schema) == "id: int32 not null"
 
 
-def test_projection_filter_add_column_promote(schema_int: Schema, table_int: str) -> None:
+def test_projection_filter_add_column_promote(schema_int: Schema, file_integer: str) -> None:
     """We have one file that has the column, and the other one doesn't"""
     result_table = project_table(
         [
             FileScanTask(
-                DataFile(file_path=table_int, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    file_path=file_integer, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
             ),
         ],
         Table(
@@ -923,9 +1018,8 @@ def test_projection_filter_add_column_promote(schema_int: Schema, table_int: str
                 format_version=2,
                 schemas=[Schema(NestedField(1, "id", LongType()))],
                 partition_specs=[PartitionSpec()],
-                current_schema_id=0,
             ),
-            metadata_location="file://a/b/c.parquet",
+            metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
         ),
         AlwaysTrue(),
@@ -938,13 +1032,13 @@ def test_projection_filter_add_column_promote(schema_int: Schema, table_int: str
     assert repr(result_table.schema) == "id: int64 not null"
 
 
-def test_projection_filter_add_column_demote(schema_long: Schema, table_long: str) -> None:
+def test_projection_filter_add_column_demote(schema_long: Schema, file_long: str) -> None:
     with pytest.raises(ResolveException) as exc_info:
         project_table(
             [
                 FileScanTask(
                     DataFile(
-                        file_path=table_long, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                        file_path=file_long, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
                     )
                 ),
             ],
@@ -956,9 +1050,8 @@ def test_projection_filter_add_column_demote(schema_long: Schema, table_long: st
                     format_version=2,
                     schemas=[Schema(NestedField(3, "id", IntegerType()))],
                     partition_specs=[PartitionSpec()],
-                    current_schema_id=0,
                 ),
-                metadata_location="file://a/b/c.parquet",
+                metadata_location="file://a/b/c.json",
                 io=PyArrowFileIO(),
             ),
             AlwaysTrue(),
@@ -966,3 +1059,139 @@ def test_projection_filter_add_column_demote(schema_long: Schema, table_long: st
             case_sensitive=True,
         )
     assert "Cannot promote long to int" in str(exc_info.value)
+
+
+def test_projection_nested_struct_subset(schema_struct: Schema, file_struct: str) -> None:
+    """We have one file that has the column, and the other one doesn't"""
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType()),
+            ),
+        )
+    )
+
+    result_table = project_table(
+        [
+            FileScanTask(
+                DataFile(
+                    file_path=file_struct, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
+            ),
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/c.parquet",
+                last_column_id=1,
+                format_version=2,
+                schemas=[schema],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location="file://a/b/c.json",
+            io=PyArrowFileIO(),
+        ),
+        AlwaysTrue(),
+        schema,
+        case_sensitive=True,
+    )
+    for actual, expected in zip(result_table.columns[0], [52.371807, 52.387386, 52.078663]):
+        assert actual.as_py() == {"lat": expected}
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "location: struct<lat: double not null> not null\n  child 0, lat: double not null"
+
+
+def test_projection_nested_new_field(schema_struct: Schema, file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(43, "null", DoubleType(), required=False),
+            ),
+        )
+    )
+
+    result_table = project_table(
+        [
+            FileScanTask(
+                DataFile(
+                    file_path=file_struct, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
+            ),
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/c.parquet",
+                last_column_id=1,
+                format_version=2,
+                schemas=[schema],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location="file://a/b/c.json",
+            io=PyArrowFileIO(),
+        ),
+        AlwaysTrue(),
+        schema,
+        case_sensitive=True,
+    )
+    for actual, expected in zip(result_table.columns[0], [None, None, None]):
+        assert actual.as_py() == {"null": expected}
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "location: struct<lat: double not null> not null\n  child 0, lat: double not null"
+
+
+def test_projection_nested_struct_superset(schema_struct: Schema, file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType(), required=False),
+                NestedField(42, "long", DoubleType(), required=False),
+                NestedField(43, "null", DoubleType(), required=False),
+            ),
+        )
+    )
+
+    result_table = project_table(
+        [
+            FileScanTask(
+                DataFile(
+                    file_path=file_struct, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3
+                )
+            ),
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/c.parquet",
+                last_column_id=1,
+                format_version=2,
+                schemas=[schema],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location="file://a/b/c.json",
+            io=PyArrowFileIO(),
+        ),
+        AlwaysTrue(),
+        schema,
+        case_sensitive=True,
+    )
+    for actual, expected in zip(
+        result_table.columns[0],
+        [
+            {"lat": 52.371807, "long": 4.896029, "null": None},
+            {"lat": 52.387386, "long": 4.646219, "null": None},
+            {"lat": 52.078663, "long": 4.288788, "null": None},
+        ],
+    ):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 3
+    assert (
+        repr(result_table.schema)
+        == "location: struct<lat: double, long: double, null: double> not null\n  child 0, lat: double\n  child 1, long: double\n  child 2, null: double"
+    )

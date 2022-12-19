@@ -131,12 +131,12 @@ def _(file_type: PrimitiveType, read_type: IcebergType) -> Reader:
 
     # In the case of a promotion, we want to check if it is valid
     if file_type != read_type:
-        return promote(file_type, read_type)
+        read_type = promote(file_type, read_type)
     return visit(read_type, ConstructReader())
 
 
 @singledispatch
-def promote(file_type: IcebergType, read_type: IcebergType) -> Reader:
+def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
     """Promotes reading a file type to a read type
 
     Args:
@@ -150,16 +150,16 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> Reader:
 
 
 @promote.register(IntegerType)
-def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
+def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, LongType):
         # Ints/Longs are binary compatible in Avro, so this is okay
-        return visit(read_type, ConstructReader())
+        return read_type
     else:
         raise ResolveException(f"Cannot promote an int to {read_type}")
 
 
 @promote.register(FloatType)
-def _(file_type: FloatType, read_type: IcebergType) -> Reader:
+def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, DoubleType):
         # We should just read the float, and return it, since it both returns a float
         return visit(file_type, ConstructReader())
@@ -168,27 +168,44 @@ def _(file_type: FloatType, read_type: IcebergType) -> Reader:
 
 
 @promote.register(StringType)
-def _(file_type: StringType, read_type: IcebergType) -> Reader:
+def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, BinaryType):
-        return visit(read_type, ConstructReader())
+        return read_type
     else:
         raise ResolveException(f"Cannot promote an string to {read_type}")
 
 
 @promote.register(BinaryType)
-def _(file_type: BinaryType, read_type: IcebergType) -> Reader:
+def _(file_type: BinaryType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, StringType):
-        return visit(read_type, ConstructReader())
+        return read_type
     else:
         raise ResolveException(f"Cannot promote an binary to {read_type}")
 
 
 @promote.register(DecimalType)
-def _(file_type: DecimalType, read_type: IcebergType) -> Reader:
+def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, DecimalType):
         if file_type.precision <= read_type.precision and file_type.scale == file_type.scale:
-            return visit(read_type, ConstructReader())
+            return read_type
         else:
             raise ResolveException(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveException(f"Cannot promote an decimal to {read_type}")
+
+
+@promote.register(StructType)
+def _(file_type: StructType, read_type: IcebergType) -> IcebergType:
+    if isinstance(read_type, StructType):
+        id_to_type = {file_field.field_id: file_field.field_type for file_field in file_type.fields}
+        for read_field in read_type.fields:
+            if file_field_type := id_to_type.get(read_field.field_id):
+                if file_field_type != read_field.field_type:
+                    # Check if the promotion is valid in case they differ
+                    promote(file_field_type, read_field.field_type)
+            else:
+                if read_field.required:
+                    raise ResolveException(f"Adding required fields to struct is not allowed: {read_field}")
+        return read_type
+    else:
+        raise ResolveException(f"Cannot promote an struct to {read_type}")

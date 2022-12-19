@@ -31,6 +31,7 @@ from typing import (
     Callable,
     Iterable,
     List,
+    Optional,
     Set,
     Tuple,
     Union,
@@ -49,7 +50,7 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
-from pyiceberg.avro.resolver import promote
+from pyiceberg.avro.resolver import ResolveException, promote
 from pyiceberg.expressions import (
     AlwaysTrue,
     BooleanExpression,
@@ -67,10 +68,11 @@ from pyiceberg.io import (
 )
 from pyiceberg.schema import (
     Schema,
-    SchemaVisitor,
     SchemaVisitorPerPrimitiveType,
+    SchemaVisitorWithPartner,
     prune_columns,
     visit,
+    visit_with_partner,
 )
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
@@ -461,62 +463,6 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-class _ConstructFinalSchema(SchemaVisitor[pa.ChunkedArray]):
-    file_schema: Schema
-    table: pa.Table
-
-    def __init__(self, file_schema: Schema, table: pa.Table):
-        self.file_schema = file_schema
-        self.table = table
-
-    def schema(self, schema: Schema, struct_result: List[pa.ChunkedArray]) -> pa.Table:
-        return pa.table(struct_result, schema=schema_to_pyarrow(schema))
-
-    def struct(self, _: StructType, field_results: List[pa.ChunkedArray]) -> List[pa.ChunkedArray]:
-        return field_results
-
-    def field(self, field: NestedField, _: pa.ChunkedArray) -> pa.ChunkedArray:
-        column_name = self.file_schema.find_column_name(field.field_id)
-
-        if column_name:
-            column_idx = self.table.schema.get_field_index(column_name)
-        else:
-            column_idx = -1
-
-        expected_arrow_type = schema_to_pyarrow(field.field_type)
-
-        # The idx will be -1 when the column can't be found
-        if column_idx >= 0:
-            column_field: pa.Field = self.table.schema[column_idx]
-            column_arrow_type: pa.DataType = column_field.type
-            column_data: pa.ChunkedArray = self.table[column_idx]
-            file_type = self.file_schema.find_type(field.field_id)
-
-            # In case of schema evolution
-            if column_arrow_type != expected_arrow_type:
-                # To check if the promotion is allowed
-                _ = promote(file_type, field.field_type)
-                column_data = column_data.cast(expected_arrow_type)
-        else:
-            import numpy as np
-
-            column_data = pa.array(np.full(shape=len(self.table), fill_value=None), type=expected_arrow_type)
-        return column_data
-
-    def list(self, _: ListType, element_result: pa.ChunkedArray) -> pa.ChunkedArray:
-        pass
-
-    def map(self, _: MapType, key_result: pa.ChunkedArray, value_result: pa.ChunkedArray) -> pa.DataType:
-        pass
-
-    def primitive(self, primitive: PrimitiveType) -> pa.ChunkedArray:
-        pass
-
-
-def to_final_schema(final_schema: Schema, schema: Schema, table: pa.Table) -> pa.Table:
-    return visit(final_schema, _ConstructFinalSchema(schema, table))
-
-
 def project_table(
     files: Iterable["FileScanTask"], table: "Table", row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
 ) -> pa.Table:
@@ -552,7 +498,7 @@ def project_table(
             schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
             file_schema = Schema.parse_raw(schema_raw)
 
-        file_project_schema = prune_columns(file_schema, projected_field_ids)
+        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
 
         pyarrow_filter = None
         if row_filter is not AlwaysTrue():
@@ -570,9 +516,95 @@ def project_table(
             source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
         ).to_table(filter=pyarrow_filter)
 
-        tables.append(to_final_schema(table.schema(), file_schema, arrow_table))
+        tables.append(to_requested_schema(projected_schema, file_project_schema, arrow_table))
 
     if len(tables) > 1:
         return pa.concat_tables(tables)
     else:
         return tables[0]
+
+
+class _ConstructRequestedSchema(SchemaVisitorWithPartner[pa.ChunkedArray]):
+
+    file_schema: Schema
+    table: pa.Table
+
+    def __init__(self, file_schema: Schema, table: pa.Table):
+        self.file_schema = file_schema
+        self.table = table
+
+    def schema(self, schema: Schema, partner_schema: Optional[Schema], struct_result: pa.StructArray) -> pa.Table:
+        pyarrow_schema = schema_to_pyarrow(schema)
+        return pa.Table.from_arrays(struct_result.flatten(), schema=pyarrow_schema)
+
+    def struct(
+        self, struct: StructType, partner_struct: Optional[IcebergType], field_results: List[pa.ChunkedArray]
+    ) -> pa.ChunkedArray:
+        pyarrow_schema = schema_to_pyarrow(struct)
+        return pa.StructArray.from_arrays(arrays=field_results, fields=pyarrow_schema)
+
+    def _get_column_data(self, field: NestedField, partner_field: NestedField) -> pa.Array:
+        column_name = self.file_schema.find_column_name(field.field_id)
+        column_data = self.table
+        struct_schema = self.table.schema
+
+        column_parts = list(reversed(column_name.split(".")))
+        while len(column_parts) > 1:
+            column_data = column_data.column(column_parts.pop())
+        idx = struct_schema.get_field_index(column_parts.pop())
+        column_data = column_data.flatten()[idx]
+
+        if field.field_type != partner_field.field_type:
+            # To check if the promotion is allowed
+            expected = promote(partner_field.field_type, field.field_type)
+            column_data = column_data.cast(schema_to_pyarrow(expected))
+
+        return column_data.combine_chunks()
+
+    def field(self, field: NestedField, partner_field: Optional[NestedField], field_result: pa.ChunkedArray) -> pa.Array:
+        expected_arrow_type = schema_to_pyarrow(field.field_type)
+
+        # If the partner field is not none, it is part of the read schema
+        if isinstance(field.field_type, PrimitiveType):
+            if partner_field is not None:
+                return self._get_column_data(field, partner_field)
+            else:
+                if field.required:
+                    raise ResolveException(f"Field is required, and could not be found in the file: {field}")
+
+                return pa.nulls(len(self.table), expected_arrow_type)
+        if isinstance(field.field_type, ListType):
+            if partner_field is not None:
+                data = self._get_column_data(field, partner_field)
+                return pa.ListArray([0, len(data)], data)
+            else:
+                tbl_len = len(self.table)
+                return pa.ListArray([0, tbl_len], pa.nulls(len(self.table), expected_arrow_type))
+        return field_result
+
+    def list(
+        self, list_type: ListType, partner_list_type: Optional[IcebergType], element_result: pa.ChunkedArray
+    ) -> pa.ChunkedArray:
+        return list_type
+
+    def map(
+        self,
+        map_type: MapType,
+        partner_map_type: Optional[IcebergType],
+        key_result: pa.ChunkedArray,
+        value_result: pa.ChunkedArray,
+    ) -> pa.ChunkedArray:
+        return map_type
+
+    def primitive(self, primitive: PrimitiveType, partner_primitive: Optional[PrimitiveType]) -> pa.ChunkedArray:
+        if partner_primitive is None:
+            return schema_to_pyarrow(primitive)
+        else:
+            if primitive != partner_primitive:
+                return schema_to_pyarrow(promote(partner_primitive, primitive))
+            else:
+                return schema_to_pyarrow(primitive)
+
+
+def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
+    return visit_with_partner(requested_schema, file_schema, _ConstructRequestedSchema(file_schema, table))

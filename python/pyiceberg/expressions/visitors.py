@@ -762,7 +762,6 @@ class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
     """Converts the column names with the ones in the actual file
 
     Args:
-      table_schema (Schema): The schema of the table
       file_schema (Schema): The schema of the file
       case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
 

@@ -1054,3 +1054,93 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
                 value_type=value_result,
                 value_required=map_type.value_required,
             )
+
+
+class SchemaVisitorWithPartner(Generic[T], ABC):
+    @abstractmethod
+    def schema(self, schema: Schema, partner_schema: Optional[Schema], struct_result: T) -> T:
+        """Visit a Schema"""
+
+    @abstractmethod
+    def struct(self, struct: StructType, partner_struct: Optional[IcebergType], field_results: List[T]) -> T:
+        """Visit a StructType"""
+
+    @abstractmethod
+    def field(self, field: NestedField, partner_field: Optional[NestedField], field_result: T) -> T:
+        """Visit a NestedField"""
+
+    @abstractmethod
+    def list(self, list_type: ListType, partner_list_type: Optional[IcebergType], element_result: T) -> T:
+        """Visit a ListType"""
+
+    @abstractmethod
+    def map(self, map_type: MapType, partner_map_type: Optional[IcebergType], key_result: T, value_result: T) -> T:
+        """Visit a MapType"""
+
+    @abstractmethod
+    def primitive(self, primitive: PrimitiveType, partner_primitive: Optional[PrimitiveType]) -> T:
+        """Visit a PrimitiveType"""
+
+
+@singledispatch
+def visit_with_partner(
+    obj: Union[Schema, IcebergType], partner_obj: Union[Schema, IcebergType], visitor: SchemaVisitorWithPartner[T]
+) -> T:
+    """A generic function for applying a schema visitor to any point within a schema
+
+    The function traverses the schema in post-order fashion
+
+    Args:
+        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        visitor (SchemaVisitorWithPartner[T]): An instance of an implementation of the generic SchemaVisitorWithPartner base class
+
+    Raises:
+        NotImplementedError: If attempting to visit an unrecognized object type
+    """
+    raise NotImplementedError("Cannot visit non-type: %s" % obj)
+
+
+@visit_with_partner.register(Schema)
+def _(obj: Schema, partner_schema: Schema, visitor: SchemaVisitorWithPartner[T]) -> T:
+    """Visit a Schema with a concrete SchemaVisitorWithPartner"""
+    result = visit_with_partner(obj.as_struct(), partner_schema.as_struct(), visitor)
+    return visitor.schema(obj, partner_schema, result)
+
+
+@visit_with_partner.register(StructType)
+def _(obj: StructType, partner_struct: Optional[IcebergType], visitor: SchemaVisitorWithPartner[T]) -> T:
+    """Visit a StructType with a concrete SchemaVisitorWithPartner"""
+    results = []
+    by_id = partner_struct.by_id() if isinstance(partner_struct, StructType) else {}
+
+    for field in obj.fields:
+        partner_field = by_id.get(field.field_id)
+        result = visit_with_partner(field.field_type, partner_field.field_type if partner_field is not None else None, visitor)
+        results.append(visitor.field(field, partner_field, result))
+
+    return visitor.struct(obj, partner_struct, results)
+
+
+@visit_with_partner.register(ListType)
+def _(obj: ListType, partner_list: Optional[IcebergType], visitor: SchemaVisitorWithPartner[T]) -> T:
+    """Visit a ListType with a concrete SchemaVisitorWithPartner"""
+    partner_list_type = partner_list.element_type if isinstance(partner_list, ListType) else None
+    return visitor.list(obj, partner_list, visit_with_partner(obj.element_type, partner_list_type, visitor))
+
+
+@visit_with_partner.register(MapType)
+def _(obj: MapType, partner_map: Optional[IcebergType], visitor: SchemaVisitorWithPartner[T]) -> T:
+    """Visit a MapType with a concrete SchemaVisitorWithPartner"""
+    partner_key_type = partner_map.key_type if isinstance(partner_map, MapType) else None
+    key_result = visit_with_partner(obj.key_type, partner_key_type, visitor)
+
+    partner_value_type = partner_map.value_type if isinstance(partner_map, MapType) else None
+    value_result = visit_with_partner(obj.value_type, partner_value_type, visitor)
+
+    return visitor.map(obj, partner_map, key_result, value_result)
+
+
+@visit_with_partner.register(PrimitiveType)
+def _(obj: PrimitiveType, partner_type: Optional[IcebergType], visitor: SchemaVisitorWithPartner[T]) -> T:
+    """Visit a PrimitiveType with a concrete SchemaVisitorWithPartner"""
+    return visitor.primitive(obj, partner_type)
