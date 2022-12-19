@@ -581,7 +581,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan. 
 
-Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more then once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
 
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
