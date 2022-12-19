@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -281,6 +282,17 @@ public class TestPositionFilter {
 
   @Test
   public void testCombinedPositionSetRowFilter() {
+    testCombinedPositionSetRowFilter(false);
+  }
+
+  @Test
+  public void testCombinedPositionSetRowFilterInParallel() {
+    testCombinedPositionSetRowFilter(true);
+  }
+
+  void testCombinedPositionSetRowFilter(boolean deletePosProperty) {
+    System.setProperty(
+        SystemProperties.DELETE_POS_FILES_THREADS_ENABLED, Boolean.toString(deletePosProperty));
     CloseableIterable<StructLike> positionDeletes1 =
         CloseableIterable.withNoopClose(
             Lists.newArrayList(
@@ -324,5 +336,8 @@ public class TestPositionFilter {
         "Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+
+    // Reset back to default
+    Deletes.resetDeletePosThreadPool();
   }
 }

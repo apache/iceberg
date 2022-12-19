@@ -41,7 +41,10 @@ public class SystemProperties {
 
   public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
-  static boolean getBoolean(String systemProperty, boolean defaultValue) {
+  public static final String DELETE_POS_FILES_THREADS_ENABLED =
+      "iceberg.delete.pos.read-worker-pool";
+
+  public static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);
     if (value != null) {
       return Boolean.parseBoolean(value);

@@ -21,6 +21,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -28,10 +29,12 @@ import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FilterIterator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -50,6 +53,8 @@ public class Deletes {
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
   private static final Accessor<StructLike> POSITION_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
+
+  private static ExecutorService deletePosThreadPool = getDeletePosThreadPool();
 
   private Deletes() {}
 
@@ -137,6 +142,17 @@ public class Deletes {
     }
   }
 
+  static ExecutorService getDeletePosThreadPool() {
+    return (SystemProperties.getBoolean(SystemProperties.DELETE_POS_FILES_THREADS_ENABLED, false))
+        ? ThreadPools.newWorkerPool(SystemProperties.DELETE_POS_FILES_THREADS_ENABLED)
+        : null;
+  }
+
+  @VisibleForTesting
+  static void resetDeletePosThreadPool() {
+    deletePosThreadPool = getDeletePosThreadPool();
+  }
+
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
@@ -151,12 +167,11 @@ public class Deletes {
 
   public static PositionDeleteIndex toPositionIndex(List<CloseableIterable<Long>> positions) {
     PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
-    try (CloseableIterable<Long> itr =
-        new ParallelIterable<>(positions, ThreadPools.getWorkerPool())) {
-      itr.forEach(positionDeleteIndex::delete);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close position delete source", e);
-    }
+    CloseableIterable<Long> itr =
+        (positions.size() > 1 && (deletePosThreadPool != null))
+            ? new ParallelIterable<>(positions, deletePosThreadPool)
+            : CloseableIterable.concat(positions);
+    itr.forEach(positionDeleteIndex::delete);
     return positionDeleteIndex;
   }
 
