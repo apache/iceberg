@@ -48,6 +48,8 @@ plugins {
   id 'nebula.dependency-recommender' version '11.0.0'
 }
 
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+
 try {
   // apply these plugins in a try-catch block so that we can handle cases without .git directory
   apply plugin: 'com.palantir.git-version'
@@ -294,7 +296,7 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    compileOnly "io.delta:delta-standalone_2.12"
+    compileOnly "io.delta:delta-standalone_${scalaVersion}"
 
     testImplementation "org.eclipse.jetty:jetty-servlet"
     testImplementation "org.eclipse.jetty:jetty-server"
