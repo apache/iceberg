@@ -373,12 +373,10 @@ def test_fsspec_converting_an_outputfile_to_an_inputfile_adlfs(adlfs_fsspec_file
 
 
 @pytest.mark.adlfs
-def test_writing_avro_file_adlfs(
-    generated_manifest_entry_file: Generator[str, None, None], adlfs_fsspec_fileio: FsspecFileIO
-) -> None:
+def test_writing_avro_file_adlfs(generated_manifest_entry_file: str, adlfs_fsspec_fileio: FsspecFileIO) -> None:
     """Test that bytes match when reading a local avro file, writing it using fsspec file-io, and then reading it again"""
     filename = str(uuid.uuid4())
-    with LocalInputFile(generated_manifest_entry_file).open() as f:
+    with PyArrowFileIO().new_input(location=generated_manifest_entry_file).open() as f:
         b1 = f.read()
         with adlfs_fsspec_fileio.new_output(location=f"abfss://tests/{filename}").create() as out_f:
             out_f.write(b1)
