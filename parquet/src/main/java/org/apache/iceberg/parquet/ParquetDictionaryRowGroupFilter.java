@@ -37,8 +37,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DictionaryPage;
@@ -165,9 +165,7 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
-      return dictionary.contains(naNValueForType(ref.type()))
-          ? ROWS_MIGHT_MATCH
-          : ROWS_CANNOT_MATCH;
+      return dictionary.stream().anyMatch(NaNUtil::isNaN) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -184,22 +182,7 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
-
-      if (dictionary.size() > 1 || !dictionary.contains(naNValueForType(ref.type()))) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      return ROWS_CANNOT_MATCH;
-    }
-
-    private Number naNValueForType(Type type) {
-      if (type instanceof Types.DoubleType) {
-        return Double.NaN;
-      } else if (type instanceof Types.FloatType) {
-        return Float.NaN;
-      } else {
-        throw new UnsupportedOperationException("Unsupported type: " + type);
-      }
+      return dictionary.stream().allMatch(NaNUtil::isNaN) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {
