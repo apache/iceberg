@@ -46,9 +46,9 @@ import org.slf4j.LoggerFactory;
 public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
-  private final String PARQUET_POSTFIX = ".parquet";
-  private final String AVRO_POSTFIX = ".avro";
-  private final String ORC_POSTFIX = ".orc";
+  private final String parquetPostfix = ".parquet";
+  private final String avroPostfix = ".avro";
+  private final String orcPostfix = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
@@ -263,11 +263,11 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   protected abstract Metrics getMetricsForFile(Table table, String fullFilePath, FileFormat format);
 
   private FileFormat determineFileFormatFromPath(String path) {
-    if (path.endsWith(PARQUET_POSTFIX)) {
+    if (path.endsWith(parquetPostfix)) {
       return FileFormat.PARQUET;
-    } else if (path.endsWith(AVRO_POSTFIX)) {
+    } else if (path.endsWith(avroPostfix)) {
       return FileFormat.AVRO;
-    } else if (path.endsWith(ORC_POSTFIX)) {
+    } else if (path.endsWith(orcPostfix)) {
       return FileFormat.ORC;
     } else {
       throw new RuntimeException("The format of the file is unsupported: " + path);
