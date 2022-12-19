@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -153,9 +152,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public String description() {
-    String filters =
-        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
-    return String.format("%s [filters=%s]", table, filters);
+    return String.format(
+        "%s [filters=%s, groupedBy=%s]",
+        table(), Spark3Util.describe(filterExpressions), groupingKeyType());
   }
 
   @Override

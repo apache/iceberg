@@ -490,6 +490,10 @@ public class Spark3Util {
     return null;
   }
 
+  public static String describe(List<org.apache.iceberg.expressions.Expression> exprs) {
+    return exprs.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+  }
+
   public static String describe(org.apache.iceberg.expressions.Expression expr) {
     return ExpressionVisitors.visit(expr, DescribeExpressionVisitor.INSTANCE);
   }

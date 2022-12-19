@@ -54,6 +54,8 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
       ImmutableMap.of(
           TableProperties.SPLIT_SIZE, "16777216", TableProperties.SPLIT_OPEN_FILE_COST, "16777216");
 
+  // only v2 bucketing and preserve data grouping properties have to be enabled to trigger SPJ
+  // other properties are only to simplify testing and validation
   private static final Map<String, String> ENABLED_SPJ_SQL_CONF =
       ImmutableMap.of(
           SQLConf.V2_BUCKETING_ENABLED().key(),

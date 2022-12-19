@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
@@ -133,18 +132,18 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public String description() {
     return String.format(
         "%s [fromSnapshotId=%d, toSnapshotId=%d, filters=%s]",
-        table, startSnapshotId, endSnapshotId, filtersAsString());
+        table, startSnapshotId, endSnapshotId, Spark3Util.describe(filters));
   }
 
   @Override
   public String toString() {
     return String.format(
         "IcebergChangelogScan(table=%s, type=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
-        table, expectedSchema.asStruct(), startSnapshotId, endSnapshotId, filtersAsString());
-  }
-
-  private String filtersAsString() {
-    return filters.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+        table,
+        expectedSchema.asStruct(),
+        startSnapshotId,
+        endSnapshotId,
+        Spark3Util.describe(filters));
   }
 
   @Override

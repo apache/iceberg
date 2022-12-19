@@ -554,6 +554,10 @@ public class Types {
       return lazyFieldList();
     }
 
+    public boolean containsField(int id) {
+      return lazyFieldsById().containsKey(id);
+    }
+
     public NestedField field(String name) {
       return lazyFieldsByName().get(name);
     }

@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
@@ -41,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
@@ -128,19 +126,19 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private Transform[] groupingKeyTransforms() {
     if (groupingKeyTransforms == null) {
-      Set<Integer> groupingKeyFieldIds =
-          groupingKeyType().fields().stream()
-              .map(Types.NestedField::fieldId)
-              .collect(Collectors.toSet());
-
       List<PartitionField> groupingKeyFields = Lists.newArrayList();
+
+      Set<Integer> seenFieldIds = Sets.newHashSet();
 
       for (PartitionSpec spec : specs()) {
         for (PartitionField field : spec.fields()) {
-          if (groupingKeyFieldIds.contains(field.fieldId())) {
+          int fieldId = field.fieldId();
+
+          if (groupingKeyType().containsField(fieldId) && !seenFieldIds.contains(fieldId)) {
             groupingKeyFields.add(field);
-            groupingKeyFieldIds.remove(field.fieldId());
           }
+
+          seenFieldIds.add(fieldId);
         }
       }
 
