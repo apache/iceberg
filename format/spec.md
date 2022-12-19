@@ -777,10 +777,10 @@ When the deleted row column is present, its schema may be any subset of the tabl
 
 To ensure the accuracy of statistics, all delete entries must include row values, or the column must be omitted (this is why the column type is `required`).
 
-The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning. 
 
 *  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
-*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+*  Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
 
 #### Equality Delete Files
 
