@@ -46,6 +46,9 @@ import org.slf4j.LoggerFactory;
 public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
+  private final String PARQUET_POSTFIX = ".parquet";
+  private final String AVRO_POSTFIX = ".avro";
+  private final String ORC_POSTFIX = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
@@ -238,33 +241,37 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     }
 
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
+    FileFormat format = determineFileFormatFromPath(fullFilePath);
+
+    Metrics metrics = getMetricsForFile(table, fullFilePath, format);
     String partition =
         spec.fields().stream()
             .map(PartitionField::name)
             .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
             .collect(Collectors.joining("/"));
 
-    DataFiles.Builder dataFileBuilder =
-        DataFiles.builder(spec)
-            .withPath(fullFilePath)
-            .withFileSizeInBytes(size)
-            .withPartitionPath(partition);
-
-    // TODO: check the file format later, may not be parquet
-    return buildDataFile(dataFileBuilder, table, FileFormat.PARQUET, fullFilePath);
+    return DataFiles.builder(spec)
+        .withPath(fullFilePath)
+        .withFormat(format)
+        .withFileSizeInBytes(size)
+        .withMetrics(metrics)
+        .withPartitionPath(partition)
+        .withRecordCount(metrics.recordCount())
+        .build();
   }
 
   protected abstract Metrics getMetricsForFile(Table table, String fullFilePath, FileFormat format);
 
-  private DataFile buildDataFile(
-      DataFiles.Builder dataFileBuilder, Table table, FileFormat format, String fullFilePath) {
-    Metrics metrics = getMetricsForFile(table, fullFilePath, format);
-
-    return dataFileBuilder
-        .withFormat(format)
-        .withMetrics(metrics)
-        .withRecordCount(metrics.recordCount())
-        .build();
+  private FileFormat determineFileFormatFromPath(String path) {
+    if (path.endsWith(PARQUET_POSTFIX)) {
+      return FileFormat.PARQUET;
+    } else if (path.endsWith(AVRO_POSTFIX)) {
+      return FileFormat.AVRO;
+    } else if (path.endsWith(ORC_POSTFIX)) {
+      return FileFormat.ORC;
+    } else {
+      throw new RuntimeException("The format of the file is unsupported: " + path);
+    }
   }
 
   private static Map<String, String> destTableProperties(
@@ -287,18 +294,6 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     properties.putAll(additionalProperties);
 
     return properties;
-  }
-
-  protected DeltaLog deltaLog() {
-    return this.deltaLog;
-  }
-
-  protected String deltaTableLocation() {
-    return deltaTableLocation;
-  }
-
-  protected Map<String, String> additionalProperties() {
-    return additionalProperties;
   }
 
   private enum IcebergTransactionType {

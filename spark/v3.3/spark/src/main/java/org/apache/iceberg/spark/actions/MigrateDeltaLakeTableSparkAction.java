@@ -61,7 +61,25 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-    return TableMigrationUtil.getParquetMetrics(
-        new Path(fullFilePath), spark.sessionState().newHadoopConf(), metricsConfig, nameMapping);
+
+    switch (format) {
+      case PARQUET:
+        return TableMigrationUtil.getParquetMetrics(
+            new Path(fullFilePath),
+            spark.sessionState().newHadoopConf(),
+            metricsConfig,
+            nameMapping);
+      case AVRO:
+        return TableMigrationUtil.getAvroMetrics(
+            new Path(fullFilePath), spark.sessionState().newHadoopConf());
+      case ORC:
+        return TableMigrationUtil.getOrcMetrics(
+            new Path(fullFilePath),
+            spark.sessionState().newHadoopConf(),
+            metricsConfig,
+            nameMapping);
+      default:
+        throw new RuntimeException("Unsupported file format: " + format);
+    }
   }
 }
