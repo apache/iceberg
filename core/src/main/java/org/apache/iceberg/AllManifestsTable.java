@@ -156,6 +156,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final String manifestListLocation;
     private final Expression residual;
     private final long referenceSnapshotId;
+    private DataFile lazyDataFile = null;
 
     ManifestListReadTask(
         FileIO io,
@@ -206,11 +207,16 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     @Override
     public DataFile file() {
-      return DataFiles.builder(PartitionSpec.unpartitioned())
-          .withInputFile(io.newInputFile(manifestListLocation))
-          .withRecordCount(1)
-          .withFormat(FileFormat.AVRO)
-          .build();
+      if (lazyDataFile == null) {
+        this.lazyDataFile =
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withInputFile(io.newInputFile(manifestListLocation))
+                .withRecordCount(1)
+                .withFormat(FileFormat.AVRO)
+                .build();
+      }
+
+      return lazyDataFile;
     }
 
     @Override
