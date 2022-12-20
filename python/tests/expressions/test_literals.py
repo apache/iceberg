@@ -73,6 +73,12 @@ def test_literal_from_none_error() -> None:
     assert "Invalid literal value: None" in str(e.value)
 
 
+def test_literal_from_nan_error() -> None:
+    with pytest.raises(ValueError) as e:
+        literal(float("nan"))
+    assert "Cannot create expression literal from NaN." in str(e.value)
+
+
 @pytest.mark.parametrize(
     "literal_class",
     [

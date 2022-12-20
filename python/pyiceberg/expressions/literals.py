@@ -66,9 +66,8 @@ class Literal(Generic[L], ABC):
     def __init__(self, value: L, value_type: Type[L]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
-        if isinstance(value, float):
-            if isnan(value):
-                raise ValueError("Cannot create expression literal from NaN.")
+        if isinstance(value, float) and isnan(value):
+            raise ValueError("Cannot create expression literal from NaN.")
         self._value = value
 
     @property
