@@ -19,7 +19,6 @@
 package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.hive.MetastoreUtil.MetastoreVersion;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -637,11 +636,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } catch (TException e) {
       // Try to find the lock. Only works in Hive 2 or later.
       if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
-        lockResult = findLock(agentInfo);
-        if (lockResult == null) {
-          // If not found, try one more time
-          lockResult = tryLock(lockRequest);
-        }
+        lockResult = reTryLock(agentInfo, lockRequest);
       } else {
         LOG.info("Could not retry with HMSClient {}", MetastoreVersion.current(), e);
         throw e;
@@ -825,7 +820,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // Search for the locks using HMSClient.showLocks identified by the agentInfo
     ShowLocksRequest showLocksRequest = new ShowLocksRequest();
     showLocksRequest.setDbname(database);
-    showLocksRequest.setDbname(tableName);
+    showLocksRequest.setTablename(tableName);
     ShowLocksResponse response = metaClients.run(client -> client.showLocks(showLocksRequest));
     for (ShowLocksResponseElement lock : response.getLocks()) {
       if (lock.getAgentInfo().equals(agentInfo)) {
@@ -842,6 +837,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throws InterruptedException, TException {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     return Pair.of(lockResponse.getLockid(), lockResponse.getState());
+  }
+
+  private Pair<Long, LockState> reTryLock(String agentInfo, LockRequest lockRequest)
+      throws InterruptedException, TException {
+    Pair<Long, LockState> lockResult = findLock(agentInfo);
+    if (lockResult == null) {
+      // If not found, try one more time
+      lockResult = tryLock(lockRequest);
+    }
+
+    return lockResult;
   }
 
   private static class HiveLockHeartbeat implements Runnable {
