@@ -108,7 +108,7 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
 
     Row currentRow = currentRow();
 
-    if (rowIterator.hasNext()) {
+    if (currentRow.getString(changeTypeIndex).equals(DELETE) && rowIterator.hasNext()) {
       GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
       cachedRow = nextRow;
 
