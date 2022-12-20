@@ -72,7 +72,9 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, writeProperties, spec);
+      this.appenderFactory =
+          new FlinkAppenderFactory(
+              table, schema, flinkSchema, writeProperties, spec, null, null, null);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of
       // the inserted row
@@ -81,6 +83,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
       this.appenderFactory =
           new FlinkAppenderFactory(
+              table,
               schema,
               flinkSchema,
               writeProperties,
@@ -91,6 +94,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     } else {
       this.appenderFactory =
           new FlinkAppenderFactory(
+              table,
               schema,
               flinkSchema,
               writeProperties,

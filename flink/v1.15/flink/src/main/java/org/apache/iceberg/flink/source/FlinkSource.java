@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -34,6 +32,7 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
@@ -112,8 +111,10 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder limit(long newLimit) {
-      contextBuilder.limit(newLimit);
+    public Builder limit(Long newLimit) {
+      if (newLimit != null) {
+        readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
+      }
       return this;
     }
 
@@ -185,7 +186,7 @@ public class FlinkSource {
     }
 
     public Builder nameMapping(String nameMapping) {
-      readOptions.put(DEFAULT_NAME_MAPPING, nameMapping);
+      readOptions.put(TableProperties.DEFAULT_NAME_MAPPING, nameMapping);
       return this;
     }
 

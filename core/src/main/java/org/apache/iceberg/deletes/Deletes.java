@@ -88,21 +88,6 @@ public class Deletes {
    *
    * @param rows the rows to process
    * @param isDeleted a predicate that determines if a row is deleted
-   * @return the processed rows
-   * @deprecated Will be removed in 1.2.0, use {@link Deletes#filterDeleted(CloseableIterable,
-   *     Predicate, DeleteCounter)}.
-   */
-  @Deprecated
-  public static <T> CloseableIterable<T> filterDeleted(
-      CloseableIterable<T> rows, Predicate<T> isDeleted) {
-    return filterDeleted(rows, isDeleted, new DeleteCounter());
-  }
-
-  /**
-   * Returns the remaining rows (the ones that are not deleted), while counting the deleted ones.
-   *
-   * @param rows the rows to process
-   * @param isDeleted a predicate that determines if a row is deleted
    * @param counter a counter that counts deleted rows
    * @return the processed rows
    */

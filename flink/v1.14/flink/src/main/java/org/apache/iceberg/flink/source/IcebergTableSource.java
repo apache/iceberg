@@ -58,7 +58,7 @@ public class IcebergTableSource
         SupportsLimitPushDown {
 
   private int[] projectedFields;
-  private long limit;
+  private Long limit;
   private List<Expression> filters;
 
   private final TableLoader loader;
@@ -83,7 +83,7 @@ public class IcebergTableSource
       TableSchema schema,
       Map<String, String> properties,
       ReadableConfig readableConfig) {
-    this(loader, schema, properties, null, false, -1, ImmutableList.of(), readableConfig);
+    this(loader, schema, properties, null, false, null, ImmutableList.of(), readableConfig);
   }
 
   private IcebergTableSource(
@@ -92,7 +92,7 @@ public class IcebergTableSource
       Map<String, String> properties,
       int[] projectedFields,
       boolean isLimitPushDown,
-      long limit,
+      Long limit,
       List<Expression> filters,
       ReadableConfig readableConfig) {
     this.loader = loader;

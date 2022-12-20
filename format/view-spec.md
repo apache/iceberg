@@ -145,7 +145,6 @@ The metadata directory contains View Version Metadata files. The text after '=>'
   },
   "versions" : [ { => Last few versions of the view.
     "version-id" : 1,
-    "parent-version-id" : -1,
     "timestamp-ms" : 1573518431292,
     "summary" : {
       "operation" : "create", => View operation that caused this metadata to be created
@@ -197,7 +196,6 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
   },
   "versions" : [ {
     "version-id" : 1,
-    "parent-version-id" : -1,
     "timestamp-ms" : 1573518431292,
     "summary" : {
       "operation" : "create",
@@ -214,7 +212,6 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
     "properties" : { }
   }, {
     "version-id" : 2,
-    "parent-version-id" : 1, => Version 2 was created on top of version 1, making parent-version-id 1
     "timestamp-ms" : 1573518440265,
     "summary" : {
       "operation" : "replace", => The ‘replace’ operation caused this latest version creation

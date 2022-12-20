@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs -E glue
+	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs
 
 check-license:
 	./dev/check-license
@@ -38,3 +38,13 @@ test-s3:
 test-integration:
 	docker-compose -f dev/docker-compose.yml up -d
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml
+
+test-adlfs:
+	sh ./dev/run-azurite.sh
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m adlfs ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml

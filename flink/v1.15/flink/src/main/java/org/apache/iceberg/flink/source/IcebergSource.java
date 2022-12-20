@@ -342,8 +342,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder<T> limit(long newLimit) {
-      readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
+    public Builder<T> limit(Long newLimit) {
+      if (newLimit != null) {
+        readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
+      }
       return this;
     }
 

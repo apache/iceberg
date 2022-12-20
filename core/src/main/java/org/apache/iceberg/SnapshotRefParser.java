@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -63,11 +62,7 @@ public class SnapshotRefParser {
   public static SnapshotRef fromJson(String json) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Cannot parse snapshot ref from invalid JSON: %s", json);
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to parse snapshot ref: " + json, e);
-    }
+    return JsonUtil.parse(json, SnapshotRefParser::fromJson);
   }
 
   public static SnapshotRef fromJson(JsonNode node) {

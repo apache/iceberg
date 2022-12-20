@@ -87,7 +87,7 @@ public class PartitionSpec implements Serializable {
   }
 
   public boolean isPartitioned() {
-    return fields.length > 0;
+    return fields.length > 0 && fields().stream().anyMatch(f -> !f.transform().isVoid());
   }
 
   public boolean isUnpartitioned() {
