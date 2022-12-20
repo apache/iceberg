@@ -813,3 +813,32 @@ class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
 
 def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_sensitive: bool) -> BooleanExpression:
     return visit(expr, _ColumnNameTranslator(file_schema, case_sensitive))
+
+
+class ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
+    """Extracts the field IDs used in the BooleanExpression"""
+
+    def visit_true(self) -> Set[int]:
+        return set()
+
+    def visit_false(self) -> Set[int]:
+        return set()
+
+    def visit_not(self, child_result: Set[int]) -> Set[int]:
+        return child_result
+
+    def visit_and(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_or(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Set[int]:
+        raise ValueError("Only works on bound records")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Set[int]:
+        return {predicate.term.ref().field.field_id}
+
+
+def extract_field_ids(expr: BooleanExpression) -> Set[int]:
+    return visit(expr, ExpressionFieldIDs())

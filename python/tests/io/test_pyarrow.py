@@ -590,8 +590,13 @@ def schema_int() -> Schema:
 
 
 @pytest.fixture
+def schema_int_str() -> Schema:
+    return Schema(NestedField(1, "id", IntegerType(), required=False), NestedField(2, "data", StringType(), required=False))
+
+
+@pytest.fixture
 def schema_str() -> Schema:
-    return Schema(NestedField(2, "data", IntegerType(), required=False))
+    return Schema(NestedField(2, "data", StringType(), required=False))
 
 
 @pytest.fixture
@@ -638,106 +643,100 @@ def schema_map() -> Schema:
     )
 
 
+def _write_table_to_file(filepath: str, schema: pa.Schema, table: pa.Table) -> str:
+    with pq.ParquetWriter(filepath, schema) as writer:
+        writer.write_table(table)
+    return filepath
+
+
 @pytest.fixture
-def file_integer(schema_int: Schema, tmpdir: str) -> str:
+def file_int(schema_int: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/a.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
+    )
 
-    target_file = f"file:{tmpdir}/a.parquet"
 
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
-
-    return target_file
+@pytest.fixture
+def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/a.parquet",
+        pyarrow_schema,
+        pa.Table.from_arrays([pa.array([0, 1, 2]), pa.array(["0", "1", "2"])], schema=pyarrow_schema),
+    )
 
 
 @pytest.fixture
 def file_string(schema_str: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
-
-    target_file = f"file:{tmpdir}/b.parquet"
-
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
-
-    return target_file
+    return _write_table_to_file(
+        f"file:{tmpdir}/b.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
+    )
 
 
 @pytest.fixture
 def file_long(schema_long: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
-
-    target_file = f"file:{tmpdir}/c.parquet"
-
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema))
-
-    return target_file
+    return _write_table_to_file(
+        f"file:{tmpdir}/c.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
+    )
 
 
 @pytest.fixture
 def file_struct(schema_struct: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.json()})
-
-    target_file = f"file:{tmpdir}/d.parquet"
-
-    table = pa.Table.from_pylist(
-        [
-            {"location": {"lat": 52.371807, "long": 4.896029}},
-            {"location": {"lat": 52.387386, "long": 4.646219}},
-            {"location": {"lat": 52.078663, "long": 4.288788}},
-        ],
-        schema=pyarrow_schema,
+    return _write_table_to_file(
+        f"file:{tmpdir}/d.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"location": {"lat": 52.371807, "long": 4.896029}},
+                {"location": {"lat": 52.387386, "long": 4.646219}},
+                {"location": {"lat": 52.078663, "long": 4.288788}},
+            ],
+            schema=pyarrow_schema,
+        ),
     )
-
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(table)
-
-    return target_file
 
 
 @pytest.fixture
 def file_list(schema_list: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.json()})
-
-    target_file = f"file:{tmpdir}/e.parquet"
-
-    table = pa.Table.from_pylist(
-        [
-            {"ids": list(range(1, 10))},
-            {"ids": list(range(2, 20))},
-            {"ids": list(range(3, 30))},
-        ],
-        schema=pyarrow_schema,
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"ids": list(range(1, 10))},
+                {"ids": list(range(2, 20))},
+                {"ids": list(range(3, 30))},
+            ],
+            schema=pyarrow_schema,
+        ),
     )
-
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(table)
-
-    return target_file
 
 
 @pytest.fixture
 def file_map(schema_map: Schema, tmpdir: str) -> str:
     pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.json()})
-
-    target_file = f"file:{tmpdir}/f.parquet"
-
-    table = pa.Table.from_pylist(
-        [
-            {"properties": [("a", "b")]},
-            {"properties": [("c", "d")]},
-            {"properties": [("e", "f"), ("g", "h")]},
-        ],
-        schema=pyarrow_schema,
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"properties": [("a", "b")]},
+                {"properties": [("c", "d")]},
+                {"properties": [("e", "f"), ("g", "h")]},
+            ],
+            schema=pyarrow_schema,
+        ),
     )
 
-    with pq.ParquetWriter(target_file, pyarrow_schema) as writer:
-        writer.write_table(table)
 
-    return target_file
-
-
-def project(schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None) -> pa.Table:
+def project(
+    schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None, table_schema: Optional[Schema] = None
+) -> pa.Table:
     return project_table(
         [
             FileScanTask(
@@ -748,10 +747,10 @@ def project(schema: Schema, files: List[str], expr: Optional[BooleanExpression] 
         Table(
             ("namespace", "table"),
             metadata=TableMetadataV2(
-                location="file://a/b/c.parquet",
+                location="file://a/b/",
                 last_column_id=1,
                 format_version=2,
-                schemas=[schema],
+                schemas=[table_schema or schema],
                 partition_specs=[PartitionSpec()],
             ),
             metadata_location="file://a/b/c.json",
@@ -763,7 +762,7 @@ def project(schema: Schema, files: List[str], expr: Optional[BooleanExpression] 
     )
 
 
-def test_projection_add_column(file_integer: str) -> None:
+def test_projection_add_column(file_int: str) -> None:
     schema = Schema(
         # All new IDs
         NestedField(10, "id", IntegerType(), required=False),
@@ -783,7 +782,7 @@ def test_projection_add_column(file_integer: str) -> None:
             required=False,
         ),
     )
-    result_table = project(schema, [file_integer])
+    result_table = project(schema, [file_int])
 
     for col in result_table.columns:
         assert len(col) == 3
@@ -843,31 +842,31 @@ def test_read_map(schema_map: Schema, file_map: str) -> None:
     )
 
 
-def test_projection_add_column_struct(schema_int: Schema, file_integer: str) -> None:
+def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None:
     schema = Schema(
         # A new ID
         NestedField(
             2,
-            "other_id",
+            "id",
             MapType(key_id=3, key_type=IntegerType(), value_id=4, value_type=StringType(), value_required=False),
             required=False,
         )
     )
-    result_table = project(schema, [file_integer])
+    result_table = project(schema, [file_int])
     # Everything should be None
     for r in result_table.columns[0]:
         assert r.as_py() is None
 
     assert (
         repr(result_table.schema)
-        == """other_id: map<int32, string>
+        == """id: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
       child 1, value: string"""
     )
 
 
-def test_projection_add_column_struct_required(file_integer: str) -> None:
+def test_projection_add_column_struct_required(file_int: str) -> None:
     schema = Schema(
         # A new ID
         NestedField(
@@ -878,25 +877,25 @@ def test_projection_add_column_struct_required(file_integer: str) -> None:
         )
     )
     with pytest.raises(ResolveException) as exc_info:
-        _ = project(schema, [file_integer])
+        _ = project(schema, [file_int])
     assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
 
 
-def test_projection_rename_column(schema_int: Schema, file_integer: str) -> None:
+def test_projection_rename_column(schema_int: Schema, file_int: str) -> None:
     schema = Schema(
         # Reuses the id 1
-        NestedField(1, "other_id", IntegerType())
+        NestedField(1, "other_name", IntegerType())
     )
-    result_table = project(schema, [file_integer])
+    result_table = project(schema, [file_int])
     assert len(result_table.columns[0]) == 3
     for actual, expected in zip(result_table.columns[0], [0, 1, 2]):
         assert actual.as_py() == expected
 
-    assert repr(result_table.schema) == "other_id: int32 not null"
+    assert repr(result_table.schema) == "other_name: int32 not null"
 
 
-def test_projection_concat_files(schema_int: Schema, file_integer: str) -> None:
-    result_table = project(schema_int, [file_integer, file_integer])
+def test_projection_concat_files(schema_int: Schema, file_int: str) -> None:
+    result_table = project(schema_int, [file_int, file_int])
 
     for actual, expected in zip(result_table.columns[0], [0, 1, 2, 0, 1, 2]):
         assert actual.as_py() == expected
@@ -904,25 +903,25 @@ def test_projection_concat_files(schema_int: Schema, file_integer: str) -> None:
     assert repr(result_table.schema) == "id: int32"
 
 
-def test_projection_filter(schema_int: Schema, file_integer: str) -> None:
-    result_table = project(schema_int, [file_integer], GreaterThan("id", 4))
+def test_projection_filter(schema_int: Schema, file_int: str) -> None:
+    result_table = project(schema_int, [file_int], GreaterThan("id", 4))
     assert len(result_table.columns[0]) == 0
     assert repr(result_table.schema) == "id: int32"
 
 
-def test_projection_filter_renamed_column(file_integer: str) -> None:
+def test_projection_filter_renamed_column(file_int: str) -> None:
     schema = Schema(
         # Reuses the id 1
         NestedField(1, "other_id", IntegerType())
     )
-    result_table = project(schema, [file_integer], GreaterThan("other_id", 1))
+    result_table = project(schema, [file_int], GreaterThan("other_id", 1))
     assert len(result_table.columns[0]) == 1
     assert repr(result_table.schema) == "other_id: int32 not null"
 
 
-def test_projection_filter_add_column(schema_int: Schema, file_integer: str, file_string: str) -> None:
+def test_projection_filter_add_column(schema_int: Schema, file_int: str, file_string: str) -> None:
     """We have one file that has the column, and the other one doesn't"""
-    result_table = project(schema_int, [file_integer, file_string])
+    result_table = project(schema_int, [file_int, file_string])
 
     for actual, expected in zip(result_table.columns[0], [0, 1, 2, None, None, None]):
         assert actual.as_py() == expected
@@ -930,9 +929,9 @@ def test_projection_filter_add_column(schema_int: Schema, file_integer: str, fil
     assert repr(result_table.schema) == "id: int32"
 
 
-def test_projection_filter_add_column_promote(file_integer: str) -> None:
+def test_projection_filter_add_column_promote(file_int: str) -> None:
     schema_long = Schema(NestedField(1, "id", LongType()))
-    result_table = project(schema_long, [file_integer])
+    result_table = project(schema_long, [file_int])
 
     for actual, expected in zip(result_table.columns[0], [0, 1, 2]):
         assert actual.as_py() == expected
@@ -1046,3 +1045,17 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
   child 0, lat: double
   child 1, long: double"""
     )
+
+
+def test_projection_filter_on_unprojected_field(schema_int_str: Schema, file_int_str: str) -> None:
+    schema = Schema(NestedField(1, "id", IntegerType()))
+
+    result_table = project(schema, [file_int_str], GreaterThan("data", "1"), schema_int_str)
+
+    for actual, expected in zip(
+        result_table.columns[0],
+        [2],
+    ):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 1
+    assert repr(result_table.schema) == "id: int32 not null"

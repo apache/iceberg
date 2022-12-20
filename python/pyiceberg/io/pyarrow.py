@@ -58,7 +58,12 @@ from pyiceberg.expressions import (
     BoundTerm,
     Literal,
 )
-from pyiceberg.expressions.visitors import BoundBooleanExpressionVisitor, bind, translate_column_names
+from pyiceberg.expressions.visitors import (
+    BoundBooleanExpressionVisitor,
+    bind,
+    extract_field_ids,
+    translate_column_names,
+)
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
@@ -484,10 +489,11 @@ def project_table(
     else:
         raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
 
+    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
+
     projected_field_ids = {
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
-    }
-    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
+    }.union(extract_field_ids(bound_row_filter))
 
     tables = []
     for task in files:
@@ -499,13 +505,13 @@ def project_table(
             schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
             file_schema = Schema.parse_raw(schema_raw)
 
-        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
-
         pyarrow_filter = None
         if row_filter is not AlwaysTrue():
-            row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
-            bound_row_filter = bind(file_schema, row_filter, case_sensitive=case_sensitive)
+            translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
+            bound_row_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
             pyarrow_filter = expression_to_pyarrow(bound_row_filter)
+
+        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
 
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
