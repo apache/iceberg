@@ -20,8 +20,6 @@ package org.apache.iceberg.snowflake;
 
 import java.io.Closeable;
 import java.util.List;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 
 /**
  * This interface abstracts out the underlying communication protocols for contacting Snowflake to
@@ -29,10 +27,10 @@ import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
  * interface should minimize assumptions about whether an underlying client uses e.g. REST, JDBC or
  * other underlying libraries/protocols.
  */
-public interface SnowflakeClient extends Closeable {
+interface SnowflakeClient extends Closeable {
   /**
    * Lists all Snowflake schemas within a given scope. Returned SnowflakeIdentifiers must have
-   * getType() == SnowflakeIdentifier.Type.SCHEMA.
+   * type() == SnowflakeIdentifier.Type.SCHEMA.
    *
    * @param scope The scope in which to list, which may be ROOT or a single DATABASE.
    */
@@ -40,7 +38,7 @@ public interface SnowflakeClient extends Closeable {
 
   /**
    * Lists all Snowflake Iceberg tables within a given scope. Returned SnowflakeIdentifiers must
-   * have getType() == SnowflakeIdentifier.Type.TABLE.
+   * have type() == SnowflakeIdentifier.Type.TABLE.
    *
    * @param scope The scope in which to list, which may be ROOT, a DATABASE, or a SCHEMA.
    */
@@ -52,5 +50,5 @@ public interface SnowflakeClient extends Closeable {
    * @param tableIdentifier The fully-qualified identifier that must be of type
    *     SnowflakeIdentifier.Type.TABLE.
    */
-  SnowflakeTableMetadata getTableMetadata(SnowflakeIdentifier tableIdentifier);
+  SnowflakeTableMetadata loadTableMetadata(SnowflakeIdentifier tableIdentifier);
 }

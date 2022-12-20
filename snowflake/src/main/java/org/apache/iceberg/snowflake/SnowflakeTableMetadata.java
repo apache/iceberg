@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.snowflake.entities;
+package org.apache.iceberg.snowflake;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class SnowflakeTableMetadata {
+class SnowflakeTableMetadata {
   public static final Pattern SNOWFLAKE_AZURE_PATTERN =
       Pattern.compile("azure://([^/]+)/([^/]+)/(.*)");
 
@@ -40,7 +40,7 @@ public class SnowflakeTableMetadata {
   // SnowflakeTableMetadata instances should not depend on equality of this field.
   private String rawJsonVal;
 
-  public SnowflakeTableMetadata(
+  SnowflakeTableMetadata(
       String snowflakeMetadataLocation,
       String icebergMetadataLocation,
       String status,
@@ -120,6 +120,7 @@ public class SnowflakeTableMetadata {
       // gs://bucket/path
       return "gs" + snowflakeLocation.substring(3);
     }
+
     return snowflakeLocation;
   }
 

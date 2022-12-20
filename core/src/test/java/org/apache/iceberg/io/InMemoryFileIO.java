@@ -16,25 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.snowflake;
+package org.apache.iceberg.io;
 
 import java.util.Map;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryInputFile;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class InMemoryFileIO implements FileIO {
 
-  private Map<String, InMemoryInputFile> inMemoryFiles = Maps.newHashMap();
+  private Map<String, byte[]> inMemoryFiles = Maps.newHashMap();
   private boolean closed = false;
 
   public void addFile(String path, byte[] contents) {
     Preconditions.checkState(!closed, "Cannot call addFile after calling close()");
-    inMemoryFiles.put(path, new InMemoryInputFile(path, contents));
+    inMemoryFiles.put(path, contents);
+  }
+
+  public boolean fileExists(String path) {
+    return inMemoryFiles.containsKey(path);
   }
 
   @Override
@@ -43,19 +43,22 @@ public class InMemoryFileIO implements FileIO {
     if (!inMemoryFiles.containsKey(path)) {
       throw new NotFoundException("No in-memory file found for path: %s", path);
     }
-    return inMemoryFiles.get(path);
+    return new InMemoryInputFile(path, inMemoryFiles.get(path));
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    throw new UnsupportedOperationException(
-        String.format("newOutputFile not supported; attempted for path '%s'", path));
+    Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
+    return new InMemoryOutputFile(path, this);
   }
 
   @Override
   public void deleteFile(String path) {
-    throw new UnsupportedOperationException(
-        String.format("deleteFile not supported; attempted for path '%s'", path));
+    Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
+    if (!inMemoryFiles.containsKey(path)) {
+      throw new NotFoundException("No in-memory file found for path: %s", path);
+    }
+    inMemoryFiles.remove(path);
   }
 
   public boolean isClosed() {

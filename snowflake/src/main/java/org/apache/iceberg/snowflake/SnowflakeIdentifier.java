@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.snowflake.entities;
+package org.apache.iceberg.snowflake;
 
 import java.util.List;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -24,7 +24,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class SnowflakeIdentifier {
+/**
+ * Since the SnowflakeCatalog supports exactly two levels of Iceberg Namespaces, corresponding
+ * directly to the "database" and "schema" portions of Snowflake's resource model, this class
+ * represents a pre-validated and structured representation of a fully-qualified Snowflake resource
+ * identifier. Snowflake-specific helper libraries should operate on this representation instead of
+ * directly operating on TableIdentifiers or Namespaces wherever possible to avoid duplication of
+ * parsing/validation logic for Iceberg TableIdentifier/Namespace levels.
+ */
+class SnowflakeIdentifier {
   public enum Type {
     ROOT,
     DATABASE,
@@ -32,29 +40,62 @@ public class SnowflakeIdentifier {
     TABLE
   }
 
+  /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Schema identifiers,
+   * containing "database_name" and "name" (representing schemaName).
+   */
+  public static final ResultSetHandler<List<SnowflakeIdentifier>> SCHEMA_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> schemas = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("database_name");
+          String schemaName = rs.getString("name");
+          schemas.add(SnowflakeIdentifier.ofSchema(databaseName, schemaName));
+        }
+        return schemas;
+      };
+
+  /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Table identifiers,
+   * containing "database_name", "schema_name", and "name" (representing tableName).
+   */
+  public static final ResultSetHandler<List<SnowflakeIdentifier>> TABLE_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> tables = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("database_name");
+          String schemaName = rs.getString("schema_name");
+          String tableName = rs.getString("name");
+          tables.add(SnowflakeIdentifier.ofTable(databaseName, schemaName, tableName));
+        }
+        return tables;
+      };
+
   private String databaseName;
   private String schemaName;
   private String tableName;
+  private Type type;
 
-  protected SnowflakeIdentifier(String databaseName, String schemaName, String tableName) {
+  private SnowflakeIdentifier(String databaseName, String schemaName, String tableName, Type type) {
     this.databaseName = databaseName;
     this.schemaName = schemaName;
     this.tableName = tableName;
+    this.type = type;
   }
 
   public static SnowflakeIdentifier ofRoot() {
-    return new SnowflakeIdentifier(null, null, null);
+    return new SnowflakeIdentifier(null, null, null, Type.ROOT);
   }
 
   public static SnowflakeIdentifier ofDatabase(String databaseName) {
     Preconditions.checkArgument(null != databaseName, "databaseName must be non-null");
-    return new SnowflakeIdentifier(databaseName, null, null);
+    return new SnowflakeIdentifier(databaseName, null, null, Type.DATABASE);
   }
 
   public static SnowflakeIdentifier ofSchema(String databaseName, String schemaName) {
     Preconditions.checkArgument(null != databaseName, "databaseName must be non-null");
     Preconditions.checkArgument(null != schemaName, "schemaName must be non-null");
-    return new SnowflakeIdentifier(databaseName, schemaName, null);
+    return new SnowflakeIdentifier(databaseName, schemaName, null, Type.SCHEMA);
   }
 
   public static SnowflakeIdentifier ofTable(
@@ -62,7 +103,7 @@ public class SnowflakeIdentifier {
     Preconditions.checkArgument(null != databaseName, "databaseName must be non-null");
     Preconditions.checkArgument(null != schemaName, "schemaName must be non-null");
     Preconditions.checkArgument(null != tableName, "tableName must be non-null");
-    return new SnowflakeIdentifier(databaseName, schemaName, tableName);
+    return new SnowflakeIdentifier(databaseName, schemaName, tableName, Type.TABLE);
   }
 
   /**
@@ -70,27 +111,19 @@ public class SnowflakeIdentifier {
    * expect non-null databaseName and schemaName. If type is DATABASE, expect non-null databaseName.
    * If type is ROOT, expect all of databaseName, schemaName, and tableName to be null.
    */
-  public Type getType() {
-    if (null != tableName) {
-      return Type.TABLE;
-    } else if (null != schemaName) {
-      return Type.SCHEMA;
-    } else if (null != databaseName) {
-      return Type.DATABASE;
-    } else {
-      return Type.ROOT;
-    }
+  public Type type() {
+    return type;
   }
 
-  public String getTableName() {
+  public String tableName() {
     return tableName;
   }
 
-  public String getDatabaseName() {
+  public String databaseName() {
     return databaseName;
   }
 
-  public String getSchemaName() {
+  public String schemaName() {
     return schemaName;
   }
 
@@ -115,7 +148,7 @@ public class SnowflakeIdentifier {
 
   /** Returns this identifier as a String suitable for use in a Snowflake IDENTIFIER param. */
   public String toIdentifierString() {
-    switch (getType()) {
+    switch (type()) {
       case TABLE:
         return String.format("%s.%s.%s", databaseName, schemaName, tableName);
       case SCHEMA:
@@ -129,39 +162,6 @@ public class SnowflakeIdentifier {
 
   @Override
   public String toString() {
-    return String.format("%s: '%s'", getType(), toIdentifierString());
-  }
-
-  /**
-   * Expects to handle ResultSets representing fully-qualified Snowflake Schema identifiers,
-   * containing "database_name" and "name" (representing schemaName).
-   */
-  public static ResultSetHandler<List<SnowflakeIdentifier>> createSchemaHandler() {
-    return rs -> {
-      List<SnowflakeIdentifier> schemas = Lists.newArrayList();
-      while (rs.next()) {
-        String databaseName = rs.getString("database_name");
-        String schemaName = rs.getString("name");
-        schemas.add(SnowflakeIdentifier.ofSchema(databaseName, schemaName));
-      }
-      return schemas;
-    };
-  }
-
-  /**
-   * Expects to handle ResultSets representing fully-qualified Snowflake Table identifiers,
-   * containing "database_name", "schema_name", and "name" (representing tableName).
-   */
-  public static ResultSetHandler<List<SnowflakeIdentifier>> createTableHandler() {
-    return rs -> {
-      List<SnowflakeIdentifier> tables = Lists.newArrayList();
-      while (rs.next()) {
-        String databaseName = rs.getString("database_name");
-        String schemaName = rs.getString("schema_name");
-        String tableName = rs.getString("name");
-        tables.add(SnowflakeIdentifier.ofTable(databaseName, schemaName, tableName));
-      }
-      return tables;
-    };
+    return String.format("%s: '%s'", type(), toIdentifierString());
   }
 }

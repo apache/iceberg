@@ -34,8 +34,6 @@ import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
@@ -325,7 +323,7 @@ public class JdbcSnowflakeClientTest {
             "{\"metadataLocation\":\"s3://tab1/metadata/v3.metadata.json\",\"status\":\"success\"}");
 
     SnowflakeTableMetadata actualMetadata =
-        snowflakeClient.getTableMetadata(
+        snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
@@ -356,7 +354,7 @@ public class JdbcSnowflakeClientTest {
             "{\"metadataLocation\":\"azure://myaccount.blob.core.windows.net/mycontainer/tab3/metadata/v334.metadata.json\",\"status\":\"success\"}");
 
     SnowflakeTableMetadata actualMetadata =
-        snowflakeClient.getTableMetadata(
+        snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
@@ -387,7 +385,7 @@ public class JdbcSnowflakeClientTest {
             "{\"metadataLocation\":\"gcs://tab5/metadata/v793.metadata.json\",\"status\":\"success\"}");
 
     SnowflakeTableMetadata actualMetadata =
-        snowflakeClient.getTableMetadata(
+        snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
     verify(mockQueryRunner)
@@ -414,7 +412,7 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () ->
-                snowflakeClient.getTableMetadata(
+                snowflakeClient.loadTableMetadata(
                     SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
         .withMessageContaining("{\"malformed_no_closing_bracket");
   }
@@ -430,7 +428,7 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
         .isThrownBy(
             () ->
-                snowflakeClient.getTableMetadata(
+                snowflakeClient.loadTableMetadata(
                     SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
         .withStackTraceContaining("Fake SQL exception");
   }
@@ -446,7 +444,7 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
         .isThrownBy(
             () ->
-                snowflakeClient.getTableMetadata(
+                snowflakeClient.loadTableMetadata(
                     SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
         .withStackTraceContaining("Fake interrupted exception");
   }

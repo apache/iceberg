@@ -24,8 +24,6 @@ import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 
 public class FakeSnowflakeClient implements SnowflakeClient {
   // In-memory lookup by database/schema/tableName to table metadata.
@@ -57,7 +55,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     Preconditions.checkState(!closed, "Cannot call listSchemas after calling close()");
     List<SnowflakeIdentifier> schemas = Lists.newArrayList();
-    switch (scope.getType()) {
+    switch (scope.type()) {
       case ROOT:
         // "account-level" listing.
         for (Map.Entry<String, Map<String, Map<String, SnowflakeTableMetadata>>> db :
@@ -68,7 +66,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
         }
         break;
       case DATABASE:
-        String dbName = scope.getDatabaseName();
+        String dbName = scope.databaseName();
         if (databases.containsKey(dbName)) {
           for (String schema : databases.get(dbName).keySet()) {
             schemas.add(SnowflakeIdentifier.ofSchema(dbName, schema));
@@ -88,7 +86,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   public List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope) {
     Preconditions.checkState(!closed, "Cannot call listIcebergTables after calling close()");
     List<SnowflakeIdentifier> tables = Lists.newArrayList();
-    switch (scope.getType()) {
+    switch (scope.type()) {
       case ROOT:
         {
           // "account-level" listing.
@@ -105,7 +103,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
         }
       case DATABASE:
         {
-          String dbName = scope.getDatabaseName();
+          String dbName = scope.databaseName();
           if (databases.containsKey(dbName)) {
             for (Map.Entry<String, Map<String, SnowflakeTableMetadata>> schema :
                 databases.get(dbName).entrySet()) {
@@ -120,9 +118,9 @@ public class FakeSnowflakeClient implements SnowflakeClient {
         }
       case SCHEMA:
         {
-          String dbName = scope.getDatabaseName();
+          String dbName = scope.databaseName();
           if (databases.containsKey(dbName)) {
-            String schemaName = scope.getSchemaName();
+            String schemaName = scope.schemaName();
             if (databases.get(dbName).containsKey(schemaName)) {
               for (String tableName : databases.get(dbName).get(schemaName).keySet()) {
                 tables.add(SnowflakeIdentifier.ofTable(dbName, schemaName, tableName));
@@ -144,21 +142,21 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   }
 
   @Override
-  public SnowflakeTableMetadata getTableMetadata(SnowflakeIdentifier tableIdentifier) {
+  public SnowflakeTableMetadata loadTableMetadata(SnowflakeIdentifier tableIdentifier) {
     Preconditions.checkState(!closed, "Cannot call getTableMetadata after calling close()");
 
     Preconditions.checkArgument(
-        tableIdentifier.getType() == SnowflakeIdentifier.Type.TABLE,
+        tableIdentifier.type() == SnowflakeIdentifier.Type.TABLE,
         "tableIdentifier must be type TABLE, get: %s",
         tableIdentifier);
-    String dbName = tableIdentifier.getDatabaseName();
-    String schemaName = tableIdentifier.getSchemaName();
+    String dbName = tableIdentifier.databaseName();
+    String schemaName = tableIdentifier.schemaName();
     if (!databases.containsKey(dbName)
         || !databases.get(dbName).containsKey(schemaName)
-        || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.getTableName())) {
+        || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.tableName())) {
       throw new UncheckedSQLException("Object does not exist: object: '%s'", tableIdentifier);
     }
-    return databases.get(dbName).get(schemaName).get(tableIdentifier.getTableName());
+    return databases.get(dbName).get(schemaName).get(tableIdentifier.tableName());
   }
 
   public boolean isClosed() {

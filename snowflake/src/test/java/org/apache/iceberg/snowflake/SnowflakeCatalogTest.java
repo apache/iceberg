@@ -27,9 +27,9 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
@@ -259,8 +259,11 @@ public class SnowflakeCatalogTest {
   }
 
   @Test
-  public void testCloseBeforeInitialize() throws IOException {
+  public void testCloseBeforeInitializeDoesntThrow() throws IOException {
     catalog = new SnowflakeCatalog();
+
+    // Make sure no exception is thrown if we call close() before initialize(), in case callers
+    // add a catalog to auto-close() helpers but end up never using/initializing a catalog.
     catalog.close();
   }
 
@@ -273,5 +276,13 @@ public class SnowflakeCatalogTest {
     Assertions.assertThat(fakeFileIO.isClosed())
         .overridingErrorMessage("expected close() to propagate to fileIO")
         .isTrue();
+  }
+
+  @Test
+  public void testTableNameFromTableOperations() {
+    SnowflakeTableOperations castedTableOps =
+        (SnowflakeTableOperations)
+            catalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"));
+    Assertions.assertThat(castedTableOps.fullTableName()).isEqualTo("slushLog.DB_1.SCHEMA_1.TAB_1");
   }
 }

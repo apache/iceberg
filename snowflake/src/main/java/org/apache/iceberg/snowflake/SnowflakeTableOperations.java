@@ -23,9 +23,8 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +36,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final TableIdentifier tableIdentifier;
   private final SnowflakeIdentifier snowflakeIdentifierForTable;
+  private final String fullTableName;
 
   private final SnowflakeClient snowflakeClient;
 
@@ -53,8 +53,8 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
     this.catalogProperties = properties;
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
-    this.snowflakeIdentifierForTable =
-        NamespaceHelpers.getSnowflakeIdentifierForTableIdentifier(tableIdentifier);
+    this.snowflakeIdentifierForTable = NamespaceHelpers.toSnowflakeIdentifier(tableIdentifier);
+    this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier.toString());
   }
 
   @Override
@@ -76,15 +76,22 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected String tableName() {
-    return tableIdentifier.toString();
+    return fullTableName;
+  }
+
+  @VisibleForTesting
+  String fullTableName() {
+    return tableName();
   }
 
   private String getTableMetadataLocation() {
-    SnowflakeTableMetadata metadata = snowflakeClient.getTableMetadata(snowflakeIdentifierForTable);
+    SnowflakeTableMetadata metadata =
+        snowflakeClient.loadTableMetadata(snowflakeIdentifierForTable);
 
     if (metadata == null) {
       throw new NoSuchTableException("Cannot find table %s", snowflakeIdentifierForTable);
     }
+
     if (!metadata.getStatus().equals("success")) {
       LOG.warn(
           "Got non-successful table metadata: {} with metadataLocation {} for table {}",
@@ -92,6 +99,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
           metadata.getIcebergMetadataLocation(),
           snowflakeIdentifierForTable);
     }
+
     return metadata.getIcebergMetadataLocation();
   }
 }

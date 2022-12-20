@@ -705,7 +705,6 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation project(':iceberg-aws')
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "commons-dbutils:commons-dbutils"

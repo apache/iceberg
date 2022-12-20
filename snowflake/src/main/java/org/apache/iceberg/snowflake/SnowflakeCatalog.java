@@ -38,14 +38,13 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Object> {
   public static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
-  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
+  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeCatalog.class);
 
@@ -60,12 +59,11 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    LOG.debug("listTables with namespace: {}", namespace);
-    SnowflakeIdentifier scope = NamespaceHelpers.getSnowflakeIdentifierForNamespace(namespace);
+    SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
     Preconditions.checkArgument(
-        scope.getType() == SnowflakeIdentifier.Type.ROOT
-            || scope.getType() == SnowflakeIdentifier.Type.DATABASE
-            || scope.getType() == SnowflakeIdentifier.Type.SCHEMA,
+        scope.type() == SnowflakeIdentifier.Type.ROOT
+            || scope.type() == SnowflakeIdentifier.Type.DATABASE
+            || scope.type() == SnowflakeIdentifier.Type.SCHEMA,
         "listTables must be at ROOT, DATABASE, or SCHEMA level; got %s from namespace %s",
         scope,
         namespace);
@@ -75,21 +73,20 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     return sfTables.stream()
         .map(
             table ->
-                TableIdentifier.of(
-                    table.getDatabaseName(), table.getSchemaName(), table.getTableName()))
+                TableIdentifier.of(table.databaseName(), table.schemaName(), table.tableName()))
         .collect(Collectors.toList());
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     throw new UnsupportedOperationException(
-        String.format("dropTable not supported; attempted for table '%s'", identifier));
+        "SnowflakeCatalog does not currently support dropTable");
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     throw new UnsupportedOperationException(
-        String.format("renameTable not supported; attempted from '%s' to '%s'", from, to));
+        "SnowflakeCatalog does not currently support renameTable");
   }
 
   @Override
@@ -98,10 +95,9 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
     try {
       // We'll ensure the expected JDBC driver implementation class is initialized through
-      // reflection
-      // regardless of which classloader ends up using this JdbcSnowflakeClient, but we'll only
-      // warn if the expected driver fails to load, since users may use repackaged or custom
-      // JDBC drivers for Snowflake communcation.
+      // reflection regardless of which classloader ends up using this JdbcSnowflakeClient, but
+      // we'll only warn if the expected driver fails to load, since users may use repackaged or
+      // custom JDBC drivers for Snowflake communication.
       Class.forName(JdbcSnowflakeClient.EXPECTED_JDBC_IMPL);
     } catch (ClassNotFoundException cnfe) {
       LOG.warn(
@@ -133,7 +129,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
    * @param properties The catalog options to use and propagate to dependencies
    */
   @SuppressWarnings("checkstyle:HiddenField")
-  public void initialize(
+  void initialize(
       String name, SnowflakeClient snowflakeClient, FileIO fileIO, Map<String, String> properties) {
     Preconditions.checkArgument(null != snowflakeClient, "snowflakeClient must be non-null");
     Preconditions.checkArgument(null != fileIO, "fileIO must be non-null");
@@ -157,16 +153,15 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     throw new UnsupportedOperationException(
-        String.format("createNamespace not supported; attempted for namespace '%s'", namespace));
+        "SnowflakeCatalog does not currently support createNamespace");
   }
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    LOG.debug("listNamespaces with namespace: {}", namespace);
-    SnowflakeIdentifier scope = NamespaceHelpers.getSnowflakeIdentifierForNamespace(namespace);
+    SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
     Preconditions.checkArgument(
-        scope.getType() == SnowflakeIdentifier.Type.ROOT
-            || scope.getType() == SnowflakeIdentifier.Type.DATABASE,
+        scope.type() == SnowflakeIdentifier.Type.ROOT
+            || scope.type() == SnowflakeIdentifier.Type.DATABASE,
         "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
         scope,
         namespace);
@@ -177,11 +172,11 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
             .map(
                 schema -> {
                   Preconditions.checkState(
-                      schema.getType() == SnowflakeIdentifier.Type.SCHEMA,
+                      schema.type() == SnowflakeIdentifier.Type.SCHEMA,
                       "Got identifier of type %s from listSchemas for %s",
-                      schema.getType(),
+                      schema.type(),
                       namespace);
-                  return Namespace.of(schema.getDatabaseName(), schema.getSchemaName());
+                  return Namespace.of(schema.databaseName(), schema.schemaName());
                 })
             .collect(Collectors.toList());
     return namespaceList;
@@ -190,26 +185,25 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
-    LOG.debug("loadNamespaceMetadata with namespace: {}", namespace);
     return ImmutableMap.of();
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
     throw new UnsupportedOperationException(
-        String.format("dropNamespace not supported; attempted for namespace '%s'", namespace));
+        "SnowflakeCatalog does not currently support dropNamespace");
   }
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     throw new UnsupportedOperationException(
-        String.format("setProperties not supported; attempted for namespace '%s'", namespace));
+        "SnowflakeCatalog does not currently support setProperties");
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
     throw new UnsupportedOperationException(
-        String.format("removeProperties not supported; attempted for namespace '%s'", namespace));
+        "SnowflakeCatalog does not currently support removeProperties");
   }
 
   @Override
@@ -221,9 +215,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     throw new UnsupportedOperationException(
-        String.format(
-            "defaultWarehouseLocation not supported; attempted for tableIdentifier '%s'",
-            tableIdentifier));
+        "SnowflakeCatalog does not currently support defaultWarehouseLocation");
   }
 
   @Override

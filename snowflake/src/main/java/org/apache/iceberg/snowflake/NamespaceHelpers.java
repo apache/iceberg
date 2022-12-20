@@ -21,11 +21,10 @@ package org.apache.iceberg.snowflake;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class NamespaceHelpers {
+class NamespaceHelpers {
   private static final int MAX_NAMESPACE_DEPTH = 2;
   private static final int NAMESPACE_ROOT_LEVEL = 0;
   private static final int NAMESPACE_DB_LEVEL = 1;
@@ -38,7 +37,7 @@ public class NamespaceHelpers {
    *
    * @throws IllegalArgumentException if the namespace is not a supported depth.
    */
-  public static SnowflakeIdentifier getSnowflakeIdentifierForNamespace(Namespace namespace) {
+  public static SnowflakeIdentifier toSnowflakeIdentifier(Namespace namespace) {
     SnowflakeIdentifier identifier = null;
     switch (namespace.length()) {
       case NAMESPACE_ROOT_LEVEL:
@@ -59,7 +58,7 @@ public class NamespaceHelpers {
                 "Snowflake max namespace level is %d, got namespace '%s'",
                 MAX_NAMESPACE_DEPTH, namespace));
     }
-    LOG.debug("getSnowflakeIdentifierForNamespace({}) -> {}", namespace, identifier);
+    LOG.debug("toSnowflakeIdentifier({}) -> {}", namespace, identifier);
     return identifier;
   }
 
@@ -67,18 +66,17 @@ public class NamespaceHelpers {
    * Converts a TableIdentifier into a SnowflakeIdentifier of type TABLE; the identifier must have
    * exactly the right namespace depth to represent a fully-qualified Snowflake table identifier.
    */
-  public static SnowflakeIdentifier getSnowflakeIdentifierForTableIdentifier(
-      TableIdentifier identifier) {
-    SnowflakeIdentifier namespaceScope = getSnowflakeIdentifierForNamespace(identifier.namespace());
+  public static SnowflakeIdentifier toSnowflakeIdentifier(TableIdentifier identifier) {
+    SnowflakeIdentifier namespaceScope = toSnowflakeIdentifier(identifier.namespace());
     Preconditions.checkArgument(
-        namespaceScope.getType() == SnowflakeIdentifier.Type.SCHEMA,
+        namespaceScope.type() == SnowflakeIdentifier.Type.SCHEMA,
         "Namespace portion of '%s' must be at the SCHEMA level, got namespaceScope '%s'",
         identifier,
         namespaceScope);
     SnowflakeIdentifier ret =
         SnowflakeIdentifier.ofTable(
-            namespaceScope.getDatabaseName(), namespaceScope.getSchemaName(), identifier.name());
-    LOG.debug("getSnowflakeIdentifierForTableIdentifier({}) -> {}", identifier, ret);
+            namespaceScope.databaseName(), namespaceScope.schemaName(), identifier.name());
+    LOG.debug("toSnowflakeIdentifier({}) -> {}", identifier, ret);
     return ret;
   }
 

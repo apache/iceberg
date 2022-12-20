@@ -26,25 +26,14 @@ import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.snowflake.entities.SnowflakeIdentifier;
-import org.apache.iceberg.snowflake.entities.SnowflakeTableMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This implementation of SnowflakeClient builds on top of Snowflake's JDBC driver to interact with
- * Snowflake's Iceberg-aware resource model. Despite using JDBC libraries, the resource model is
- * derived from Snowflake's own first-class support for Iceberg tables as opposed to using an opaque
- * JDBC layer to store Iceberg metadata itself in an Iceberg-agnostic database.
- *
- * <p>This thus differs from the JdbcCatalog in that Snowflake's service provides the source of
- * truth of Iceberg metadata, rather than serving as a storage layer for a client-defined Iceberg
- * resource model.
+ * Snowflake's Iceberg-aware resource model.
  */
-public class JdbcSnowflakeClient implements SnowflakeClient {
+class JdbcSnowflakeClient implements SnowflakeClient {
   public static final String EXPECTED_JDBC_IMPL = "net.snowflake.client.jdbc.SnowflakeDriver";
 
-  private static final Logger LOG = LoggerFactory.getLogger(JdbcSnowflakeClient.class);
   private final JdbcClientPool connectionPool;
   private QueryRunner queryRunner;
 
@@ -63,7 +52,7 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
   public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW SCHEMAS");
     Object[] queryParams = null;
-    switch (scope.getType()) {
+    switch (scope.type()) {
       case ROOT:
         // account-level listing
         baseQuery.append(" IN ACCOUNT");
@@ -88,7 +77,7 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
                   queryRunner.query(
                       conn,
                       finalQuery,
-                      SnowflakeIdentifier.createSchemaHandler(),
+                      SnowflakeIdentifier.SCHEMA_RESULT_SET_HANDLER,
                       finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list schemas for scope %s", scope);
@@ -102,7 +91,7 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
   public List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW ICEBERG TABLES");
     Object[] queryParams = null;
-    switch (scope.getType()) {
+    switch (scope.type()) {
       case ROOT:
         // account-level listing
         baseQuery.append(" IN ACCOUNT");
@@ -132,7 +121,7 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
                   queryRunner.query(
                       conn,
                       finalQuery,
-                      SnowflakeIdentifier.createTableHandler(),
+                      SnowflakeIdentifier.TABLE_RESULT_SET_HANDLER,
                       finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list tables for scope %s", scope.toString());
@@ -143,7 +132,7 @@ public class JdbcSnowflakeClient implements SnowflakeClient {
   }
 
   @Override
-  public SnowflakeTableMetadata getTableMetadata(SnowflakeIdentifier tableIdentifier) {
+  public SnowflakeTableMetadata loadTableMetadata(SnowflakeIdentifier tableIdentifier) {
     SnowflakeTableMetadata tableMeta;
     try {
       final String finalQuery = "SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION(?) AS METADATA";
