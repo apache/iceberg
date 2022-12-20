@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -33,8 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * required to filter out the data distribution weight, unwrap the object and extract the original
  * record type T.
  */
-@Internal
-public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializable {
+public class ShuffleRecordWrapper<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -49,12 +47,11 @@ public class ShuffleRecordWrapper<T, K extends Serializable> implements Serializ
     this.record = record;
   }
 
-  static <T, K extends Serializable> ShuffleRecordWrapper<T, K> fromRecord(T record) {
+  static <T, K> ShuffleRecordWrapper<T, K> fromRecord(T record) {
     return new ShuffleRecordWrapper<>(record, null);
   }
 
-  static <T, K extends Serializable> ShuffleRecordWrapper<T, K> fromStatistics(
-      Map<K, Long> globalDataStatistics) {
+  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(Map<K, Long> globalDataStatistics) {
     return new ShuffleRecordWrapper<>(null, globalDataStatistics);
   }
 

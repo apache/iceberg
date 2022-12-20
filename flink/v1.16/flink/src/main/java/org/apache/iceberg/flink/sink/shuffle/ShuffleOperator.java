@@ -18,13 +18,9 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.io.Serializable;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.MapTypeInfo;
@@ -46,9 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * distribution weight from coordinator. Then it will ingest the weight into data stream(wrap by a
  * class{@link ShuffleRecordWrapper}) and send to partitioner.
  */
-@Internal
-public class ShuffleOperator<T, K extends Serializable>
-    extends AbstractStreamOperator<ShuffleRecordWrapper<T, K>>
+class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<T, K>>
     implements OneInputStreamOperator<T, ShuffleRecordWrapper<T, K>>, OperatorEventHandler {
 
   private static final long serialVersionUID = 1L;
@@ -62,7 +56,7 @@ public class ShuffleOperator<T, K extends Serializable>
   // TODO: support to store statistics for high cardinality cases
   private transient Map<K, Long> localDataStatistics;
   private transient Map<K, Long> globalDataStatistics;
-  private transient ListState<Map<K, Long>> globalDataDistributionWeightState;
+  private transient ListState<Map<K, Long>> globalDataStatisticsState;
 
   public ShuffleOperator(
       KeySelector<T, K> keySelector,
@@ -76,27 +70,20 @@ public class ShuffleOperator<T, K extends Serializable>
   @VisibleForTesting
   ListStateDescriptor<Map<K, Long>> generateGlobalDataDistributionWeightDescriptor() {
     return new ListStateDescriptor<>(
-        "globalDataDistributionWeight", new MapTypeInfo<>(keyType, TypeInformation.of(Long.class)));
+        "globalDataStatisticsState", new MapTypeInfo<>(keyType, TypeInformation.of(Long.class)));
   }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     localDataStatistics = Maps.newHashMap();
-
-    final MapStateDescriptor<K, Long> broadcastStateDesc =
-        new MapStateDescriptor<>("test-broadcast", keyType, TypeInformation.of(Long.class));
-
-    final BroadcastState<K, Long> broadcastState =
-        context.getOperatorStateStore().getBroadcastState(broadcastStateDesc);
-
-    globalDataDistributionWeightState =
+    globalDataStatisticsState =
         context
             .getOperatorStateStore()
             .getListState(generateGlobalDataDistributionWeightDescriptor());
 
-    if (globalDataDistributionWeightState.get() != null
-        && globalDataDistributionWeightState.get().iterator().hasNext()) {
-      globalDataStatistics = globalDataDistributionWeightState.get().iterator().next();
+    if (globalDataStatisticsState.get() != null
+        && globalDataStatisticsState.get().iterator().hasNext()) {
+      globalDataStatistics = globalDataStatisticsState.get().iterator().next();
     } else {
       globalDataStatistics = Maps.newHashMap();
     }
@@ -130,19 +117,19 @@ public class ShuffleOperator<T, K extends Serializable>
 
     // Set the globalDataDistributionWeightState state to the latest global value.
     if (globalDataStatistics != null && globalDataStatistics.size() > 0) {
-      globalDataDistributionWeightState.clear();
-      globalDataDistributionWeightState.add(globalDataStatistics);
+      globalDataStatisticsState.clear();
+      globalDataStatisticsState.add(globalDataStatistics);
     }
 
     // TODO: send to coordinator
-    // For now we make it simple to send globalDataDistributionWeightState at checkpoint
+    // For now we make it simple to send globalDataStatisticsState at checkpoint
 
     // Reset the local data count
     localDataStatistics.clear();
   }
 
   @VisibleForTesting
-  Map<K, Long> localDataStatisticsMap() {
+  Map<K, Long> localDataStatistics() {
     return localDataStatistics;
   }
 }

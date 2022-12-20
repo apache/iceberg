@@ -113,10 +113,10 @@ public class TestShuffleOperator {
     operator.processElement(new StreamRecord<>("a"));
     operator.processElement(new StreamRecord<>("a"));
     operator.processElement(new StreamRecord<>("b"));
-    assertTrue(operator.localDataStatisticsMap().containsKey("a"));
-    assertTrue(operator.localDataStatisticsMap().containsKey("b"));
-    assertEquals(2L, (long) operator.localDataStatisticsMap().get("a"));
-    assertEquals(1L, (long) operator.localDataStatisticsMap().get("b"));
+    assertTrue(operator.localDataStatistics().containsKey("a"));
+    assertTrue(operator.localDataStatistics().containsKey("b"));
+    assertEquals(2L, (long) operator.localDataStatistics().get("a"));
+    assertEquals(1L, (long) operator.localDataStatistics().get("b"));
   }
 
   @Test
