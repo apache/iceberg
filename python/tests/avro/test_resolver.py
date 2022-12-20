@@ -19,7 +19,6 @@ import pytest
 from pyiceberg.avro.reader import (
     DecimalReader,
     DoubleReader,
-    FloatReader,
     IntegerReader,
     MapReader,
     StringReader,
@@ -164,17 +163,17 @@ def test_resolver_change_type() -> None:
 
 
 def test_promote_int_to_long() -> None:
-    assert promote(IntegerType(), LongType()) == IntegerReader()
+    assert promote(IntegerType(), LongType()) == LongType()
 
 
 def test_promote_float_to_double() -> None:
     # We should still read floats, because it is encoded in 4 bytes
-    assert promote(FloatType(), DoubleType()) == FloatReader()
+    assert promote(FloatType(), DoubleType()) == DoubleType()
 
 
 def test_promote_decimal_to_decimal() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
+    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalType(22, 25)
 
 
 def test_struct_not_aligned() -> None:
