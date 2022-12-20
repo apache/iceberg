@@ -29,14 +29,14 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestChangelogIterator {
+public class TestChangelogIterator extends SparkTestHelperBase {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
   private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
   private final int changeTypeIndex = 3;
-  private final List<Integer> partitionIdx = Lists.newArrayList(0, 1);
+  private final List<Integer> identifierFieldIdx = Lists.newArrayList(0, 1);
 
   private enum RowType {
     DELETED,
@@ -69,9 +69,9 @@ public class TestChangelogIterator {
     }
 
     Iterator<Row> iterator =
-        ChangelogIterator.iterator(rows.iterator(), changeTypeIndex, partitionIdx);
+        ChangelogIterator.iterator(rows.iterator(), changeTypeIndex, identifierFieldIdx);
     List<Row> result = Lists.newArrayList(iterator);
-    SparkTestBase.assertEquals("Rows should match", expectedRows, SparkTestBase.rowsToJava(result));
+    assertEquals("Rows should match", expectedRows, rowsToJava(result));
   }
 
   private List<Row> toOriginalRows(RowType rowType, int order) {
@@ -146,7 +146,7 @@ public class TestChangelogIterator {
         ChangelogIterator.iterator(rowsWithNull.iterator(), 3, Lists.newArrayList(0, 1));
     List<Row> result = Lists.newArrayList(iterator);
 
-    SparkTestBase.assertEquals(
+    assertEquals(
         "Rows should match",
         Lists.newArrayList(
             new Object[] {2, null, null, DELETE},
@@ -155,7 +155,7 @@ public class TestChangelogIterator {
             new Object[] {5, null, "data", UPDATE_AFTER},
             new Object[] {6, null, null, DELETE},
             new Object[] {6, "name", null, INSERT}),
-        SparkTestBase.rowsToJava(result));
+        rowsToJava(result));
   }
 
   @Test
@@ -176,10 +176,11 @@ public class TestChangelogIterator {
             new GenericRowWithSchema(new Object[] {4, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.iterator(rowsWithDuplication.iterator(), changeTypeIndex, partitionIdx);
+        ChangelogIterator.iterator(
+            rowsWithDuplication.iterator(), changeTypeIndex, identifierFieldIdx);
     List<Row> result = Lists.newArrayList(iterator);
 
-    SparkTestBase.assertEquals(
+    assertEquals(
         "Duplicate rows should not be removed",
         Lists.newArrayList(
             new Object[] {1, "a", "data", DELETE},
@@ -188,6 +189,6 @@ public class TestChangelogIterator {
             new Object[] {1, "a", "new_data", INSERT},
             new Object[] {4, "d", "data", DELETE},
             new Object[] {4, "d", "data", INSERT}),
-        SparkTestBase.rowsToJava(result));
+        rowsToJava(result));
   }
 }

@@ -36,7 +36,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
  * <p>It removes the carry-over rows. Carry-over rows are unchanged rows in a snapshot but showed as
  * delete-rows and insert-rows in a changelog table due to the copy-on-write(COW) mechanism. For
  * example, there are row1 (id=1, data='a') and row2 (id=2, data='b') in a data file, if we only
- * delete row2, the COW will copy row1 to a new data file and delete the whole old data file. The
+ * delete row2, the COW will copy row1 to a new data file and delete the old data file. The
  * changelog table will have two delete-rows(row1 and row2), and one insert-row(row1). Row1 is a
  * carry-over row.
  *
@@ -63,21 +63,29 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
-  private final List<Integer> partitionIdx;
+  private final List<Integer> identifierFieldIdx;
 
   private Row cachedRow = null;
 
   private ChangelogIterator(
-      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> partitionIdx) {
+      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> identifierFieldIdx) {
     this.rowIterator = rowIterator;
     this.changeTypeIndex = changeTypeIndex;
-    this.partitionIdx = partitionIdx;
+    this.identifierFieldIdx = identifierFieldIdx;
   }
 
+  /**
+   * Creates a new {@link ChangelogIterator} instance concatenated with the null-removal iterator.
+   *
+   * @param rowIterator the iterator of rows from a changelog table
+   * @param changeTypeIndex the index of the change type column
+   * @param identifierFieldIdx the indices of the identifier columns
+   * @return a new {@link ChangelogIterator} instance concatenated with the null-removal iterator
+   */
   public static Iterator<Row> iterator(
-      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> partitionIdx) {
+      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> identifierFieldIdx) {
     ChangelogIterator changelogIterator =
-        new ChangelogIterator(rowIterator, changeTypeIndex, partitionIdx);
+        new ChangelogIterator(rowIterator, changeTypeIndex, identifierFieldIdx);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
@@ -171,7 +179,7 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   }
 
   private boolean sameLogicalRow(Row currentRow, Row nextRow) {
-    for (int idx : partitionIdx) {
+    for (int idx : identifierFieldIdx) {
       if (!isColumnSame(currentRow, nextRow, idx)) {
         return false;
       }
