@@ -19,6 +19,7 @@
 package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.hive.MetastoreUtil.MetastoreVersion;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -624,17 +625,26 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             Lists.newArrayList(lockComponent),
             System.getProperty("user.name"),
             InetAddress.getLocalHost().getHostName());
-    lockRequest.setAgentInfo(agentInfo);
+
+    // Only works in Hive 2 or later.
+    if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
+      lockRequest.setAgentInfo(agentInfo);
+    }
 
     Pair<Long, LockState> lockResult;
     try {
       lockResult = tryLock(lockRequest);
     } catch (TException e) {
-      // Try to find the lock
-      lockResult = findLock(agentInfo);
-      if (lockResult == null) {
-        // If not found, try one more time
-        lockResult = tryLock(lockRequest);
+      // Try to find the lock. Only works in Hive 2 or later.
+      if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
+        lockResult = findLock(agentInfo);
+        if (lockResult == null) {
+          // If not found, try one more time
+          lockResult = tryLock(lockRequest);
+        }
+      } else {
+        LOG.info("Could not retry with HMSClient {}", MetastoreVersion.current(), e);
+        throw e;
       }
     }
 
@@ -729,15 +739,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     Long id = null;
     try {
       if (!lockId.isPresent()) {
-        // Try to find the lock based on agentInfo
-        Pair<Long, LockState> pair = findLock(agentInfo);
-        if (pair == null) {
-          // No lock found
-          LOG.info("No lock found with {} agentInfo", agentInfo);
+        // Try to find the lock based on agentInfo. Only works with Hive 2 or later.
+        if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
+          Pair<Long, LockState> pair = findLock(agentInfo);
+          if (pair == null) {
+            // No lock found
+            LOG.info("No lock found with {} agentInfo", agentInfo);
+            return;
+          }
+
+          id = pair.first();
+        } else {
+          LOG.warn("Could not find lock with HMSClient {}", MetastoreVersion.current());
           return;
         }
-
-        id = pair.first();
       } else {
         id = lockId.get();
       }

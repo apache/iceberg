@@ -73,8 +73,51 @@ public class MetastoreUtil {
   }
 
   private static boolean detectHive3() {
+    return findClass(HIVE3_UNIQUE_CLASS);
+  }
+
+  public enum MetastoreVersion {
+    HIVE_4("org.apache.hadoop.hive.metastore.api.AlterTableResponse", 4),
+    HIVE_3("org.apache.hadoop.hive.metastore.api.GetCatalogResponse", 3),
+    HIVE_2("org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse", 2),
+    HIVE_1_2("org.apache.hadoop.hive.metastore.api.NotificationEventResponse", 1),
+    NOT_SUPPORTED("", 0);
+
+    private final String className;
+    private final int order;
+    private static final MetastoreVersion current = calculate();
+
+    MetastoreVersion(String className, int order) {
+      this.className = className;
+      this.order = order;
+    }
+
+    public static MetastoreVersion current() {
+      return current;
+    }
+
+    public static boolean min(MetastoreVersion other) {
+      return current.order >= other.order;
+    }
+
+    private static MetastoreVersion calculate() {
+      if (findClass(HIVE_4.className)) {
+        return HIVE_4;
+      } else if (findClass(HIVE_3.className)) {
+        return HIVE_3;
+      } else if (findClass(HIVE_2.className)) {
+        return HIVE_2;
+      } else if (findClass(HIVE_1_2.className)) {
+        return HIVE_1_2;
+      } else {
+        return NOT_SUPPORTED;
+      }
+    }
+  }
+
+  private static boolean findClass(String className) {
     try {
-      Class.forName(HIVE3_UNIQUE_CLASS);
+      Class.forName(className);
       return true;
     } catch (ClassNotFoundException e) {
       return false;
