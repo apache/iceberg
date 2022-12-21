@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Map;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.shaded.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.BaseMigrateDeltaLakeTableAction;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
@@ -29,6 +31,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -54,6 +57,9 @@ public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableA
         TableIdentifier.parse(newTableIdentifier),
         spark.sessionState().newHadoopConf());
     this.spark = spark;
+    Map<String, String> properties = Maps.newHashMap();
+    properties.putAll(ImmutableMap.of("provider", "iceberg"));
+    this.tableProperties(properties);
   }
 
   protected Metrics getMetricsForFile(Table table, String fullFilePath, FileFormat format) {

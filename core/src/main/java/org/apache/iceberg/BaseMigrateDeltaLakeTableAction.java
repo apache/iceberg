@@ -46,9 +46,9 @@ import org.slf4j.LoggerFactory;
 public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
-  private final String parquetPostfix = ".parquet";
-  private final String avroPostfix = ".avro";
-  private final String orcPostfix = ".orc";
+  private final String parquetSuffix = ".parquet";
+  private final String avroSuffix = ".avro";
+  private final String orcSuffix = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
@@ -78,7 +78,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   @Override
   public Result execute() {
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
-    Schema schema = convertDeltaLakeSchemaToSchema(updatedSnapshot.getMetadata().getSchema());
+    Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
     // TODO: check whether we need more info when initializing the table
     Table icebergTable =
@@ -102,7 +102,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   }
 
   /** TODO: check the correctness for nested schema */
-  private Schema convertDeltaLakeSchemaToSchema(io.delta.standalone.types.StructType deltaSchema) {
+  private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
     Type converted =
         DeltaLakeDataTypeVisitor.visit(deltaSchema, new DeltaLakeTypeToType(deltaSchema));
     return new Schema(converted.asNestedType().asStructType().fields());
@@ -123,7 +123,10 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
 
   private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
     // TODO: double check the arguments' meaning here
-    Iterator<VersionLog> it = deltaLog.getChanges(0, false);
+    Iterator<VersionLog> it =
+        deltaLog.getChanges(
+            0, // retrieve actions from the initial version
+            false); // not throw exception when data loss detected
 
     while (it.hasNext()) {
       VersionLog versionLog = it.next();
@@ -263,11 +266,11 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
   protected abstract Metrics getMetricsForFile(Table table, String fullFilePath, FileFormat format);
 
   private FileFormat determineFileFormatFromPath(String path) {
-    if (path.endsWith(parquetPostfix)) {
+    if (path.endsWith(parquetSuffix)) {
       return FileFormat.PARQUET;
-    } else if (path.endsWith(avroPostfix)) {
+    } else if (path.endsWith(avroSuffix)) {
       return FileFormat.AVRO;
-    } else if (path.endsWith(orcPostfix)) {
+    } else if (path.endsWith(orcSuffix)) {
       return FileFormat.ORC;
     } else {
       throw new RuntimeException("The format of the file is unsupported: " + path);
@@ -283,14 +286,7 @@ public abstract class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLak
     properties.putAll(deltaSnapshot.getMetadata().getConfiguration());
     properties.putAll(
         ImmutableMap.of(
-            "provider",
-            "iceberg",
-            "migrated",
-            "true",
-            "table_type",
-            "iceberg",
-            "location",
-            tableLocation));
+            "migration_source", "delta", "table_type", "iceberg", "location", tableLocation));
     properties.putAll(additionalProperties);
 
     return properties;
