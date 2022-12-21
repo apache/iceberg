@@ -129,7 +129,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     // TODO: double check the arguments' meaning here
     Iterator<VersionLog> it =
         deltaLog.getChanges(
-            0, // retrieve actions from the initial version
+            0, // retrieve actions starting from the initial version
             false); // not throw exception when data loss detected
 
     while (it.hasNext()) {
