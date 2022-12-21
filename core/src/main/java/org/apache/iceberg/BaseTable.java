@@ -42,9 +42,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   private final MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
-    this.ops = ops;
-    this.name = name;
-    this.reporter = LoggingMetricsReporter.instance();
+    this(ops, name, LoggingMetricsReporter.instance());
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
