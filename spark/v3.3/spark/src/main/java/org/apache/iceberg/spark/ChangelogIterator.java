@@ -33,12 +33,13 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
  * An iterator that transforms rows from changelog tables within a single Spark task. It assumes
  * that rows are sorted by identifier columns and change type.
  *
- * <p>It removes the carry-over rows. Carry-over rows are unchanged rows in a snapshot but showed as
- * delete-rows and insert-rows in a changelog table due to the copy-on-write(COW) mechanism. For
- * example, there are row1 (id=1, data='a') and row2 (id=2, data='b') in a data file, if we only
- * delete row2, the COW will copy row1 to a new data file and delete the old data file. The
- * changelog table will have two delete-rows(row1 and row2), and one insert-row(row1). Row1 is a
- * carry-over row.
+ * <p>It removes the carry-over rows. Carry-over rows are the result of a removal and insertion of
+ * the same row within an operation because of the copy-on-write mechanism. For example, given a
+ * file which contains row1 (id=1, data='a') and row2 (id=2, data='b'). A copy-on-write delete of
+ * row2 would require erasing this file and preserving row1 in a new file written with row1' which
+ * is identical to row1. The change-log table would report this as (row1 deleted) and (row1'
+ * inserted), since this row was not actually modified it is not an actual change in the table. The
+ * iterator finds out the carry-over rows and removes them from the result.
  *
  * <p>The iterator marks the delete-row and insert-row to be the update-rows. For example, these two
  * rows
