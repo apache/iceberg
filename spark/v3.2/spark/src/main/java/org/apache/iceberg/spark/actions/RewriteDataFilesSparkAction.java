@@ -68,6 +68,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +97,9 @@ public class RewriteDataFilesSparkAction
   private RewriteStrategy strategy = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
-    super(spark);
+    super(spark.cloneSession());
+    // Disable Adaptive Query Execution as this may change the output partitioning of our write
+    spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
     this.table = table;
   }
 

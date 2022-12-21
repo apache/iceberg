@@ -37,12 +37,26 @@ from pydantic import Field, PrivateAttr
 
 from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
     IcebergType,
+    IntegerType,
     ListType,
+    LongType,
     MapType,
     NestedField,
     PrimitiveType,
+    StringType,
     StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
 )
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -315,6 +329,97 @@ class PreOrderSchemaVisitor(Generic[T], ABC):
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
         """Visit a PrimitiveType"""
+
+
+class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
+    def primitive(self, primitive: PrimitiveType) -> T:
+        """Visit a PrimitiveType"""
+        if isinstance(primitive, FixedType):
+            return self.visit_fixed(primitive)
+        elif isinstance(primitive, DecimalType):
+            return self.visit_decimal(primitive)
+        elif isinstance(primitive, BooleanType):
+            return self.visit_boolean(primitive)
+        elif isinstance(primitive, IntegerType):
+            return self.visit_integer(primitive)
+        elif isinstance(primitive, LongType):
+            return self.visit_long(primitive)
+        elif isinstance(primitive, FloatType):
+            return self.visit_float(primitive)
+        elif isinstance(primitive, DoubleType):
+            return self.visit_double(primitive)
+        elif isinstance(primitive, DateType):
+            return self.visit_date(primitive)
+        elif isinstance(primitive, TimeType):
+            return self.visit_time(primitive)
+        elif isinstance(primitive, TimestampType):
+            return self.visit_timestamp(primitive)
+        elif isinstance(primitive, TimestamptzType):
+            return self.visit_timestampz(primitive)
+        elif isinstance(primitive, StringType):
+            return self.visit_string(primitive)
+        elif isinstance(primitive, UUIDType):
+            return self.visit_uuid(primitive)
+        elif isinstance(primitive, BinaryType):
+            return self.visit_binary(primitive)
+        else:
+            raise ValueError(f"Unknown type: {primitive}")
+
+    @abstractmethod
+    def visit_fixed(self, fixed_type: FixedType) -> T:
+        """Visit a FixedType"""
+
+    @abstractmethod
+    def visit_decimal(self, decimal_type: DecimalType) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_boolean(self, boolean_type: BooleanType) -> T:
+        """Visit a BooleanType"""
+
+    @abstractmethod
+    def visit_integer(self, integer_type: IntegerType) -> T:
+        """Visit a IntegerType"""
+
+    @abstractmethod
+    def visit_long(self, long_type: LongType) -> T:
+        """Visit a LongType"""
+
+    @abstractmethod
+    def visit_float(self, float_type: FloatType) -> T:
+        """Visit a FloatType"""
+
+    @abstractmethod
+    def visit_double(self, double_type: DoubleType) -> T:
+        """Visit a DoubleType"""
+
+    @abstractmethod
+    def visit_date(self, date_type: DateType) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_time(self, time_type: TimeType) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_timestamp(self, timestamp_type: TimestampType) -> T:
+        """Visit a TimestampType"""
+
+    @abstractmethod
+    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> T:
+        """Visit a TimestamptzType"""
+
+    @abstractmethod
+    def visit_string(self, string_type: StringType) -> T:
+        """Visit a StringType"""
+
+    @abstractmethod
+    def visit_uuid(self, uuid_type: UUIDType) -> T:
+        """Visit a UUIDType"""
+
+    @abstractmethod
+    def visit_binary(self, binary_ype: BinaryType) -> T:
+        """Visit a BinaryType"""
 
 
 @dataclass(init=True, eq=True, frozen=True)

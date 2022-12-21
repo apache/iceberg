@@ -44,7 +44,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   public BaseTable(TableOperations ops, String name) {
     this.ops = ops;
     this.name = name;
-    this.reporter = new LoggingMetricsReporter();
+    this.reporter = LoggingMetricsReporter.instance();
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
@@ -175,42 +175,42 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(name, ops);
+    return new MergeAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(name, ops);
+    return new FastAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new BaseRewriteFiles(name, ops);
+    return new BaseRewriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops);
+    return new BaseRewriteManifests(ops).reportWith(reporter);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new BaseOverwriteFiles(name, ops);
+    return new BaseOverwriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RowDelta newRowDelta() {
-    return new BaseRowDelta(name, ops);
+    return new BaseRowDelta(name, ops).reportWith(reporter);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new BaseReplacePartitions(name, ops);
+    return new BaseReplacePartitions(name, ops).reportWith(reporter);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(name, ops);
+    return new StreamingDelete(name, ops).reportWith(reporter);
   }
 
   @Override
@@ -230,7 +230,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public Transaction newTransaction() {
-    return Transactions.newTransaction(name, ops);
+    return Transactions.newTransaction(name, ops, reporter);
   }
 
   @Override

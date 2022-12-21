@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +87,7 @@ public class Tasks {
     private long maxSleepTimeMs = 600000; // 10 minutes
     private long maxDurationMs = 600000; // 10 minutes
     private double scaleFactor = 2.0; // exponential
+    private Counter attemptsCounter;
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -170,6 +172,11 @@ public class Tasks {
     @SafeVarargs
     public final Builder<I> onlyRetryOn(Class<? extends Exception>... exceptions) {
       this.onlyRetryExceptions = Lists.newArrayList(exceptions);
+      return this;
+    }
+
+    public Builder<I> countAttempts(Counter counter) {
+      this.attemptsCounter = counter;
       return this;
     }
 
@@ -398,6 +405,10 @@ public class Tasks {
       int attempt = 0;
       while (true) {
         attempt += 1;
+        if (null != attemptsCounter) {
+          attemptsCounter.increment();
+        }
+
         try {
           task.run(item);
           break;

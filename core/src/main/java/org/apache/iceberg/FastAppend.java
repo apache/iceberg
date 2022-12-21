@@ -141,19 +141,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         summaryBuilder);
   }
 
-  /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param base the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   * @deprecated Will be removed in 1.2.0, use {@link FastAppend#apply(TableMetadata, Snapshot)}.
-   */
-  @Deprecated
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    return super.apply(base);
-  }
-
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     List<ManifestFile> newManifests = Lists.newArrayList();

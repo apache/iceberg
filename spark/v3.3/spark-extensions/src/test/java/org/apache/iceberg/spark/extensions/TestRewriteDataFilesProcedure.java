@@ -356,6 +356,16 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                     + "sort_order => 'c1 ASC NULLS FIRST')",
                 catalogName, tableIdent));
 
+    // Test for sort strategy without any (default/user defined) sort_order
+    AssertHelpers.assertThrows(
+        "Should reject calls with error message",
+        IllegalArgumentException.class,
+        "Can't use SORT when there is no sort order",
+        () ->
+            sql(
+                "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
+                catalogName, tableIdent));
+
     // Test for sort_order with invalid null order
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
@@ -390,7 +400,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                     + "sort_order => 'col1 DESC NULLS FIRST')",
                 catalogName, tableIdent));
 
-    // Test for sort_order with invalid filter column col1
+    // Test with invalid filter column col1
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
@@ -547,6 +557,34 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
     Assert.assertEquals("Table cache must be empty", 0, SparkTableCache.get().size());
+  }
+
+  @Test
+  public void testDefaultSortOrder() {
+    createTable();
+    // add a default sort order for a table
+    sql("ALTER TABLE %s WRITE ORDERED BY c2", tableName);
+
+    // this creates 2 files under non-partitioned table due to sort order.
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    // When the strategy is set to 'sort' but the sort order is not specified,
+    // use table's default sort order.
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', "
+                + "strategy => 'sort', "
+                + "options => map('min-input-files','2'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 2 data files and add 1 data files",
+        ImmutableList.of(row(2, 1)),
+        output);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
   private void createTable() {

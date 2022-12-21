@@ -88,6 +88,7 @@ import org.slf4j.LoggerFactory;
 public class RESTSessionCatalog extends BaseSessionCatalog
     implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
+  private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
   private static final List<String> TOKEN_PREFERENCE_ORDER =
@@ -106,7 +107,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
-  private MetricsReporter customMetricsReporter = null;
+  private MetricsReporter reporter = null;
+  private boolean reportingViaRestEnabled;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -178,9 +180,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
     String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
-    this.customMetricsReporter =
-        null != metricsReporterImpl ? CatalogUtil.loadMetricsReporter(metricsReporterImpl) : null;
+    this.reporter =
+        null != metricsReporterImpl
+            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
+            : LoggingMetricsReporter.instance();
 
+    this.reportingViaRestEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
   }
 
@@ -320,14 +326,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       TableIdentifier tableIdentifier,
       MetricsReport report,
       Supplier<Map<String, String>> headers) {
-    LoggingMetricsReporter.instance().report(report);
     try {
-      client.post(
-          paths.metrics(tableIdentifier),
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
+      reporter.report(report);
+      if (reportingViaRestEnabled) {
+        client.post(
+            paths.metrics(tableIdentifier),
+            ReportMetricsRequest.of(report),
+            null,
+            headers,
+            ErrorHandlers.defaultErrorHandler());
+      }
     } catch (Exception e) {
       LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
     }
@@ -601,7 +609,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               createChanges(meta),
               meta);
 
-      return Transactions.createTableTransaction(fullName, ops, meta);
+      return Transactions.createTableTransaction(
+          fullName, ops, meta, report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override
@@ -651,7 +660,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               changes.build(),
               base);
 
-      return Transactions.replaceTableTransaction(fullName, ops, replacement);
+      return Transactions.replaceTableTransaction(
+          fullName, ops, replacement, report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override

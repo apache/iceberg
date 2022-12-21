@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -36,13 +37,17 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
 import org.apache.orc.StripeInformation;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -75,9 +80,12 @@ public class TestOrcDataWriter {
   }
 
   private List<Long> stripeOffsetsFromReader(DataFile dataFile) throws IOException {
-    return OrcFile.createReader(
-            new Path(dataFile.path().toString()), OrcFile.readerOptions(new Configuration()))
-        .getStripes().stream()
+    return stripeOffsetsFromReader(dataFile, OrcFile.readerOptions(new Configuration()));
+  }
+
+  private List<Long> stripeOffsetsFromReader(DataFile dataFile, OrcFile.ReaderOptions options)
+      throws IOException {
+    return OrcFile.createReader(new Path(dataFile.path().toString()), options).getStripes().stream()
         .map(StripeInformation::getOffset)
         .collect(Collectors.toList());
   }
@@ -125,5 +133,116 @@ public class TestOrcDataWriter {
     }
 
     Assert.assertEquals("Written records should match", records, writtenRecords);
+  }
+
+  @Test
+  public void testUsingFileIO() throws IOException {
+    // When files other than HadoopInputFile and HadoopOutputFile are supplied the location
+    // is used to determine the corresponding FileSystem class based on the scheme in case of
+    // local files that would be the LocalFileSystem. To prevent this we use the Proxy classes to
+    // use a scheme `dummy` that is not handled.
+    ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp.newFile()));
+    Assertions.assertThatThrownBy(
+            () -> new Path(outFile.location()).getFileSystem(new Configuration()))
+        .isInstanceOf(UnsupportedFileSystemException.class)
+        .hasMessageStartingWith("No FileSystem for scheme \"dummy\"");
+
+    // Given that FileIO is now handled there is no determination of FileSystem based on scheme
+    // but instead operations are handled by the InputFileSystem and OutputFileSystem that wrap
+    // the InputFile and OutputFile correspondingly. Both write and read should be successful.
+    DataWriter<Record> dataWriter =
+        ORC.writeData(outFile)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+
+    try {
+      for (Record record : records) {
+        dataWriter.write(record);
+      }
+    } finally {
+      dataWriter.close();
+    }
+
+    DataFile dataFile = dataWriter.toDataFile();
+    OrcFile.ReaderOptions options =
+        OrcFile.readerOptions(new Configuration())
+            .filesystem(new FileIOFSUtil.InputFileSystem(outFile.toInputFile()))
+            .maxLength(outFile.toInputFile().getLength());
+    Assert.assertEquals(dataFile.splitOffsets(), stripeOffsetsFromReader(dataFile, options));
+    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
+    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
+    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
+    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
+    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
+
+    List<Record> writtenRecords;
+    try (CloseableIterable<Record> reader =
+        ORC.read(outFile.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    Assert.assertEquals("Written records should match", records, writtenRecords);
+  }
+
+  private static class ProxyInputFile implements InputFile {
+    private final InputFile inputFile;
+
+    private ProxyInputFile(InputFile inputFile) {
+      this.inputFile = inputFile;
+    }
+
+    @Override
+    public long getLength() {
+      return inputFile.getLength();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      return inputFile.newStream();
+    }
+
+    @Override
+    public String location() {
+      return "dummy://" + inputFile.location();
+    }
+
+    @Override
+    public boolean exists() {
+      return inputFile.exists();
+    }
+  }
+
+  private static class ProxyOutputFile implements OutputFile {
+    private final OutputFile outputFile;
+
+    private ProxyOutputFile(OutputFile outputFile) {
+      this.outputFile = outputFile;
+    }
+
+    @Override
+    public PositionOutputStream create() {
+      return outputFile.create();
+    }
+
+    @Override
+    public PositionOutputStream createOrOverwrite() {
+      return outputFile.createOrOverwrite();
+    }
+
+    @Override
+    public String location() {
+      return "dummy://" + outputFile.location();
+    }
+
+    @Override
+    public InputFile toInputFile() {
+      return new ProxyInputFile(outputFile.toInputFile());
+    }
   }
 }
