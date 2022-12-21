@@ -16,17 +16,12 @@
 # under the License.
 import decimal
 import struct
-from datetime import date, datetime, time
+from datetime import datetime, time
 from io import SEEK_CUR
 from uuid import UUID
 
 from pyiceberg.io import InputStream
-from pyiceberg.utils.datetime import (
-    days_to_date,
-    micros_to_time,
-    micros_to_timestamp,
-    micros_to_timestamptz,
-)
+from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from pyiceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float

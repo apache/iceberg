@@ -98,3 +98,6 @@ class Record(StructProtocol):
     def __eq__(self, other: Any) -> bool:
         # For testing
         return True if isinstance(other, Record) and other._data == self._data else False
+
+    def __repr__(self) -> str:
+        return "[" + ", ".join([repr(e) for e in self._data]) + "]"

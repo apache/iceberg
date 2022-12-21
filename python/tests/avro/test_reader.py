@@ -94,7 +94,15 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]}],
+                                "fields": [
+                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]},
+                                    {
+                                        "field-id": 1001,
+                                        "default": None,
+                                        "name": "tpep_pickup_datetime",
+                                        "type": ["null", {"type": "int", "logicalType": "date"}],
+                                    },
+                                ],
                             },
                         },
                         {"field-id": 103, "doc": "Number of records in the file", "name": "record_count", "type": "long"},
@@ -268,7 +276,7 @@ def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
         Record(
             "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
             "PARQUET",
-            Record(None),
+            Record(1, 1925),
             19513,
             388872,
             67108864,
