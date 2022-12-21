@@ -296,8 +296,6 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
-    compileOnly "io.delta:delta-standalone_${scalaVersion}"
-
     testImplementation "org.eclipse.jetty:jetty-servlet"
     testImplementation "org.eclipse.jetty:jetty-server"
     testImplementation 'org.mock-server:mockserver-netty'
@@ -439,6 +437,26 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+  }
+}
+
+project(':iceberg-delta-lake') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    compileOnly "io.delta:delta-standalone_${scalaVersion}"
+
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+
+
   }
 }
 

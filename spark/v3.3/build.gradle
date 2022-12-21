@@ -59,6 +59,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
+    implementation project(':iceberg-delta-lake')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
 
     compileOnly "com.google.errorprone:error_prone_annotations"
