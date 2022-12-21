@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.snowflake;
 
-import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -31,7 +30,6 @@ import org.slf4j.LoggerFactory;
 class SnowflakeTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeTableOperations.class);
-  private final String catalogName;
 
   private final FileIO fileIO;
   private final TableIdentifier tableIdentifier;
@@ -40,18 +38,13 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
 
   private final SnowflakeClient snowflakeClient;
 
-  private final Map<String, String> catalogProperties;
-
   protected SnowflakeTableOperations(
       SnowflakeClient snowflakeClient,
       FileIO fileIO,
-      Map<String, String> properties,
       String catalogName,
       TableIdentifier tableIdentifier) {
     this.snowflakeClient = snowflakeClient;
     this.fileIO = fileIO;
-    this.catalogProperties = properties;
-    this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.snowflakeIdentifierForTable = NamespaceHelpers.toSnowflakeIdentifier(tableIdentifier);
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier.toString());
@@ -60,7 +53,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
   @Override
   public void doRefresh() {
     LOG.debug("Getting metadata location for table {}", tableIdentifier);
-    String location = getTableMetadataLocation();
+    String location = loadTableMetadataLocation();
     Preconditions.checkState(
         location != null && !location.isEmpty(),
         "Got null or empty location %s for table %s",
@@ -84,7 +77,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
     return tableName();
   }
 
-  private String getTableMetadataLocation() {
+  private String loadTableMetadataLocation() {
     SnowflakeTableMetadata metadata =
         snowflakeClient.loadTableMetadata(snowflakeIdentifierForTable);
 
@@ -96,10 +89,10 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
       LOG.warn(
           "Got non-successful table metadata: {} with metadataLocation {} for table {}",
           metadata.getStatus(),
-          metadata.getIcebergMetadataLocation(),
+          metadata.icebergMetadataLocation(),
           snowflakeIdentifierForTable);
     }
 
-    return metadata.getIcebergMetadataLocation();
+    return metadata.icebergMetadataLocation();
   }
 }

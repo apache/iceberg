@@ -27,6 +27,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -41,6 +42,7 @@ public class SnowflakeCatalogTest {
   private SnowflakeCatalog catalog;
   private FakeSnowflakeClient fakeClient;
   private InMemoryFileIO fakeFileIO;
+  private SnowflakeCatalog.FileIOFactory fakeFileIOFactory;
   private Map<String, String> properties;
 
   @Before
@@ -115,14 +117,23 @@ public class SnowflakeCatalogTest {
                     schema, partitionSpec, "gs://tab5/", ImmutableMap.<String, String>of()))
             .getBytes());
 
+    fakeFileIOFactory =
+        new SnowflakeCatalog.FileIOFactory() {
+          @Override
+          public FileIO newFileIO(String impl, Map<String, String> prop, Object hadoopConf) {
+            return fakeFileIO;
+          }
+        };
+
     properties = Maps.newHashMap();
-    catalog.initialize(TEST_CATALOG_NAME, fakeClient, fakeFileIO, properties);
+    catalog.initialize(TEST_CATALOG_NAME, fakeClient, fakeFileIOFactory, properties);
   }
 
   @Test
   public void testInitializeNullClient() {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> catalog.initialize(TEST_CATALOG_NAME, null, fakeFileIO, properties))
+        .isThrownBy(
+            () -> catalog.initialize(TEST_CATALOG_NAME, null, fakeFileIOFactory, properties))
         .withMessageContaining("snowflakeClient must be non-null");
   }
 
@@ -130,17 +141,13 @@ public class SnowflakeCatalogTest {
   public void testInitializeNullFileIO() {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> catalog.initialize(TEST_CATALOG_NAME, fakeClient, null, properties))
-        .withMessageContaining("fileIO must be non-null");
+        .withMessageContaining("fileIOFactory must be non-null");
   }
 
   @Test
-  public void testListNamespace() {
+  public void testListNamespaceInRoot() {
     Assertions.assertThat(catalog.listNamespaces())
-        .containsExactly(
-            Namespace.of("DB_1", "SCHEMA_1"),
-            Namespace.of("DB_2", "SCHEMA_2"),
-            Namespace.of("DB_3", "SCHEMA_3"),
-            Namespace.of("DB_3", "SCHEMA_4"));
+        .containsExactly(Namespace.of("DB_1"), Namespace.of("DB_2"), Namespace.of("DB_3"));
   }
 
   @Test
@@ -175,30 +182,25 @@ public class SnowflakeCatalogTest {
 
   @Test
   public void testListTables() {
-    Assertions.assertThat(catalog.listTables(Namespace.empty()))
-        .containsExactly(
-            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"),
-            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2"),
-            TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_3"),
-            TableIdentifier.of("DB_2", "SCHEMA_2", "TAB_4"),
-            TableIdentifier.of("DB_3", "SCHEMA_3", "TAB_5"),
-            TableIdentifier.of("DB_3", "SCHEMA_4", "TAB_6"));
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> catalog.listTables(Namespace.empty()))
+        .withMessageContaining("listTables must be at SCHEMA level");
   }
 
   @Test
   public void testListTablesWithinDB() {
     String dbName = "DB_1";
-    Assertions.assertThat(catalog.listTables(Namespace.of(dbName)))
-        .containsExactly(
-            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"),
-            TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_2"));
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> catalog.listTables(Namespace.of(dbName)))
+        .withMessageContaining("listTables must be at SCHEMA level");
   }
 
   @Test
   public void testListTablesWithinNonexistentDB() {
     String dbName = "NONEXISTENT_DB";
+    String schemaName = "NONEXISTENT_SCHEMA";
     Assertions.assertThatExceptionOfType(RuntimeException.class)
-        .isThrownBy(() -> catalog.listTables(Namespace.of(dbName)))
+        .isThrownBy(() -> catalog.listTables(Namespace.of(dbName, schemaName)))
         .withMessageContaining("does not exist")
         .withMessageContaining(dbName);
   }
@@ -269,6 +271,7 @@ public class SnowflakeCatalogTest {
 
   @Test
   public void testClose() throws IOException {
+    catalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"));
     catalog.close();
     Assertions.assertThat(fakeClient.isClosed())
         .overridingErrorMessage("expected close() to propagate to snowflakeClient")
@@ -284,5 +287,20 @@ public class SnowflakeCatalogTest {
         (SnowflakeTableOperations)
             catalog.newTableOps(TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1"));
     Assertions.assertThat(castedTableOps.fullTableName()).isEqualTo("slushLog.DB_1.SCHEMA_1.TAB_1");
+  }
+
+  @Test
+  public void testDatabaseExists() {
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("DB_1"))).isTrue();
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("NONEXISTENT_DB"))).isFalse();
+  }
+
+  @Test
+  public void testSchemaExists() {
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("DB_1", "SCHEMA_1"))).isTrue();
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("DB_1", "NONEXISTENT_SCHEMA")))
+        .isFalse();
+    Assertions.assertThat(catalog.namespaceExists(Namespace.of("NONEXISTENT_DB", "SCHEMA_1")))
+        .isFalse();
   }
 }

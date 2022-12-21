@@ -41,6 +41,20 @@ class SnowflakeIdentifier {
   }
 
   /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Database identifiers,
+   * containing "name" (representing databaseName).
+   */
+  public static final ResultSetHandler<List<SnowflakeIdentifier>> DATABASE_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> databases = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("name");
+          databases.add(SnowflakeIdentifier.ofDatabase(databaseName));
+        }
+        return databases;
+      };
+
+  /**
    * Expects to handle ResultSets representing fully-qualified Snowflake Schema identifiers,
    * containing "database_name" and "name" (representing schemaName).
    */

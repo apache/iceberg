@@ -52,6 +52,27 @@ public class FakeSnowflakeClient implements SnowflakeClient {
   }
 
   @Override
+  public boolean databaseExists(SnowflakeIdentifier database) {
+    return databases.containsKey(database.databaseName());
+  }
+
+  @Override
+  public boolean schemaExists(SnowflakeIdentifier schema) {
+    return databases.containsKey(schema.databaseName())
+        && databases.get(schema.databaseName()).containsKey(schema.schemaName());
+  }
+
+  @Override
+  public List<SnowflakeIdentifier> listDatabases() {
+    Preconditions.checkState(!closed, "Cannot call listDatabases after calling close()");
+    List<SnowflakeIdentifier> databaseIdentifiers = Lists.newArrayList();
+    for (String databaseName : databases.keySet()) {
+      databaseIdentifiers.add(SnowflakeIdentifier.ofDatabase(databaseName));
+    }
+    return databaseIdentifiers;
+  }
+
+  @Override
   public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     Preconditions.checkState(!closed, "Cannot call listSchemas after calling close()");
     List<SnowflakeIdentifier> schemas = Lists.newArrayList();

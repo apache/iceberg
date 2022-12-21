@@ -80,5 +80,45 @@ class NamespaceHelpers {
     return ret;
   }
 
+  /**
+   * Converts a SnowflakeIdentifier of type ROOT, DATABASE, or SCHEMA into an equivalent Iceberg
+   * Namespace; throws IllegalArgumentException if not an appropriate type.
+   */
+  public static Namespace toIcebergNamespace(SnowflakeIdentifier identifier) {
+    Namespace namespace = null;
+    switch (identifier.type()) {
+      case ROOT:
+        namespace = Namespace.of();
+        break;
+      case DATABASE:
+        namespace = Namespace.of(identifier.databaseName());
+        break;
+      case SCHEMA:
+        namespace = Namespace.of(identifier.databaseName(), identifier.schemaName());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format("Cannot convert identifier '%s' to Namespace", identifier));
+    }
+    LOG.debug("toIcebergNamespace({}) -> {}", identifier, namespace);
+    return namespace;
+  }
+
+  /**
+   * Converts a SnowflakeIdentifier to an equivalent Iceberg TableIdentifier; the identifier must be
+   * of type TABLE.
+   */
+  public static TableIdentifier toIcebergTableIdentifier(SnowflakeIdentifier identifier) {
+    Preconditions.checkArgument(
+        identifier.type() == SnowflakeIdentifier.Type.TABLE,
+        "SnowflakeIdentifier must be type TABLE, get '%s'",
+        identifier);
+    TableIdentifier ret =
+        TableIdentifier.of(
+            identifier.databaseName(), identifier.schemaName(), identifier.tableName());
+    LOG.debug("toIcebergTableIdentifier({}) -> {}", identifier, ret);
+    return ret;
+  }
+
   private NamespaceHelpers() {}
 }

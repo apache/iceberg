@@ -28,6 +28,16 @@ import java.util.List;
  * other underlying libraries/protocols.
  */
 interface SnowflakeClient extends Closeable {
+
+  /** Returns true if the database exists, false otherwise. */
+  boolean databaseExists(SnowflakeIdentifier database);
+
+  /** Returns true if the schema and its parent database exists, false otherwise. */
+  boolean schemaExists(SnowflakeIdentifier schema);
+
+  /** Lists all Snowflake databases within the currently configured account. */
+  List<SnowflakeIdentifier> listDatabases();
+
   /**
    * Lists all Snowflake schemas within a given scope. Returned SnowflakeIdentifiers must have
    * type() == SnowflakeIdentifier.Type.SCHEMA.

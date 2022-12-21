@@ -52,12 +52,12 @@ class SnowflakeTableMetadata {
   }
 
   /** Storage location of table metadata in Snowflake's path syntax. */
-  public String getSnowflakeMetadataLocation() {
+  public String snowflakeMetadataLocation() {
     return snowflakeMetadataLocation;
   }
 
   /** Storage location of table metadata in Iceberg's path syntax. */
-  public String getIcebergMetadataLocation() {
+  public String icebergMetadataLocation() {
     return icebergMetadataLocation;
   }
 
@@ -99,7 +99,7 @@ class SnowflakeTableMetadata {
    * snowflakeLocation is a known non-compatible path syntax but fails to match the expected path
    * components for a successful translation.
    */
-  public static String getIcebergLocationFromSnowflakeLocation(String snowflakeLocation) {
+  public static String snowflakeLocationToIcebergLocation(String snowflakeLocation) {
     if (snowflakeLocation.startsWith("azure://")) {
       // Convert from expected path of the form:
       // azure://account.blob.core.windows.net/container/volumepath
@@ -139,8 +139,7 @@ class SnowflakeTableMetadata {
     String snowflakeMetadataLocation = JsonUtil.getString("metadataLocation", parsedVal);
     String status = JsonUtil.getStringOrNull("status", parsedVal);
 
-    String icebergMetadataLocation =
-        getIcebergLocationFromSnowflakeLocation(snowflakeMetadataLocation);
+    String icebergMetadataLocation = snowflakeLocationToIcebergLocation(snowflakeMetadataLocation);
 
     return new SnowflakeTableMetadata(
         snowflakeMetadataLocation, icebergMetadataLocation, status, json);

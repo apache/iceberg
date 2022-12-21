@@ -89,6 +89,169 @@ public class JdbcSnowflakeClientTest {
         .withMessageContaining("JdbcClientPool must be non-null");
   }
 
+  @Test
+  public void testDatabaseExists() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1");
+
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isTrue();
+
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
+            any(ResultSetHandler.class),
+            eq((Object[]) null));
+  }
+
+  @Test
+  public void testDatabaseExistsSpecialCharacters() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("$DB_1$.'!@#%^&*");
+
+    Assertions.assertThat(
+            snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("$DB_1$.'!@#%^&*")))
+        .isTrue();
+
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW DATABASES LIKE '_DB_1$_________' IN ACCOUNT"),
+            any(ResultSetHandler.class),
+            eq((Object[]) null));
+  }
+
+  @Test
+  public void testDatabaseDoesntExistNoResults() throws SQLException {
+    when(mockResultSet.next()).thenReturn(false);
+
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isFalse();
+  }
+
+  @Test
+  public void testDatabaseDoesntExistMismatchedResults() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DBZ1");
+
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isFalse();
+  }
+
+  @Test
+  public void testSchemaExists() throws SQLException {
+    when(mockResultSet.next())
+        .thenReturn(true)
+        .thenReturn(false)
+        .thenReturn(true)
+        .thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1").thenReturn("SCHEMA_1");
+    when(mockResultSet.getString("database_name")).thenReturn("DB_1");
+
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
+        .isTrue();
+
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
+            any(ResultSetHandler.class),
+            eq((Object[]) null));
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW SCHEMAS LIKE 'SCHEMA_1' IN DATABASE IDENTIFIER(?)"),
+            any(ResultSetHandler.class),
+            eq("DB_1"));
+  }
+
+  @Test
+  public void testSchemaExistsSpecialCharacters() throws SQLException {
+    when(mockResultSet.next())
+        .thenReturn(true)
+        .thenReturn(false)
+        .thenReturn(true)
+        .thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1").thenReturn("$SCHEMA_1$.'!@#%^&*");
+    when(mockResultSet.getString("database_name")).thenReturn("DB_1");
+
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(
+                SnowflakeIdentifier.ofSchema("DB_1", "$SCHEMA_1$.'!@#%^&*")))
+        .isTrue();
+
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
+            any(ResultSetHandler.class),
+            eq((Object[]) null));
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW SCHEMAS LIKE '_SCHEMA_1$_________' IN DATABASE IDENTIFIER(?)"),
+            any(ResultSetHandler.class),
+            eq("DB_1"));
+  }
+
+  @Test
+  public void testSchemaDoesntExistMismatchDatabase() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DBZ1");
+
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
+        .isFalse();
+  }
+
+  @Test
+  public void testSchemaDoesntExistNoSchemaFound() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1");
+
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
+        .isFalse();
+  }
+
+  @Test
+  public void testSchemaDoesntExistSchemaMismatch() throws SQLException {
+    when(mockResultSet.next())
+        .thenReturn(true)
+        .thenReturn(false)
+        .thenReturn(true)
+        .thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1").thenReturn("SCHEMAZ1");
+    when(mockResultSet.getString("database_name")).thenReturn("DB_1");
+
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
+        .isFalse();
+  }
+
+  @Test
+  public void testListDatabasesInAccount() throws SQLException {
+    when(mockResultSet.next()).thenReturn(true).thenReturn(true).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getString("name")).thenReturn("DB_1").thenReturn("DB_2").thenReturn("DB_3");
+
+    List<SnowflakeIdentifier> actualList = snowflakeClient.listDatabases();
+
+    verify(mockQueryRunner)
+        .query(
+            eq(mockConnection),
+            eq("SHOW DATABASES IN ACCOUNT"),
+            any(ResultSetHandler.class),
+            eq((Object[]) null));
+
+    Assertions.assertThat(actualList)
+        .containsExactly(
+            SnowflakeIdentifier.ofDatabase("DB_1"),
+            SnowflakeIdentifier.ofDatabase("DB_2"),
+            SnowflakeIdentifier.ofDatabase("DB_3"));
+  }
+
   /**
    * For the root scope, expect an underlying query to list schemas at the ACCOUNT level with no
    * query parameters.

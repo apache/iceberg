@@ -46,13 +46,19 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
   public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
+  static class FileIOFactory {
+    public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
+      return CatalogUtil.loadFileIO(impl, properties, hadoopConf);
+    }
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(SnowflakeCatalog.class);
 
   private CloseableGroup closeableGroup;
   private Object conf;
   private String catalogName;
   private Map<String, String> catalogProperties;
-  private FileIO fileIO;
+  private FileIOFactory fileIOFactory;
   private SnowflakeClient snowflakeClient;
 
   public SnowflakeCatalog() {}
@@ -61,19 +67,15 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public List<TableIdentifier> listTables(Namespace namespace) {
     SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
     Preconditions.checkArgument(
-        scope.type() == SnowflakeIdentifier.Type.ROOT
-            || scope.type() == SnowflakeIdentifier.Type.DATABASE
-            || scope.type() == SnowflakeIdentifier.Type.SCHEMA,
-        "listTables must be at ROOT, DATABASE, or SCHEMA level; got %s from namespace %s",
+        scope.type() == SnowflakeIdentifier.Type.SCHEMA,
+        "listTables must be at SCHEMA level; got %s from namespace %s",
         scope,
         namespace);
 
     List<SnowflakeIdentifier> sfTables = snowflakeClient.listIcebergTables(scope);
 
     return sfTables.stream()
-        .map(
-            table ->
-                TableIdentifier.of(table.databaseName(), table.schemaName(), table.tableName()))
+        .map(NamespaceHelpers::toIcebergTableIdentifier)
         .collect(Collectors.toList());
   }
 
@@ -108,16 +110,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     }
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
-    String fileIOImpl = DEFAULT_FILE_IO_IMPL;
-    if (properties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
-      fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    }
-
-    initialize(
-        name,
-        new JdbcSnowflakeClient(connectionPool),
-        CatalogUtil.loadFileIO(fileIOImpl, properties, conf),
-        properties);
+    initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);
   }
 
   /**
@@ -125,21 +118,24 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
    *
    * @param name The name of the catalog, defaults to "snowflake_catalog"
    * @param snowflakeClient The client encapsulating network communication with Snowflake
-   * @param fileIO The {@link FileIO} to use for table operations
+   * @param fileIOFactory The {@link FileIOFactory} to use to instantiate a new FileIO for each new
+   *     table operation
    * @param properties The catalog options to use and propagate to dependencies
    */
   @SuppressWarnings("checkstyle:HiddenField")
   void initialize(
-      String name, SnowflakeClient snowflakeClient, FileIO fileIO, Map<String, String> properties) {
+      String name,
+      SnowflakeClient snowflakeClient,
+      FileIOFactory fileIOFactory,
+      Map<String, String> properties) {
     Preconditions.checkArgument(null != snowflakeClient, "snowflakeClient must be non-null");
-    Preconditions.checkArgument(null != fileIO, "fileIO must be non-null");
+    Preconditions.checkArgument(null != fileIOFactory, "fileIOFactory must be non-null");
     this.catalogName = name == null ? DEFAULT_CATALOG_NAME : name;
     this.snowflakeClient = snowflakeClient;
-    this.fileIO = fileIO;
+    this.fileIOFactory = fileIOFactory;
     this.catalogProperties = properties;
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(snowflakeClient);
-    closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
   }
 
@@ -159,24 +155,32 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
-    Preconditions.checkArgument(
-        scope.type() == SnowflakeIdentifier.Type.ROOT
-            || scope.type() == SnowflakeIdentifier.Type.DATABASE,
-        "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
-        scope,
-        namespace);
-    List<SnowflakeIdentifier> sfSchemas = snowflakeClient.listSchemas(scope);
+    List<SnowflakeIdentifier> results = null;
+    switch (scope.type()) {
+      case ROOT:
+        results = snowflakeClient.listDatabases();
+        break;
+      case DATABASE:
+        results = snowflakeClient.listSchemas(scope);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format(
+                "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
+                scope, namespace));
+    }
 
     List<Namespace> namespaceList =
-        sfSchemas.stream()
+        results.stream()
             .map(
-                schema -> {
+                result -> {
                   Preconditions.checkState(
-                      schema.type() == SnowflakeIdentifier.Type.SCHEMA,
-                      "Got identifier of type %s from listSchemas for %s",
-                      schema.type(),
+                      result.type() == SnowflakeIdentifier.Type.SCHEMA
+                          || result.type() == SnowflakeIdentifier.Type.DATABASE,
+                      "Got identifier of type %s from listNamespaces for %s",
+                      result.type(),
                       namespace);
-                  return Namespace.of(schema.databaseName(), schema.schemaName());
+                  return NamespaceHelpers.toIcebergNamespace(result);
                 })
             .collect(Collectors.toList());
     return namespaceList;
@@ -185,7 +189,27 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
-    return ImmutableMap.of();
+    SnowflakeIdentifier id = NamespaceHelpers.toSnowflakeIdentifier(namespace);
+    boolean namespaceExists;
+    switch (id.type()) {
+      case DATABASE:
+        namespaceExists = snowflakeClient.databaseExists(id);
+        break;
+      case SCHEMA:
+        namespaceExists = snowflakeClient.schemaExists(id);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format(
+                "loadNamespaceMetadat must be at either DATABASE or SCHEMA level; got %s from namespace %s",
+                id, namespace));
+    }
+    if (namespaceExists) {
+      return ImmutableMap.of();
+    } else {
+      throw new NoSuchNamespaceException(
+          "Namespace '%s' with snowflake identifier '%s' doesn't exist", namespace, id);
+    }
   }
 
   @Override
@@ -208,8 +232,13 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new SnowflakeTableOperations(
-        snowflakeClient, fileIO, catalogProperties, catalogName, tableIdentifier);
+    String fileIOImpl = DEFAULT_FILE_IO_IMPL;
+    if (catalogProperties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
+      fileIOImpl = catalogProperties.get(CatalogProperties.FILE_IO_IMPL);
+    }
+    FileIO fileIO = fileIOFactory.newFileIO(fileIOImpl, catalogProperties, conf);
+    closeableGroup.addCloseable(fileIO);
+    return new SnowflakeTableOperations(snowflakeClient, fileIO, catalogName, tableIdentifier);
   }
 
   @Override
