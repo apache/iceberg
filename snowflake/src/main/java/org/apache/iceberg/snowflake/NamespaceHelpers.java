@@ -32,6 +32,8 @@ class NamespaceHelpers {
 
   private static final Logger LOG = LoggerFactory.getLogger(NamespaceHelpers.class);
 
+  private NamespaceHelpers() {}
+
   /**
    * Converts a Namespace into a SnowflakeIdentifier representing ROOT, a DATABASE, or a SCHEMA.
    *
@@ -119,6 +121,4 @@ class NamespaceHelpers {
     LOG.debug("toIcebergTableIdentifier({}) -> {}", identifier, ret);
     return ret;
   }
-
-  private NamespaceHelpers() {}
 }

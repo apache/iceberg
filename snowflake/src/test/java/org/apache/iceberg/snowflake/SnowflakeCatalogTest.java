@@ -267,6 +267,10 @@ public class SnowflakeCatalogTest {
     // Make sure no exception is thrown if we call close() before initialize(), in case callers
     // add a catalog to auto-close() helpers but end up never using/initializing a catalog.
     catalog.close();
+
+    Assertions.assertThat(fakeClient.isClosed())
+        .overridingErrorMessage("expected not to have called close() on snowflakeClient")
+        .isFalse();
   }
 
   @Test
