@@ -167,6 +167,38 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackReformat() throws IOException {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    basicRewrite(table).execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    writeRecords(4, SCALE);
+    basicRewrite(table).option(RewriteDataFiles.WRITE_FORMAT, "orc").execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.ORC, fileFormat);
+          });
+    }
+  }
+
+  @Test
   public void testBinPackPartitionedTable() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
@@ -902,6 +934,50 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testSortReformat() throws IOException {
+    Table table = createTable(20);
+    shouldHaveFiles(table, 20);
+    table.replaceSortOrder().asc("c2").commit();
+    shouldHaveLastCommitUnsorted(table, "c2");
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    basicRewrite(table)
+        .sort()
+        .option(SortStrategy.MIN_INPUT_FILES, "1")
+        .option(SortStrategy.REWRITE_ALL, "true")
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+        .execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    basicRewrite(table)
+        .sort()
+        .option(SortStrategy.MIN_INPUT_FILES, "1")
+        .option(SortStrategy.REWRITE_ALL, "true")
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+        .option(RewriteDataFiles.WRITE_FORMAT, "orc")
+        .execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.ORC, fileFormat);
+          });
+    }
+  }
+
+  @Test
   public void testSortAfterPartitionChange() {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
@@ -1127,6 +1203,57 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertTrue(
         "Should have reduced the number of files required for a c2,c3 predicate",
         filesScannedC2C3 < originalFilesC2C3);
+  }
+
+  @Test
+  public void testZOrderReformat() throws IOException {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    basicRewrite(table)
+        .zOrder("c2", "c3")
+        .option(
+            SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
+        // Divide files in 2
+        .option(
+            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
+        .option(SortStrategy.MIN_INPUT_FILES, "1")
+        .execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
+    }
+
+    basicRewrite(table)
+        .zOrder("c2", "c3")
+        .option(
+            SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
+        .option(RewriteDataFiles.WRITE_FORMAT, "orc")
+        // Divide files in 2
+        .option(
+            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
+        .option(SortStrategy.MIN_INPUT_FILES, "1")
+        .execute();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.ORC, fileFormat);
+          });
+    }
   }
 
   @Test

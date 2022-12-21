@@ -86,6 +86,13 @@ public interface RewriteDataFiles
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
+   * The output file format that this rewrite strategy will attempt to generate when rewriting
+   * files. By default this will use the "write.format.default" in the table properties of the table
+   * being updated.
+   */
+  String WRITE_FORMAT = "write-format";
+
+  /**
    * If the compaction should use the sequence number of the snapshot at compaction start time for
    * new data files, instead of using the sequence number of the newly produced snapshot.
    *

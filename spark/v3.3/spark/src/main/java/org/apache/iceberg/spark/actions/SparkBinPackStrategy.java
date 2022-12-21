@@ -83,6 +83,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .format("iceberg")
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+          .option(SparkWriteOptions.WRITE_FORMAT, writeFormat())
           .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode)
           .mode("append")
           .save(groupID);

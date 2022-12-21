@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -110,6 +111,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   private long minFileSize;
   private long maxFileSize;
   private long targetFileSize;
+  private String writeFormat;
   private long maxGroupSize;
   private boolean rewriteAll;
 
@@ -138,6 +140,15 @@ public abstract class BinPackStrategy implements RewriteStrategy {
                 table().properties(),
                 TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
                 TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT));
+
+    writeFormat =
+        PropertyUtil.propertyAsString(
+            options,
+            RewriteDataFiles.WRITE_FORMAT,
+            PropertyUtil.propertyAsString(
+                table().properties(),
+                TableProperties.DEFAULT_FILE_FORMAT,
+                TableProperties.DEFAULT_FILE_FORMAT_DEFAULT));
 
     minFileSize =
         PropertyUtil.propertyAsLong(
@@ -199,6 +210,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   protected long targetFileSize() {
     return this.targetFileSize;
+  }
+
+  protected String writeFormat() {
+    return this.writeFormat;
   }
 
   /**
@@ -325,5 +340,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %s < 1",
         DELETE_FILE_THRESHOLD,
         deleteFileThreshold);
+
+    Preconditions.checkArgument(
+        FileFormat.fromString(writeFormat) != null, "Invalid file format: %s", writeFormat);
   }
 }

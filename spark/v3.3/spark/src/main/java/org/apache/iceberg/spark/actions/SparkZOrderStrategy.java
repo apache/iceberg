@@ -242,6 +242,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           .format("iceberg")
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+          .option(SparkWriteOptions.WRITE_FORMAT, writeFormat())
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
           .mode("append")
           .save(groupID);

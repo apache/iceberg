@@ -83,6 +83,7 @@ public class RewriteDataFilesSparkAction
           PARTIAL_PROGRESS_ENABLED,
           PARTIAL_PROGRESS_MAX_COMMITS,
           TARGET_FILE_SIZE_BYTES,
+          WRITE_FORMAT,
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER);
 
