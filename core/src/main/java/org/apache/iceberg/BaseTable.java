@@ -26,6 +26,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Base {@link Table} implementation.
@@ -48,6 +49,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    Preconditions.checkNotNull(reporter, "reporter cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
