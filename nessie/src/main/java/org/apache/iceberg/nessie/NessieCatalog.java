@@ -45,7 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
-import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
@@ -87,11 +87,11 @@ public class NessieCatalog extends BaseMetastoreCatalog
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
-    NessieApiV1 api =
+    NessieApiV2 api =
         createNessieClientBuilder(
                 options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
             .fromConfig(x -> options.get(removePrefix.apply(x)))
-            .build(NessieApiV1.class);
+            .build(NessieApiV2.class);
 
     initialize(
         name,

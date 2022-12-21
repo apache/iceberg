@@ -19,7 +19,7 @@
 package org.apache.iceberg.nessie;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
@@ -38,7 +38,7 @@ class UpdateableReference {
     this.mutable = reference instanceof Branch && !hashReference;
   }
 
-  public boolean refresh(NessieApiV1 api) throws NessieNotFoundException {
+  public boolean refresh(NessieApiV2 api) throws NessieNotFoundException {
     if (!mutable) {
       return false;
     }

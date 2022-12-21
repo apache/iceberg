@@ -39,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
-import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
@@ -66,12 +66,12 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieIcebergClient.class);
 
-  private final NessieApiV1 api;
+  private final NessieApiV2 api;
   private final Supplier<UpdateableReference> reference;
   private final Map<String, String> catalogOptions;
 
   public NessieIcebergClient(
-      NessieApiV1 api,
+      NessieApiV2 api,
       String requestedRef,
       String requestedHash,
       Map<String, String> catalogOptions) {
@@ -80,7 +80,7 @@ public class NessieIcebergClient implements AutoCloseable {
     this.reference = Suppliers.memoize(() -> loadReference(requestedRef, requestedHash));
   }
 
-  public NessieApiV1 getApi() {
+  public NessieApiV2 getApi() {
     return api;
   }
 

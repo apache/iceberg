@@ -32,12 +32,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
-import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
@@ -64,15 +64,15 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   @TempDir public Path temp;
 
   private NessieCatalog catalog;
-  private NessieApiV1 api;
+  private NessieApiV2 api;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
+  public void beforeEach(@NessieClientUri URI nessieUri) throws IOException {
     this.uri = nessieUri.toString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
+    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV2.class);
 
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
 
