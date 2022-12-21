@@ -312,9 +312,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         new BaseTable(
             ops,
             fullTableName(loadedIdent),
-            null != customMetricsReporter
-                ? customMetricsReporter
-                : report -> reportMetrics(tableIdentifier, report, session::headers));
+            report -> reportMetrics(tableIdentifier, report, session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }

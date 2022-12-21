@@ -58,7 +58,6 @@ public abstract class BaseMetastoreCatalog implements Catalog {
                 ? CatalogUtil.loadMetricsReporter(
                     properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
                 : LoggingMetricsReporter.instance();
-        metricsReporter.init(properties());
         result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter);
       }
 
