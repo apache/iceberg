@@ -55,6 +55,7 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.LocationUtil;
@@ -84,6 +85,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -94,6 +96,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(
         inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
@@ -494,5 +497,10 @@ public class EcsCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Object conf) {
     this.hadoopConf = conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }
