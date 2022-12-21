@@ -26,7 +26,7 @@ import io.delta.standalone.types.StructType;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class DeltaLakeDataTypeVisitor<T> {
+public abstract class DeltaLakeDataTypeVisitor<T> {
   public static <T> T visit(DataType type, DeltaLakeDataTypeVisitor<T> visitor) {
     if (type instanceof StructType) {
       StructField[] fields = ((StructType) type).getFields();
@@ -52,23 +52,13 @@ public class DeltaLakeDataTypeVisitor<T> {
     }
   }
 
-  public T struct(StructType struct, List<T> fieldResults) {
-    return null;
-  }
+  public abstract T struct(StructType struct, List<T> fieldResults);
 
-  public T field(StructField field, T typeResult) {
-    return null;
-  }
+  public abstract T field(StructField field, T typeResult);
 
-  public T array(ArrayType array, T elementResult) {
-    return null;
-  }
+  public abstract T array(ArrayType array, T elementResult);
 
-  public T map(MapType map, T keyResult, T valueResult) {
-    return null;
-  }
+  public abstract T map(MapType map, T keyResult, T valueResult);
 
-  public T atomic(DataType atomic) {
-    return null;
-  }
+  public abstract T atomic(DataType atomic);
 }
