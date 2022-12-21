@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -143,16 +142,5 @@ class SnowflakeTableMetadata {
 
     return new SnowflakeTableMetadata(
         snowflakeMetadataLocation, icebergMetadataLocation, status, json);
-  }
-
-  public static ResultSetHandler<SnowflakeTableMetadata> createHandler() {
-    return rs -> {
-      if (!rs.next()) {
-        return null;
-      }
-
-      String rawJsonVal = rs.getString("METADATA");
-      return SnowflakeTableMetadata.parseJson(rawJsonVal);
-    };
   }
 }

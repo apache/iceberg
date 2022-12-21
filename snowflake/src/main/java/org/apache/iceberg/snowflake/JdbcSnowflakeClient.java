@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.snowflake;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import org.apache.commons.dbutils.QueryRunner;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * This implementation of SnowflakeClient builds on top of Snowflake's JDBC driver to interact with
@@ -34,18 +37,103 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 class JdbcSnowflakeClient implements SnowflakeClient {
   public static final String EXPECTED_JDBC_IMPL = "net.snowflake.client.jdbc.SnowflakeDriver";
 
+  @FunctionalInterface
+  interface ResultSetParser<T> {
+    T parse(ResultSet rs) throws SQLException;
+  }
+
+  /**
+   * This class wraps the basic boilerplate of setting up PreparedStatements and applying a
+   * ResultSetParser to translate a ResultSet into parsed objects. Allows easily injecting
+   * subclasses for debugging/testing purposes.
+   */
+  static class QueryHarness {
+    public <T> T query(Connection conn, String sql, ResultSetParser<T> parser, String... args)
+        throws SQLException {
+      try (PreparedStatement statement = conn.prepareStatement(sql)) {
+        if (args != null) {
+          for (int i = 0; i < args.length; ++i) {
+            statement.setString(i + 1, args[i]);
+          }
+        }
+
+        try (ResultSet rs = statement.executeQuery()) {
+          return parser.parse(rs);
+        }
+      }
+    }
+  }
+
+  /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Database identifiers,
+   * containing "name" (representing databaseName).
+   */
+  public static final ResultSetParser<List<SnowflakeIdentifier>> DATABASE_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> databases = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("name");
+          databases.add(SnowflakeIdentifier.ofDatabase(databaseName));
+        }
+        return databases;
+      };
+
+  /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Schema identifiers,
+   * containing "database_name" and "name" (representing schemaName).
+   */
+  public static final ResultSetParser<List<SnowflakeIdentifier>> SCHEMA_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> schemas = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("database_name");
+          String schemaName = rs.getString("name");
+          schemas.add(SnowflakeIdentifier.ofSchema(databaseName, schemaName));
+        }
+        return schemas;
+      };
+
+  /**
+   * Expects to handle ResultSets representing fully-qualified Snowflake Table identifiers,
+   * containing "database_name", "schema_name", and "name" (representing tableName).
+   */
+  public static final ResultSetParser<List<SnowflakeIdentifier>> TABLE_RESULT_SET_HANDLER =
+      rs -> {
+        List<SnowflakeIdentifier> tables = Lists.newArrayList();
+        while (rs.next()) {
+          String databaseName = rs.getString("database_name");
+          String schemaName = rs.getString("schema_name");
+          String tableName = rs.getString("name");
+          tables.add(SnowflakeIdentifier.ofTable(databaseName, schemaName, tableName));
+        }
+        return tables;
+      };
+
+  /**
+   * Expects to handle ResultSets representing a single record holding Snowflake Iceberg metadata.
+   */
+  public static final ResultSetParser<SnowflakeTableMetadata> TABLE_METADATA_RESULT_SET_HANDLER =
+      rs -> {
+        if (!rs.next()) {
+          return null;
+        }
+
+        String rawJsonVal = rs.getString("METADATA");
+        return SnowflakeTableMetadata.parseJson(rawJsonVal);
+      };
+
   private final JdbcClientPool connectionPool;
-  private QueryRunner queryRunner;
+  private QueryHarness queryHarness;
 
   JdbcSnowflakeClient(JdbcClientPool conn) {
     Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
     connectionPool = conn;
-    queryRunner = new QueryRunner(true);
+    queryHarness = new QueryHarness();
   }
 
   @VisibleForTesting
-  void setQueryRunner(QueryRunner queryRunner) {
-    this.queryRunner = queryRunner;
+  void setQueryHarness(QueryHarness queryHarness) {
+    this.queryHarness = queryHarness;
   }
 
   /**
@@ -91,11 +179,8 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       databases =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
-                      conn,
-                      finalQuery,
-                      SnowflakeIdentifier.DATABASE_RESULT_SET_HANDLER,
-                      (Object[]) null));
+                  queryHarness.query(
+                      conn, finalQuery, DATABASE_RESULT_SET_HANDLER, (String[]) null));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to check if database exists");
     } catch (InterruptedException e) {
@@ -131,11 +216,11 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       schemas =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
+                  queryHarness.query(
                       conn,
                       finalQuery,
-                      SnowflakeIdentifier.SCHEMA_RESULT_SET_HANDLER,
-                      new Object[] {schema.databaseName()}));
+                      SCHEMA_RESULT_SET_HANDLER,
+                      new String[] {schema.databaseName()}));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to check if schema exists");
     } catch (InterruptedException e) {
@@ -155,11 +240,11 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       databases =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
+                  queryHarness.query(
                       conn,
                       "SHOW DATABASES IN ACCOUNT",
-                      SnowflakeIdentifier.DATABASE_RESULT_SET_HANDLER,
-                      (Object[]) null));
+                      DATABASE_RESULT_SET_HANDLER,
+                      (String[]) null));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list databases");
     } catch (InterruptedException e) {
@@ -171,7 +256,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   @Override
   public List<SnowflakeIdentifier> listSchemas(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW SCHEMAS");
-    Object[] queryParams = null;
+    String[] queryParams = null;
     switch (scope.type()) {
       case ROOT:
         // account-level listing
@@ -180,7 +265,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       case DATABASE:
         // database-level listing
         baseQuery.append(" IN DATABASE IDENTIFIER(?)");
-        queryParams = new Object[] {scope.toIdentifierString()};
+        queryParams = new String[] {scope.toIdentifierString()};
         break;
       default:
         throw new IllegalArgumentException(
@@ -188,17 +273,14 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     }
 
     final String finalQuery = baseQuery.toString();
-    final Object[] finalQueryParams = queryParams;
+    final String[] finalQueryParams = queryParams;
     List<SnowflakeIdentifier> schemas;
     try {
       schemas =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
-                      conn,
-                      finalQuery,
-                      SnowflakeIdentifier.SCHEMA_RESULT_SET_HANDLER,
-                      finalQueryParams));
+                  queryHarness.query(
+                      conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list schemas for scope %s", scope);
     } catch (InterruptedException e) {
@@ -210,7 +292,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   @Override
   public List<SnowflakeIdentifier> listIcebergTables(SnowflakeIdentifier scope) {
     StringBuilder baseQuery = new StringBuilder("SHOW ICEBERG TABLES");
-    Object[] queryParams = null;
+    String[] queryParams = null;
     switch (scope.type()) {
       case ROOT:
         // account-level listing
@@ -219,12 +301,12 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       case DATABASE:
         // database-level listing
         baseQuery.append(" IN DATABASE IDENTIFIER(?)");
-        queryParams = new Object[] {scope.toIdentifierString()};
+        queryParams = new String[] {scope.toIdentifierString()};
         break;
       case SCHEMA:
         // schema-level listing
         baseQuery.append(" IN SCHEMA IDENTIFIER(?)");
-        queryParams = new Object[] {scope.toIdentifierString()};
+        queryParams = new String[] {scope.toIdentifierString()};
         break;
       default:
         throw new IllegalArgumentException(
@@ -232,17 +314,13 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     }
 
     final String finalQuery = baseQuery.toString();
-    final Object[] finalQueryParams = queryParams;
+    final String[] finalQueryParams = queryParams;
     List<SnowflakeIdentifier> tables;
     try {
       tables =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
-                      conn,
-                      finalQuery,
-                      SnowflakeIdentifier.TABLE_RESULT_SET_HANDLER,
-                      finalQueryParams));
+                  queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list tables for scope %s", scope.toString());
     } catch (InterruptedException e) {
@@ -263,10 +341,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       tableMeta =
           connectionPool.run(
               conn ->
-                  queryRunner.query(
+                  queryHarness.query(
                       conn,
                       finalQuery,
-                      SnowflakeTableMetadata.createHandler(),
+                      TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
       throw new UncheckedSQLException(

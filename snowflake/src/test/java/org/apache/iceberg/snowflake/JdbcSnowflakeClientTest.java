@@ -28,8 +28,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import org.apache.commons.dbutils.QueryRunner;
-import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
@@ -48,7 +46,7 @@ import org.mockito.stubbing.Answer;
 public class JdbcSnowflakeClientTest {
   @Mock private Connection mockConnection;
   @Mock private JdbcClientPool mockClientPool;
-  @Mock private QueryRunner mockQueryRunner;
+  @Mock private JdbcSnowflakeClient.QueryHarness mockQueryHarness;
   @Mock private ResultSet mockResultSet;
 
   private JdbcSnowflakeClient snowflakeClient;
@@ -56,7 +54,7 @@ public class JdbcSnowflakeClientTest {
   @Before
   public void before() throws SQLException, InterruptedException {
     snowflakeClient = new JdbcSnowflakeClient(mockClientPool);
-    snowflakeClient.setQueryRunner(mockQueryRunner);
+    snowflakeClient.setQueryHarness(mockQueryHarness);
 
     doAnswer(
             new Answer() {
@@ -71,15 +69,16 @@ public class JdbcSnowflakeClientTest {
             new Answer() {
               @Override
               public Object answer(InvocationOnMock invocation) throws Throwable {
-                return ((ResultSetHandler) invocation.getArguments()[2]).handle(mockResultSet);
+                return ((JdbcSnowflakeClient.ResultSetParser) invocation.getArguments()[2])
+                    .parse(mockResultSet);
               }
             })
-        .when(mockQueryRunner)
+        .when(mockQueryHarness)
         .query(
             any(Connection.class),
             any(String.class),
-            any(ResultSetHandler.class),
-            ArgumentMatchers.<Object>any());
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            ArgumentMatchers.<String>any());
   }
 
   @Test
@@ -97,12 +96,12 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
         .isTrue();
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
   }
 
   @Test
@@ -114,12 +113,12 @@ public class JdbcSnowflakeClientTest {
             snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("$DB_1$.'!@#%^&*")))
         .isTrue();
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE '_DB_1$_________' IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
   }
 
   @Test
@@ -153,17 +152,17 @@ public class JdbcSnowflakeClientTest {
             snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
         .isTrue();
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
-    verify(mockQueryRunner)
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW SCHEMAS LIKE 'SCHEMA_1' IN DATABASE IDENTIFIER(?)"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1"));
   }
 
@@ -182,17 +181,17 @@ public class JdbcSnowflakeClientTest {
                 SnowflakeIdentifier.ofSchema("DB_1", "$SCHEMA_1$.'!@#%^&*")))
         .isTrue();
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
-    verify(mockQueryRunner)
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW SCHEMAS LIKE '_SCHEMA_1$_________' IN DATABASE IDENTIFIER(?)"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1"));
   }
 
@@ -238,12 +237,12 @@ public class JdbcSnowflakeClientTest {
 
     List<SnowflakeIdentifier> actualList = snowflakeClient.listDatabases();
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
 
     Assertions.assertThat(actualList)
         .containsExactly(
@@ -271,12 +270,12 @@ public class JdbcSnowflakeClientTest {
     List<SnowflakeIdentifier> actualList =
         snowflakeClient.listSchemas(SnowflakeIdentifier.ofRoot());
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW SCHEMAS IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
 
     Assertions.assertThat(actualList)
         .containsExactly(
@@ -298,11 +297,11 @@ public class JdbcSnowflakeClientTest {
     List<SnowflakeIdentifier> actualList =
         snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW SCHEMAS IN DATABASE IDENTIFIER(?)"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1"));
 
     Assertions.assertThat(actualList)
@@ -368,12 +367,12 @@ public class JdbcSnowflakeClientTest {
     List<SnowflakeIdentifier> actualList =
         snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofRoot());
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN ACCOUNT"),
-            any(ResultSetHandler.class),
-            eq((Object[]) null));
+            any(JdbcSnowflakeClient.ResultSetParser.class),
+            eq((String[]) null));
 
     Assertions.assertThat(actualList)
         .containsExactly(
@@ -406,11 +405,11 @@ public class JdbcSnowflakeClientTest {
     List<SnowflakeIdentifier> actualList =
         snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN DATABASE IDENTIFIER(?)"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1"));
 
     Assertions.assertThat(actualList)
@@ -434,11 +433,11 @@ public class JdbcSnowflakeClientTest {
     List<SnowflakeIdentifier> actualList =
         snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN SCHEMA IDENTIFIER(?)"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1.SCHEMA_1"));
 
     Assertions.assertThat(actualList)
@@ -489,11 +488,11 @@ public class JdbcSnowflakeClientTest {
         snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION(?) AS METADATA"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1.SCHEMA_1.TABLE_1"));
 
     SnowflakeTableMetadata expectedMetadata =
@@ -520,11 +519,11 @@ public class JdbcSnowflakeClientTest {
         snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION(?) AS METADATA"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1.SCHEMA_1.TABLE_1"));
 
     SnowflakeTableMetadata expectedMetadata =
@@ -551,11 +550,11 @@ public class JdbcSnowflakeClientTest {
         snowflakeClient.loadTableMetadata(
             SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1"));
 
-    verify(mockQueryRunner)
+    verify(mockQueryHarness)
         .query(
             eq(mockConnection),
             eq("SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION(?) AS METADATA"),
-            any(ResultSetHandler.class),
+            any(JdbcSnowflakeClient.ResultSetParser.class),
             eq("DB_1.SCHEMA_1.TABLE_1"));
 
     SnowflakeTableMetadata expectedMetadata =

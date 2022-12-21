@@ -18,11 +18,8 @@
  */
 package org.apache.iceberg.snowflake;
 
-import java.util.List;
-import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Since the SnowflakeCatalog supports exactly two levels of Iceberg Namespaces, corresponding
@@ -39,51 +36,6 @@ class SnowflakeIdentifier {
     SCHEMA,
     TABLE
   }
-
-  /**
-   * Expects to handle ResultSets representing fully-qualified Snowflake Database identifiers,
-   * containing "name" (representing databaseName).
-   */
-  public static final ResultSetHandler<List<SnowflakeIdentifier>> DATABASE_RESULT_SET_HANDLER =
-      rs -> {
-        List<SnowflakeIdentifier> databases = Lists.newArrayList();
-        while (rs.next()) {
-          String databaseName = rs.getString("name");
-          databases.add(SnowflakeIdentifier.ofDatabase(databaseName));
-        }
-        return databases;
-      };
-
-  /**
-   * Expects to handle ResultSets representing fully-qualified Snowflake Schema identifiers,
-   * containing "database_name" and "name" (representing schemaName).
-   */
-  public static final ResultSetHandler<List<SnowflakeIdentifier>> SCHEMA_RESULT_SET_HANDLER =
-      rs -> {
-        List<SnowflakeIdentifier> schemas = Lists.newArrayList();
-        while (rs.next()) {
-          String databaseName = rs.getString("database_name");
-          String schemaName = rs.getString("name");
-          schemas.add(SnowflakeIdentifier.ofSchema(databaseName, schemaName));
-        }
-        return schemas;
-      };
-
-  /**
-   * Expects to handle ResultSets representing fully-qualified Snowflake Table identifiers,
-   * containing "database_name", "schema_name", and "name" (representing tableName).
-   */
-  public static final ResultSetHandler<List<SnowflakeIdentifier>> TABLE_RESULT_SET_HANDLER =
-      rs -> {
-        List<SnowflakeIdentifier> tables = Lists.newArrayList();
-        while (rs.next()) {
-          String databaseName = rs.getString("database_name");
-          String schemaName = rs.getString("schema_name");
-          String tableName = rs.getString("name");
-          tables.add(SnowflakeIdentifier.ofTable(databaseName, schemaName, tableName));
-        }
-        return tables;
-      };
 
   private String databaseName;
   private String schemaName;
