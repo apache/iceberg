@@ -28,7 +28,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import date, datetime, time
+from datetime import datetime, time
 from decimal import Decimal
 from typing import (
     Any,
@@ -156,8 +156,8 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> date:
-        return decoder.read_date_from_int()
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()

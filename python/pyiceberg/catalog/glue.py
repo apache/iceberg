@@ -310,7 +310,7 @@ class GlueCatalog(Catalog):
         manifest_lists_to_delete = set()
         manifests_to_delete = []
         for snapshot in metadata.snapshots:
-            manifests_to_delete += snapshot.manifests(io)
+            manifests_to_delete += snapshot.manifests(io, table.metadata.format_version)
             if snapshot.manifest_list is not None:
                 manifest_lists_to_delete.add(snapshot.manifest_list)
 

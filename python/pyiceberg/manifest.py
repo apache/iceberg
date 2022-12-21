@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import Enum
-from functools import singledispatch
 from typing import (
     Any,
     Dict,
@@ -25,20 +27,9 @@ from typing import (
     Union,
 )
 
-from pydantic import Field
-
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.io import FileIO, InputFile
-from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
-from pyiceberg.types import (
-    IcebergType,
-    ListType,
-    MapType,
-    PrimitiveType,
-    StructType,
-)
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 class DataFileContent(int, Enum):
@@ -76,137 +67,284 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-class DataFile(IcebergBaseModel):
-    content: DataFileContent = Field(default=DataFileContent.DATA)
-    file_path: str = Field()
-    file_format: FileFormat = Field()
-    partition: Dict[str, Any] = Field()
-    record_count: int = Field()
-    file_size_in_bytes: int = Field()
-    block_size_in_bytes: Optional[int] = Field()
-    column_sizes: Optional[Dict[int, int]] = Field()
-    value_counts: Optional[Dict[int, int]] = Field()
-    null_value_counts: Optional[Dict[int, int]] = Field()
-    nan_value_counts: Optional[Dict[int, int]] = Field()
-    distinct_counts: Optional[Dict[int, int]] = Field()
-    lower_bounds: Optional[Dict[int, bytes]] = Field()
-    upper_bounds: Optional[Dict[int, bytes]] = Field()
-    key_metadata: Optional[bytes] = Field()
-    split_offsets: Optional[List[int]] = Field()
-    equality_ids: Optional[List[int]] = Field()
-    sort_order_id: Optional[int] = Field()
+@dataclass
+class DataFile(Record):
+    @staticmethod
+    def from_record(record: Record, format_version: int) -> Union[DataFileV1, DataFileV2]:
+        if format_version == 1:
+            return DataFileV1().wrap(record)  # type: ignore
+        elif format_version == 2:
+            return DataFileV2().wrap(record)  # type: ignore
+        else:
+            raise ValueError(f"Unknown format-version: {format_version}")
+
+    file_path: str
+    file_format: FileFormat
+    partition: Record
+    record_count: int
+    file_size_in_bytes: int
+    block_size_in_bytes: Optional[int]
+    column_sizes: Optional[Dict[int, int]]
+    value_counts: Optional[Dict[int, int]]
+    null_value_counts: Optional[Dict[int, int]]
+    nan_value_counts: Optional[Dict[int, int]]
+    distinct_counts: Optional[Dict[int, int]]  # Does not seem to be used on the Java side!?
+    lower_bounds: Optional[Dict[int, bytes]]
+    upper_bounds: Optional[Dict[int, bytes]]
+    key_metadata: Optional[bytes]
+    split_offsets: Optional[List[int]]
+    equality_ids: Optional[List[int]]
+    sort_order_id: Optional[int]
+    content: DataFileContent = field(default=DataFileContent.DATA)
 
 
-class ManifestEntry(IcebergBaseModel):
-    status: ManifestEntryStatus = Field()
-    snapshot_id: Optional[int] = Field()
-    sequence_number: Optional[int] = Field()
-    data_file: DataFile = Field()
+class DataFileV1(DataFile):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.file_path = value
+        elif pos == 1:
+            self.file_format = value
+        elif pos == 2:
+            self.partition = value
+        elif pos == 3:
+            self.record_count = value
+        elif pos == 4:
+            self.file_size_in_bytes = value
+        elif pos == 5:
+            self.block_size_in_bytes = value
+        elif pos == 6:
+            self.column_sizes = value
+        elif pos == 7:
+            self.value_counts = value
+        elif pos == 8:
+            self.null_value_counts = value
+        elif pos == 9:
+            self.nan_value_counts = value
+        elif pos == 10:
+            self.lower_bounds = value
+        elif pos == 11:
+            self.upper_bounds = value
+        elif pos == 12:
+            self.key_metadata = value
+        elif pos == 13:
+            self.split_offsets = value
+        elif pos == 14:
+            self.sort_order_id = value
 
 
-class PartitionFieldSummary(IcebergBaseModel):
-    contains_null: bool = Field()
-    contains_nan: Optional[bool] = Field()
-    lower_bound: Optional[bytes] = Field()
-    upper_bound: Optional[bytes] = Field()
+class DataFileV2(DataFile):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.content = value
+        elif pos == 1:
+            self.file_path = value
+        elif pos == 2:
+            self.file_format = value
+        elif pos == 3:
+            self.partition = value
+        elif pos == 4:
+            self.record_count = value
+        elif pos == 5:
+            self.file_size_in_bytes = value
+        elif pos == 6:
+            self.column_sizes = value
+        elif pos == 7:
+            self.value_counts = value
+        elif pos == 8:
+            self.null_value_counts = value
+        elif pos == 9:
+            self.nan_value_counts = value
+        elif pos == 10:
+            self.lower_bounds = value
+        elif pos == 11:
+            self.upper_bounds = value
+        elif pos == 12:
+            self.key_metadata = value
+        elif pos == 13:
+            self.split_offsets = value
+        elif pos == 14:
+            self.equality_ids = value
+        elif pos == 15:
+            self.sort_order_id = value
 
 
-class ManifestFile(IcebergBaseModel):
-    manifest_path: str = Field()
-    manifest_length: int = Field()
-    partition_spec_id: int = Field()
-    content: ManifestContent = Field(default=ManifestContent.DATA)
-    sequence_number: int = Field(default=0)
-    min_sequence_number: int = Field(default=0)
-    added_snapshot_id: Optional[int] = Field()
-    added_data_files_count: Optional[int] = Field()
-    existing_data_files_count: Optional[int] = Field()
-    deleted_data_files_count: Optional[int] = Field()
-    added_rows_count: Optional[int] = Field()
-    existing_rows_counts: Optional[int] = Field()
-    deleted_rows_count: Optional[int] = Field()
-    partitions: Optional[List[PartitionFieldSummary]] = Field()
-    key_metadata: Optional[bytes] = Field()
+@dataclass
+class ManifestEntry(Record):
+    status: ManifestEntryStatus
+    snapshot_id: Optional[int]
+    sequence_number: Optional[int]
+    file_sequence_number: Optional[int]
+    data_file: DataFile
 
-    def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
+    @staticmethod
+    def from_record(record: Record, format_version: int) -> Union[ManifestEntryV1, ManifestEntryV2]:
+        if format_version == 1:
+            return ManifestEntryV1().wrap(record)  # type: ignore
+        elif format_version == 2:
+            return ManifestEntryV2().wrap(record)  # type: ignore
+        else:
+            raise ValueError(f"Unknown format-version: {format_version}")
+
+
+class ManifestEntryV1(ManifestEntry):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.status = value
+        elif pos == 1:
+            self.snapshot_id = value
+        elif pos == 2:
+            self.data_file = DataFile.from_record(value, format_version=1)
+
+
+class ManifestEntryV2(ManifestEntry):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.status = value
+        elif pos == 1:
+            self.snapshot_id = value
+        elif pos == 2:
+            self.sequence_number = value
+        elif pos == 3:
+            self.file_sequence_number = value
+        elif pos == 4:
+            self.data_file = DataFile.from_record(value, format_version=2)
+
+
+@dataclass
+class PartitionFieldSummary(Record):
+    contains_null: bool
+    contains_nan: Optional[bool]
+    lower_bound: Optional[bytes]
+    upper_bound: Optional[bytes]
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.contains_null = value
+        elif pos == 1:
+            self.contains_nan = value
+        elif pos == 2:
+            self.lower_bound = value
+        elif pos == 3:
+            self.upper_bound = value
+        # ignore the object, it must be from a newer version of the format
+
+
+@dataclass
+class ManifestFile(Record):
+    @staticmethod
+    def from_record(record: Record, format_version: int) -> ManifestFile:
+        if format_version == 1:
+            return ManifestFileV1().wrap(record)  # type: ignore
+        elif format_version == 2:
+            return ManifestFileV2().wrap(record)  # type: ignore
+        else:
+            raise ValueError(f"Unknown format-version: {format_version}")
+
+    manifest_path: str
+    manifest_length: int
+    partition_spec_id: int
+    snapshot_id: int
+    added_files_count: Optional[int]
+    existing_files_count: Optional[int]
+    deleted_files_count: Optional[int]
+    added_rows_count: Optional[int]
+    existing_rows_count: Optional[int]
+    deleted_rows_count: Optional[int]
+    partitions: List[PartitionFieldSummary]
+    added_snapshot_id: Optional[int]
+    sequence_number: int
+    min_sequence_number: int
+    key_metadata: Optional[bytes]
+    content: ManifestContent = field(default=ManifestContent.DATA)
+
+    def fetch_manifest_entry(self, io: FileIO, format_version: int) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)
-        return list(read_manifest_entry(file))
+        return read_manifest_entry(file, format_version)
 
 
-def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
+class ManifestFileV1(ManifestFile):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.manifest_path = value
+        elif pos == 1:
+            self.manifest_length = value
+        elif pos == 2:
+            self.partition_spec_id = value
+        elif pos == 3:
+            self.snapshot_id = value
+        elif pos == 4:
+            self.added_files_count = value
+        elif pos == 5:
+            self.existing_files_count = value
+        elif pos == 6:
+            self.deleted_files_count = value
+        elif pos == 7:
+            self.partitions = [
+                element if isinstance(element, PartitionFieldSummary) else PartitionFieldSummary().wrap(element)  # type: ignore
+                for element in value
+            ]
+        elif pos == 8:
+            self.added_rows_count = value
+        elif pos == 9:
+            self.existing_rows_count = value
+        elif pos == 10:
+            self.deleted_rows_count = value
+        # ignore the object, it must be from a newer version of the format
+
+
+class ManifestFileV2(ManifestFile):
+    def __setitem__(self, pos: int, value: Any) -> None:
+        if pos == 0:
+            self.manifest_path = value
+        elif pos == 1:
+            self.manifest_length = value
+        elif pos == 2:
+            self.partition_spec_id = value
+        elif pos == 3:
+            self.content = value
+        elif pos == 4:
+            self.sequence_number = value
+        elif pos == 5:
+            self.min_sequence_number = value
+        elif pos == 6:
+            self.snapshot_id = value
+        elif pos == 7:
+            self.added_files_count = value
+        elif pos == 8:
+            self.existing_files_count = value
+        elif pos == 9:
+            self.deleted_files_count = value
+        elif pos == 10:
+            self.added_rows_count = value
+        elif pos == 11:
+            self.existing_rows_count = value
+        elif pos == 12:
+            self.deleted_rows_count = value
+        elif pos == 13:
+            self.partitions = value
+        elif pos == 14:
+            self.key_metadata = value
+        # ignore the object, it must be from a newer version of the format
+
+
+def read_manifest_entry(input_file: InputFile, format_version: int) -> List[ManifestEntry]:
     with AvroFile(input_file) as reader:
-        schema = reader.schema
-        for record in reader:
-            dict_repr = _convert_pos_to_dict(schema, record)
-            yield ManifestEntry(**dict_repr)
+        return [ManifestEntry.from_record(record, format_version) for record in reader]
 
 
-def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
-    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
+def live_entries(input_file: InputFile, format_version: int) -> Iterator[ManifestEntry]:
+    return (entry for entry in read_manifest_entry(input_file, format_version) if entry.status != ManifestEntryStatus.DELETED)
 
 
-def files(input_file: InputFile) -> Iterator[DataFile]:
-    return (entry.data_file for entry in live_entries(input_file))
+def files(input_file: InputFile, format_version: int) -> Iterator[DataFile]:
+    return (entry.data_file for entry in live_entries(input_file, format_version))
 
 
-def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
+def read_manifest_list(input_file: InputFile, format_version: int) -> List[ManifestFile]:
     with AvroFile(input_file) as reader:
-        schema = reader.schema
-        for record in reader:
-            dict_repr = _convert_pos_to_dict(schema, record)
-            yield ManifestFile(**dict_repr)
+        return [ManifestFile.from_record(record, format_version) for record in reader]
 
 
-@singledispatch
-def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: Record) -> Dict[str, Any]:
-    """Converts the positions in the field names
-
-    This makes it easy to map it onto a Pydantic model. Might change later on depending on the performance
-
-     Args:
-         schema (Schema | IcebergType): The schema of the file
-         struct (Record): The struct containing the data by positions
-
-     Raises:
-         NotImplementedError: If attempting to handle an unknown type in the schema
-    """
-    raise NotImplementedError(f"Cannot traverse non-type: {schema}")
-
-
-@_convert_pos_to_dict.register
-def _(schema: Schema, struct: Record) -> Dict[str, Any]:
-    return _convert_pos_to_dict(schema.as_struct(), struct)
-
-
-@_convert_pos_to_dict.register
-def _(struct_type: StructType, values: Record) -> Dict[str, Any]:
-    """Iterates over all the fields in the dict, and gets the data from the struct"""
-    return (
-        {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
-        if values is not None
-        else None
-    )
-
-
-@_convert_pos_to_dict.register
-def _(list_type: ListType, values: List[Any]) -> Any:
-    """In the case of a list, we'll go over the elements in the list to handle complex types"""
-    return [_convert_pos_to_dict(list_type.element_type, value) for value in values] if values is not None else None
-
-
-@_convert_pos_to_dict.register
-def _(map_type: MapType, values: Dict[Any, Any]) -> Dict[Any, Any]:
-    """In the case of a map, we both traverse over the key and value to handle complex types"""
-    return (
-        {
-            _convert_pos_to_dict(map_type.key_type, key): _convert_pos_to_dict(map_type.value_type, value)
-            for key, value in values.items()
-        }
-        if values is not None
-        else None
-    )
-
-
-@_convert_pos_to_dict.register
-def _(_: PrimitiveType, value: Any) -> Any:
-    return value
+def read_manifest_list_record(input_file: InputFile, format_version: int) -> List[ManifestFile]:
+    with AvroFile(input_file) as reader:
+        return [ManifestFile.from_record(record, format_version) for record in reader]

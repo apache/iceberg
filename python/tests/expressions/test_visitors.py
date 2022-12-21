@@ -786,10 +786,12 @@ def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
 
 def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     return ManifestFile(
-        manifest_path="",
-        manifest_length=0,
-        partition_spec_id=0,
-        partitions=partitions,
+        [
+            "",  # manifest_path
+            0,  # manifest_length
+            0,  # partition_spec_id
+            partitions,  # partitions
+        ]
     )
 
 

@@ -445,11 +445,11 @@ class Accessor:
             Any: The value at position `self.position` in the container
         """
         pos = self.position
-        val = container.get(pos)
+        val = container[pos]
         inner = self
         while inner.inner:
             inner = inner.inner
-            val = val.get(inner.position)
+            val = val[inner.position]
 
         return val
 

@@ -35,11 +35,11 @@ from pyiceberg.table.snapshots import Operation, Summary
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
     input_file = PyArrowFileIO().new_input(location=generated_manifest_entry_file)
-    assert list(read_manifest_entry(input_file)) == [
+    assert list(read_manifest_entry(input_file, format_version=2)) == [
         ManifestEntry(
-            status=1,
-            snapshot_id=8744736658442914487,
-            data_file=DataFile(
+            1,  # status
+            8744736658442914487,  # snapshot_id
+            DataFile(
                 file_path="/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
                 file_format=FileFormat.PARQUET,
                 partition={"VendorID": None},

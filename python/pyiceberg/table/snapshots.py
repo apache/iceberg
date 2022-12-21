@@ -111,10 +111,10 @@ class Snapshot(IcebergBaseModel):
         result_str = f"{operation}id={self.snapshot_id}{parent_id}{schema_id}"
         return result_str
 
-    def manifests(self, io: FileIO) -> List[ManifestFile]:
+    def manifests(self, io: FileIO, format_version: int) -> List[ManifestFile]:
         if self.manifest_list is not None:
             file = io.new_input(self.manifest_list)
-            return list(read_manifest_list(file))
+            return list(read_manifest_list(file, format_version))
         return []
 
 

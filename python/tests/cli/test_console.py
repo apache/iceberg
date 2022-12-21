@@ -24,6 +24,7 @@ from typing import (
 from unittest import mock
 
 from click.testing import CliRunner
+from tests.conftest import EXAMPLE_TABLE_METADATA_V2
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.cli.console import run
@@ -35,7 +36,6 @@ from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
-from tests.conftest import EXAMPLE_TABLE_METADATA_V2
 
 
 class MockCatalog(Catalog):

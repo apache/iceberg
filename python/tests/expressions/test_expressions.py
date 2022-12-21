@@ -470,7 +470,8 @@ def test_less_than_or_equal_invert() -> None:
 )
 def test_bind(pred: UnboundPredicate[Any], table_schema_simple: Schema) -> None:
     assert pred.bind(table_schema_simple, case_sensitive=True).term.field == table_schema_simple.find_field(  # type: ignore
-        pred.term.name, case_sensitive=True  # type: ignore
+        pred.term.name,  # type: ignore
+        case_sensitive=True,
     )
 
 
@@ -489,7 +490,8 @@ def test_bind(pred: UnboundPredicate[Any], table_schema_simple: Schema) -> None:
 )
 def test_bind_case_insensitive(pred: UnboundPredicate[Any], table_schema_simple: Schema) -> None:
     assert pred.bind(table_schema_simple, case_sensitive=False).term.field == table_schema_simple.find_field(  # type: ignore
-        pred.term.name, case_sensitive=False  # type: ignore
+        pred.term.name,  # type: ignore
+        case_sensitive=False,
     )
 
 
@@ -609,18 +611,18 @@ def test_accessor_base_class() -> None:
 
     uuid_value = uuid.uuid4()
 
-    struct.set(0, "foo")
-    struct.set(1, "bar")
-    struct.set(2, "baz")
-    struct.set(3, 1)
-    struct.set(4, 2)
-    struct.set(5, 3)
-    struct.set(6, 1.234)
-    struct.set(7, Decimal("1.234"))
-    struct.set(8, uuid_value)
-    struct.set(9, True)
-    struct.set(10, False)
-    struct.set(11, b"\x19\x04\x9e?")
+    struct[0] = "foo"
+    struct[1] = "bar"
+    struct[2] = "baz"
+    struct[3] = 1
+    struct[4] = 2
+    struct[5] = 3
+    struct[6] = 1.234
+    struct[7] = Decimal("1.234")
+    struct[8] = uuid_value
+    struct[9] = True
+    struct[10] = False
+    struct[11] = b"\x19\x04\x9e?"
 
     assert Accessor(position=0).get(struct) == "foo"
     assert Accessor(position=1).get(struct) == "bar"
@@ -904,9 +906,9 @@ def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
     struct = Record(None, None, None, None)
 
-    struct.set(pos=1, value="foovalue")
-    struct.set(pos=2, value=123)
-    struct.set(pos=3, value=True)
+    struct[1] = "foovalue"
+    struct[2] = 123
+    struct[3] = True
 
     position1_accessor = Accessor(position=1)
     position2_accessor = Accessor(position=2)

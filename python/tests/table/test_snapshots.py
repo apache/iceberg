@@ -134,7 +134,7 @@ def test_fetch_manifest_list(generated_manifest_file_file: str) -> None:
         schema_id=3,
     )
     io = PyArrowFileIO()
-    actual = snapshot.manifests(io)
+    actual = snapshot.manifests(io, format_version=2)
     assert actual == [
         ManifestFile(
             manifest_path=actual[0].manifest_path,  # Is a temp path that changes every time
@@ -144,11 +144,11 @@ def test_fetch_manifest_list(generated_manifest_file_file: str) -> None:
             sequence_number=0,
             min_sequence_number=0,
             added_snapshot_id=9182715666859759686,
-            added_data_files_count=3,
-            existing_data_files_count=0,
-            deleted_data_files_count=0,
+            added_files_count=3,
+            existing_files_count=0,
+            deleted_files_count=0,
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=None,
             deleted_rows_count=0,
             partitions=[
                 PartitionFieldSummary(

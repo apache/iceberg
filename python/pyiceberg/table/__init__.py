@@ -43,7 +43,12 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import bind, inclusive_projection
 from pyiceberg.io import FileIO
-from pyiceberg.manifest import DataFile, ManifestFile, files
+from pyiceberg.manifest import (
+    DataFile,
+    ManifestFile,
+    files,
+    read_manifest_list_record,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -307,11 +312,12 @@ class DataScan(TableScan["DataScan"]):
         partition_schema = Schema(*partition_type.fields)
         partition_expr = self.partition_filters[spec_id]
 
-        # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
-        wrapper = _DictAsStruct(partition_type)
         evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
 
-        return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
+        def evaluate_partition(data_file: DataFile) -> bool:
+            return evaluator(data_file.partition)
+
+        return evaluate_partition
 
     def plan_files(self) -> Iterator[ScanTask]:
         snapshot = self.snapshot()
@@ -325,11 +331,13 @@ class DataScan(TableScan["DataScan"]):
 
         manifest_evaluators: Dict[int, Callable[[ManifestFile], bool]] = KeyDefaultDict(self._build_manifest_evaluator)
 
-        manifests = [
-            manifest_file
-            for manifest_file in snapshot.manifests(io)
-            if manifest_evaluators[manifest_file.partition_spec_id](manifest_file)
-        ]
+        manifests = []
+
+        if snapshot.manifest_list:
+            records = read_manifest_list_record(io.new_input(snapshot.manifest_list), self.table.metadata.format_version)
+            manifests = [
+                manifest_file for manifest_file in records if manifest_evaluators[manifest_file.partition_spec_id](manifest_file)
+            ]
 
         # step 2: filter the data files in each manifest
         # this filter depends on the partition spec used to write the manifest file
@@ -338,7 +346,7 @@ class DataScan(TableScan["DataScan"]):
 
         for manifest in manifests:
             partition_filter = partition_evaluators[manifest.partition_spec_id]
-            all_files = files(io.new_input(manifest.manifest_path))
+            all_files = files(io.new_input(manifest.manifest_path), self.table.metadata.format_version)
             matching_partition_files = filter(partition_filter, all_files)
 
             yield from (FileScanTask(file) for file in matching_partition_files)

@@ -21,6 +21,12 @@ from typing import Generator, Optional
 import boto3
 import pytest
 from botocore.exceptions import ClientError
+from tests.catalog.test_glue import (
+    get_random_database_name,
+    get_random_databases,
+    get_random_table_name,
+    get_random_tables,
+)
 
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.glue import GlueCatalog
@@ -32,12 +38,6 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from tests.catalog.test_glue import (
-    get_random_database_name,
-    get_random_databases,
-    get_random_table_name,
-    get_random_tables,
-)
 
 # The number of random characters in generated table/database name
 RANDOM_LENGTH = 20
