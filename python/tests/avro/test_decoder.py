@@ -16,7 +16,7 @@
 # under the License.
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
 from types import TracebackType
@@ -169,12 +169,6 @@ def test_skip_double() -> None:
     assert mis.tell() == 0
     decoder.skip_double()
     assert mis.tell() == 8
-
-
-def test_read_date() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
-    decoder = BinaryDecoder(mis)
-    assert decoder.read_date_from_int() == date(1991, 12, 27)
 
 
 def test_read_uuid_from_fixed() -> None:
