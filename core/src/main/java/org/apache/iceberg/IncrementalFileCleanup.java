@@ -27,7 +27,6 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -260,16 +259,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         findFilesToDelete(manifestsToScan, manifestsToRevert, validIds, afterExpiration);
 
     deleteFiles(filesToDelete, "data");
-    LOG.debug("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
-    LOG.debug("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
     deleteFiles(manifestsToDelete, "manifest");
     deleteFiles(manifestListsToDelete, "manifest list");
 
     if (!beforeExpiration.statisticsFiles().isEmpty()) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
-      LOG.debug(
-          "Statistics files to delete: {}", Joiner.on(", ").join(expiredStatisticsFilesLocations));
       deleteFiles(expiredStatisticsFilesLocations, "statistics files");
     }
   }

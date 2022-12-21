@@ -88,22 +88,22 @@ abstract class FileCleanupStrategy {
 
   protected Set<String> expiredStatisticsFilesLocations(
       TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    Set<String> statisticsFilesLocationBeforeExpiry = allStatisticsFilesLocation(beforeExpiration);
-    Set<String> statisticsFilesLocationAfterExpiry = allStatisticsFilesLocation(afterExpiration);
-    statisticsFilesLocationBeforeExpiry.removeAll(statisticsFilesLocationAfterExpiry);
-    return statisticsFilesLocationBeforeExpiry;
+    Set<String> statsFileLocationsBeforeExpiration = statsFileLocations(beforeExpiration);
+    Set<String> statsFileLocationsAfterExpiration = statsFileLocations(afterExpiration);
+
+    return Sets.difference(statsFileLocationsBeforeExpiration, statsFileLocationsAfterExpiration);
   }
 
-  private Set<String> allStatisticsFilesLocation(TableMetadata tableMetadata) {
-    Set<String> allStatisticsFilesLocation = Sets.newHashSet();
+  private Set<String> statsFileLocations(TableMetadata tableMetadata) {
+    Set<String> statsFileLocations = Sets.newHashSet();
 
     if (tableMetadata.statisticsFiles() != null) {
-      allStatisticsFilesLocation =
+      statsFileLocations =
           tableMetadata.statisticsFiles().stream()
               .map(StatisticsFile::path)
               .collect(Collectors.toSet());
     }
 
-    return allStatisticsFilesLocation;
+    return statsFileLocations;
   }
 }

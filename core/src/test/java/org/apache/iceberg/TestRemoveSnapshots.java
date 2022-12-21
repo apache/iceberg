@@ -20,8 +20,6 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -1246,18 +1244,30 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   @Test
-  public void testExpireWithStatisticsFiles() throws URISyntaxException, IOException {
+  public void testExpireWithStatisticsFiles() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
-    File statsFileLocation1 = statsFileLocation(table);
-    StatisticsFile statisticsFile1 = writeStatsFileForCurrentSnapshot(table, statsFileLocation1);
+    String statsFileLocation1 = statsFileLocation(table);
+    StatisticsFile statisticsFile1 =
+        writeStatsFileForCurrentSnapshot(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            statsFileLocation1,
+            table.io());
+    commitStats(table.newTransaction(), statisticsFile1);
     Assert.assertEquals(
         "Must match the latest snapshot",
         table.currentSnapshot().snapshotId(),
         statisticsFile1.snapshotId());
 
     table.newAppend().appendFile(FILE_B).commit();
-    File statsFileLocation2 = statsFileLocation(table);
-    StatisticsFile statisticsFile2 = writeStatsFileForCurrentSnapshot(table, statsFileLocation2);
+    String statsFileLocation2 = statsFileLocation(table);
+    StatisticsFile statisticsFile2 =
+        writeStatsFileForCurrentSnapshot(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            statsFileLocation2,
+            table.io());
+    commitStats(table.newTransaction(), statisticsFile2);
     Assert.assertEquals(
         "Must match the latest snapshot",
         table.currentSnapshot().snapshotId(),
@@ -1265,9 +1275,8 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertEquals("Should have 2 statistics file", 2, table.statisticsFiles().size());
 
-    table.updateProperties().set(TableProperties.MAX_SNAPSHOT_AGE_MS, "1").commit();
-
-    removeSnapshots(table).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
 
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
     Assertions.assertThat(table.statisticsFiles())
@@ -1275,23 +1284,34 @@ public class TestRemoveSnapshots extends TableTestBase {
         .extracting(StatisticsFile::snapshotId)
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
-    Assertions.assertThat(statsFileLocation1.exists()).isFalse();
-    Assertions.assertThat(statsFileLocation2.exists()).isTrue();
+
+    Assertions.assertThat(new File(statsFileLocation1).exists()).isFalse();
+    Assertions.assertThat(new File(statsFileLocation2).exists()).isTrue();
   }
 
   @Test
-  public void testExpireWithStatisticsFilesWithReuse() throws URISyntaxException, IOException {
+  public void testExpireWithStatisticsFilesWithReuse() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
-    File statsFileLocation1 = statsFileLocation(table);
-    StatisticsFile statisticsFile1 = writeStatsFileForCurrentSnapshot(table, statsFileLocation1);
+    String statsFileLocation1 = statsFileLocation(table);
+    StatisticsFile statisticsFile1 =
+        writeStatsFileForCurrentSnapshot(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            statsFileLocation1,
+            table.io());
+    commitStats(table.newTransaction(), statisticsFile1);
     Assert.assertEquals(
         "Must match the latest snapshot",
         table.currentSnapshot().snapshotId(),
         statisticsFile1.snapshotId());
 
     table.newAppend().appendFile(FILE_B).commit();
-    // reuse the existing stats file with the current snapshot
-    StatisticsFile statisticsFile2 = reuseStatsForCurrentSnapshot(table, statisticsFile1);
+    // Note: In the real scenario, appendFile will always create a new statistics file.
+    // Only rewrite_data_files scenario can reuse the statistics file with new snapshot id.
+    // To avoid simulating rewrite, this test is reusing the stats for append operation itself.
+    StatisticsFile statisticsFile2 =
+        reuseStatsForCurrentSnapshot(table.currentSnapshot().snapshotId(), statisticsFile1);
+    commitStats(table.newTransaction(), statisticsFile2);
     Assert.assertEquals(
         "Must match the latest snapshot",
         table.currentSnapshot().snapshotId(),
@@ -1299,9 +1319,8 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertEquals("Should have 2 statistics file", 2, table.statisticsFiles().size());
 
-    table.updateProperties().set(TableProperties.MAX_SNAPSHOT_AGE_MS, "1").commit();
-
-    removeSnapshots(table).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
 
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
     Assertions.assertThat(table.statisticsFiles())
@@ -1310,7 +1329,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    Assertions.assertThat(statsFileLocation1.exists()).isTrue();
+    Assertions.assertThat(new File(statsFileLocation1).exists()).isTrue();
   }
 
   @Test
@@ -1595,12 +1614,10 @@ public class TestRemoveSnapshots extends TableTestBase {
     return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
   }
 
-  private StatisticsFile writeStatsFileForCurrentSnapshot(Table table, File statsLocation)
+  private StatisticsFile writeStatsFileForCurrentSnapshot(
+      long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
       throws IOException {
-    StatisticsFile statisticsFile;
-    try (PuffinWriter puffinWriter = Puffin.write(Files.localOutput(statsLocation)).build()) {
-      long snapshotId = table.currentSnapshot().snapshotId();
-      long snapshotSequenceNumber = table.currentSnapshot().sequenceNumber();
+    try (PuffinWriter puffinWriter = Puffin.write(fileIO.newOutputFile(statsLocation)).build()) {
       puffinWriter.add(
           new Blob(
               "some-blob-type",
@@ -1609,35 +1626,29 @@ public class TestRemoveSnapshots extends TableTestBase {
               snapshotSequenceNumber,
               ByteBuffer.wrap("blob content".getBytes(StandardCharsets.UTF_8))));
       puffinWriter.finish();
-      statisticsFile =
-          new GenericStatisticsFile(
-              snapshotId,
-              statsLocation.toString(),
-              puffinWriter.fileSize(),
-              puffinWriter.footerSize(),
-              puffinWriter.writtenBlobsMetadata().stream()
-                  .map(GenericBlobMetadata::from)
-                  .collect(ImmutableList.toImmutableList()));
+
+      return new GenericStatisticsFile(
+          snapshotId,
+          statsLocation,
+          puffinWriter.fileSize(),
+          puffinWriter.footerSize(),
+          puffinWriter.writtenBlobsMetadata().stream()
+              .map(GenericBlobMetadata::from)
+              .collect(ImmutableList.toImmutableList()));
     }
-
-    commitStats(table, statisticsFile);
-    return statisticsFile;
   }
 
-  private StatisticsFile reuseStatsForCurrentSnapshot(Table table, StatisticsFile statisticsFile) {
-    StatisticsFile newStatisticsFile =
-        new GenericStatisticsFile(
-            table.currentSnapshot().snapshotId(),
-            statisticsFile.path(),
-            statisticsFile.fileSizeInBytes(),
-            statisticsFile.fileFooterSizeInBytes(),
-            statisticsFile.blobMetadata());
-    commitStats(table, newStatisticsFile);
-    return newStatisticsFile;
+  private StatisticsFile reuseStatsForCurrentSnapshot(
+      long snapshotId, StatisticsFile statisticsFile) {
+    return new GenericStatisticsFile(
+        snapshotId,
+        statisticsFile.path(),
+        statisticsFile.fileSizeInBytes(),
+        statisticsFile.fileFooterSizeInBytes(),
+        statisticsFile.blobMetadata());
   }
 
-  private void commitStats(Table table, StatisticsFile statisticsFile) {
-    Transaction transaction = table.newTransaction();
+  private void commitStats(Transaction transaction, StatisticsFile statisticsFile) {
     transaction
         .updateStatistics()
         .setStatistics(statisticsFile.snapshotId(), statisticsFile)
@@ -1645,12 +1656,10 @@ public class TestRemoveSnapshots extends TableTestBase {
     transaction.commitTransaction();
   }
 
-  private File statsFileLocation(Table table) throws URISyntaxException {
+  private String statsFileLocation(Table table) {
     String statsFileName = "stats-file-" + UUID.randomUUID();
-    return new File(new URI("file://" + table.location()))
-        .toPath()
-        .resolve("data")
-        .resolve(statsFileName)
-        .toFile();
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    return metadataFileLocation + "/" + statsFileName;
   }
 }
