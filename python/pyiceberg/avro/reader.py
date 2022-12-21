@@ -156,8 +156,8 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> date:
-        return decoder.read_date_from_int()
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()

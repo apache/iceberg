@@ -129,14 +129,6 @@ class BinaryDecoder:
         """
         return self.read_bytes().decode("utf-8")
 
-    def read_date_from_int(self) -> date:
-        """
-        int is decoded as python date object.
-        int stores the number of days from
-        the unix epoch, 1 January 1970 (ISO calendar).
-        """
-        return days_to_date(self.read_int())
-
     def read_uuid_from_fixed(self) -> UUID:
         """Reads a UUID as a fixed[16]"""
         return UUID(bytes=self.read(16))
