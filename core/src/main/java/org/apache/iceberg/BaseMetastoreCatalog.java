@@ -38,6 +38,8 @@ import org.slf4j.LoggerFactory;
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
 
+  private MetricsReporter metricsReporter;
+
   @Override
   public Table loadTable(TableIdentifier identifier) {
     Table result;
@@ -53,12 +55,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         }
 
       } else {
-        MetricsReporter metricsReporter =
-            properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
-                ? CatalogUtil.loadMetricsReporter(
-                    properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
-                : LoggingMetricsReporter.instance();
-        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter);
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
@@ -307,5 +304,16 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  private synchronized MetricsReporter metricsReporter() {
+    if (metricsReporter == null) {
+      metricsReporter =
+          properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
+              ? CatalogUtil.loadMetricsReporter(
+                  properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
+              : LoggingMetricsReporter.instance();
+    }
+    return metricsReporter;
   }
 }

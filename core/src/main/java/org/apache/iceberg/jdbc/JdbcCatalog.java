@@ -89,7 +89,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
         "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
 
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
-    this.catalogProperties = properties;
+    this.catalogProperties = ImmutableMap.copyOf(properties);
 
     if (name != null) {
       this.catalogName = name;
@@ -462,6 +462,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   @Override
   public boolean namespaceExists(Namespace namespace) {
     return JdbcUtil.namespaceExists(catalogName, connections, namespace);
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
   private int execute(String sql, String... args) {
