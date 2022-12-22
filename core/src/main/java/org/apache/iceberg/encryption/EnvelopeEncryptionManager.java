@@ -41,7 +41,7 @@ import org.apache.iceberg.util.PropertyUtil;
  */
 public class EnvelopeEncryptionManager implements EncryptionManager {
   private final String tableKeyId;
-  private final KmsClient kmsClient;
+  private final KeyManagementClient kmsClient;
   private final int dataKeyLength;
   private final boolean kmsGeneratedKeys;
 
@@ -53,9 +53,9 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
    * @param tableKeyId table encryption key id
    */
   public EnvelopeEncryptionManager(
-      String tableKeyId, KmsClient kmsClient, Map<String, String> encryptionProperties) {
+      String tableKeyId, KeyManagementClient kmsClient, Map<String, String> encryptionProperties) {
     Preconditions.checkNotNull(
-        kmsClient, "Cannot create EnvelopeEncryptionManager because KmsClient is null");
+        kmsClient, "Cannot create EnvelopeEncryptionManager because kmsClient is null");
     Preconditions.checkNotNull(
         encryptionProperties,
         "Cannot create EnvelopeEncryptionManager because encryptionProperties are not passed");
@@ -77,7 +77,7 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
     ByteBuffer wrappedFileDEK;
 
     if (kmsGeneratedKeys) {
-      KmsClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKeyId);
+      KeyManagementClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKeyId);
       fileDek = generatedDek.key();
       wrappedFileDEK = generatedDek.wrappedKey();
     } else {
