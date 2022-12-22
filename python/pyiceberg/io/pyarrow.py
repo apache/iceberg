@@ -75,6 +75,7 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
 
 
@@ -379,6 +380,11 @@ def _(_: TimestamptzType) -> pa.DataType:
 @_iceberg_to_pyarrow_type.register
 def _(_: StringType) -> pa.DataType:
     return pa.string()
+
+
+@_iceberg_to_pyarrow_type.register
+def _(_: UUIDType) -> pa.DataType:
+    return pa.binary(16)
 
 
 @_iceberg_to_pyarrow_type.register

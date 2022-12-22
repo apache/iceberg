@@ -34,6 +34,7 @@ from pyiceberg.avro.reader import (
     TimeReader,
     TimestampReader,
     TimestamptzReader,
+    UUIDReader,
     primitive_reader,
 )
 from pyiceberg.manifest import _convert_pos_to_dict
@@ -57,6 +58,7 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
 from tests.io.test_io import LocalInputFile
 
@@ -501,3 +503,7 @@ def test_unknown_type():
         primitive_reader(UnknownType())
 
     assert "Unknown type:" in str(exc_info.value)
+
+
+def test_uuid_reader() -> None:
+    assert primitive_reader(UUIDType()) == UUIDReader()

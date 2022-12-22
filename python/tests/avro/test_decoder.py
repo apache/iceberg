@@ -17,6 +17,7 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
+from uuid import UUID
 
 import pytest
 
@@ -221,3 +222,9 @@ def test_read_int_as_float():
     reader = promote(FloatType(), DoubleType())
 
     assert reader.read(decoder) == 19.25
+
+
+def test_read_uuid_from_fixed() -> None:
+    mis = MemoryInputStream(b"\x12\x34\x56\x78" * 4)
+    decoder = BinaryDecoder(mis)
+    assert decoder.read_uuid_from_fixed() == UUID("{12345678-1234-5678-1234-567812345678}")
