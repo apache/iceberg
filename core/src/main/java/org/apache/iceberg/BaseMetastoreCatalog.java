@@ -306,7 +306,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return sb.toString();
   }
 
-  private synchronized MetricsReporter metricsReporter() {
+  private MetricsReporter metricsReporter() {
     if (metricsReporter == null) {
       metricsReporter =
           properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
@@ -314,6 +314,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
                   properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
               : LoggingMetricsReporter.instance();
     }
+
     return metricsReporter;
   }
 }
