@@ -19,18 +19,17 @@
 package org.apache.iceberg.encryption.kms;
 
 import java.nio.ByteBuffer;
-import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.encryption.Ciphers;
-import org.apache.iceberg.encryption.KmsClient;
+import org.apache.iceberg.encryption.KeyManagementClient;
 
 /** For testing and demonstrations; not for use in production. */
-public abstract class MemoryMockKMS implements KmsClient {
+public abstract class MemoryMockKMS implements KeyManagementClient {
 
   protected Map<String, byte[]> masterKeys;
 
   @Override
-  public String wrapKey(ByteBuffer key, String wrappingKeyId) {
+  public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
     byte[] wrappingKey = masterKeys.get(wrappingKeyId);
     if (null == wrappingKey) {
       throw new RuntimeException(
@@ -38,19 +37,18 @@ public abstract class MemoryMockKMS implements KmsClient {
     }
     Ciphers.AesGcmEncryptor keyEncryptor = new Ciphers.AesGcmEncryptor(wrappingKey);
     byte[] encryptedKey = keyEncryptor.encrypt(key.array(), null);
-    return Base64.getEncoder().encodeToString(encryptedKey);
+    return ByteBuffer.wrap(encryptedKey);
   }
 
   @Override
-  public ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId) {
-    byte[] encryptedKey = Base64.getDecoder().decode(wrappedKey);
+  public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
     byte[] wrappingKey = masterKeys.get(wrappingKeyId);
     if (null == wrappingKey) {
       throw new RuntimeException(
           "Cannot unwrap, because wrapping key " + wrappingKeyId + " is not found");
     }
     Ciphers.AesGcmDecryptor keyDecryptor = new Ciphers.AesGcmDecryptor(wrappingKey);
-    byte[] key = keyDecryptor.decrypt(encryptedKey, null);
+    byte[] key = keyDecryptor.decrypt(wrappedKey.array(), null);
     return ByteBuffer.wrap(key);
   }
 }

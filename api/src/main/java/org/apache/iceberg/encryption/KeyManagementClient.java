@@ -22,9 +22,8 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-/** @deprecated A minimum client interface to connect to a key management service (KMS). */
-@Deprecated
-public interface KmsClient extends Serializable {
+/** A minimum client interface to connect to a key management service (KMS). */
+public interface KeyManagementClient extends Serializable {
 
   /**
    * Wrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
@@ -35,15 +34,15 @@ public interface KmsClient extends Serializable {
    * @param wrappingKeyId a key ID that represents a wrapping key stored in KMS
    * @return wrapped key material
    */
-  String wrapKey(ByteBuffer key, String wrappingKeyId);
+  ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId);
 
   /**
    * Some KMS systems support generation of secret keys inside the KMS server.
    *
-   * @return true if KMS server supports key generation and KmsClient implementation is interested
-   *     to leverage this capability. Otherwise, return false - Iceberg will then generate secret
-   *     keys locally (using the SecureRandom mechanism) and call {@link #wrapKey(ByteBuffer,
-   *     String)} to wrap them in KMS.
+   * @return true if KMS server supports key generation and KeyManagementClient implementation is
+   *     interested to leverage this capability. Otherwise, return false - Iceberg will then
+   *     generate secret keys locally (using the SecureRandom mechanism) and call {@link
+   *     #wrapKey(ByteBuffer, String)} to wrap them in KMS.
    */
   default boolean supportsKeyGeneration() {
     return false;
@@ -70,7 +69,7 @@ public interface KmsClient extends Serializable {
    * @param wrappingKeyId a key ID that represents a wrapping key stored in KMS
    * @return raw key bytes
    */
-  ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId);
+  ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId);
 
   /**
    * Initialize the KMS client with given properties
@@ -85,9 +84,9 @@ public interface KmsClient extends Serializable {
    */
   class KeyGenerationResult {
     private final ByteBuffer key;
-    private final String wrappedKey;
+    private final ByteBuffer wrappedKey;
 
-    public KeyGenerationResult(ByteBuffer key, String wrappedKey) {
+    public KeyGenerationResult(ByteBuffer key, ByteBuffer wrappedKey) {
       this.key = key;
       this.wrappedKey = wrappedKey;
     }
@@ -96,7 +95,7 @@ public interface KmsClient extends Serializable {
       return key;
     }
 
-    public String wrappedKey() {
+    public ByteBuffer wrappedKey() {
       return wrappedKey;
     }
   }
