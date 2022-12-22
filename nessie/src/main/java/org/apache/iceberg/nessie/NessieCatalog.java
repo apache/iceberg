@@ -331,4 +331,9 @@ public class NessieCatalog extends BaseMetastoreCatalog
     }
     return identifier;
   }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogOptions == null ? ImmutableMap.of() : catalogOptions;
+  }
 }

@@ -588,4 +588,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog
 
     return execute(JdbcUtil.deletePropertiesStatement(properties), args) > 0;
   }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
 }

@@ -55,6 +55,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -321,7 +322,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": None},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 19513,
             "file_size_in_bytes": 388872,
             "block_size_in_bytes": 67108864,
@@ -441,7 +442,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": 1},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 95050,
             "file_size_in_bytes": 1265950,
             "block_size_in_bytes": 67108864,
@@ -714,7 +715,15 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
+                                "fields": [
+                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]},
+                                    {
+                                        "field-id": 1001,
+                                        "default": None,
+                                        "name": "tpep_pickup_datetime",
+                                        "type": ["null", {"type": "int", "logicalType": "date"}],
+                                    },
+                                ],
                             },
                             "field-id": 102,
                         },
@@ -985,6 +994,12 @@ def iceberg_manifest_entry_schema() -> Schema:
                             field_id=1000,
                             name="VendorID",
                             field_type=IntegerType(),
+                            required=False,
+                        ),
+                        NestedField(
+                            field_id=1001,
+                            name="tpep_pickup_datetime",
+                            field_type=DateType(),
                             required=False,
                         ),
                     ),

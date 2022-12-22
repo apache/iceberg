@@ -291,20 +291,6 @@ def schema_to_pyarrow(schema: Schema) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
-class UuidType(pa.PyExtensionType):
-    """Custom type for UUID
-
-    For more information:
-    https://arrow.apache.org/docs/python/extending_types.html#defining-extension-types-user-defined-types
-    """
-
-    def __init__(self) -> None:
-        pa.PyExtensionType.__init__(self, pa.binary(16))
-
-    def __reduce__(self) -> Tuple[pa.PyExtensionType, Tuple[Any, ...]]:
-        return UuidType, ()
-
-
 class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleton):
     def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
         return pa.schema(list(struct_result))
@@ -366,7 +352,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.string()
 
     def visit_uuid(self, _: UUIDType) -> pa.DataType:
-        return UuidType()
+        return pa.binary(16)
 
     def visit_binary(self, _: BinaryType) -> pa.DataType:
         return pa.binary()
