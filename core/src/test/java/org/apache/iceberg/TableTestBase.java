@@ -52,7 +52,8 @@ public class TableTestBase {
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
+          required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()),
+              required(5, "year_field", Types.DateType.get()));
 
   protected static final int BUCKETS_NUMBER = 16;
 

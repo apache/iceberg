@@ -440,7 +440,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.year(sourceColumn.type()));
+              Transforms.year());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -458,7 +458,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.month(sourceColumn.type()));
+              Transforms.month());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -476,7 +476,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.day(sourceColumn.type()));
+              Transforms.day());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -494,7 +494,7 @@ public class PartitionSpec implements Serializable {
               sourceColumn.fieldId(),
               nextFieldId(),
               targetName,
-              Transforms.hour(sourceColumn.type()));
+              Transforms.hour());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;

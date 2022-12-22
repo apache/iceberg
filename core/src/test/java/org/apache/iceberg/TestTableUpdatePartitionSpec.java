@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
+import static org.apache.iceberg.expressions.Expressions.year;
 
 import org.apache.iceberg.transforms.Transforms;
 import org.junit.Assert;
@@ -184,6 +185,53 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
             .build(),
         table.spec());
 
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+  }
+
+  @Test
+  public void testAddAfterRemoveTimeField() {
+    table.updateSpec().addField(year("year_field")).commit();
+
+    PartitionSpec newSpec = PartitionSpec.builderFor(table.schema())
+            .withSpecId(1)
+            .bucket("data", 16)
+            .year("year_field")
+            .build();
+
+    Assert.assertEquals(
+            "Should have same transform class: org.apache.iceberg.transforms.Years",
+            newSpec.fields().get(1).transform().getClass().getName(),
+            table.spec().fields().get(1).transform().getClass().getName());
+
+    V1Assert.assertEquals("Should add a new id year",  newSpec, table.spec());
+    V2Assert.assertEquals(
+            "Should add a new id year",
+            PartitionSpec.builderFor(table.schema())
+                    .withSpecId(1)
+                    .add(2, 1000, "data_bucket", Transforms.bucket(16))
+                    .add(3, 1001, "year_field_year", Transforms.year())
+                    .build(),
+            table.spec());
+
+    //  remove and add a field with TimeTransform(Years, Months, Days, Hours)
+    table.updateSpec().removeField("year_field_year").addField(year("year_field")).commit();
+
+    V1Assert.assertEquals(
+            "Should remove and then add a year field",
+            PartitionSpec.builderFor(table.schema())
+                    .withSpecId(1)
+                    .bucket("data", 16)
+                    .year("year_field")
+                    .build(),
+            table.spec());
+    V2Assert.assertEquals(
+            "Should remove and then add a year field",
+            PartitionSpec.builderFor(table.schema())
+                    .withSpecId(1)
+                    .add(2, 1000, "data_bucket", Transforms.bucket(16))
+                    .add(3, 1001, "year_field_year", Transforms.year())
+                    .build(),
+            table.spec());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
   }
 
