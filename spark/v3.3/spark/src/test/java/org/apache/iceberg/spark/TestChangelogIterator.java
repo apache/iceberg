@@ -47,25 +47,25 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
   @Test
   public void testIterator() {
-    List<Object[]> pm = Lists.newArrayList();
-    // generate 24 permutations.
+    List<Object[]> permutations = Lists.newArrayList();
+    // generate 24 permutations
     permute(
         Arrays.asList(RowType.DELETED, RowType.INSERTED, RowType.CARRY_OVER, RowType.UPDATED),
         0,
-        pm);
-    Assert.assertEquals(24, pm.size());
+        permutations);
+    Assert.assertEquals(24, permutations.size());
 
-    for (Object[] item : pm) {
-      validate(item);
+    for (Object[] permutation : permutations) {
+      validate(permutation);
     }
   }
 
-  private void validate(Object[] item) {
+  private void validate(Object[] permutation) {
     List<Row> rows = Lists.newArrayList();
     List<Object[]> expectedRows = Lists.newArrayList();
-    for (int i = 0; i < item.length; i++) {
-      rows.addAll(toOriginalRows((RowType) item[i], i));
-      expectedRows.addAll(toExpectedRows((RowType) item[i], i));
+    for (int i = 0; i < permutation.length; i++) {
+      rows.addAll(toOriginalRows((RowType) permutation[i], i));
+      expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
     }
 
     Iterator<Row> iterator =
@@ -74,22 +74,22 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     assertEquals("Rows should match", expectedRows, rowsToJava(result));
   }
 
-  private List<Row> toOriginalRows(RowType rowType, int order) {
+  private List<Row> toOriginalRows(RowType rowType, int index) {
     switch (rowType) {
       case DELETED:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {order, "b", "data", DELETE}, null));
+            new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE}, null));
       case INSERTED:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {order, "c", "data", INSERT}, null));
+            new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT}, null));
       case CARRY_OVER:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {order, "d", "data", DELETE}, null),
-            new GenericRowWithSchema(new Object[] {order, "d", "data", INSERT}, null));
+            new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT}, null));
       case UPDATED:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {order, "a", "data", DELETE}, null),
-            new GenericRowWithSchema(new Object[] {order, "a", "new_data", INSERT}, null));
+            new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT}, null));
       default:
         throw new IllegalArgumentException("Unknown row type: " + rowType);
     }
