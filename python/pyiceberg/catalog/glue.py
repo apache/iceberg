@@ -317,7 +317,7 @@ class GlueCatalog(Catalog):
         manifest_paths_to_delete = {manifest.manifest_path for manifest in manifests_to_delete}
         prev_metadata_files = {log.metadata_file for log in metadata.metadata_log}
 
-        delete_data_files(io, manifests_to_delete)
+        delete_data_files(io, manifests_to_delete, metadata.format_version)
         delete_files(io, manifest_paths_to_delete, MANIFEST)
         delete_files(io, manifest_lists_to_delete, MANIFEST_LIST)
         delete_files(io, prev_metadata_files, PREVIOUS_METADATA)

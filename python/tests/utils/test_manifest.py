@@ -31,18 +31,19 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
+from pyiceberg.typedef import Record
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
     input_file = PyArrowFileIO().new_input(location=generated_manifest_entry_file)
     assert list(read_manifest_entry(input_file, format_version=2)) == [
         ManifestEntry(
-            1,  # status
-            8744736658442914487,  # snapshot_id
-            DataFile(
+            status=ManifestEntryStatus.ADDED,
+            snapshot_id=8744736658442914487,
+            data_file=DataFile(
                 file_path="/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
                 file_format=FileFormat.PARQUET,
-                partition={"VendorID": None},
+                partition=Record(None),
                 record_count=19513,
                 file_size_in_bytes=388872,
                 block_size_in_bytes=67108864,
@@ -146,12 +147,12 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
             ),
         ),
         ManifestEntry(
-            status=1,
+            status=ManifestEntryStatus.ADDED,
             snapshot_id=8744736658442914487,
             data_file=DataFile(
                 file_path="/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
                 file_format=FileFormat.PARQUET,
-                partition={"VendorID": 1},
+                partition=Record(1),
                 record_count=95050,
                 file_size_in_bytes=1265950,
                 block_size_in_bytes=67108864,
@@ -269,23 +270,23 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
 
 def test_read_manifest_list(generated_manifest_file_file: str) -> None:
     input_file = PyArrowFileIO().new_input(generated_manifest_file_file)
-    actual = list(read_manifest_list(input_file))
+    actual = list(read_manifest_list(input_file, format_version=1))
     expected = [
         ManifestFile(
             manifest_path=actual[0].manifest_path,
             manifest_length=7989,
             partition_spec_id=0,
             added_snapshot_id=9182715666859759686,
-            added_data_files_count=3,
-            existing_data_files_count=0,
-            deleted_data_files_count=0,
+            added_files_count=3,
+            existing_files_count=0,
+            deleted_files_count=0,
             partitions=[
                 PartitionFieldSummary(
                     contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
                 )
             ],
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=None,
             deleted_rows_count=0,
         )
     ]
@@ -303,7 +304,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
-    manifest_list = snapshot.manifests(io)
+    manifest_list = snapshot.manifests(io, format_version=2)
 
     assert manifest_list == [
         ManifestFile(
@@ -314,11 +315,11 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
             sequence_number=0,
             min_sequence_number=0,
             added_snapshot_id=9182715666859759686,
-            added_data_files_count=3,
-            existing_data_files_count=0,
-            deleted_data_files_count=0,
+            added_files_count=3,
+            existing_files_count=0,
+            deleted_files_count=0,
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=None,
             deleted_rows_count=0,
             partitions=[
                 PartitionFieldSummary(
@@ -329,7 +330,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
         )
     ]
 
-    actual = manifest_list[0].fetch_manifest_entry(io)
+    actual = manifest_list[0].fetch_manifest_entry(io, format_version=1)
     expected = [
         ManifestEntry(
             status=ManifestEntryStatus.ADDED,
@@ -339,7 +340,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
                 content=DataFileContent.DATA,
                 file_path="/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
                 file_format=FileFormat.PARQUET,
-                partition={"VendorID": None},
+                partition=Record(None),
                 record_count=19513,
                 file_size_in_bytes=388872,
                 block_size_in_bytes=67108864,
@@ -452,7 +453,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
                 content=DataFileContent.DATA,
                 file_path="/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
                 file_format=FileFormat.PARQUET,
-                partition={"VendorID": 1},
+                partition=Record(None),
                 record_count=95050,
                 file_size_in_bytes=1265950,
                 block_size_in_bytes=67108864,

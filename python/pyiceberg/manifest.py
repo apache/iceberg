@@ -83,18 +83,18 @@ class DataFile(Record):
     partition: Record
     record_count: int
     file_size_in_bytes: int
-    block_size_in_bytes: Optional[int]
-    column_sizes: Optional[Dict[int, int]]
-    value_counts: Optional[Dict[int, int]]
-    null_value_counts: Optional[Dict[int, int]]
-    nan_value_counts: Optional[Dict[int, int]]
-    distinct_counts: Optional[Dict[int, int]]  # Does not seem to be used on the Java side!?
-    lower_bounds: Optional[Dict[int, bytes]]
-    upper_bounds: Optional[Dict[int, bytes]]
-    key_metadata: Optional[bytes]
-    split_offsets: Optional[List[int]]
-    equality_ids: Optional[List[int]]
-    sort_order_id: Optional[int]
+    block_size_in_bytes: Optional[int] = field(default=None)
+    column_sizes: Optional[Dict[int, int]] = field(default=None)
+    value_counts: Optional[Dict[int, int]] = field(default=None)
+    null_value_counts: Optional[Dict[int, int]] = field(default=None)
+    nan_value_counts: Optional[Dict[int, int]] = field(default=None)
+    distinct_counts: Optional[Dict[int, int]] = field(default=None)  # Does not seem to be used on the Java side!?
+    lower_bounds: Optional[Dict[int, bytes]] = field(default=None)
+    upper_bounds: Optional[Dict[int, bytes]] = field(default=None)
+    key_metadata: Optional[bytes] = field(default=None)
+    split_offsets: Optional[List[int]] = field(default=None)
+    equality_ids: Optional[List[int]] = field(default=None)
+    sort_order_id: Optional[int] = field(default=None)
     content: DataFileContent = field(default=DataFileContent.DATA)
 
 
@@ -171,10 +171,10 @@ class DataFileV2(DataFile):
 @dataclass
 class ManifestEntry(Record):
     status: ManifestEntryStatus
-    snapshot_id: Optional[int]
-    sequence_number: Optional[int]
-    file_sequence_number: Optional[int]
     data_file: DataFile
+    snapshot_id: Optional[int] = None
+    sequence_number: Optional[int] = None
+    file_sequence_number: Optional[int] = None
 
     @staticmethod
     def from_record(record: Record, format_version: int) -> Union[ManifestEntryV1, ManifestEntryV2]:
@@ -189,7 +189,7 @@ class ManifestEntry(Record):
 class ManifestEntryV1(ManifestEntry):
     def __setitem__(self, pos: int, value: Any) -> None:
         if pos == 0:
-            self.status = value
+            self.status = ManifestEntryStatus(value)
         elif pos == 1:
             self.snapshot_id = value
         elif pos == 2:
@@ -199,7 +199,7 @@ class ManifestEntryV1(ManifestEntry):
 class ManifestEntryV2(ManifestEntry):
     def __setitem__(self, pos: int, value: Any) -> None:
         if pos == 0:
-            self.status = value
+            self.status = ManifestEntryStatus(value)
         elif pos == 1:
             self.snapshot_id = value
         elif pos == 2:
@@ -243,19 +243,18 @@ class ManifestFile(Record):
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
-    snapshot_id: int
-    added_files_count: Optional[int]
-    existing_files_count: Optional[int]
-    deleted_files_count: Optional[int]
-    added_rows_count: Optional[int]
-    existing_rows_count: Optional[int]
-    deleted_rows_count: Optional[int]
-    partitions: List[PartitionFieldSummary]
-    added_snapshot_id: Optional[int]
-    sequence_number: int
-    min_sequence_number: int
-    key_metadata: Optional[bytes]
-    content: ManifestContent = field(default=ManifestContent.DATA)
+    added_snapshot_id: int
+    content: ManifestContent = field(default=ManifestContent.DATA)  # v2
+    sequence_number: Optional[int] = field(default=None)  # v2
+    min_sequence_number: Optional[int] = field(default=None)  # v2
+    added_files_count: Optional[int] = field(default=None)
+    existing_files_count: Optional[int] = field(default=None)
+    deleted_files_count: Optional[int] = field(default=None)
+    added_rows_count: Optional[int] = field(default=None)
+    existing_rows_count: Optional[int] = field(default=None)
+    deleted_rows_count: Optional[int] = field(default=None)
+    partitions: List[PartitionFieldSummary] = field(default_factory=list)
+    key_metadata: Optional[bytes] = field(default=None)
 
     def fetch_manifest_entry(self, io: FileIO, format_version: int) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)
