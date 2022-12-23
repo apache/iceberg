@@ -18,6 +18,7 @@ import decimal
 import struct
 from datetime import datetime, time
 from io import SEEK_CUR
+from uuid import UUID
 
 from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
@@ -153,6 +154,10 @@ class BinaryDecoder:
         Adjusted to UTC
         """
         return micros_to_timestamptz(self.read_int())
+
+    def read_uuid_from_fixed(self) -> UUID:
+        """Reads a UUID as a fixed[16]"""
+        return UUID(bytes=self.read(16))
 
     def skip_boolean(self) -> None:
         self.skip(1)

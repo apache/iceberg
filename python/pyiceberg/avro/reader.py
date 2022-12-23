@@ -64,6 +64,7 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -209,10 +210,10 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
-        return UUID(decoder.read_utf8())
+        return decoder.read_uuid_from_fixed()
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_utf8()
+        decoder.skip(16)
 
 
 @dataclass(frozen=True)
@@ -431,3 +432,8 @@ def _(_: StringType) -> Reader:
 @primitive_reader.register
 def _(_: BinaryType) -> Reader:
     return BinaryReader()
+
+
+@primitive_reader.register
+def _(_: UUIDType) -> Reader:
+    return UUIDReader()
