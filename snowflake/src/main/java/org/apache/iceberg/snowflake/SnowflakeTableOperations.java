@@ -47,7 +47,7 @@ class SnowflakeTableOperations extends BaseMetastoreTableOperations {
     this.fileIO = fileIO;
     this.tableIdentifier = tableIdentifier;
     this.snowflakeIdentifierForTable = NamespaceHelpers.toSnowflakeIdentifier(tableIdentifier);
-    this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier.toString());
+    this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);
   }
 
   @Override
