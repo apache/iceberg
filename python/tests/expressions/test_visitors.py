@@ -790,8 +790,11 @@ def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
         "",  # manifest_path
         0,  # manifest_length
         0,  # partition_spec_id
+        0,  # added_snapshot_id
+        0,  # existing_files_count
+        0,  # added_files_count
+        0,  # deleted_files_count
         list(partitions),
-        0  # added_snapshot_id
     ), format_version=1)
 
 
@@ -840,13 +843,6 @@ def _PartitionFieldSummary(contains_null: bool, contains_nan: Optional[bool], lo
 
 @pytest.fixture
 def manifest() -> ManifestFile:
-    vo = _PartitionFieldSummary(
-            contains_null=False,
-            contains_nan=None,
-            lower_bound=INT_MIN,
-            upper_bound=INT_MAX,
-        )
-
     return _to_manifest_file(
         # id
         _PartitionFieldSummary(

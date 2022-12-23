@@ -108,4 +108,4 @@ class Record(StructProtocol):
         return len(self._data)
 
     def __repr__(self) -> str:
-        return "[" + ", ".join(repr(data) for data in self._data) + "]"
+        return f"{self.__class__.__name__}(" + ", ".join(repr(data) for data in self._data) + ")"

@@ -191,19 +191,19 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
-    manifest_list = snapshot.manifests(io, format_version=2)[0]
+    manifest_list = snapshot.manifests(io, format_version=1)[0]
 
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
     assert manifest_list.content == ManifestContent.DATA
-    assert manifest_list.sequence_number == 0
-    assert manifest_list.min_sequence_number == 0
+    assert manifest_list.sequence_number is None
+    assert manifest_list.min_sequence_number is None
     assert manifest_list.added_snapshot_id == 9182715666859759686
     assert manifest_list.added_files_count == 3
     assert manifest_list.existing_files_count == 0
     assert manifest_list.deleted_files_count == 0
     assert manifest_list.added_rows_count == 237993
-    assert manifest_list.existing_rows_count is None
+    assert manifest_list.existing_rows_count == 0
     assert manifest_list.deleted_rows_count == 0
     assert manifest_list.key_metadata is None
 
@@ -215,6 +215,6 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
 
     assert partition.contains_null is True
     assert partition.contains_nan is False
-    assert partition.upper_bound == b"\x01\x00\x00\x00"
-    assert partition.lower_bound == b"\x02\x00\x00\x00"
+    assert partition.lower_bound == b"\x01\x00\x00\x00"
+    assert partition.upper_bound == b"\x02\x00\x00\x00"
 
