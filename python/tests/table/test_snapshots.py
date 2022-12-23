@@ -134,27 +134,30 @@ def test_fetch_manifest_list(generated_manifest_file_file: str) -> None:
         schema_id=3,
     )
     io = PyArrowFileIO()
-    actual = snapshot.manifests(io, format_version=2)
-    assert actual == [
-        ManifestFile(
-            manifest_path=actual[0].manifest_path,  # Is a temp path that changes every time
-            manifest_length=7989,
-            partition_spec_id=0,
-            content=ManifestContent.DATA,
-            sequence_number=0,
-            min_sequence_number=0,
-            added_snapshot_id=9182715666859759686,
-            added_files_count=3,
-            existing_files_count=0,
-            deleted_files_count=0,
-            added_rows_count=237993,
-            existing_rows_count=None,
-            deleted_rows_count=0,
-            partitions=[
-                PartitionFieldSummary(
-                    contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
-                )
-            ],
-            key_metadata=None,
-        )
-    ]
+    manifest_file = snapshot.manifests(io, format_version=1)[0]
+
+    assert manifest_file.manifest_length == 7989
+    assert manifest_file.partition_spec_id == 0
+    assert manifest_file.content == ManifestContent.DATA
+    assert manifest_file.sequence_number is None
+    assert manifest_file.min_sequence_number is None
+    assert manifest_file.added_snapshot_id == 9182715666859759686
+    assert manifest_file.added_files_count == 3
+    assert manifest_file.existing_files_count == 0
+    assert manifest_file.deleted_files_count == 0
+    assert manifest_file.added_rows_count == 237993
+    assert manifest_file.deleted_files_count == 0
+    assert manifest_file.existing_rows_count == 0
+    assert manifest_file.deleted_rows_count == 0
+    assert manifest_file.key_metadata is None
+
+    assert manifest_file.partitions is not None
+
+    partition = manifest_file.partitions[0]
+
+    assert isinstance(partition, PartitionFieldSummary)
+
+    assert partition.contains_null is True
+    assert partition.contains_nan is False
+    assert partition.lower_bound == b"\x01\x00\x00\x00"
+    assert partition.upper_bound == b"\x02\x00\x00\x00"

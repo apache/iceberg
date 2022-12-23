@@ -27,7 +27,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    runtime_checkable,
+    runtime_checkable, Iterator,
 )
 from uuid import UUID
 
@@ -86,20 +86,19 @@ class StructProtocol(Protocol):  # pragma: no cover
 class Record(StructProtocol):
     _data: List[Union[Any, StructProtocol]]
 
-    def wrap(self, record: Record) -> Record:
-        self._data = record._data
-        for idx in range(len(record)):
-            self[idx] = record[idx]
-        return self
-
     def __init__(self, *data: Union[Any, StructProtocol]) -> None:
         self._data = list(data)
+        for idx, value in enumerate(data):
+            self[idx] = value
 
     def __setitem__(self, pos: int, value: Any) -> None:
         self._data[pos] = value
 
     def __getitem__(self, pos: int) -> Any:
         return self._data[pos]
+
+    def __iter__(self) -> Iterator[Union[StructProtocol, Any]]:
+        yield from self._data
 
     def __eq__(self, other: Any) -> bool:
         # For testing
@@ -109,4 +108,4 @@ class Record(StructProtocol):
         return len(self._data)
 
     def __repr__(self) -> str:
-        return "[" + ", ".join([repr(data) for data in self._data]) + "]"
+        return "[" + ", ".join(repr(data) for data in self._data) + "]"

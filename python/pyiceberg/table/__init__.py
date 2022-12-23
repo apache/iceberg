@@ -264,24 +264,6 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-class _DictAsStruct(StructProtocol):
-    pos_to_name: Dict[int, str]
-    wrapped: Dict[str, Any]
-
-    def __init__(self, partition_type: StructType):
-        self.pos_to_name = {pos: field.name for pos, field in enumerate(partition_type.fields)}
-
-    def wrap(self, to_wrap: Dict[str, Any]) -> _DictAsStruct:
-        self.wrapped = to_wrap
-        return self
-
-    def get(self, pos: int) -> Any:
-        return self.wrapped[self.pos_to_name[pos]]
-
-    def set(self, pos: int, value: Any) -> None:
-        raise NotImplementedError("Cannot set values in DictAsStruct")
-
-
 class DataScan(TableScan["DataScan"]):
     def __init__(
         self,

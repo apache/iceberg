@@ -16,7 +16,6 @@
 # under the License.
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import (
     Any,
@@ -67,14 +66,13 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-@dataclass
 class DataFile(Record):
     @staticmethod
     def from_record(record: Record, format_version: int) -> Union[DataFileV1, DataFileV2]:
         if format_version == 1:
-            return DataFileV1().wrap(record)  # type: ignore
+            return DataFileV1(*record)
         elif format_version == 2:
-            return DataFileV2().wrap(record)  # type: ignore
+            return DataFileV2(*record)
         else:
             raise ValueError(f"Unknown format-version: {format_version}")
 
@@ -83,19 +81,19 @@ class DataFile(Record):
     partition: Record
     record_count: int
     file_size_in_bytes: int
-    block_size_in_bytes: Optional[int] = field(default=None)
-    column_sizes: Optional[Dict[int, int]] = field(default=None)
-    value_counts: Optional[Dict[int, int]] = field(default=None)
-    null_value_counts: Optional[Dict[int, int]] = field(default=None)
-    nan_value_counts: Optional[Dict[int, int]] = field(default=None)
-    distinct_counts: Optional[Dict[int, int]] = field(default=None)  # Does not seem to be used on the Java side!?
-    lower_bounds: Optional[Dict[int, bytes]] = field(default=None)
-    upper_bounds: Optional[Dict[int, bytes]] = field(default=None)
-    key_metadata: Optional[bytes] = field(default=None)
-    split_offsets: Optional[List[int]] = field(default=None)
-    equality_ids: Optional[List[int]] = field(default=None)
-    sort_order_id: Optional[int] = field(default=None)
-    content: DataFileContent = field(default=DataFileContent.DATA)
+    block_size_in_bytes: Optional[int] = None
+    column_sizes: Optional[Dict[int, int]] = None
+    value_counts: Optional[Dict[int, int]] = None
+    null_value_counts: Optional[Dict[int, int]] = None
+    nan_value_counts: Optional[Dict[int, int]] = None
+    distinct_counts: Optional[Dict[int, int]] = None  # Does not seem to be used on the Java side!?
+    lower_bounds: Optional[Dict[int, bytes]] = None
+    upper_bounds: Optional[Dict[int, bytes]] = None
+    key_metadata: Optional[bytes] = None
+    split_offsets: Optional[List[int]] = None
+    equality_ids: Optional[List[int]] = None
+    sort_order_id: Optional[int] = None
+    content: DataFileContent = DataFileContent.DATA
 
 
 class DataFileV1(DataFile):
@@ -168,7 +166,6 @@ class DataFileV2(DataFile):
             self.sort_order_id = value
 
 
-@dataclass
 class ManifestEntry(Record):
     status: ManifestEntryStatus
     data_file: DataFile
@@ -179,9 +176,9 @@ class ManifestEntry(Record):
     @staticmethod
     def from_record(record: Record, format_version: int) -> Union[ManifestEntryV1, ManifestEntryV2]:
         if format_version == 1:
-            return ManifestEntryV1().wrap(record)  # type: ignore
+            return ManifestEntryV1(*record)
         elif format_version == 2:
-            return ManifestEntryV2().wrap(record)  # type: ignore
+            return ManifestEntryV2(*record)
         else:
             raise ValueError(f"Unknown format-version: {format_version}")
 
@@ -210,8 +207,12 @@ class ManifestEntryV2(ManifestEntry):
             self.data_file = DataFile.from_record(value, format_version=2)
 
 
-@dataclass
 class PartitionFieldSummary(Record):
+
+    @staticmethod
+    def from_record(record: Record) -> PartitionFieldSummary:
+        return PartitionFieldSummary(*record)
+
     contains_null: bool
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
@@ -229,32 +230,31 @@ class PartitionFieldSummary(Record):
         # ignore the object, it must be from a newer version of the format
 
 
-@dataclass
 class ManifestFile(Record):
     @staticmethod
     def from_record(record: Record, format_version: int) -> ManifestFile:
         if format_version == 1:
-            return ManifestFileV1().wrap(record)  # type: ignore
+            return ManifestFileV1(*record)
         elif format_version == 2:
-            return ManifestFileV2().wrap(record)  # type: ignore
+            return ManifestFileV2(*record)
         else:
             raise ValueError(f"Unknown format-version: {format_version}")
 
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
-    added_snapshot_id: int
-    content: ManifestContent = field(default=ManifestContent.DATA)  # v2
-    sequence_number: Optional[int] = field(default=None)  # v2
-    min_sequence_number: Optional[int] = field(default=None)  # v2
-    added_files_count: Optional[int] = field(default=None)
-    existing_files_count: Optional[int] = field(default=None)
-    deleted_files_count: Optional[int] = field(default=None)
-    added_rows_count: Optional[int] = field(default=None)
-    existing_rows_count: Optional[int] = field(default=None)
-    deleted_rows_count: Optional[int] = field(default=None)
-    partitions: List[PartitionFieldSummary] = field(default_factory=list)
-    key_metadata: Optional[bytes] = field(default=None)
+    added_snapshot_id: int  # v2
+    content: ManifestContent = ManifestContent.DATA  # v2
+    sequence_number: Optional[int] = None  # v2
+    min_sequence_number: Optional[int] = None  # v2
+    added_files_count: Optional[int] = None
+    existing_files_count: Optional[int] = None
+    deleted_files_count: Optional[int] = None
+    added_rows_count: Optional[int] = None
+    existing_rows_count: Optional[int] = None
+    deleted_rows_count: Optional[int] = None
+    partitions: Optional[List[PartitionFieldSummary]] = None
+    key_metadata: Optional[bytes] = None
 
     def fetch_manifest_entry(self, io: FileIO, format_version: int) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)
@@ -270,7 +270,7 @@ class ManifestFileV1(ManifestFile):
         elif pos == 2:
             self.partition_spec_id = value
         elif pos == 3:
-            self.snapshot_id = value
+            self.added_snapshot_id = value
         elif pos == 4:
             self.added_files_count = value
         elif pos == 5:
@@ -279,7 +279,7 @@ class ManifestFileV1(ManifestFile):
             self.deleted_files_count = value
         elif pos == 7:
             self.partitions = [
-                element if isinstance(element, PartitionFieldSummary) else PartitionFieldSummary().wrap(element)  # type: ignore
+                element if isinstance(element, PartitionFieldSummary) else PartitionFieldSummary(*element)
                 for element in value
             ]
         elif pos == 8:
@@ -300,13 +300,13 @@ class ManifestFileV2(ManifestFile):
         elif pos == 2:
             self.partition_spec_id = value
         elif pos == 3:
-            self.content = value
+            self.content = ManifestContent(value)
         elif pos == 4:
             self.sequence_number = value
         elif pos == 5:
             self.min_sequence_number = value
         elif pos == 6:
-            self.snapshot_id = value
+            self.added_snapshot_id = value
         elif pos == 7:
             self.added_files_count = value
         elif pos == 8:
@@ -328,7 +328,8 @@ class ManifestFileV2(ManifestFile):
 
 def read_manifest_entry(input_file: InputFile, format_version: int) -> List[ManifestEntry]:
     with AvroFile(input_file) as reader:
-        return [ManifestEntry.from_record(record, format_version) for record in reader]
+        records = list(reader)
+        return [ManifestEntry.from_record(record, format_version) for record in records]
 
 
 def live_entries(input_file: InputFile, format_version: int) -> Iterator[ManifestEntry]:
@@ -341,7 +342,8 @@ def files(input_file: InputFile, format_version: int) -> Iterator[DataFile]:
 
 def read_manifest_list(input_file: InputFile, format_version: int) -> List[ManifestFile]:
     with AvroFile(input_file) as reader:
-        return [ManifestFile.from_record(record, format_version) for record in reader]
+        records = list(reader)
+        return [ManifestFile.from_record(record, format_version) for record in records]
 
 
 def read_manifest_list_record(input_file: InputFile, format_version: int) -> List[ManifestFile]:
