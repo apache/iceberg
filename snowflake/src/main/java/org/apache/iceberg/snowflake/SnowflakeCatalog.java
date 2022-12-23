@@ -43,8 +43,8 @@ import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Object> {
-  public static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
-  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  private static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   static class FileIOFactory {
     public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
@@ -94,7 +94,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
     String uri = properties.get(CatalogProperties.URI);
-    Preconditions.checkNotNull(uri, "JDBC connection URI is required");
+    Preconditions.checkArgument(null != uri, "JDBC connection URI is required");
     try {
       // We'll ensure the expected JDBC driver implementation class is initialized through
       // reflection regardless of which classloader ends up using this JdbcSnowflakeClient, but
@@ -171,18 +171,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     }
 
     List<Namespace> namespaceList =
-        results.stream()
-            .map(
-                result -> {
-                  Preconditions.checkState(
-                      result.type() == SnowflakeIdentifier.Type.SCHEMA
-                          || result.type() == SnowflakeIdentifier.Type.DATABASE,
-                      "Got identifier of type %s from listNamespaces for %s",
-                      result.type(),
-                      namespace);
-                  return NamespaceHelpers.toIcebergNamespace(result);
-                })
-            .collect(Collectors.toList());
+        results.stream().map(NamespaceHelpers::toIcebergNamespace).collect(Collectors.toList());
     return namespaceList;
   }
 
@@ -236,6 +225,13 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     if (catalogProperties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
       fileIOImpl = catalogProperties.get(CatalogProperties.FILE_IO_IMPL);
     }
+
+    // Initialize a fresh FileIO for each TableOperations created, because some FileIO
+    // implementations such as S3FileIO can become bound to a single S3 bucket. Additionally,
+    // FileIO implementations often support only a finite set of one or more URI schemes (i.e.
+    // S3FileIO only supports s3/s3a/s3n, and even ResolvingFileIO only supports the combination
+    // of schemes registered for S3FileIO and HadoopFileIO). Individual catalogs may need to
+    // support tables across different cloud/storage providers with disjoint FileIO implementations.
     FileIO fileIO = fileIOFactory.newFileIO(fileIOImpl, catalogProperties, conf);
     closeableGroup.addCloseable(fileIO);
     return new SnowflakeTableOperations(snowflakeClient, fileIO, catalogName, tableIdentifier);

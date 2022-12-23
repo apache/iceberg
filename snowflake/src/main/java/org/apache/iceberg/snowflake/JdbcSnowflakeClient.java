@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * Snowflake's Iceberg-aware resource model.
  */
 class JdbcSnowflakeClient implements SnowflakeClient {
-  public static final String EXPECTED_JDBC_IMPL = "net.snowflake.client.jdbc.SnowflakeDriver";
+  static final String EXPECTED_JDBC_IMPL = "net.snowflake.client.jdbc.SnowflakeDriver";
 
   @FunctionalInterface
   interface ResultSetParser<T> {
@@ -182,9 +182,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, DATABASE_RESULT_SET_HANDLER, (String[]) null));
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to check if database exists");
+      throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
     } catch (InterruptedException e) {
-      throw new UncheckedInterruptedException(e, "Interrupted while checking if database exists");
+      throw new UncheckedInterruptedException(
+          e, "Interrupted while checking if database '%s' exists", database);
     }
 
     // Filter to handle the edge case of '_' appearing as a wildcard that can't be remapped the way
@@ -222,9 +223,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       SCHEMA_RESULT_SET_HANDLER,
                       new String[] {schema.databaseName()}));
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to check if schema exists");
+      throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
     } catch (InterruptedException e) {
-      throw new UncheckedInterruptedException(e, "Interrupted while checking if schema exists");
+      throw new UncheckedInterruptedException(
+          e, "Interrupted while checking if schema '%s' exists", schema);
     }
 
     // Filter to handle the edge case of '_' appearing as a wildcard that can't be remapped the way
@@ -250,6 +252,12 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
     }
+    databases.forEach(
+        db ->
+            Preconditions.checkState(
+                db.type() == SnowflakeIdentifier.Type.DATABASE,
+                "Expected DATABASE, got identifier '%s'",
+                db));
     return databases;
   }
 
@@ -282,10 +290,18 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to list schemas for scope %s", scope);
+      throw new UncheckedSQLException(e, "Failed to list schemas for scope '%s'", scope);
     } catch (InterruptedException e) {
-      throw new UncheckedInterruptedException(e, "Interrupted while listing schemas");
+      throw new UncheckedInterruptedException(
+          e, "Interrupted while listing schemas for scope '%s'", scope);
     }
+    schemas.forEach(
+        schema ->
+            Preconditions.checkState(
+                schema.type() == SnowflakeIdentifier.Type.SCHEMA,
+                "Expected SCHEMA, got identifier '%s' for scope '%s'",
+                schema,
+                scope));
     return schemas;
   }
 
@@ -322,10 +338,18 @@ class JdbcSnowflakeClient implements SnowflakeClient {
               conn ->
                   queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to list tables for scope %s", scope.toString());
+      throw new UncheckedSQLException(e, "Failed to list tables for scope '%s'", scope);
     } catch (InterruptedException e) {
-      throw new UncheckedInterruptedException(e, "Interrupted while listing tables");
+      throw new UncheckedInterruptedException(
+          e, "Interrupted while listing tables for scope '%s'", scope);
     }
+    tables.forEach(
+        table ->
+            Preconditions.checkState(
+                table.type() == SnowflakeIdentifier.Type.TABLE,
+                "Expected TABLE, got identifier '%s' for scope '%s'",
+                table,
+                scope));
     return tables;
   }
 
@@ -347,10 +371,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
-      throw new UncheckedSQLException(
-          e, "Failed to get table metadata for %s", tableIdentifier.toString());
+      throw new UncheckedSQLException(e, "Failed to get table metadata for '%s'", tableIdentifier);
     } catch (InterruptedException e) {
-      throw new UncheckedInterruptedException(e, "Interrupted while getting table metadata");
+      throw new UncheckedInterruptedException(
+          e, "Interrupted while getting table metadata for '%s'", tableIdentifier);
     }
     return tableMeta;
   }

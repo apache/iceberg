@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class FakeSnowflakeClient implements SnowflakeClient {
   // In-memory lookup by database/schema/tableName to table metadata.
-  private Map<String, Map<String, Map<String, SnowflakeTableMetadata>>> databases =
+  private final Map<String, Map<String, Map<String, SnowflakeTableMetadata>>> databases =
       Maps.newTreeMap();
   private boolean closed = false;
 
@@ -37,18 +37,18 @@ public class FakeSnowflakeClient implements SnowflakeClient {
    * Also adds parent database/schema if they don't already exist. If the tableName already exists
    * under the given database/schema, the value is replaced with the provided metadata.
    */
-  public void addTable(
-      String database, String schema, String tableName, SnowflakeTableMetadata metadata) {
+  public void addTable(SnowflakeIdentifier tableIdentifier, SnowflakeTableMetadata metadata) {
     Preconditions.checkState(!closed, "Cannot call addTable after calling close()");
-    if (!databases.containsKey(database)) {
-      databases.put(database, Maps.newTreeMap());
+    if (!databases.containsKey(tableIdentifier.databaseName())) {
+      databases.put(tableIdentifier.databaseName(), Maps.newTreeMap());
     }
-    Map<String, Map<String, SnowflakeTableMetadata>> schemas = databases.get(database);
-    if (!schemas.containsKey(schema)) {
-      schemas.put(schema, Maps.newTreeMap());
+    Map<String, Map<String, SnowflakeTableMetadata>> schemas =
+        databases.get(tableIdentifier.databaseName());
+    if (!schemas.containsKey(tableIdentifier.schemaName())) {
+      schemas.put(tableIdentifier.schemaName(), Maps.newTreeMap());
     }
-    Map<String, SnowflakeTableMetadata> tables = schemas.get(schema);
-    tables.put(tableName, metadata);
+    Map<String, SnowflakeTableMetadata> tables = schemas.get(tableIdentifier.schemaName());
+    tables.put(tableIdentifier.tableName(), metadata);
   }
 
   @Override

@@ -38,7 +38,7 @@ import org.junit.Test;
 
 public class SnowflakeCatalogTest {
 
-  static final String TEST_CATALOG_NAME = "slushLog";
+  private static final String TEST_CATALOG_NAME = "slushLog";
   private SnowflakeCatalog catalog;
   private FakeSnowflakeClient fakeClient;
   private InMemoryFileIO fakeFileIO;
@@ -51,39 +51,27 @@ public class SnowflakeCatalogTest {
 
     fakeClient = new FakeSnowflakeClient();
     fakeClient.addTable(
-        "DB_1",
-        "SCHEMA_1",
-        "TAB_1",
+        SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TAB_1"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"s3://tab1/metadata/v3.metadata.json\",\"status\":\"success\"}"));
     fakeClient.addTable(
-        "DB_1",
-        "SCHEMA_1",
-        "TAB_2",
+        SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TAB_2"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"s3://tab2/metadata/v1.metadata.json\",\"status\":\"success\"}"));
     fakeClient.addTable(
-        "DB_2",
-        "SCHEMA_2",
-        "TAB_3",
+        SnowflakeIdentifier.ofTable("DB_2", "SCHEMA_2", "TAB_3"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"azure://myaccount.blob.core.windows.net/mycontainer/tab3/metadata/v334.metadata.json\",\"status\":\"success\"}"));
     fakeClient.addTable(
-        "DB_2",
-        "SCHEMA_2",
-        "TAB_4",
+        SnowflakeIdentifier.ofTable("DB_2", "SCHEMA_2", "TAB_4"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"azure://myaccount.blob.core.windows.net/mycontainer/tab4/metadata/v323.metadata.json\",\"status\":\"success\"}"));
     fakeClient.addTable(
-        "DB_3",
-        "SCHEMA_3",
-        "TAB_5",
+        SnowflakeIdentifier.ofTable("DB_3", "SCHEMA_3", "TAB_5"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"gcs://tab5/metadata/v793.metadata.json\",\"status\":\"success\"}"));
     fakeClient.addTable(
-        "DB_3",
-        "SCHEMA_4",
-        "TAB_6",
+        SnowflakeIdentifier.ofTable("DB_3", "SCHEMA_4", "TAB_6"),
         SnowflakeTableMetadata.parseJson(
             "{\"metadataLocation\":\"gcs://tab6/metadata/v123.metadata.json\",\"status\":\"success\"}"));
 

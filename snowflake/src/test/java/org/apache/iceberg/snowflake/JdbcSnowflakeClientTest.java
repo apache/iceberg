@@ -38,9 +38,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.Answer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class JdbcSnowflakeClientTest {
@@ -56,23 +54,13 @@ public class JdbcSnowflakeClientTest {
     snowflakeClient = new JdbcSnowflakeClient(mockClientPool);
     snowflakeClient.setQueryHarness(mockQueryHarness);
 
-    doAnswer(
-            new Answer() {
-              @Override
-              public Object answer(InvocationOnMock invocation) throws Throwable {
-                return ((ClientPool.Action) invocation.getArguments()[0]).run(mockConnection);
-              }
-            })
+    doAnswer(invocation -> ((ClientPool.Action) invocation.getArguments()[0]).run(mockConnection))
         .when(mockClientPool)
         .run(any(ClientPool.Action.class));
     doAnswer(
-            new Answer() {
-              @Override
-              public Object answer(InvocationOnMock invocation) throws Throwable {
-                return ((JdbcSnowflakeClient.ResultSetParser) invocation.getArguments()[2])
-                    .parse(mockResultSet);
-              }
-            })
+            invocation ->
+                ((JdbcSnowflakeClient.ResultSetParser) invocation.getArguments()[2])
+                    .parse(mockResultSet))
         .when(mockQueryHarness)
         .query(
             any(Connection.class),
@@ -101,7 +89,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
   }
 
   @Test
@@ -118,7 +106,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW DATABASES LIKE '_DB_1$_________' IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
   }
 
   @Test
@@ -157,7 +145,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
     verify(mockQueryHarness)
         .query(
             eq(mockConnection),
@@ -186,7 +174,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
     verify(mockQueryHarness)
         .query(
             eq(mockConnection),
@@ -242,7 +230,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW DATABASES IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
 
     Assertions.assertThat(actualList)
         .containsExactly(
@@ -275,7 +263,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW SCHEMAS IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
 
     Assertions.assertThat(actualList)
         .containsExactly(
@@ -372,7 +360,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN ACCOUNT"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq((String[]) null));
+            eq(null));
 
     Assertions.assertThat(actualList)
         .containsExactly(

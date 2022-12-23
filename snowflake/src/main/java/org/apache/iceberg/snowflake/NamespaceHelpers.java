@@ -21,16 +21,12 @@ package org.apache.iceberg.snowflake;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class NamespaceHelpers {
   private static final int MAX_NAMESPACE_DEPTH = 2;
   private static final int NAMESPACE_ROOT_LEVEL = 0;
   private static final int NAMESPACE_DB_LEVEL = 1;
   private static final int NAMESPACE_SCHEMA_LEVEL = 2;
-
-  private static final Logger LOG = LoggerFactory.getLogger(NamespaceHelpers.class);
 
   private NamespaceHelpers() {}
 
@@ -40,28 +36,20 @@ class NamespaceHelpers {
    * @throws IllegalArgumentException if the namespace is not a supported depth.
    */
   public static SnowflakeIdentifier toSnowflakeIdentifier(Namespace namespace) {
-    SnowflakeIdentifier identifier = null;
     switch (namespace.length()) {
       case NAMESPACE_ROOT_LEVEL:
-        identifier = SnowflakeIdentifier.ofRoot();
-        break;
+        return SnowflakeIdentifier.ofRoot();
       case NAMESPACE_DB_LEVEL:
-        identifier = SnowflakeIdentifier.ofDatabase(namespace.level(NAMESPACE_DB_LEVEL - 1));
-        break;
+        return SnowflakeIdentifier.ofDatabase(namespace.level(NAMESPACE_DB_LEVEL - 1));
       case NAMESPACE_SCHEMA_LEVEL:
-        identifier =
-            SnowflakeIdentifier.ofSchema(
-                namespace.level(NAMESPACE_DB_LEVEL - 1),
-                namespace.level(NAMESPACE_SCHEMA_LEVEL - 1));
-        break;
+        return SnowflakeIdentifier.ofSchema(
+            namespace.level(NAMESPACE_DB_LEVEL - 1), namespace.level(NAMESPACE_SCHEMA_LEVEL - 1));
       default:
         throw new IllegalArgumentException(
             String.format(
                 "Snowflake max namespace level is %d, got namespace '%s'",
                 MAX_NAMESPACE_DEPTH, namespace));
     }
-    LOG.debug("toSnowflakeIdentifier({}) -> {}", namespace, identifier);
-    return identifier;
   }
 
   /**
@@ -75,11 +63,8 @@ class NamespaceHelpers {
         "Namespace portion of '%s' must be at the SCHEMA level, got namespaceScope '%s'",
         identifier,
         namespaceScope);
-    SnowflakeIdentifier ret =
-        SnowflakeIdentifier.ofTable(
-            namespaceScope.databaseName(), namespaceScope.schemaName(), identifier.name());
-    LOG.debug("toSnowflakeIdentifier({}) -> {}", identifier, ret);
-    return ret;
+    return SnowflakeIdentifier.ofTable(
+        namespaceScope.databaseName(), namespaceScope.schemaName(), identifier.name());
   }
 
   /**
@@ -87,23 +72,17 @@ class NamespaceHelpers {
    * Namespace; throws IllegalArgumentException if not an appropriate type.
    */
   public static Namespace toIcebergNamespace(SnowflakeIdentifier identifier) {
-    Namespace namespace = null;
     switch (identifier.type()) {
       case ROOT:
-        namespace = Namespace.of();
-        break;
+        return Namespace.empty();
       case DATABASE:
-        namespace = Namespace.of(identifier.databaseName());
-        break;
+        return Namespace.of(identifier.databaseName());
       case SCHEMA:
-        namespace = Namespace.of(identifier.databaseName(), identifier.schemaName());
-        break;
+        return Namespace.of(identifier.databaseName(), identifier.schemaName());
       default:
         throw new IllegalArgumentException(
             String.format("Cannot convert identifier '%s' to Namespace", identifier));
     }
-    LOG.debug("toIcebergNamespace({}) -> {}", identifier, namespace);
-    return namespace;
   }
 
   /**
@@ -113,12 +92,9 @@ class NamespaceHelpers {
   public static TableIdentifier toIcebergTableIdentifier(SnowflakeIdentifier identifier) {
     Preconditions.checkArgument(
         identifier.type() == SnowflakeIdentifier.Type.TABLE,
-        "SnowflakeIdentifier must be type TABLE, get '%s'",
+        "SnowflakeIdentifier must be type TABLE, got '%s'",
         identifier);
-    TableIdentifier ret =
-        TableIdentifier.of(
-            identifier.databaseName(), identifier.schemaName(), identifier.tableName());
-    LOG.debug("toIcebergTableIdentifier({}) -> {}", identifier, ret);
-    return ret;
+    return TableIdentifier.of(
+        identifier.databaseName(), identifier.schemaName(), identifier.tableName());
   }
 }
