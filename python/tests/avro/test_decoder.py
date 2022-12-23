@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
 
@@ -162,12 +162,6 @@ def test_skip_double():
     assert mis.tell() == 0
     decoder.skip_double()
     assert mis.tell() == 8
-
-
-def test_read_date():
-    mis = MemoryInputStream(b"\xBC\x7D")
-    decoder = BinaryDecoder(mis)
-    assert decoder.read_date_from_int() == date(1991, 12, 27)
 
 
 def test_read_time_millis():
