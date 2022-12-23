@@ -149,7 +149,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * Finds the oldest snapshot of a table that was committed either at or after a given time.
+   * Traverses the history of the table's current snapshot, finds the oldest snapshot that was
+   * committed either at or after a given time.
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds
