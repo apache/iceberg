@@ -16,7 +16,12 @@
 # under the License.
 # pylint:disable=redefined-outer-name
 
-from typing import Any, List, Set, Optional
+from typing import (
+    Any,
+    List,
+    Optional,
+    Set,
+)
 
 import pytest
 
@@ -786,16 +791,19 @@ def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
 
 
 def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
-    return ManifestFile.from_record(Record(
-        "",  # manifest_path
-        0,  # manifest_length
-        0,  # partition_spec_id
-        0,  # added_snapshot_id
-        0,  # existing_files_count
-        0,  # added_files_count
-        0,  # deleted_files_count
-        list(partitions),
-    ), format_version=1)
+    return ManifestFile.from_record(
+        Record(
+            "",  # manifest_path
+            0,  # manifest_length
+            0,  # partition_spec_id
+            0,  # added_snapshot_id
+            0,  # existing_files_count
+            0,  # added_files_count
+            0,  # deleted_files_count
+            list(partitions),
+        ),
+        format_version=1,
+    )
 
 
 INT_MIN_VALUE = 30
@@ -831,15 +839,12 @@ def schema() -> Schema:
 def manifest_no_stats() -> ManifestFile:
     return _to_manifest_file()
 
-def _PartitionFieldSummary(contains_null: bool, contains_nan: Optional[bool], lower_bound: Optional[bytes], upper_bound: Optional[bytes]) -> PartitionFieldSummary:
-    return PartitionFieldSummary.from_record(
-        Record(
-            contains_null,
-            contains_nan,
-            lower_bound,
-            upper_bound
-        )
-    )
+
+def _PartitionFieldSummary(
+    contains_null: bool, contains_nan: Optional[bool], lower_bound: Optional[bytes], upper_bound: Optional[bytes]
+) -> PartitionFieldSummary:
+    return PartitionFieldSummary.from_record(Record(contains_null, contains_nan, lower_bound, upper_bound))
+
 
 @pytest.fixture
 def manifest() -> ManifestFile:

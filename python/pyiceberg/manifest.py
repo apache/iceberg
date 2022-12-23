@@ -208,7 +208,6 @@ class ManifestEntryV2(ManifestEntry):
 
 
 class PartitionFieldSummary(Record):
-
     @staticmethod
     def from_record(record: Record) -> PartitionFieldSummary:
         return PartitionFieldSummary(*record)
@@ -279,8 +278,7 @@ class ManifestFileV1(ManifestFile):
             self.deleted_files_count = value
         elif pos == 7:
             self.partitions = [
-                element if isinstance(element, PartitionFieldSummary) else PartitionFieldSummary(*element)
-                for element in value
+                element if isinstance(element, PartitionFieldSummary) else PartitionFieldSummary(*element) for element in value
             ]
         elif pos == 8:
             self.added_rows_count = value
@@ -328,8 +326,7 @@ class ManifestFileV2(ManifestFile):
 
 def read_manifest_entry(input_file: InputFile, format_version: int) -> List[ManifestEntry]:
     with AvroFile(input_file) as reader:
-        records = list(reader)
-        return [ManifestEntry.from_record(record, format_version) for record in records]
+        return [ManifestEntry.from_record(record, format_version) for record in reader]
 
 
 def live_entries(input_file: InputFile, format_version: int) -> Iterator[ManifestEntry]:

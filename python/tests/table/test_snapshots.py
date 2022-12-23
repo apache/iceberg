@@ -18,7 +18,7 @@
 import pytest
 
 from pyiceberg.io.pyarrow import PyArrowFileIO
-from pyiceberg.manifest import ManifestContent, ManifestFile, PartitionFieldSummary
+from pyiceberg.manifest import ManifestContent, PartitionFieldSummary
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
 
 

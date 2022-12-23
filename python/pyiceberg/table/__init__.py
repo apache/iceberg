@@ -59,9 +59,7 @@ from pyiceberg.typedef import (
     Identifier,
     KeyDefaultDict,
     Properties,
-    StructProtocol,
 )
-from pyiceberg.types import StructType
 
 if TYPE_CHECKING:
     import pandas as pd
