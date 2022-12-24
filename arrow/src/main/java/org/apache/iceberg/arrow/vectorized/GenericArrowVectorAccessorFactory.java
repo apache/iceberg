@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -167,9 +168,10 @@ public class GenericArrowVectorAccessorFactory<
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT>
-      getPlainVectorAccessor(FieldVector vector, PrimitiveType primitive) {
-    boolean isDecimal = primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
+  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
+      FieldVector vector, PrimitiveType primitive) {
+    boolean isDecimal =
+        primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
@@ -593,7 +595,8 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
-  private static class IntBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+  private static class IntBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final IntVector vector;
@@ -611,7 +614,8 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
-  private static class LongBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+  private static class LongBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final BigIntVector vector;
@@ -629,13 +633,15 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
-  private static class FixedSizeBinaryBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT,
-      ChildVectorT extends AutoCloseable> extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+  private static class FixedSizeBinaryBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final FixedSizeBinaryVector vector;
     private final DecimalFactory<DecimalT> decimalFactory;
 
-    FixedSizeBinaryBackedDecimalAccessor(FixedSizeBinaryVector vector, DecimalFactory<DecimalT> decimalFactory) {
+    FixedSizeBinaryBackedDecimalAccessor(
+        FixedSizeBinaryVector vector, DecimalFactory<DecimalT> decimalFactory) {
       super(vector);
       this.vector = vector;
       this.decimalFactory = decimalFactory;

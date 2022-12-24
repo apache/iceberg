@@ -16,8 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet.vectorized;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.pmod;
+import static org.apache.spark.sql.functions.when;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,21 +44,13 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.lit;
-import static org.apache.spark.sql.functions.pmod;
-import static org.apache.spark.sql.functions.when;
-
 /**
- * Benchmark to compare performance of reading Parquet decimal data using vectorized Iceberg read path and
- * the built-in file source in Spark.
- * <p>
- * To run this benchmark for either spark-2 or spark-3:
- * <code>
- *   ./gradlew :iceberg-spark[2|3]:jmh
- *       -PjmhIncludeRegex=VectorizedReadParquetDecimalBenchmark
+ * Benchmark to compare performance of reading Parquet decimal data using vectorized Iceberg read
+ * path and the built-in file source in Spark.
+ *
+ * <p>To run this benchmark for spark-3.3: <code>
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh \
+ *       -PjmhIncludeRegex=VectorizedReadParquetDecimalBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
@@ -65,7 +63,8 @@ public class VectorizedReadParquetDecimalBenchmark extends IcebergSourceBenchmar
   public void setupBenchmark() {
     setupSpark();
     appendData();
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within
+    // bounds
     System.setProperty("arrow.enable_unsafe_memory_access", "true");
     // Disable expensive null check for every get(index) call.
     // Iceberg manages nullability checks itself instead of relying on arrow.
@@ -85,10 +84,11 @@ public class VectorizedReadParquetDecimalBenchmark extends IcebergSourceBenchmar
 
   @Override
   protected Table initTable() {
-    Schema schema = new Schema(
-        optional(1, "decimalCol1", Types.DecimalType.of(7, 2)),
-        optional(2, "decimalCol2", Types.DecimalType.of(15, 2)),
-        optional(3, "decimalCol3", Types.DecimalType.of(20, 2)));
+    Schema schema =
+        new Schema(
+            optional(1, "decimalCol1", Types.DecimalType.of(7, 2)),
+            optional(2, "decimalCol2", Types.DecimalType.of(15, 2)),
+            optional(3, "decimalCol3", Types.DecimalType.of(20, 2)));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = parquetWriteProps();
@@ -104,16 +104,17 @@ public class VectorizedReadParquetDecimalBenchmark extends IcebergSourceBenchmar
 
   void appendData() {
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
-      Dataset<Row> df = spark().range(NUM_ROWS_PER_FILE)
-          .withColumn(
-              "longCol",
-              when(pmod(col("id"), lit(10)).equalTo(lit(0)), lit(null))
-                  .otherwise(col("id")))
-          .drop("id")
-          .withColumn("decimalCol1", expr("CAST(longCol AS DECIMAL(7, 2))"))
-          .withColumn("decimalCol2", expr("CAST(longCol AS DECIMAL(15, 2))"))
-          .withColumn("decimalCol3", expr("CAST(longCol AS DECIMAL(20, 2))"))
-          .drop("longCol");
+      Dataset<Row> df =
+          spark()
+              .range(NUM_ROWS_PER_FILE)
+              .withColumn(
+                  "longCol",
+                  when(pmod(col("id"), lit(10)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
+              .drop("id")
+              .withColumn("decimalCol1", expr("CAST(longCol AS DECIMAL(7, 2))"))
+              .withColumn("decimalCol2", expr("CAST(longCol AS DECIMAL(15, 2))"))
+              .withColumn("decimalCol3", expr("CAST(longCol AS DECIMAL(20, 2))"))
+              .drop("longCol");
       appendAsFile(df);
     }
   }
@@ -121,62 +122,73 @@ public class VectorizedReadParquetDecimalBenchmark extends IcebergSourceBenchmar
   @Benchmark
   @Threads(1)
   public void readIntBackedDecimalsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("decimalCol1");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("decimalCol1");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readIntBackedDecimalsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol1");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol1");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readLongBackedDecimalsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("decimalCol2");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("decimalCol2");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readLongBackedDecimalsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol2");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol2");
+          materialize(df);
+        });
   }
-
 
   @Benchmark
   @Threads(1)
   public void readDecimalsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("decimalCol3");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("decimalCol3");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDecimalsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol3");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol3");
+          materialize(df);
+        });
   }
 
   private static Map<String, String> tablePropsWithVectorizationEnabled(int batchSize) {

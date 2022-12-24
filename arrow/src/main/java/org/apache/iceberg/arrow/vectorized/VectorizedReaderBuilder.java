@@ -149,10 +149,12 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         // We use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
-      physicalType = Types.NestedField.of(
-          logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
+      physicalType =
+          Types.NestedField.of(
+              logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
     }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, physicalType, logicalType, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(
+        desc, physicalType, logicalType, rootAllocator, setArrowValidityVector);
   }
 }

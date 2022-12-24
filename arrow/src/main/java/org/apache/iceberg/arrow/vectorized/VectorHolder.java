@@ -38,14 +38,23 @@ public class VectorHolder {
   private final Type logicalType;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
-      Dictionary dictionary, NullabilityHolder holder, Type type) {
+      ColumnDescriptor columnDescriptor,
+      FieldVector vector,
+      boolean isDictionaryEncoded,
+      Dictionary dictionary,
+      NullabilityHolder holder,
+      Type type) {
     this(columnDescriptor, vector, isDictionaryEncoded, dictionary, holder, type, type);
   }
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
-      Dictionary dictionary, NullabilityHolder holder, Type type, Type logicalType) {
+      ColumnDescriptor columnDescriptor,
+      FieldVector vector,
+      boolean isDictionaryEncoded,
+      Dictionary dictionary,
+      NullabilityHolder holder,
+      Type type,
+      Type logicalType) {
     // All the fields except dictionary are not nullable unless it is a dummy holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");

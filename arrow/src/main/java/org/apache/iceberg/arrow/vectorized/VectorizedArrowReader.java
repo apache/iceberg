@@ -202,7 +202,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type(), logicalTypeField.type());
+        columnDescriptor,
+        vec,
+        dictEncoded,
+        dictionary,
+        nullabilityHolder,
+        icebergField.type(),
+        logicalTypeField.type());
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
