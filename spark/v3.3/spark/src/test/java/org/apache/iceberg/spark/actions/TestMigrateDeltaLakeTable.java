@@ -23,10 +23,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.apache.iceberg.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkDeltaLakeMigrationTestBase;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
@@ -41,9 +41,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-public class TestMigrateDeltaLakeTable extends SparkCatalogTestBase {
+@RunWith(Parameterized.class)
+public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
   private static final String NAMESPACE = "default";
 
   private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

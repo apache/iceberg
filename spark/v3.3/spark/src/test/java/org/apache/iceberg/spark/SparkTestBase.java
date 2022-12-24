@@ -71,8 +71,6 @@ public abstract class SparkTestBase {
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-            // Needed for Delta Lake tests
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .enableHiveSupport()
             .getOrCreate();
 

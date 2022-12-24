@@ -20,7 +20,8 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.actions.SupportMigrateDeltaLake;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -32,7 +33,7 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
  * <p>This class is the primary API for interacting with actions in Spark that users should use to
  * instantiate particular actions.
  */
-public class SparkActions implements ActionsProvider {
+public class SparkActions implements SupportMigrateDeltaLake, ActionsProvider {
 
   private final SparkSession spark;
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.delta;
 
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.VersionLog;
@@ -29,14 +29,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.actions.BaseMigrateDeltaLakeTableActionResult;
-import org.apache.iceberg.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.OverwriteFiles;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
+import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -47,12 +62,16 @@ import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in the
+ * same location with a different identifier.
+ */
 public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
-  private final String parquetSuffix = ".parquet";
-  private final String avroSuffix = ".avro";
-  private final String orcSuffix = ".orc";
+  private static final String parquetSuffix = ".parquet";
+  private static final String avroSuffix = ".avro";
+  private static final String orcSuffix = ".orc";
   private final Map<String, String> additionalProperties = Maps.newHashMap();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
@@ -69,7 +88,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
     this.hadoopConfiguration = hadoopConfiguration;
-    // TODO: check whether we can retrieve hadoopConfiguration directly
     this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
   }
 
@@ -126,14 +144,13 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   }
 
   private void copyFromDeltaLakeToIceberg(Table table, PartitionSpec spec) {
-    // TODO: double check the arguments' meaning here
-    Iterator<VersionLog> it =
+    Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
             false); // not throw exception when data loss detected
 
-    while (it.hasNext()) {
-      VersionLog versionLog = it.next();
+    while (versionLogIterator.hasNext()) {
+      VersionLog versionLog = versionLogIterator.next();
       List<Action> actions = versionLog.getActions();
 
       // We first need to iterate through to see what kind of transaction this was. There are 3
@@ -149,16 +166,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
               .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
               .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
 
-      // Scan the map so that we know what type of transaction this will be in Iceberg
-      IcebergTransactionType icebergTransactionType =
-          getIcebergTransactionTypeFromDeltaActions(deltaLakeActionMap);
-      if (icebergTransactionType == null) {
-        // TODO: my understanding here is that if the transaction type is undefined,
-        //  we can no longer continue even the next versionLog contains valid transaction type
-        //  may need further check
-        return;
-      }
-
       List<DataFile> filesToAdd = Lists.newArrayList();
       List<DataFile> filesToRemove = Lists.newArrayList();
       for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
@@ -168,83 +175,56 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         } else if (action instanceof RemoveFile) {
           filesToRemove.add(dataFile);
         } else {
-          // TODO: refactor this exception
-          throw new RuntimeException("Wrong action type");
+          throw new ValidationException(
+              "The action %s's is unsupported", action.getClass().getSimpleName());
         }
       }
 
-      switch (icebergTransactionType) {
-        case APPEND_FILES:
-          AppendFiles appendFiles = table.newAppend();
-          filesToAdd.forEach(appendFiles::appendFile);
-          appendFiles.commit();
-          break;
-        case DELETE_FILES:
-          DeleteFiles deleteFiles = table.newDelete();
-          filesToRemove.forEach(deleteFiles::deleteFile);
-          deleteFiles.commit();
-          break;
-        case OVERWRITE_FILES:
-          OverwriteFiles overwriteFiles = table.newOverwrite();
-          filesToAdd.forEach(overwriteFiles::addFile);
-          filesToRemove.forEach(overwriteFiles::deleteFile);
-          overwriteFiles.commit();
-          break;
+      if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
+        // Overwrite_Files case
+        OverwriteFiles overwriteFiles = table.newOverwrite();
+        filesToAdd.forEach(overwriteFiles::addFile);
+        filesToRemove.forEach(overwriteFiles::deleteFile);
+        overwriteFiles.commit();
+      } else if (filesToAdd.size() > 0) {
+        // Append_Files case
+        AppendFiles appendFiles = table.newAppend();
+        filesToAdd.forEach(appendFiles::appendFile);
+        appendFiles.commit();
+      } else if (filesToRemove.size() > 0) {
+        // Delete_Files case
+        DeleteFiles deleteFiles = table.newDelete();
+        filesToRemove.forEach(deleteFiles::deleteFile);
+        deleteFiles.commit();
       }
     }
-  }
-
-  @Nullable
-  private IcebergTransactionType getIcebergTransactionTypeFromDeltaActions(
-      Map<String, List<Action>> actionsMap) {
-    IcebergTransactionType icebergTransactionType;
-    if (actionsMap.containsKey(AddFile.class.getSimpleName())
-        && !actionsMap.containsKey(RemoveFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.APPEND_FILES;
-    } else if (actionsMap.containsKey(RemoveFile.class.getSimpleName())
-        && !actionsMap.containsKey(AddFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.DELETE_FILES;
-    } else if (actionsMap.containsKey(AddFile.class.getSimpleName())
-        && actionsMap.containsKey(RemoveFile.class.getSimpleName())) {
-      icebergTransactionType = IcebergTransactionType.OVERWRITE_FILES;
-    } else {
-      // Some other type of transaction, we can ignore
-      return null;
-    }
-    return icebergTransactionType;
   }
 
   private DataFile buildDataFileFromAction(Action action, Table table, PartitionSpec spec) {
     String path;
-    long size;
+    Optional<Long> nullableSize;
     Map<String, String> partitionValues;
+    long size;
 
     if (action instanceof AddFile) {
       AddFile addFile = (AddFile) action;
       path = addFile.getPath();
-      size = addFile.getSize();
+      nullableSize = Optional.of(addFile.getSize());
       partitionValues = addFile.getPartitionValues();
     } else if (action instanceof RemoveFile) {
       RemoveFile removeFile = (RemoveFile) action;
       path = removeFile.getPath();
-      size =
-          removeFile
-              .getSize()
-              .orElseThrow(
-                  () ->
-                      new RuntimeException(
-                          String.format("File %s removed with specifying a size", path)));
-      partitionValues =
-          Optional.ofNullable(removeFile.getPartitionValues())
-              .orElseThrow(
-                  () ->
-                      new RuntimeException(
-                          String.format(
-                              "File %s removed without specifying partition values", path)));
+      nullableSize = removeFile.getSize();
+      partitionValues = removeFile.getPartitionValues();
     } else {
       throw new IllegalStateException(
           String.format(
               "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
+    }
+
+    if (partitionValues == null) {
+      // For unpartitioned table, the partitionValues should be an empty map rather than null
+      throw new ValidationException("File %s does not specify a partitionValues", path);
     }
 
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
@@ -257,13 +237,14 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
             .map(name -> String.format("%s=%s", name, partitionValues.get(name)))
             .collect(Collectors.joining("/"));
 
+    size = nullableSize.orElseGet(() -> table.io().newInputFile(path).getLength());
+
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
         .withFormat(format)
         .withFileSizeInBytes(size)
         .withMetrics(metrics)
         .withPartitionPath(partition)
-        .withRecordCount(metrics.recordCount())
         .build();
   }
 
@@ -283,7 +264,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         return TableMigrationUtil.getOrcMetrics(
             new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
       default:
-        throw new RuntimeException("Unsupported file format: " + format);
+        throw new ValidationException("Unsupported file format: %s", format);
     }
   }
 
@@ -295,7 +276,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     } else if (path.endsWith(orcSuffix)) {
       return FileFormat.ORC;
     } else {
-      throw new RuntimeException("The format of the file is unsupported: " + path);
+      throw new ValidationException("The format of the file %s is unsupported", path);
     }
   }
 
@@ -312,11 +293,5 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     properties.putAll(additionalProperties);
 
     return properties;
-  }
-
-  private enum IcebergTransactionType {
-    APPEND_FILES,
-    DELETE_FILES,
-    OVERWRITE_FILES
   }
 }
