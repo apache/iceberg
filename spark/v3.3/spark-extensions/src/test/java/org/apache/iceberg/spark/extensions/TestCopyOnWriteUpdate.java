@@ -162,7 +162,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
             SparkSQLProperties.PRESERVE_DATA_GROUPING,
             "true");
 
-    withSQLConf(sqlConf, () -> sql("UPDATE %s SET id = cast('-1' AS INT) WHERE id = 2", tableName));
+    withSQLConf(sqlConf, () -> sql("UPDATE %s SET id = -1 WHERE id = 2", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));

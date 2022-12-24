@@ -150,7 +150,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
   }
 
   @Test
-  public void testRuntimeFilteringWithReportedPartitioning() throws NoSuchTableException {
+  public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
     append(new Employee(1, "hr"), new Employee(3, "hr"));

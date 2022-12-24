@@ -45,6 +45,6 @@ public class SparkSQLProperties {
 
   // Controls whether to preserve the existing grouping of data while planning splits
   public static final String PRESERVE_DATA_GROUPING =
-      "spark.sql.iceberg.split.preserve-data-grouping";
+      "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 }

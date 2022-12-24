@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
@@ -37,7 +40,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.StructType;
@@ -126,21 +129,12 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private Transform[] groupingKeyTransforms() {
     if (groupingKeyTransforms == null) {
-      List<PartitionField> groupingKeyFields = Lists.newArrayList();
+      Map<Integer, PartitionField> fieldsById = indexFieldsById(specs());
 
-      Set<Integer> seenFieldIds = Sets.newHashSet();
-
-      for (PartitionSpec spec : specs()) {
-        for (PartitionField field : spec.fields()) {
-          int fieldId = field.fieldId();
-
-          if (groupingKeyType().containsField(fieldId) && !seenFieldIds.contains(fieldId)) {
-            groupingKeyFields.add(field);
-          }
-
-          seenFieldIds.add(fieldId);
-        }
-      }
+      List<PartitionField> groupingKeyFields =
+          groupingKeyType().fields().stream()
+              .map(field -> fieldsById.get(field.fieldId()))
+              .collect(Collectors.toList());
 
       this.groupingKeyTransforms = Spark3Util.toTransforms(table().schema(), groupingKeyFields);
     }
@@ -148,13 +142,23 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     return groupingKeyTransforms;
   }
 
+  private Map<Integer, PartitionField> indexFieldsById(Iterable<PartitionSpec> specIterable) {
+    Map<Integer, PartitionField> fieldsById = Maps.newHashMap();
+
+    for (PartitionSpec spec : specIterable) {
+      for (PartitionField field : spec.fields()) {
+        fieldsById.putIfAbsent(field.fieldId(), field);
+      }
+    }
+
+    return fieldsById;
+  }
+
   protected Set<PartitionSpec> specs() {
     if (specs == null) {
-      Set<PartitionSpec> taskSpecs = Sets.newHashSet();
-      for (T task : tasks()) {
-        taskSpecs.add(task.spec());
-      }
-      this.specs = taskSpecs;
+      // avoid calling equals/hashCode on specs as those methods are relatively expensive
+      IntStream specIds = tasks().stream().mapToInt(task -> task.spec().specId()).distinct();
+      this.specs = specIds.mapToObj(id -> table().specs().get(id)).collect(Collectors.toSet());
     }
 
     return specs;
@@ -174,8 +178,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
           plannedTasks.add(taskJavaClass().cast(task));
         }
-
-        LOG.debug("Planned {} tasks", plannedTasks.size());
 
         this.tasks = plannedTasks;
       } catch (IOException e) {
@@ -208,7 +210,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
                 groupingKeyType());
-        StructLikeSet plannedGroupingKeys = groupingKeys(plannedTaskGroups);
+        StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(
             "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s)",
@@ -255,11 +257,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     this.tasks = filteredTasks;
   }
 
-  private StructLikeSet groupingKeys(List<ScanTaskGroup<T>> groups) {
+  private StructLikeSet collectGroupingKeys(Iterable<ScanTaskGroup<T>> taskGroupIterable) {
     StructLikeSet keys = StructLikeSet.create(groupingKeyType());
 
-    for (ScanTaskGroup<T> group : groups) {
-      keys.add(group.groupingKey());
+    for (ScanTaskGroup<T> taskGroup : taskGroupIterable) {
+      keys.add(taskGroup.groupingKey());
     }
 
     return keys;

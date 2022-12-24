@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -135,13 +137,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
-    // unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables
+    // (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
-      LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords =
-          PropertyUtil.propertyAsLong(
-              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      LOG.debug("Using table metadata to estimate table statistics");
+      long totalRecords = totalRecords(snapshot);
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
@@ -150,11 +150,21 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return new Stats(sizeInBytes, rowsCount);
   }
 
+  private long totalRecords(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+  }
+
   @Override
   public String description() {
+    String groupingKeyFieldNamesAsString =
+        groupingKeyType().fields().stream()
+            .map(Types.NestedField::name)
+            .collect(Collectors.joining(", "));
+
     return String.format(
         "%s [filters=%s, groupedBy=%s]",
-        table(), Spark3Util.describe(filterExpressions), groupingKeyType());
+        table(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
   }
 
   @Override

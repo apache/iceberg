@@ -202,7 +202,9 @@ public class Partitioning {
    *
    * @param specs one or many specs
    * @return the constructed grouping key type
+   * @deprecated use {@link #groupingKeyType(Schema, Collection)} instead; will be removed in 1.3.0
    */
+  @Deprecated
   public static StructType groupingKeyType(Collection<PartitionSpec> specs) {
     return groupingKeyType(null, specs);
   }
