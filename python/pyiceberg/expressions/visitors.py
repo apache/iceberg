@@ -799,7 +799,7 @@ class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
         file_column_name = self.file_schema.find_column_name(predicate.term.ref().field.field_id)
 
         if not file_column_name:
-            raise ValueError(f"Not found in schema: {file_column_name}")
+            raise ValueError(f"Not found in file schema: {file_column_name}")
 
         if isinstance(predicate, BoundUnaryPredicate):
             return predicate.as_unbound(file_column_name)
@@ -808,14 +808,14 @@ class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
         elif isinstance(predicate, BoundSetPredicate):
             return predicate.as_unbound(file_column_name, predicate.literals)
         else:
-            raise ValueError(f"Unknown predicate: {predicate}")
+            raise ValueError(f"Unsupported predicate: {predicate}")
 
 
 def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_sensitive: bool) -> BooleanExpression:
     return visit(expr, _ColumnNameTranslator(file_schema, case_sensitive))
 
 
-class ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
+class _ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
     """Extracts the field IDs used in the BooleanExpression"""
 
     def visit_true(self) -> Set[int]:
@@ -841,4 +841,4 @@ class ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
 
 
 def extract_field_ids(expr: BooleanExpression) -> Set[int]:
-    return visit(expr, ExpressionFieldIDs())
+    return visit(expr, _ExpressionFieldIDs())

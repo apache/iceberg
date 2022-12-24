@@ -35,7 +35,7 @@ from typing import (
 
 from pydantic import Field, PrivateAttr
 
-from pyiceberg.exceptions import ResolveException
+from pyiceberg.exceptions import ResolveError
 from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     BinaryType,
@@ -1205,7 +1205,10 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
     Raises:
         ResolveException: If attempting to resolve an unrecognized object type
     """
-    raise ResolveException(f"Cannot promote {file_type} to {read_type}")
+    if file_type == read_type:
+        return file_type
+    else:
+        raise ResolveError(f"Cannot promote {file_type} to {read_type}")
 
 
 @promote.register(IntegerType)
@@ -1214,7 +1217,7 @@ def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
         # Ints/Longs are binary compatible in Avro, so this is okay
         return read_type
     else:
-        raise ResolveException(f"Cannot promote an int to {read_type}")
+        raise ResolveError(f"Cannot promote an int to {read_type}")
 
 
 @promote.register(FloatType)
@@ -1223,7 +1226,7 @@ def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
         # A double type is wider
         return read_type
     else:
-        raise ResolveException(f"Cannot promote an float to {read_type}")
+        raise ResolveError(f"Cannot promote an float to {read_type}")
 
 
 @promote.register(StringType)
@@ -1231,7 +1234,7 @@ def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, BinaryType):
         return read_type
     else:
-        raise ResolveException(f"Cannot promote an string to {read_type}")
+        raise ResolveError(f"Cannot promote an string to {read_type}")
 
 
 @promote.register(BinaryType)
@@ -1239,7 +1242,7 @@ def _(file_type: BinaryType, read_type: IcebergType) -> IcebergType:
     if isinstance(read_type, StringType):
         return read_type
     else:
-        raise ResolveException(f"Cannot promote an binary to {read_type}")
+        raise ResolveError(f"Cannot promote an binary to {read_type}")
 
 
 @promote.register(DecimalType)
@@ -1248,9 +1251,9 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
         if file_type.precision <= read_type.precision and file_type.scale == file_type.scale:
             return read_type
         else:
-            raise ResolveException(f"Cannot reduce precision from {file_type} to {read_type}")
+            raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
-        raise ResolveException(f"Cannot promote an decimal to {read_type}")
+        raise ResolveError(f"Cannot promote an decimal to {read_type}")
 
 
 @promote.register(StructType)
@@ -1264,7 +1267,7 @@ def _(file_type: StructType, read_type: IcebergType) -> IcebergType:
                     promote(file_field_type, read_field.field_type)
             else:
                 if read_field.required:
-                    raise ResolveException(f"Adding required fields to struct is not allowed: {read_field}")
+                    raise ResolveError(f"Adding required fields to struct is not allowed: {read_field}")
         return read_type
     else:
-        raise ResolveException(f"Cannot promote an struct to {read_type}")
+        raise ResolveError(f"Cannot promote a struct to {read_type}")

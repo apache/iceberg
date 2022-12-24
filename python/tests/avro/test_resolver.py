@@ -19,12 +19,13 @@ import pytest
 from pyiceberg.avro.reader import (
     DecimalReader,
     DoubleReader,
+    FloatReader,
     IntegerReader,
     MapReader,
     StringReader,
     StructReader,
 )
-from pyiceberg.avro.resolver import ResolveException, promote, resolve
+from pyiceberg.avro.resolver import ResolveError, resolve
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
@@ -100,7 +101,7 @@ def test_resolver_new_required_field() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "2: data: required string is non-optional, and not part of the file schema" in str(exc_info.value)
@@ -116,7 +117,7 @@ def test_resolver_invalid_evolution() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "Cannot promote long to double" in str(exc_info.value)
@@ -156,69 +157,69 @@ def test_resolver_change_type() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
 
 
-def test_promote_int_to_long() -> None:
-    assert promote(IntegerType(), LongType()) == LongType()
+def test_resolve_int_to_long() -> None:
+    assert resolve(IntegerType(), LongType()) == IntegerReader()
 
 
-def test_promote_float_to_double() -> None:
+def test_resolve_float_to_double() -> None:
     # We should still read floats, because it is encoded in 4 bytes
-    assert promote(FloatType(), DoubleType()) == DoubleType()
+    assert resolve(FloatType(), DoubleType()) == FloatReader()
 
 
-def test_promote_decimal_to_decimal() -> None:
+def test_resolve_decimal_to_decimal() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalType(22, 25)
+    assert resolve(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
 
 
 def test_struct_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(StructType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(StructType(), StringType())
 
 
 def test_map_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(MapType(1, StringType(), 2, IntegerType()), StringType())
 
 
 def test_primitive_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
+    with pytest.raises(ResolveError):
+        assert resolve(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
 
 
 def test_integer_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(IntegerType(), StringType())
 
 
 def test_float_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(FloatType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(FloatType(), StringType())
 
 
 def test_string_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(StringType(), FloatType())
+    with pytest.raises(ResolveError):
+        assert resolve(StringType(), FloatType())
 
 
 def test_binary_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(BinaryType(), FloatType())
+    with pytest.raises(ResolveError):
+        assert resolve(BinaryType(), FloatType())
 
 
 def test_decimal_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(DecimalType(22, 19), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(DecimalType(22, 19), StringType())
 
 
-def test_promote_decimal_to_decimal_reduce_precision() -> None:
+def test_resolve_decimal_to_decimal_reduce_precision() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    with pytest.raises(ResolveException) as exc_info:
-        _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
+    with pytest.raises(ResolveError) as exc_info:
+        _ = resolve(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
 
     assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)

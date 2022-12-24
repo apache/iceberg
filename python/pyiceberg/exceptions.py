@@ -88,5 +88,5 @@ class SignError(Exception):
     """Raises when unable to sign a S3 request"""
 
 
-class ResolveException(Exception):
+class ResolveError(Exception):
     pass

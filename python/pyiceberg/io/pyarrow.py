@@ -25,7 +25,7 @@ with the pyarrow library.
 from __future__ import annotations
 
 import os
-from functools import lru_cache, singledispatchmethod
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -51,7 +51,7 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
-from pyiceberg.avro.resolver import ResolveException, promote
+from pyiceberg.avro.resolver import ResolveError, promote
 from pyiceberg.expressions import (
     AlwaysTrue,
     BooleanExpression,
@@ -535,7 +535,9 @@ def project_table(
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
-    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(file_schema), ArrowAccessor(file_schema))
+    struct_array = visit_with_partner(
+        requested_schema, table, ArrowProjectionVisitor(file_schema, len(table)), ArrowAccessor(file_schema)
+    )
 
     arrays = []
     fields = []
@@ -548,9 +550,11 @@ def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa
 
 class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Array]]):
     file_schema: Schema
+    table_length: int
 
-    def __init__(self, file_schema: Schema):
+    def __init__(self, file_schema: Schema, table_length: int):
         self.file_schema = file_schema
+        self.table_length = table_length
 
     def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
         file_field = self.file_schema.find_field(field.field_id)
@@ -567,44 +571,36 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
     ) -> Optional[pa.Array]:
         if struct_array is None:
             return None
-
-        field_arrays: List[pa.Array] = []
-        fields: List[pa.Field] = []
-        for pos, field_array in enumerate(field_results):
-            field = struct.fields[pos]
-            if field_array is not None:
-                array = self.cast_if_needed(field, field_array)
-                field_arrays.append(array)
-                fields.append(pa.field(field.name, array.type, field.optional))
-            elif field.optional:
-                arrow_type = schema_to_pyarrow(field.field_type)
-                field_arrays.append(pa.nulls(len(struct_array)).cast(arrow_type))
-                fields.append(pa.field(field.name, arrow_type, field.optional))
-            else:
-                raise ResolveException(f"Field is required, and could not be found in the file: {field}")
-
-        return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
+        return pa.StructArray.from_arrays(arrays=field_results, fields=pa.struct(schema_to_pyarrow(struct)))
 
     def field(self, field: NestedField, _: Optional[pa.Array], field_array: Optional[pa.Array]) -> Optional[pa.Array]:
-        return field_array
+        if field_array is not None:
+            return self.cast_if_needed(field, field_array)
+        elif field.optional:
+            arrow_type = schema_to_pyarrow(field.field_type)
+            return pa.nulls(self.table_length, type=arrow_type)
+        else:
+            raise ResolveError(f"Field is required, and could not be found in the file: {field}")
 
     def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
-        if list_array is not None and isinstance(list_array, pa.ListArray):
-            return pa.ListArray.from_arrays(list_array.offsets, self.cast_if_needed(list_type.element_field, value_array))
-
-        return None
+        return (
+            pa.ListArray.from_arrays(list_array.offsets, self.cast_if_needed(list_type.element_field, value_array))
+            if isinstance(list_array, pa.ListArray)
+            else None
+        )
 
     def map(
         self, map_type: MapType, map_array: Optional[pa.Array], key_result: Optional[pa.Array], value_result: Optional[pa.Array]
     ) -> Optional[pa.Array]:
-        if map_array is not None and isinstance(map_array, pa.MapArray):
-            return pa.MapArray.from_arrays(
+        return (
+            pa.MapArray.from_arrays(
                 map_array.offsets,
                 self.cast_if_needed(map_type.key_field, key_result),
                 self.cast_if_needed(map_type.value_field, value_result),
             )
-
-        return None
+            if isinstance(map_array, pa.MapArray)
+            else None
+        )
 
     def primitive(self, _: PrimitiveType, array: Optional[pa.Array]) -> Optional[pa.Array]:
         return array
@@ -632,19 +628,10 @@ class ArrowAccessor(PartnerAccessor[pa.Array]):
         return None
 
     def list_element_partner(self, partner_list: Optional[pa.Array]) -> Optional[pa.Array]:
-        if partner_list and isinstance(partner_list, pa.ListArray):
-            return partner_list.values
-
-        return None
+        return partner_list.values if isinstance(partner_list, pa.ListArray) else None
 
     def map_key_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
-        if partner_map and isinstance(partner_map, pa.MapArray):
-            return partner_map.keys
-
-        return None
+        return partner_map.keys if isinstance(partner_map, pa.MapArray) else None
 
     def map_value_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
-        if partner_map and isinstance(partner_map, pa.MapArray):
-            return partner_map.items
-
-        return None
+        return partner_map.items if isinstance(partner_map, pa.MapArray) else None

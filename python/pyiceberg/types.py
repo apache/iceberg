@@ -268,10 +268,6 @@ class StructType(IcebergType):
             data["fields"] = fields
         super().__init__(**data)
 
-    def by_id(self) -> Dict[int, NestedField]:
-        """Returns dict wher the id is the lookup"""
-        return {field.field_id: field for field in self.fields}
-
     def __str__(self) -> str:
         return f"struct<{', '.join(map(str, self.fields))}>"
 

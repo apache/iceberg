@@ -26,7 +26,7 @@ import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType
 
-from pyiceberg.avro.resolver import ResolveException
+from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -874,7 +874,7 @@ def test_projection_add_column_struct_required(file_int: str) -> None:
             required=True,
         )
     )
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         _ = project(schema, [file_int])
     assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
 
@@ -939,7 +939,7 @@ def test_projection_filter_add_column_promote(file_int: str) -> None:
 
 def test_projection_filter_add_column_demote(file_long: str) -> None:
     schema_int = Schema(NestedField(3, "id", IntegerType()))
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         _ = project(schema_int, [file_long])
     assert "Cannot promote long to int" in str(exc_info.value)
 
