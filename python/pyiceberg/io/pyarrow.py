@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name,arguments-renamed
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -73,10 +73,13 @@ from pyiceberg.io import (
     OutputStream,
 )
 from pyiceberg.schema import (
+    PartnerAccessor,
     Schema,
     SchemaVisitorPerPrimitiveType,
+    SchemaWithPartnerVisitor,
     prune_columns,
     visit,
+    visit_with_partner,
 )
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
@@ -344,7 +347,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.field(
             name=field.name,
             type=field_result,
-            nullable=not field.required,
+            nullable=field.optional,
             metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
         )
 
@@ -532,131 +535,116 @@ def project_table(
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
-    return VisitWithArrow(requested_schema, file_schema, table).visit()
+    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(file_schema), ArrowAccessor(file_schema))
+
+    arrays = []
+    fields = []
+    for pos, field in enumerate(requested_schema.fields):
+        array = struct_array.field(pos)
+        arrays.append(array)
+        fields.append(pa.field(field.name, array.type, field.optional))
+    return pa.Table.from_arrays(arrays, schema=pa.schema(fields))
 
 
-class VisitWithArrow:
-    requested_schema: Schema
+class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Array]]):
     file_schema: Schema
-    table: pa.Table
 
-    def __init__(self, requested_schema: Schema, file_schema: Schema, table: pa.Table) -> None:
-        self.requested_schema = requested_schema
+    def __init__(self, file_schema: Schema):
         self.file_schema = file_schema
-        self.table = table
 
-    def visit(self) -> pa.Table:
-        return self.visit_with_arrow(self.requested_schema, self.file_schema)
+    def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
+        file_field = self.file_schema.find_field(field.field_id)
+        if field.field_type != file_field.field_type:
+            return values.cast(schema_to_pyarrow(promote(file_field.field_type, field.field_type)))
 
-    @singledispatchmethod
-    def visit_with_arrow(self, requested_schema: Union[Schema, IcebergType], file_schema: Union[Schema, IcebergType]) -> pa.Table:
-        """A generic function for applying a schema visitor to any point within a schema
+        return values
 
-        The function traverses the schema in post-order fashion
+    def schema(self, schema: Schema, schema_partner: Optional[pa.Array], struct_result: Optional[pa.Array]) -> Optional[pa.Array]:
+        return struct_result
 
-        Args:
-            obj(Schema | IcebergType): An instance of a Schema or an IcebergType
-            visitor (VisitWithArrow[T]): An instance of an implementation of the generic VisitWithArrow base class
-
-        Raises:
-            NotImplementedError: If attempting to visit an unrecognized object type
-        """
-        raise NotImplementedError(f"Cannot visit non-type: {requested_schema}")
-
-    @visit_with_arrow.register(Schema)
-    def _(self, requested_schema: Schema, file_schema: Schema) -> pa.Table:
-        """Visit a Schema with a concrete SchemaVisitorWithPartner"""
-        struct_result = self.visit_with_arrow(requested_schema.as_struct(), file_schema.as_struct())
-        pyarrow_schema = schema_to_pyarrow(requested_schema)
-        return pa.Table.from_arrays(struct_result.flatten(), schema=pyarrow_schema)
-
-    def _get_field_by_id(self, field_id: int) -> Optional[NestedField]:
-        try:
-            return self.file_schema.find_field(field_id)
-        except ValueError:
-            # Field is not in the file
+    def struct(
+        self, struct: StructType, struct_array: Optional[pa.Array], field_results: List[Optional[pa.Array]]
+    ) -> Optional[pa.Array]:
+        if struct_array is None:
             return None
 
-    @visit_with_arrow.register(StructType)
-    def _(self, requested_struct: StructType, file_struct: Optional[IcebergType]) -> pa.Array:  # pylint: disable=unused-argument
-        """Visit a StructType with a concrete SchemaVisitorWithPartner"""
-        results = []
+        field_arrays: List[pa.Array] = []
+        fields: List[pa.Field] = []
+        for pos, field_array in enumerate(field_results):
+            field = struct.fields[pos]
+            if field_array is not None:
+                array = self.cast_if_needed(field, field_array)
+                field_arrays.append(array)
+                fields.append(pa.field(field.name, array.type, field.optional))
+            elif field.optional:
+                arrow_type = schema_to_pyarrow(field.field_type)
+                field_arrays.append(pa.nulls(len(struct_array)).cast(arrow_type))
+                fields.append(pa.field(field.name, arrow_type, field.optional))
+            else:
+                raise ResolveException(f"Field is required, and could not be found in the file: {field}")
 
-        for requested_field in requested_struct.fields:
-            file_field = self._get_field_by_id(requested_field.field_id)
+        return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
 
-            if file_field is None and requested_field.required:
-                raise ResolveException(f"Field is required, and could not be found in the file: {requested_field}")
+    def field(self, field: NestedField, _: Optional[pa.Array], field_array: Optional[pa.Array]) -> Optional[pa.Array]:
+        return field_array
 
-            results.append(self.visit_with_arrow(requested_field.field_type, file_field))
+    def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
+        if list_array is not None and isinstance(list_array, pa.ListArray):
+            return pa.ListArray.from_arrays(list_array.offsets, self.cast_if_needed(list_type.element_field, value_array))
 
-        pyarrow_schema = schema_to_pyarrow(requested_struct)
-        return pa.StructArray.from_arrays(arrays=results, fields=pyarrow_schema)
+        return None
 
-    @visit_with_arrow.register(ListType)
-    def _(self, requested_list: ListType, file_field: Optional[NestedField]) -> pa.Array:
-        """Visit a ListType with a concrete SchemaVisitorWithPartner"""
-
-        if file_field is not None:
-            if not isinstance(file_field.field_type, ListType):
-                raise ValueError(f"Expected list, got: {file_field}")
-
-            return self.visit_with_arrow(requested_list.element_type, self._get_field_by_id(file_field.field_type.element_id))
-        else:
-            # Not in the file, fill in with nulls
-            return pa.nulls(len(self.table), type=pa.list_(schema_to_pyarrow(requested_list.element_type)))
-
-    @visit_with_arrow.register(MapType)
-    def _(self, requested_map: MapType, file_map: Optional[NestedField]) -> pa.Array:
-        """Visit a MapType with a concrete SchemaVisitorWithPartner"""
-
-        if file_map is not None:
-            if not isinstance(file_map.field_type, MapType):
-                raise ValueError(f"Expected map, got: {file_map}")
-
-            key = self._get_field_by_id(file_map.field_type.key_id)
-            return self.visit_with_arrow(requested_map.key_type, key)
-        else:
-            # Not in the file, fill in with nulls
-            return pa.nulls(
-                len(self.table),
-                type=pa.map_(schema_to_pyarrow(requested_map.key_type), schema_to_pyarrow(requested_map.value_type)),
+    def map(
+        self, map_type: MapType, map_array: Optional[pa.Array], key_result: Optional[pa.Array], value_result: Optional[pa.Array]
+    ) -> Optional[pa.Array]:
+        if map_array is not None and isinstance(map_array, pa.MapArray):
+            return pa.MapArray.from_arrays(
+                map_array.offsets,
+                self.cast_if_needed(map_type.key_field, key_result),
+                self.cast_if_needed(map_type.value_field, value_result),
             )
 
-    def _get_column_data(self, file_field: NestedField) -> pa.Array:
-        column_name = self.file_schema.find_column_name(file_field.field_id)
-        column_data = self.table
-        struct_schema = self.table.schema
+        return None
 
-        if column_name is None:
-            # Should not happen
-            raise ValueError(f"Could not find column: {column_name}")
+    def primitive(self, _: PrimitiveType, array: Optional[pa.Array]) -> Optional[pa.Array]:
+        return array
 
-        column_parts = list(reversed(column_name.split(".")))
-        while len(column_parts) > 1:
-            part = column_parts.pop()
-            column_data = column_data.column(part)
-            struct_schema = struct_schema[struct_schema.get_field_index(part)].type
 
-        if not isinstance(struct_schema, (pa.ListType, pa.MapType)):
-            # PyArrow does not have an element
-            idx = struct_schema.get_field_index(column_parts.pop())
-            column_data = column_data.flatten()[idx]
+class ArrowAccessor(PartnerAccessor[pa.Array]):
+    file_schema: Schema
 
-        return column_data.combine_chunks()
+    def __init__(self, file_schema: Schema):
+        self.file_schema = file_schema
 
-    @visit_with_arrow.register(PrimitiveType)
-    def _(self, requested_primitive: PrimitiveType, file_field: Optional[NestedField]) -> pa.Array:
-        """Visit a PrimitiveType with a concrete SchemaVisitorWithPartner"""
+    def field_partner(self, partner_struct: Optional[pa.Array], field_id: int, _: str) -> Optional[pa.Array]:
+        if partner_struct:
+            # use the field name from the file schema
+            try:
+                name = self.file_schema.find_field(field_id).name
+            except ValueError:
+                return None
 
-        if file_field is not None:
-            column_data = self._get_column_data(file_field)
+            if isinstance(partner_struct, pa.StructArray):
+                return partner_struct.field(name)
+            elif isinstance(partner_struct, pa.Table):
+                return partner_struct.column(name).combine_chunks()
 
-            if requested_primitive != file_field.field_type:
-                # To check if the promotion is allowed
-                expected = promote(file_field.field_type, requested_primitive)
-                column_data = column_data.cast(schema_to_pyarrow(expected))
-        else:
-            column_data = pa.nulls(len(self.table), schema_to_pyarrow(requested_primitive))
+        return None
 
-        return column_data
+    def list_element_partner(self, partner_list: Optional[pa.Array]) -> Optional[pa.Array]:
+        if partner_list and isinstance(partner_list, pa.ListArray):
+            return partner_list.values
+
+        return None
+
+    def map_key_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
+        if partner_map and isinstance(partner_map, pa.MapArray):
+            return partner_map.keys
+
+        return None
+
+    def map_value_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
+        if partner_map and isinstance(partner_map, pa.MapArray):
+            return partner_map.items
+
+        return None

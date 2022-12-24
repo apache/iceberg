@@ -796,9 +796,7 @@ def test_projection_add_column(file_int: str) -> None:
     for actual, expected in zip(result_table.columns[2], [None, None, None]):
         assert actual.as_py() == expected
 
-    for actual, expected in zip(
-        result_table.columns[3], [{"lat": None, "lon": None}, {"lat": None, "lon": None}, {"lat": None, "lon": None}]
-    ):
+    for actual, expected in zip(result_table.columns[3], [None, None, None]):
         assert actual.as_py() == expected
 
     assert (
@@ -1029,14 +1027,7 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
     )
 
     result_table = project(schema, [file_struct])
-    for actual, expected in zip(
-        result_table.columns[0],
-        [
-            {"lat": 52.371807, "long": 4.896029},
-            {"lat": 52.387386, "long": 4.646219},
-            {"lat": 52.078663, "long": 4.288788},
-        ],
-    ):
+    for actual, expected in zip(result_table.columns[0], [None, None, None]):
         assert actual.as_py() == expected
     assert len(result_table.columns[0]) == 3
     assert (

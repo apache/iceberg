@@ -62,6 +62,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 T = TypeVar("T")
+P = TypeVar("P")
 
 INITIAL_SCHEMA_ID = 0
 
@@ -335,6 +336,142 @@ class PreOrderSchemaVisitor(Generic[T], ABC):
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
         """Visit a PrimitiveType"""
+
+
+class SchemaWithPartnerVisitor(Generic[P, T], ABC):
+    def before_field(self, field: NestedField, field_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately before visiting a field"""
+
+    def after_field(self, field: NestedField, field_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately after visiting a field"""
+
+    def before_list_element(self, element: NestedField, element_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately before visiting an element within a ListType"""
+        self.before_field(element, element_partner)
+
+    def after_list_element(self, element: NestedField, element_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately after visiting an element within a ListType"""
+        self.after_field(element, element_partner)
+
+    def before_map_key(self, key: NestedField, key_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately before visiting a key within a MapType"""
+        self.before_field(key, key_partner)
+
+    def after_map_key(self, key: NestedField, key_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately after visiting a key within a MapType"""
+        self.after_field(key, key_partner)
+
+    def before_map_value(self, value: NestedField, value_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately before visiting a value within a MapType"""
+        self.before_field(value, value_partner)
+
+    def after_map_value(self, value: NestedField, value_partner: Optional[P]) -> None:
+        """Override this method to perform an action immediately after visiting a value within a MapType"""
+        self.after_field(value, value_partner)
+
+    @abstractmethod
+    def schema(self, schema: Schema, schema_partner: Optional[P], struct_result: T) -> T:
+        """Visit a schema with a partner"""
+
+    @abstractmethod
+    def struct(self, struct: StructType, struct_partner: Optional[P], field_results: List[T]) -> T:
+        """Visit a struct type with a partner"""
+
+    @abstractmethod
+    def field(self, field: NestedField, field_partner: Optional[P], field_result: T) -> T:
+        """Visit a nested field with a partner"""
+
+    @abstractmethod
+    def list(self, list_type: ListType, list_partner: Optional[P], element_result: T) -> T:
+        """Visit a list type with a partner"""
+
+    @abstractmethod
+    def map(self, map_type: MapType, map_partner: Optional[P], key_result: T, value_result: T) -> T:
+        """Visit a map type with a partner"""
+
+    @abstractmethod
+    def primitive(self, primitive: PrimitiveType, primitive_partner: Optional[P]) -> T:
+        """Visit a primitive type with a partner"""
+
+
+class PartnerAccessor(Generic[P], ABC):
+    @abstractmethod
+    def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
+        """Returns the equivalent struct field by name or id in the partner struct"""
+
+    @abstractmethod
+    def list_element_partner(self, partner_list: Optional[P]) -> Optional[P]:
+        """Returns the equivalent list element in the partner list"""
+
+    @abstractmethod
+    def map_key_partner(self, partner_map: Optional[P]) -> Optional[P]:
+        """Returns the equivalent map key in the partner map"""
+
+    @abstractmethod
+    def map_value_partner(self, partner_map: Optional[P]) -> Optional[P]:
+        """Returns the equivalent map value in the partner map"""
+
+
+@singledispatch
+def visit_with_partner(
+    schema_or_type: Union[Schema, IcebergType], partner: P, visitor: SchemaWithPartnerVisitor[T, P], accessor: PartnerAccessor[P]
+) -> T:
+    raise ValueError(f"Unsupported type: {type}")
+
+
+@visit_with_partner.register(Schema)
+def _(schema: Schema, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
+    return visitor.schema(schema, partner, visit_with_partner(schema.as_struct(), partner, visitor, accessor))  # type: ignore
+
+
+@visit_with_partner.register(StructType)
+def _(struct: StructType, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
+    field_results = []
+    for field in struct.fields:
+        field_partner = accessor.field_partner(partner, field.field_id, field.name)
+        visitor.before_field(field, field_partner)
+        try:
+            field_result = visit_with_partner(field.field_type, field_partner, visitor, accessor)  # type: ignore
+            field_results.append(visitor.field(field, field_partner, field_result))
+        finally:
+            visitor.after_field(field, field_partner)
+
+    return visitor.struct(struct, partner, field_results)
+
+
+@visit_with_partner.register(ListType)
+def _(list_type: ListType, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
+    element_partner = accessor.list_element_partner(partner)
+    visitor.before_list_element(list_type.element_field, element_partner)
+    try:
+        element_result = visit_with_partner(list_type.element_type, element_partner, visitor, accessor)  # type: ignore
+    finally:
+        visitor.after_list_element(list_type.element_field, element_partner)
+
+    return visitor.list(list_type, partner, element_result)
+
+
+@visit_with_partner.register(MapType)
+def _(map_type: MapType, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
+    key_partner = accessor.map_key_partner(partner)
+    visitor.before_map_key(map_type.key_field, key_partner)
+    try:
+        key_result = visit_with_partner(map_type.key_type, key_partner, visitor, accessor)  # type: ignore
+    finally:
+        visitor.after_map_key(map_type.key_field, key_partner)
+
+    value_partner = accessor.map_value_partner(partner)
+    visitor.before_map_value(map_type.value_field, value_partner)
+    try:
+        value_result = visit_with_partner(map_type.value_type, value_partner, visitor, accessor)  # type: ignore
+    finally:
+        visitor.after_map_value(map_type.value_field, value_partner)
+    return visitor.map(map_type, partner, key_result, value_result)
+
+
+@visit_with_partner.register(PrimitiveType)
+def _(primitive: PrimitiveType, partner: P, visitor: SchemaWithPartnerVisitor[P, T], _: PartnerAccessor[P]) -> T:
+    return visitor.primitive(primitive, partner)
 
 
 class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
