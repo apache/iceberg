@@ -140,13 +140,13 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
       org.apache.iceberg.types.Type type;
       if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
-        // We use BigIntVector for long backed decimal
+        // Use BigIntVector for long backed decimal
         type = Types.LongType.get();
       } else if (PrimitiveType.PrimitiveTypeName.INT32.equals(typeName)) {
-        // We use IntVector for int backed decimal
+        // Use IntVector for int backed decimal
         type = Types.IntegerType.get();
       } else {
-        // We use FixedSizeBinaryVector for binary backed decimal
+        // Use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
       physicalType =
