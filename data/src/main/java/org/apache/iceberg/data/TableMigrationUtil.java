@@ -151,7 +151,7 @@ public class TableMigrationUtil {
     }
   }
 
-  public static Metrics getAvroMetrics(Path path, Configuration conf) {
+  private static Metrics getAvroMetrics(Path path, Configuration conf) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
       long rowCount = Avro.rowCount(file);
@@ -161,7 +161,7 @@ public class TableMigrationUtil {
     }
   }
 
-  public static Metrics getParquetMetrics(
+  private static Metrics getParquetMetrics(
       Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
@@ -171,7 +171,7 @@ public class TableMigrationUtil {
     }
   }
 
-  public static Metrics getOrcMetrics(
+  private static Metrics getOrcMetrics(
       Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf), metricsSpec, mapping);

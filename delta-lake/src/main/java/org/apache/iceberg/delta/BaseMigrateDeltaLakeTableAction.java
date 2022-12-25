@@ -48,9 +48,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
 import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.utils.DeltaLakeDataTypeVisitor;
+import org.apache.iceberg.delta.utils.DeltaLakeTypeToType;
+import org.apache.iceberg.delta.utils.FileMetricsReader;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -256,12 +258,12 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     switch (format) {
       case PARQUET:
-        return TableMigrationUtil.getParquetMetrics(
+        return FileMetricsReader.getParquetMetrics(
             new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
       case AVRO:
-        return TableMigrationUtil.getAvroMetrics(new Path(fullFilePath), this.hadoopConfiguration);
+        return FileMetricsReader.getAvroMetrics(new Path(fullFilePath), this.hadoopConfiguration);
       case ORC:
-        return TableMigrationUtil.getOrcMetrics(
+        return FileMetricsReader.getOrcMetrics(
             new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
       default:
         throw new ValidationException("Unsupported file format: %s", format);

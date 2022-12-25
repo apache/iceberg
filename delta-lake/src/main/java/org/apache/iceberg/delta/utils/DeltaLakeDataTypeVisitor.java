@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.delta;
+package org.apache.iceberg.delta.utils;
 
 import io.delta.standalone.types.ArrayType;
 import io.delta.standalone.types.DataType;

@@ -446,7 +446,8 @@ project(':iceberg-delta-lake') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    implementation project(':iceberg-data')
+    implementation project(':iceberg-parquet')
+    implementation project(':iceberg-orc')
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
     compileOnly "io.delta:delta-standalone_${scalaVersion}"
