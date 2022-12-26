@@ -14,7 +14,7 @@ requests = ">=2.0.0,<3"
 
 [[package]]
 name = "adlfs"
-version = "2022.10.0"
+version = "2022.11.2"
 description = "Access Azure Datalake Gen1 with fsspec and dask"
 category = "main"
 optional = true
@@ -22,7 +22,7 @@ python-versions = ">=3.8"
 
 [package.dependencies]
 aiohttp = ">=3.7.0"
-azure-core = ">=1.7.0"
+azure-core = ">=1.23.1,<2.0.0"
 azure-datalake-store = ">=0.0.46,<0.1"
 azure-identity = "*"
 azure-storage-blob = ">=12.12.0"
@@ -1193,7 +1193,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "f2d6c78025050536a5ef051ddb0023fe16a41d502399f0c4fc5b3e072fef9aec"
+content-hash = "07a63f1a7c5a33d18cecc19d86a0d22ed8ba9142ff81f5d0e1f2835a0fbebaf4"
 
 [metadata.files]
 adal = [
@@ -1201,8 +1201,8 @@ adal = [
     {file = "adal-1.2.7.tar.gz", hash = "sha256:d74f45b81317454d96e982fd1c50e6fb5c99ac2223728aea8764433a39f566f1"},
 ]
 adlfs = [
-    {file = "adlfs-2022.10.0-py3-none-any.whl", hash = "sha256:dc63b248f109bca2000d306f7a51c33d6859e4692dda7c6198b6300f8e29faaf"},
-    {file = "adlfs-2022.10.0.tar.gz", hash = "sha256:8542f9e6799aeb77adb5cb9854f76b7dce874610dc0f2ff006cce960526ffad6"},
+    {file = "adlfs-2022.11.2-py3-none-any.whl", hash = "sha256:60da4a17260754ee6d8da43e3d756226ade4fd19ada8411e858f5acecd0833e2"},
+    {file = "adlfs-2022.11.2.tar.gz", hash = "sha256:920dba10468f186037ca394dcabcba113532d80f52b315211c8e771be40475ea"},
 ]
 aiobotocore = [
     {file = "aiobotocore-2.4.1-py3-none-any.whl", hash = "sha256:26e0d55d5901f487c3467616c028abb85036ca33a0f88e279770adae6b865c69"},
