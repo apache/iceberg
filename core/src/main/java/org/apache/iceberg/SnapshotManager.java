@@ -176,20 +176,18 @@ public class SnapshotManager implements ManageSnapshots {
   }
 
   @Override
-  public void validate(List<Validation> validations) {
-    commitIfRefUpdatesExist();
-
-    // Add a no-op UpdateProperties to add given validations to transaction
-    UpdateProperties updateProperties = transaction.updateProperties();
-    updateProperties.validate(validations);
-    updateProperties.commit();
-  }
-
-  @Override
   public void commit() {
     commitIfRefUpdatesExist();
     if (!isExternalTransaction) {
       transaction.commitTransaction();
     }
+  }
+
+  @Override
+  public void commitIf(List<Validation> validations) {
+    commitIfRefUpdatesExist();
+    // Add a no-op UpdateProperties to add given validations to transaction
+    transaction.updateProperties().commitIf(validations);
+    commit();
   }
 }

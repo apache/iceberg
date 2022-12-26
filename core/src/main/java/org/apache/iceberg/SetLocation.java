@@ -27,15 +27,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
-public class SetLocation implements UpdateLocation {
+public class SetLocation extends BasePendingUpdate<String> implements UpdateLocation {
   private final TableOperations ops;
   private String newLocation;
-  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   public SetLocation(TableOperations ops) {
     this.ops = ops;
@@ -54,11 +51,6 @@ public class SetLocation implements UpdateLocation {
   }
 
   @Override
-  public void validate(List<Validation> validations) {
-    pendingValidations.addAll(validations);
-  }
-
-  @Override
   public void commit() {
     TableMetadata base = ops.refresh();
     Tasks.foreach(ops)
@@ -71,7 +63,7 @@ public class SetLocation implements UpdateLocation {
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps -> {
-              ValidationUtils.validate(base, pendingValidations);
+              validate(base);
               taskOps.commit(base, base.updateLocation(newLocation));
             });
   }

@@ -79,7 +79,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
-abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
+abstract class SnapshotProducer<ThisT> extends BasePendingUpdate<Snapshot>
+    implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final int MIN_FILE_GROUP_SIZE = 10_000;
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
@@ -113,8 +114,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
-
-  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -377,12 +376,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   @Override
-  public void validate(List<Validation> validations) {
-    ValidationUtils.validate(base, validations);
-    pendingValidations.addAll(validations);
-  }
-
-  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
     // this is always set to the latest commit attempt's snapshot
@@ -413,6 +406,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   }
 
                   TableMetadata updated = update.build();
+                  validate(base);
                   if (updated.changes().isEmpty()) {
                     // do not commit if the metadata has not changed. for example, this may happen
                     // when setting the current
@@ -420,8 +414,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     // identity.
                     return;
                   }
-
-                  ValidationUtils.validate(base, pendingValidations);
 
                   // if the table UUID is missing, add it here. the UUID will be re-created each
                   // time

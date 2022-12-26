@@ -57,7 +57,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
-class RemoveSnapshots implements ExpireSnapshots {
+class RemoveSnapshots extends BasePendingUpdate<List<Snapshot>> implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
@@ -85,7 +85,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
-  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -295,12 +294,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public void validate(List<Validation> validations) {
-    ValidationUtils.validate(base, validations);
-    pendingValidations.addAll(validations);
-  }
-
-  @Override
   public void commit() {
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -313,7 +306,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(
             item -> {
               TableMetadata updated = internalApply();
-              ValidationUtils.validate(base, pendingValidations);
+              validate(base);
               ops.commit(base, updated);
             });
     LOG.info("Committed snapshot changes");

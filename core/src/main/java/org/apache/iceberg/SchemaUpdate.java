@@ -45,7 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Schema evolution API implementation. */
-class SchemaUpdate implements UpdateSchema {
+class SchemaUpdate extends BasePendingUpdate<Schema> implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
@@ -64,7 +64,6 @@ class SchemaUpdate implements UpdateSchema {
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
   private boolean caseSensitive = true;
-  private final List<Validation> pendingValidations = Lists.newArrayList();
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -444,15 +443,9 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public void validate(List<Validation> validations) {
-    ValidationUtils.validate(base, validations);
-    pendingValidations.addAll(validations);
-  }
-
-  @Override
   public void commit() {
     TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
-    ValidationUtils.validate(base, pendingValidations);
+    validate(base);
     ops.commit(base, update);
   }
 
