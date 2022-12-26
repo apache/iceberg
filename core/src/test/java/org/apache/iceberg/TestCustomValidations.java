@@ -88,10 +88,9 @@ public class TestCustomValidations extends V2TableTestBase {
             .snapshotId();
     validateTableFiles(table, FILE_A);
 
-    CherryPickOperation cherrypick =
-        new CherryPickOperation(table.name(), table.operations()).cherrypick(overwriteSnapshotId);
-    cherrypick.validate(ImmutableList.of(alwaysPassValidation));
-    cherrypick.commit();
+    new CherryPickOperation(table.name(), table.operations())
+        .cherrypick(overwriteSnapshotId)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(overwriteSnapshotId);
     validateTableFiles(table, FILE_B);
@@ -111,13 +110,10 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              CherryPickOperation cherrypick =
-                  new CherryPickOperation(table.name(), table.operations())
-                      .cherrypick(overwriteSnapshotId);
-              cherrypick.validate(ImmutableList.of(alwaysFailValidation));
-              cherrypick.commit();
-            })
+            () ->
+                new CherryPickOperation(table.name(), table.operations())
+                    .cherrypick(overwriteSnapshotId)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -142,12 +138,11 @@ public class TestCustomValidations extends V2TableTestBase {
 
     CherryPickOperation pendingUpdate =
         new CherryPickOperation(table.name(), table.operations()).cherrypick(overwriteSnapshotId);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -169,13 +164,10 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              CherryPickOperation cherrypick =
-                  new CherryPickOperation(table.name(), table.operations())
-                      .cherrypick(overwriteSnapshotId);
-              cherrypick.validate(ImmutableList.of(illegalValidation));
-              cherrypick.commit();
-            })
+            () ->
+                new CherryPickOperation(table.name(), table.operations())
+                    .cherrypick(overwriteSnapshotId)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -188,9 +180,7 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newFastAppend().appendFile(FILE_A).commit();
     validateTableFiles(table, FILE_A);
 
-    DeleteFiles deleteFiles = table.newDelete().deleteFile(FILE_A);
-    deleteFiles.validate(ImmutableList.of(alwaysPassValidation));
-    deleteFiles.commit();
+    table.newDelete().deleteFile(FILE_A).commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table);
   }
@@ -201,11 +191,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              DeleteFiles deleteFiles = table.newDelete().deleteFile(FILE_A);
-              deleteFiles.validate(ImmutableList.of(alwaysFailValidation));
-              deleteFiles.commit();
-            })
+            () ->
+                table
+                    .newDelete()
+                    .deleteFile(FILE_A)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -220,12 +210,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     PendingUpdate<?> pendingUpdate = table.newDelete().deleteFile(FILE_A);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -238,11 +227,8 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              DeleteFiles deleteFiles = table.newDelete().deleteFile(FILE_A);
-              deleteFiles.validate(ImmutableList.of(illegalValidation));
-              deleteFiles.commit();
-            })
+            () ->
+                table.newDelete().deleteFile(FILE_A).commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -256,13 +242,11 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     Set<String> deletedFiles = Sets.newHashSet();
 
-    ExpireSnapshots expireSnapshots =
-        table
-            .expireSnapshots()
-            .expireSnapshotId(firstSnapshot.snapshotId())
-            .deleteWith(deletedFiles::add);
-    expireSnapshots.validate(ImmutableList.of(alwaysPassValidation));
-    expireSnapshots.commit();
+    table
+        .expireSnapshots()
+        .expireSnapshotId(firstSnapshot.snapshotId())
+        .deleteWith(deletedFiles::add)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(deletedFiles)
         .as("Should remove the expired manifest list location")
@@ -277,15 +261,12 @@ public class TestCustomValidations extends V2TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
 
     assertThatThrownBy(
-            () -> {
-              ExpireSnapshots expireSnapshots =
-                  table
-                      .expireSnapshots()
-                      .expireSnapshotId(firstSnapshot.snapshotId())
-                      .deleteWith(deletedFiles::add);
-              expireSnapshots.validate(ImmutableList.of(alwaysFailValidation));
-              expireSnapshots.commit();
-            })
+            () ->
+                table
+                    .expireSnapshots()
+                    .expireSnapshotId(firstSnapshot.snapshotId())
+                    .deleteWith(deletedFiles::add)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -306,12 +287,11 @@ public class TestCustomValidations extends V2TableTestBase {
             .expireSnapshots()
             .expireSnapshotId(firstSnapshot.snapshotId())
             .deleteWith(deletedFiles::add);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -326,15 +306,12 @@ public class TestCustomValidations extends V2TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
 
     assertThatThrownBy(
-            () -> {
-              ExpireSnapshots expireSnapshots =
-                  table
-                      .expireSnapshots()
-                      .expireSnapshotId(firstSnapshot.snapshotId())
-                      .deleteWith(deletedFiles::add);
-              expireSnapshots.validate(ImmutableList.of(illegalValidation));
-              expireSnapshots.commit();
-            })
+            () ->
+                table
+                    .expireSnapshots()
+                    .expireSnapshotId(firstSnapshot.snapshotId())
+                    .deleteWith(deletedFiles::add)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -345,9 +322,7 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testFastAppendPassesValidation() {
     validateTableFiles(table);
 
-    AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_A);
-    appendFiles.validate(ImmutableList.of(alwaysPassValidation));
-    appendFiles.commit();
+    table.newFastAppend().appendFile(FILE_A).commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_A);
   }
@@ -357,11 +332,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_A);
-              appendFiles.validate(ImmutableList.of(alwaysFailValidation));
-              appendFiles.commit();
-            })
+            () ->
+                table
+                    .newFastAppend()
+                    .appendFile(FILE_A)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -375,12 +350,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     PendingUpdate<?> pendingUpdate = table.newFastAppend().appendFile(FILE_A);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -392,11 +366,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_A);
-              appendFiles.validate(ImmutableList.of(illegalValidation));
-              appendFiles.commit();
-            })
+            () ->
+                table
+                    .newFastAppend()
+                    .appendFile(FILE_A)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -410,9 +384,10 @@ public class TestCustomValidations extends V2TableTestBase {
     String tagName = "tag1";
     assertThat(table.refs().get(tagName)).isNull();
 
-    ManageSnapshots manageSnapshots = table.manageSnapshots().createTag(tagName, snapshotId);
-    manageSnapshots.validate(ImmutableList.of(alwaysPassValidation));
-    manageSnapshots.commit();
+    table
+        .manageSnapshots()
+        .createTag(tagName, snapshotId)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.refs().get(tagName))
         .isNotNull()
@@ -427,12 +402,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.refs().get(tagName)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              ManageSnapshots manageSnapshots =
-                  table.manageSnapshots().createTag(tagName, snapshotId);
-              manageSnapshots.validate(ImmutableList.of(alwaysFailValidation));
-              manageSnapshots.commit();
-            })
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag(tagName, snapshotId)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -449,12 +423,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     ManageSnapshots pendingUpdate = table.manageSnapshots().createTag(tagName, snapshotId);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Table metadata refresh is required");
 
@@ -469,12 +442,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.refs().get(tagName)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              ManageSnapshots manageSnapshots =
-                  table.manageSnapshots().createTag(tagName, snapshotId);
-              manageSnapshots.validate(ImmutableList.of(illegalValidation));
-              manageSnapshots.commit();
-            })
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag(tagName, snapshotId)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -485,9 +457,7 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testMergeAppendPassesValidation() {
     validateTableFiles(table);
 
-    AppendFiles appendFiles = table.newAppend().appendFile(FILE_A);
-    appendFiles.validate(ImmutableList.of(alwaysPassValidation));
-    appendFiles.commit();
+    table.newAppend().appendFile(FILE_A).commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_A);
   }
@@ -497,11 +467,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = table.newAppend().appendFile(FILE_A);
-              appendFiles.validate(ImmutableList.of(alwaysFailValidation));
-              appendFiles.commit();
-            })
+            () ->
+                table
+                    .newAppend()
+                    .appendFile(FILE_A)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -515,12 +485,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     AppendFiles pendingUpdate = table.newAppend().appendFile(FILE_A);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -532,11 +501,8 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = table.newAppend().appendFile(FILE_A);
-              appendFiles.validate(ImmutableList.of(illegalValidation));
-              appendFiles.commit();
-            })
+            () ->
+                table.newAppend().appendFile(FILE_A).commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -548,10 +514,11 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newFastAppend().appendFile(FILE_A).commit();
     validateTableFiles(table, FILE_A);
 
-    OverwriteFiles overwriteFiles =
-        table.newOverwrite().overwriteByRowFilter(Expressions.alwaysTrue()).addFile(FILE_B);
-    overwriteFiles.validate(ImmutableList.of(alwaysPassValidation));
-    overwriteFiles.commit();
+    table
+        .newOverwrite()
+        .overwriteByRowFilter(Expressions.alwaysTrue())
+        .addFile(FILE_B)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_B);
   }
@@ -562,15 +529,12 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              OverwriteFiles overwriteFiles =
-                  table
-                      .newOverwrite()
-                      .overwriteByRowFilter(Expressions.alwaysTrue())
-                      .addFile(FILE_B);
-              overwriteFiles.validate(ImmutableList.of(alwaysFailValidation));
-              overwriteFiles.commit();
-            })
+            () ->
+                table
+                    .newOverwrite()
+                    .overwriteByRowFilter(Expressions.alwaysTrue())
+                    .addFile(FILE_B)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -586,12 +550,11 @@ public class TestCustomValidations extends V2TableTestBase {
 
     OverwriteFiles pendingUpdate =
         table.newOverwrite().overwriteByRowFilter(Expressions.alwaysTrue()).addFile(FILE_B);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -604,15 +567,12 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              OverwriteFiles overwriteFiles =
-                  table
-                      .newOverwrite()
-                      .overwriteByRowFilter(Expressions.alwaysTrue())
-                      .addFile(FILE_B);
-              overwriteFiles.validate(ImmutableList.of(illegalValidation));
-              overwriteFiles.commit();
-            })
+            () ->
+                table
+                    .newOverwrite()
+                    .overwriteByRowFilter(Expressions.alwaysTrue())
+                    .addFile(FILE_B)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -623,9 +583,7 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testReplacePartitionsPassesValidation() {
     validateTableFiles(table);
 
-    ReplacePartitions replacePartitions = table.newReplacePartitions().addFile(FILE_A);
-    replacePartitions.validate(ImmutableList.of(alwaysPassValidation));
-    replacePartitions.commit();
+    table.newReplacePartitions().addFile(FILE_A).commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_A);
   }
@@ -635,11 +593,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              ReplacePartitions replacePartitions = table.newReplacePartitions().addFile(FILE_A);
-              replacePartitions.validate(ImmutableList.of(alwaysFailValidation));
-              replacePartitions.commit();
-            })
+            () ->
+                table
+                    .newReplacePartitions()
+                    .addFile(FILE_A)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -653,12 +611,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     ReplacePartitions pendingUpdate = table.newReplacePartitions().addFile(FILE_A).addFile(FILE_B);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -670,11 +627,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              ReplacePartitions replacePartitions = table.newReplacePartitions().addFile(FILE_A);
-              replacePartitions.validate(ImmutableList.of(illegalValidation));
-              replacePartitions.commit();
-            })
+            () ->
+                table
+                    .newReplacePartitions()
+                    .addFile(FILE_A)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -685,9 +642,7 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testReplaceSortOrderPassesValidation() {
     assertThat(table.sortOrder()).isEqualTo(SortOrder.unsorted());
 
-    ReplaceSortOrder replaceSortOrder = table.replaceSortOrder().asc("data");
-    replaceSortOrder.validate(ImmutableList.of(alwaysPassValidation));
-    replaceSortOrder.commit();
+    table.replaceSortOrder().asc("data").commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.sortOrder())
         .as("Table should reflect new sort order")
@@ -699,11 +654,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.sortOrder()).isEqualTo(SortOrder.unsorted());
 
     assertThatThrownBy(
-            () -> {
-              ReplaceSortOrder replaceSortOrder = table.replaceSortOrder().asc("data");
-              replaceSortOrder.validate(ImmutableList.of(alwaysFailValidation));
-              replaceSortOrder.commit();
-            })
+            () ->
+                table
+                    .replaceSortOrder()
+                    .asc("data")
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -717,12 +672,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     ReplaceSortOrder pendingUpdate = table.replaceSortOrder().asc("data");
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -734,11 +688,8 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.sortOrder()).isEqualTo(SortOrder.unsorted());
 
     assertThatThrownBy(
-            () -> {
-              ReplaceSortOrder replaceSortOrder = table.replaceSortOrder().asc("data");
-              replaceSortOrder.validate(ImmutableList.of(illegalValidation));
-              replaceSortOrder.commit();
-            })
+            () ->
+                table.replaceSortOrder().asc("data").commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -750,10 +701,10 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     validateTableFiles(table, FILE_A);
 
-    RewriteFiles rewriteFiles =
-        table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B));
-    rewriteFiles.validate(ImmutableList.of(alwaysPassValidation));
-    rewriteFiles.commit();
+    table
+        .newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B))
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_B);
   }
@@ -764,12 +715,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              RewriteFiles rewriteFiles =
-                  table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B));
-              rewriteFiles.validate(ImmutableList.of(alwaysFailValidation));
-              rewriteFiles.commit();
-            })
+            () ->
+                table
+                    .newRewrite()
+                    .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B))
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -785,12 +735,11 @@ public class TestCustomValidations extends V2TableTestBase {
 
     RewriteFiles pendingUpdate =
         table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B));
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -803,12 +752,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A);
 
     assertThatThrownBy(
-            () -> {
-              RewriteFiles rewriteFiles =
-                  table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B));
-              rewriteFiles.validate(ImmutableList.of(illegalValidation));
-              rewriteFiles.commit();
-            })
+            () ->
+                table
+                    .newRewrite()
+                    .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B))
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -821,9 +769,10 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
-    RewriteManifests rewriteManifests = table.rewriteManifests().clusterBy(dataFile -> "");
-    rewriteManifests.validate(ImmutableList.of(alwaysPassValidation));
-    rewriteManifests.commit();
+    table
+        .rewriteManifests()
+        .clusterBy(dataFile -> "")
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
   }
@@ -835,12 +784,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     assertThatThrownBy(
-            () -> {
-              RewriteManifests rewriteManifests =
-                  table.rewriteManifests().clusterBy(dataFile -> "");
-              rewriteManifests.validate(ImmutableList.of(alwaysFailValidation));
-              rewriteManifests.commit();
-            })
+            () ->
+                table
+                    .rewriteManifests()
+                    .clusterBy(dataFile -> "")
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -856,12 +804,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     RewriteManifests pendingUpdate = table.rewriteManifests().clusterBy(dataFile -> "");
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -875,12 +822,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     assertThatThrownBy(
-            () -> {
-              RewriteManifests rewriteManifests =
-                  table.rewriteManifests().clusterBy(dataFile -> "");
-              rewriteManifests.validate(ImmutableList.of(illegalValidation));
-              rewriteManifests.commit();
-            })
+            () ->
+                table
+                    .rewriteManifests()
+                    .clusterBy(dataFile -> "")
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -891,9 +837,7 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testRowDeltaPassesValidation() {
     validateTableFiles(table);
 
-    RowDelta rowDelta = table.newRowDelta().addRows(FILE_A);
-    rowDelta.validate(ImmutableList.of(alwaysPassValidation));
-    rowDelta.commit();
+    table.newRowDelta().addRows(FILE_A).commitIf(ImmutableList.of(alwaysPassValidation));
 
     validateTableFiles(table, FILE_A);
   }
@@ -903,11 +847,11 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              RowDelta rowDelta = table.newRowDelta().addRows(FILE_A);
-              rowDelta.validate(ImmutableList.of(alwaysFailValidation));
-              rowDelta.commit();
-            })
+            () ->
+                table
+                    .newRowDelta()
+                    .addRows(FILE_A)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -921,12 +865,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     RowDelta pendingUpdate = table.newRowDelta().addRows(FILE_A);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -938,11 +881,7 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              RowDelta rowDelta = table.newRowDelta().addRows(FILE_A);
-              rowDelta.validate(ImmutableList.of(illegalValidation));
-              rowDelta.commit();
-            })
+            () -> table.newRowDelta().addRows(FILE_A).commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -956,10 +895,9 @@ public class TestCustomValidations extends V2TableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     validateTableFiles(table, FILE_A, FILE_B);
 
-    SetSnapshotOperation setSnapshotOperation =
-        new SetSnapshotOperation(table.operations()).setCurrentSnapshot(firstSnapshotId);
-    setSnapshotOperation.validate(ImmutableList.of(alwaysPassValidation));
-    setSnapshotOperation.commit();
+    new SetSnapshotOperation(table.operations())
+        .setCurrentSnapshot(firstSnapshotId)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
     validateTableFiles(table, FILE_A);
@@ -974,12 +912,10 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A, FILE_B);
 
     assertThatThrownBy(
-            () -> {
-              SetSnapshotOperation setSnapshotOperation =
-                  new SetSnapshotOperation(table.operations()).setCurrentSnapshot(firstSnapshotId);
-              setSnapshotOperation.validate(ImmutableList.of(alwaysFailValidation));
-              setSnapshotOperation.commit();
-            })
+            () ->
+                new SetSnapshotOperation(table.operations())
+                    .setCurrentSnapshot(firstSnapshotId)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -999,12 +935,11 @@ public class TestCustomValidations extends V2TableTestBase {
 
     SetSnapshotOperation pendingUpdate =
         new SetSnapshotOperation(table.operations()).setCurrentSnapshot(firstSnapshotId);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -1021,12 +956,10 @@ public class TestCustomValidations extends V2TableTestBase {
     validateTableFiles(table, FILE_A, FILE_B);
 
     assertThatThrownBy(
-            () -> {
-              SetSnapshotOperation setSnapshotOperation =
-                  new SetSnapshotOperation(table.operations()).setCurrentSnapshot(firstSnapshotId);
-              setSnapshotOperation.validate(ImmutableList.of(illegalValidation));
-              setSnapshotOperation.commit();
-            })
+            () ->
+                new SetSnapshotOperation(table.operations())
+                    .setCurrentSnapshot(firstSnapshotId)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1041,11 +974,9 @@ public class TestCustomValidations extends V2TableTestBase {
     String branchName = "feature-develop";
     assertThat(table.ops().refresh().ref(branchName)).isNull();
 
-    UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation =
-        new UpdateSnapshotReferencesOperation(table.operations())
-            .createBranch(branchName, firstSnapshotId);
-    updateSnapshotReferencesOperation.validate(ImmutableList.of(alwaysPassValidation));
-    updateSnapshotReferencesOperation.commit();
+    new UpdateSnapshotReferencesOperation(table.operations())
+        .createBranch(branchName, firstSnapshotId)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.ops().refresh().ref(branchName))
         .isEqualTo(SnapshotRef.branchBuilder(firstSnapshotId).build());
@@ -1059,13 +990,10 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.ops().refresh().ref(branchName)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation =
-                  new UpdateSnapshotReferencesOperation(table.operations())
-                      .createBranch(branchName, firstSnapshotId);
-              updateSnapshotReferencesOperation.validate(ImmutableList.of(alwaysFailValidation));
-              updateSnapshotReferencesOperation.commit();
-            })
+            () ->
+                new UpdateSnapshotReferencesOperation(table.operations())
+                    .createBranch(branchName, firstSnapshotId)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1084,12 +1012,11 @@ public class TestCustomValidations extends V2TableTestBase {
     UpdateSnapshotReferencesOperation pendingUpdate =
         new UpdateSnapshotReferencesOperation(table.operations())
             .createBranch(branchName, firstSnapshotId);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Cannot commit changes based on stale metadata");
 
@@ -1105,13 +1032,10 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.ops().refresh().ref(branchName)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation =
-                  new UpdateSnapshotReferencesOperation(table.operations())
-                      .createBranch(branchName, firstSnapshotId);
-              updateSnapshotReferencesOperation.validate(ImmutableList.of(illegalValidation));
-              updateSnapshotReferencesOperation.commit();
-            })
+            () ->
+                new UpdateSnapshotReferencesOperation(table.operations())
+                    .createBranch(branchName, firstSnapshotId)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1140,10 +1064,10 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.statisticsFiles()).isEmpty();
 
     GenericStatisticsFile statisticsFile = genericStatisticsFile(currentSnapshot);
-    UpdateStatistics updateStatistics =
-        table.updateStatistics().setStatistics(currentSnapshot.snapshotId(), statisticsFile);
-    updateStatistics.validate(ImmutableList.of(alwaysPassValidation));
-    updateStatistics.commit();
+    table
+        .updateStatistics()
+        .setStatistics(currentSnapshot.snapshotId(), statisticsFile)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.statisticsFiles())
         .as("Table should have statistics files")
@@ -1157,15 +1081,12 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.statisticsFiles()).isEmpty();
 
     assertThatThrownBy(
-            () -> {
-              UpdateStatistics updateStatistics =
-                  table
-                      .updateStatistics()
-                      .setStatistics(
-                          currentSnapshot.snapshotId(), genericStatisticsFile(currentSnapshot));
-              updateStatistics.validate(ImmutableList.of(alwaysFailValidation));
-              updateStatistics.commit();
-            })
+            () ->
+                table
+                    .updateStatistics()
+                    .setStatistics(
+                        currentSnapshot.snapshotId(), genericStatisticsFile(currentSnapshot))
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1184,12 +1105,11 @@ public class TestCustomValidations extends V2TableTestBase {
         table
             .updateStatistics()
             .setStatistics(currentSnapshot.snapshotId(), genericStatisticsFile(currentSnapshot));
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -1203,15 +1123,12 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.statisticsFiles()).isEmpty();
 
     assertThatThrownBy(
-            () -> {
-              UpdateStatistics updateStatistics =
-                  table
-                      .updateStatistics()
-                      .setStatistics(
-                          currentSnapshot.snapshotId(), genericStatisticsFile(currentSnapshot));
-              updateStatistics.validate(ImmutableList.of(illegalValidation));
-              updateStatistics.commit();
-            })
+            () ->
+                table
+                    .updateStatistics()
+                    .setStatistics(
+                        currentSnapshot.snapshotId(), genericStatisticsFile(currentSnapshot))
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1223,9 +1140,10 @@ public class TestCustomValidations extends V2TableTestBase {
     String newLocation = tempDir.getAbsolutePath();
     assertThat(table.location()).isNotEqualTo(newLocation);
 
-    UpdateLocation updateLocation = table.updateLocation().setLocation(newLocation);
-    updateLocation.validate(ImmutableList.of(alwaysPassValidation));
-    updateLocation.commit();
+    table
+        .updateLocation()
+        .setLocation(newLocation)
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.location()).isEqualTo(newLocation);
   }
@@ -1237,11 +1155,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(originalLocation).isNotEqualTo(newLocation);
 
     assertThatThrownBy(
-            () -> {
-              UpdateLocation updateLocation = table.updateLocation().setLocation(newLocation);
-              updateLocation.validate(ImmutableList.of(alwaysFailValidation));
-              updateLocation.commit();
-            })
+            () ->
+                table
+                    .updateLocation()
+                    .setLocation(newLocation)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1257,12 +1175,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     UpdateLocation pendingUpdate = table.updateLocation().setLocation(newLocation);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -1277,11 +1194,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(originalLocation).isNotEqualTo(newLocation);
 
     assertThatThrownBy(
-            () -> {
-              UpdateLocation updateLocation = table.updateLocation().setLocation(newLocation);
-              updateLocation.validate(ImmutableList.of(illegalValidation));
-              updateLocation.commit();
-            })
+            () ->
+                table
+                    .updateLocation()
+                    .setLocation(newLocation)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1294,9 +1211,7 @@ public class TestCustomValidations extends V2TableTestBase {
     String value = "newValue";
     assertThat(table.properties().get(key)).isNull();
 
-    UpdateProperties updateProperties = table.updateProperties().set(key, value);
-    updateProperties.validate(ImmutableList.of(alwaysPassValidation));
-    updateProperties.commit();
+    table.updateProperties().set(key, value).commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.properties().get(key)).isEqualTo(value);
   }
@@ -1308,11 +1223,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.properties().get(key)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              UpdateProperties updateProperties = table.updateProperties().set(key, value);
-              updateProperties.validate(ImmutableList.of(alwaysFailValidation));
-              updateProperties.commit();
-            })
+            () ->
+                table
+                    .updateProperties()
+                    .set(key, value)
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1328,12 +1243,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     UpdateProperties pendingUpdate = table.updateProperties().set(key, value);
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(ValidationException.class)
         .hasMessage(watermarkFailMessagePattern, 0);
 
@@ -1347,11 +1261,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.properties().get(key)).isNull();
 
     assertThatThrownBy(
-            () -> {
-              UpdateProperties updateProperties = table.updateProperties().set(key, value);
-              updateProperties.validate(ImmutableList.of(illegalValidation));
-              updateProperties.commit();
-            })
+            () ->
+                table
+                    .updateProperties()
+                    .set(key, value)
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1366,9 +1280,10 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testUpdateSchemaPassesValidation() {
     assertThat(table.schema().sameSchema(ORIGINAL_SCHEMA)).isTrue();
 
-    UpdateSchema updateSchema = table.updateSchema().addColumn("bool", Types.BooleanType.get());
-    updateSchema.validate(ImmutableList.of(alwaysPassValidation));
-    updateSchema.commit();
+    table
+        .updateSchema()
+        .addColumn("bool", Types.BooleanType.get())
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(
             table
@@ -1387,12 +1302,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.schema().sameSchema(ORIGINAL_SCHEMA)).isTrue();
 
     assertThatThrownBy(
-            () -> {
-              UpdateSchema updateSchema =
-                  table.updateSchema().addColumn("bool", Types.BooleanType.get());
-              updateSchema.validate(ImmutableList.of(alwaysFailValidation));
-              updateSchema.commit();
-            })
+            () ->
+                table
+                    .updateSchema()
+                    .addColumn("bool", Types.BooleanType.get())
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1406,12 +1320,11 @@ public class TestCustomValidations extends V2TableTestBase {
     setWatermarkProperty(table, 0);
 
     UpdateSchema pendingUpdate = table.updateSchema().addColumn("bool", Types.BooleanType.get());
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Cannot commit changes based on stale metadata");
 
@@ -1423,12 +1336,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.schema().sameSchema(ORIGINAL_SCHEMA)).isTrue();
 
     assertThatThrownBy(
-            () -> {
-              UpdateSchema updateSchema =
-                  table.updateSchema().addColumn("bool", Types.BooleanType.get());
-              updateSchema.validate(ImmutableList.of(illegalValidation));
-              updateSchema.commit();
-            })
+            () ->
+                table
+                    .updateSchema()
+                    .addColumn("bool", Types.BooleanType.get())
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 
@@ -1445,10 +1357,10 @@ public class TestCustomValidations extends V2TableTestBase {
   public void testUpdateSpecPassesValidation() {
     assertThat(table.spec()).isEqualTo(ORIGINAL_SPEC);
 
-    UpdatePartitionSpec updatePartitionSpec =
-        table.updateSpec().addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER));
-    updatePartitionSpec.validate(ImmutableList.of(alwaysPassValidation));
-    updatePartitionSpec.commit();
+    table
+        .updateSpec()
+        .addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER))
+        .commitIf(ImmutableList.of(alwaysPassValidation));
 
     assertThat(table.spec())
         .as("Should include new bucket")
@@ -1465,14 +1377,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.spec()).isEqualTo(ORIGINAL_SPEC);
 
     assertThatThrownBy(
-            () -> {
-              UpdatePartitionSpec updatePartitionSpec =
-                  table
-                      .updateSpec()
-                      .addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER));
-              updatePartitionSpec.validate(ImmutableList.of(alwaysFailValidation));
-              updatePartitionSpec.commit();
-            })
+            () ->
+                table
+                    .updateSpec()
+                    .addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER))
+                    .commitIf(ImmutableList.of(alwaysFailValidation)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(alwaysFailMessage);
 
@@ -1487,12 +1396,11 @@ public class TestCustomValidations extends V2TableTestBase {
 
     UpdatePartitionSpec pendingUpdate =
         table.updateSpec().addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER));
-    pendingUpdate.validate(ImmutableList.of(watermarkValidation(0)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     setWatermarkProperty(table, 1);
 
-    assertThatThrownBy(pendingUpdate::commit)
+    assertThatThrownBy(() -> pendingUpdate.commitIf(ImmutableList.of(watermarkValidation(0))))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Cannot commit changes based on stale metadata");
 
@@ -1504,14 +1412,11 @@ public class TestCustomValidations extends V2TableTestBase {
     assertThat(table.spec()).isEqualTo(ORIGINAL_SPEC);
 
     assertThatThrownBy(
-            () -> {
-              UpdatePartitionSpec updatePartitionSpec =
-                  table
-                      .updateSpec()
-                      .addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER));
-              updatePartitionSpec.validate(ImmutableList.of(illegalValidation));
-              updatePartitionSpec.commit();
-            })
+            () ->
+                table
+                    .updateSpec()
+                    .addField("id_bucket", Expressions.bucket("id", BUCKETS_NUMBER))
+                    .commitIf(ImmutableList.of(illegalValidation)))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
 

@@ -19,12 +19,19 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class ValidationUtils {
-  private ValidationUtils() {}
+abstract class BasePendingUpdate<T> implements PendingUpdate<T> {
+  private final List<Validation> pendingValidations = Lists.newArrayList();
 
-  static void validate(TableMetadata base, List<Validation> validations) {
+  @Override
+  public void commitIf(List<Validation> validations) {
+    this.pendingValidations.addAll(validations);
+    commit();
+  }
+
+  protected final void validate(TableMetadata base) {
     Table currentTable = new BaseTable(new StaticTableOperations(base), null);
-    validations.forEach(validation -> validation.validate(currentTable));
+    this.pendingValidations.forEach(validation -> validation.validate(currentTable));
   }
 }

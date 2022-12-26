@@ -723,10 +723,11 @@ public class TestTransaction extends TestBase {
     validateTableFiles(table);
 
     Transaction transaction = table.newTransaction();
-    AppendFiles appendFiles = transaction.newAppend().appendFile(FILE_A);
-    appendFiles.validate(
-        ImmutableList.of(new Validation(currentTable -> true, "Custom validation failed.")));
-    appendFiles.commit();
+    transaction
+        .newAppend()
+        .appendFile(FILE_A)
+        .commitIf(
+            ImmutableList.of(new Validation(currentTable -> true, "Custom validation failed.")));
     transaction.commitTransaction();
 
     validateTableFiles(table, FILE_A);
@@ -738,13 +739,13 @@ public class TestTransaction extends TestBase {
 
     Transaction transaction = table.newTransaction();
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = transaction.newAppend().appendFile(FILE_A);
-              appendFiles.validate(
-                  ImmutableList.of(
-                      new Validation(currentTable -> false, "Custom validation failed.")));
-              appendFiles.commit();
-            },
+            () ->
+                transaction
+                    .newAppend()
+                    .appendFile(FILE_A)
+                    .commitIf(
+                        ImmutableList.of(
+                            new Validation(currentTable -> false, "Custom validation failed."))),
             "Transaction commit should fail")
         .isInstanceOf(ValidationException.class)
         .hasMessage("Custom validation failed.");
@@ -764,17 +765,17 @@ public class TestTransaction extends TestBase {
 
     Transaction transaction = table.newTransaction();
     transaction.newAppend().appendFile(FILE_A).commit();
-    UpdateProperties updateProperties =
-        transaction.updateProperties().set(watermarkKey, nextWatermarkValue);
-    updateProperties.validate(
-        ImmutableList.of(
-            new Validation(
-                currentTable ->
-                    Objects.equals(
-                        currentTable.properties().get(watermarkKey), currentWatermarkValue),
-                "Current watermark value not equal to expected value=%s",
-                currentWatermarkValue)));
-    updateProperties.commit();
+    transaction
+        .updateProperties()
+        .set(watermarkKey, nextWatermarkValue)
+        .commitIf(
+            ImmutableList.of(
+                new Validation(
+                    currentTable ->
+                        Objects.equals(
+                            currentTable.properties().get(watermarkKey), currentWatermarkValue),
+                    "Current watermark value not equal to expected value=%s",
+                    currentWatermarkValue)));
 
     // concurrent update to the table which advances our watermark value before we're able to commit
     table.updateProperties().set(watermarkKey, nextWatermarkValue).commit();
@@ -792,19 +793,20 @@ public class TestTransaction extends TestBase {
     validateTableFiles(table);
 
     assertThatThrownBy(
-            () -> {
-              AppendFiles appendFiles = table.newTransaction().newAppend().appendFile(FILE_A);
-              appendFiles.validate(
-                  ImmutableList.of(
-                      new Validation(
-                          currentTable -> {
-                            // illegal action
-                            currentTable.updateProperties().set("key", "value").commit();
-                            return true;
-                          },
-                          "Custom validation failed.")));
-              appendFiles.commit();
-            },
+            () ->
+                table
+                    .newTransaction()
+                    .newAppend()
+                    .appendFile(FILE_A)
+                    .commitIf(
+                        ImmutableList.of(
+                            new Validation(
+                                currentTable -> {
+                                  // illegal action
+                                  currentTable.updateProperties().set("key", "value").commit();
+                                  return true;
+                                },
+                                "Custom validation failed."))),
             "Any attempts to modify a table inside a validation should throw an exception")
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
