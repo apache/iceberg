@@ -520,7 +520,7 @@ python-versions = "*"
 
 [[package]]
 name = "moto"
-version = "4.0.11"
+version = "4.0.12"
 description = "A library that allows your python tests to easily mock out the boto library"
 category = "dev"
 optional = false
@@ -533,7 +533,6 @@ cryptography = ">=3.3.1"
 Jinja2 = ">=2.10.1"
 MarkupSafe = "!=2.0.0a1"
 python-dateutil = ">=2.1,<3.0.0"
-pytz = "*"
 requests = ">=2.5"
 responses = ">=0.13.0"
 werkzeug = ">=0.5,<2.2.0 || >2.2.0,<2.2.1 || >2.2.1"
@@ -881,7 +880,7 @@ name = "pytz"
 version = "2022.6"
 description = "World timezone definitions, modern and historical"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -1193,7 +1192,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "07a63f1a7c5a33d18cecc19d86a0d22ed8ba9142ff81f5d0e1f2835a0fbebaf4"
+content-hash = "565b8068555fa388cea32b84eb0d9a97efc0ef950b4467cbe6d92b0abe34bbb5"
 
 [metadata.files]
 adal = [
@@ -1787,8 +1786,8 @@ mmhash3 = [
     {file = "mmhash3-3.0.1.tar.gz", hash = "sha256:a00d68f4a1cc434b9501513c8a29e18ed1ddad383677d72b41d71d0d862348af"},
 ]
 moto = [
-    {file = "moto-4.0.11-py3-none-any.whl", hash = "sha256:704d6d38a4e6fe49e1fe9c6b4127ca46c66aac00368149bc1f1d70a0ceff8846"},
-    {file = "moto-4.0.11.tar.gz", hash = "sha256:a6388de4a746e0b509286e1d7e70f86900b4f69ec65f6c92c47e570f95d05b14"},
+    {file = "moto-4.0.12-py3-none-any.whl", hash = "sha256:e6592727d90a2dc82ca7c7fa61b224e2b195cc0dcdac2f46ccbf0cd8efde1459"},
+    {file = "moto-4.0.12.tar.gz", hash = "sha256:30f8f31658f18cdb15eb626c8cb3a07520f0d8c2193226fbcb3326ae12fba246"},
 ]
 msal = [
     {file = "msal-1.20.0-py2.py3-none-any.whl", hash = "sha256:d2f1c26368ecdc28c8657d457352faa0b81b1845a7b889d8676787721ba86792"},
