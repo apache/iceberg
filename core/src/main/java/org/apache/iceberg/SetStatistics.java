@@ -24,7 +24,8 @@ import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class SetStatistics implements UpdateStatistics {
+public class SetStatistics extends BasePendingUpdate<List<StatisticsFile>>
+    implements UpdateStatistics {
   private final TableOperations ops;
   private final Map<Long, Optional<StatisticsFile>> statisticsToSet = Maps.newHashMap();
 
@@ -54,6 +55,7 @@ public class SetStatistics implements UpdateStatistics {
   public void commit() {
     TableMetadata base = ops.current();
     TableMetadata newMetadata = internalApply(base);
+    validate(base);
     ops.commit(base, newMetadata);
   }
 

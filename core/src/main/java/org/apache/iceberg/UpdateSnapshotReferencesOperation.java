@@ -27,7 +27,8 @@ import org.apache.iceberg.util.SnapshotUtil;
  * ToDo: Add SetSnapshotOperation operations such as setCurrentSnapshot, rollBackTime, rollbackTo to
  * this class so that we can support those operations for refs.
  */
-class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, SnapshotRef>> {
+class UpdateSnapshotReferencesOperation extends BasePendingUpdate<Map<String, SnapshotRef>>
+    implements PendingUpdate<Map<String, SnapshotRef>> {
 
   private final TableOperations ops;
   private final Map<String, SnapshotRef> updatedRefs;
@@ -47,6 +48,7 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
   @Override
   public void commit() {
     TableMetadata updated = internalApply();
+    validate(base);
     ops.commit(base, updated);
   }
 

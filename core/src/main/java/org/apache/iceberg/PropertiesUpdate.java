@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 
-class PropertiesUpdate implements UpdateProperties {
+class PropertiesUpdate extends BasePendingUpdate<Map<String, String>> implements UpdateProperties {
   private final TableOperations ops;
   private final Map<String, String> updates = Maps.newHashMap();
   private final Set<String> removals = Sets.newHashSet();
@@ -110,6 +110,7 @@ class PropertiesUpdate implements UpdateProperties {
             taskOps -> {
               Map<String, String> newProperties = apply();
               TableMetadata updated = base.replaceProperties(newProperties);
+              validate(base);
               taskOps.commit(base, updated);
             });
   }
