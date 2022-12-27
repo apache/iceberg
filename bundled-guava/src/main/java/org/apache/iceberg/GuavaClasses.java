@@ -27,6 +27,8 @@ import com.google.common.base.Splitter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableBiMap;
@@ -98,6 +100,8 @@ public class GuavaClasses {
     Iterables.class.getName();
     CountingOutputStream.class.getName();
     Suppliers.class.getName();
+    LoadingCache.class.getName();
+    CacheBuilder.class.getName();
     Stopwatch.class.getName();
   }
 }
