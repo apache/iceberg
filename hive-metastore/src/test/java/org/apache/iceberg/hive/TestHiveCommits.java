@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.TableProperties.WRITE_DATA_LOCATION;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.net.UnknownHostException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
@@ -37,8 +40,10 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -320,6 +325,32 @@ public class TestHiveCommits extends HiveTableBaseTest {
         () -> catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned()));
   }
 
+  @Test
+  public void testCreateTableCommitThrowsUnknownException()
+      throws TException, InterruptedException {
+    String namespace = DB_NAME;
+    String tableName = getRandomName();
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+
+    HiveTableOperations hiveTableOperations =
+        (HiveTableOperations) catalog.newTableOps(tableIdentifier);
+
+    String tableLocation = catalog.defaultWarehouseLocation(tableIdentifier);
+    TableMetadata metadataV1 = createTableMetadata(tableLocation);
+
+    HiveTableOperations spyOps = spy(hiveTableOperations);
+    failCommitAndThrowException(spyOps);
+
+    Assertions.assertThatThrownBy(() -> spyOps.commit(null, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Datacenter on fire");
+
+    Assert.assertEquals(
+        "One metadata files should exist",
+        1,
+        metadataFileCount(tableLocation + "/writeMetaDataLoc"));
+  }
+
   private void commitAndThrowException(
       HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {
@@ -364,9 +395,24 @@ public class TestHiveCommits extends HiveTableBaseTest {
         .persistTable(any(), anyBoolean());
   }
 
+  private void failCommitAndThrowException(
+      HiveTableOperations spyOperations, Exception exceptionToThrow)
+      throws TException, InterruptedException {
+    doThrow(exceptionToThrow).when(spyOperations).persistTable(any(), anyBoolean());
+  }
+
   private void breakFallbackCatalogCommitCheck(HiveTableOperations spyOperations) {
     when(spyOperations.refresh())
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
+  }
+
+  private TableMetadata createTableMetadata(String tableLocation) {
+    Map<String, String> tableLocationProperties =
+        ImmutableMap.of(
+            WRITE_DATA_LOCATION, tableLocation + "/writeDataLoc",
+            WRITE_METADATA_LOCATION, tableLocation + "/writeMetaDataLoc");
+    return TableMetadata.newTableMetadata(
+        schema, partitionSpec, tableLocation, tableLocationProperties);
   }
 
   private boolean metadataFileExists(TableMetadata metadata) {
@@ -374,8 +420,12 @@ public class TestHiveCommits extends HiveTableBaseTest {
   }
 
   private int metadataFileCount(TableMetadata metadata) {
-    return new File(metadata.metadataFileLocation().replace("file:", ""))
-        .getParentFile()
+    String metadataFileLocation = metadata.metadataFileLocation();
+    return metadataFileCount(new File(metadataFileLocation).getParent());
+  }
+
+  private int metadataFileCount(String metadataDirectoryLocation) {
+    return new File(metadataDirectoryLocation.replace("file:", ""))
         .listFiles(file -> file.getName().endsWith("metadata.json"))
         .length;
   }

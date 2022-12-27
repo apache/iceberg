@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.apache.iceberg.TableProperties.WRITE_DATA_LOCATION;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
+
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -31,7 +34,9 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -399,6 +404,30 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
 
+  @Test
+  public void testCreateTableCommitThrowsUnknownException() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+
+    GlueTableOperations glueTableOperations =
+        (GlueTableOperations) glueCatalog.newTableOps(TableIdentifier.of(namespace, tableName));
+
+    String tableLocation = "s3://" + testBucketName + "/" + namespace + "/" + tableName;
+    TableMetadata metadataV1 = createTableMetadata(tableLocation);
+
+    GlueTableOperations spyOps = Mockito.spy(glueTableOperations);
+    failCommitAndThrowException(spyOps);
+
+    Assertions.assertThatThrownBy(() -> spyOps.commit(null, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Datacenter on fire");
+
+    Assert.assertEquals(
+        "One metadata files should exist",
+        1,
+        metadataFileCount(tableLocation + "/writeMetaDataLoc"));
+  }
+
   private Table setupTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
@@ -414,6 +443,15 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     Assert.assertEquals(2, metadataV2.schema().columns().size());
     return metadataV2;
+  }
+
+  private TableMetadata createTableMetadata(String tableLocation) {
+    Map<String, String> tableLocationProperties =
+        ImmutableMap.of(
+            WRITE_DATA_LOCATION, tableLocation + "/writeDataLoc",
+            WRITE_METADATA_LOCATION, tableLocation + "/writeMetaDataLoc");
+    return TableMetadata.newTableMetadata(
+        schema, partitionSpec, tableLocation, tableLocationProperties);
   }
 
   private void commitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOps) {
@@ -458,14 +496,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   private int metadataFileCount(TableMetadata metadata) {
+    return metadataFileCount(metadata.metadataFileLocation());
+  }
+
+  private int metadataFileCount(String metadataFileLocation) {
     return (int)
         s3
             .listObjectsV2(
                 ListObjectsV2Request.builder()
-                    .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
-                    .prefix(
-                        new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
-                            .getParent())
+                    .bucket(S3TestUtil.getBucketFromUri(metadataFileLocation))
+                    .prefix(new File(S3TestUtil.getKeyFromUri(metadataFileLocation)).getParent())
                     .build())
             .contents().stream()
             .filter(s3Object -> s3Object.key().endsWith("metadata.json"))
