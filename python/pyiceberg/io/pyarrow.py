@@ -21,6 +21,7 @@ by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct fil
 type to use. Theoretically, this allows the supported storage types to grow naturally
 with the pyarrow library.
 """
+from __future__ import annotations
 
 import os
 from functools import lru_cache
@@ -28,6 +29,7 @@ from typing import (
     Any,
     Callable,
     List,
+    Optional,
     Set,
     Tuple,
     Union,
@@ -80,6 +82,9 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils.singleton import Singleton
 
+ONE_MEGABYTE = 1024 * 1024
+BUFFER_SIZE = "buffer-size"
+
 
 class PyArrowFile(InputFile, OutputFile):
     """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
@@ -103,9 +108,14 @@ class PyArrowFile(InputFile, OutputFile):
         >>> # output_file.create().write(b'foobytes')
     """
 
-    def __init__(self, location: str, path: str, fs: FileSystem):
+    _fs: FileSystem
+    _path: str
+    _buffer_size: int
+
+    def __init__(self, location: str, path: str, fs: FileSystem, buffer_size: Optional[int] = None):
         self._filesystem = fs
         self._path = path
+        self._buffer_size = buffer_size or ONE_MEGABYTE
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
@@ -151,7 +161,7 @@ class PyArrowFile(InputFile, OutputFile):
                 an AWS error code 15
         """
         try:
-            input_file = self._filesystem.open_input_file(self._path)
+            input_file = self._filesystem.open_input_stream(self._path, buffer_size=self._buffer_size)
         except FileNotFoundError:
             raise
         except PermissionError:
@@ -186,7 +196,7 @@ class PyArrowFile(InputFile, OutputFile):
         try:
             if not overwrite and self.exists() is True:
                 raise FileExistsError(f"Cannot create file, already exists: {self.location}")
-            output_file = self._filesystem.open_output_stream(self._path)
+            output_file = self._filesystem.open_output_stream(self._path, buffer_size=self._buffer_size)
         except PermissionError:
             raise
         except OSError as e:
@@ -195,7 +205,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
-    def to_input_file(self) -> "PyArrowFile":
+    def to_input_file(self) -> PyArrowFile:
         """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
@@ -230,6 +240,14 @@ class PyArrowFileIO(FileIO):
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
+    def _get_file(self, location: str) -> PyArrowFile:
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
+
+        buffer_size = self.properties.get(BUFFER_SIZE)
+
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(buffer_size) if buffer_size else None)
+
     def new_input(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to read bytes from the file at the given location
 
@@ -239,9 +257,7 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return self._get_file(location)
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location
@@ -252,9 +268,7 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return self._get_file(location)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
