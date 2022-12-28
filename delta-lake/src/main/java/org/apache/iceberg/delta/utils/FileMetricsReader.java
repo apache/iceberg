@@ -21,12 +21,17 @@ package org.apache.iceberg.delta.utils;
 import java.io.UncheckedIOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 
@@ -34,7 +39,28 @@ public class FileMetricsReader {
 
   private FileMetricsReader() {}
 
-  public static Metrics getAvroMetrics(Path path, Configuration conf) {
+  public static Metrics getMetricsForFile(
+      Table table, String fullFilePath, FileFormat format, Configuration hadoopConfiguration) {
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping nameMapping =
+        nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+
+    switch (format) {
+      case PARQUET:
+        return getParquetMetrics(
+            new Path(fullFilePath), hadoopConfiguration, metricsConfig, nameMapping);
+      case AVRO:
+        return getAvroMetrics(new Path(fullFilePath), hadoopConfiguration);
+      case ORC:
+        return getOrcMetrics(
+            new Path(fullFilePath), hadoopConfiguration, metricsConfig, nameMapping);
+      default:
+        throw new ValidationException("Unsupported file format: %s", format);
+    }
+  }
+
+  private static Metrics getAvroMetrics(Path path, Configuration conf) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
       long rowCount = Avro.rowCount(file);
@@ -44,7 +70,7 @@ public class FileMetricsReader {
     }
   }
 
-  public static Metrics getParquetMetrics(
+  private static Metrics getParquetMetrics(
       Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
@@ -54,7 +80,7 @@ public class FileMetricsReader {
     }
   }
 
-  public static Metrics getOrcMetrics(
+  private static Metrics getOrcMetrics(
       Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf), metricsSpec, mapping);

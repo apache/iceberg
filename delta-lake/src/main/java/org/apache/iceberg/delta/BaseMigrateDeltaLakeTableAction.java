@@ -30,14 +30,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -45,7 +43,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.delta.actions.BaseMigrateDeltaLakeTableActionResult;
@@ -54,8 +51,6 @@ import org.apache.iceberg.delta.utils.DeltaLakeDataTypeVisitor;
 import org.apache.iceberg.delta.utils.DeltaLakeTypeToType;
 import org.apache.iceberg.delta.utils.FileMetricsReader;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -232,7 +227,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
     FileFormat format = determineFileFormatFromPath(fullFilePath);
 
-    Metrics metrics = getMetricsForFile(table, fullFilePath, format);
+    Metrics metrics =
+        FileMetricsReader.getMetricsForFile(table, fullFilePath, format, this.hadoopConfiguration);
     String partition =
         spec.fields().stream()
             .map(PartitionField::name)
@@ -248,26 +244,6 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         .withMetrics(metrics)
         .withPartitionPath(partition)
         .build();
-  }
-
-  protected Metrics getMetricsForFile(Table table, String fullFilePath, FileFormat format) {
-    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
-    String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    NameMapping nameMapping =
-        nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-
-    switch (format) {
-      case PARQUET:
-        return FileMetricsReader.getParquetMetrics(
-            new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
-      case AVRO:
-        return FileMetricsReader.getAvroMetrics(new Path(fullFilePath), this.hadoopConfiguration);
-      case ORC:
-        return FileMetricsReader.getOrcMetrics(
-            new Path(fullFilePath), this.hadoopConfiguration, metricsConfig, nameMapping);
-      default:
-        throw new ValidationException("Unsupported file format: %s", format);
-    }
   }
 
   private FileFormat determineFileFormatFromPath(String path) {
