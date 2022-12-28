@@ -261,6 +261,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     GetDatabaseResponse response =
         glue.getDatabase(
             GetDatabaseRequest.builder()
+                .catalogId(awsProperties.glueCatalogId())
                 .name(
                     IcebergToGlueConverter.getDatabaseName(
                         tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))

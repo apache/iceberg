@@ -17,20 +17,12 @@
 
 import os
 import tempfile
-from typing import Type, Union
-from unittest.mock import patch
-from urllib.parse import ParseResult, urlparse
 
 import pytest
 
 from pyiceberg.io import (
     ARROW_FILE_IO,
     PY_IO_IMPL,
-    FileIO,
-    InputFile,
-    InputStream,
-    OutputFile,
-    OutputStream,
     _import_file_io,
     load_file_io,
 )
@@ -38,102 +30,7 @@ from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFileIO
 
 
-class LocalInputFile(InputFile):
-    """An InputFile implementation for local files (for test use only)"""
-
-    def __init__(self, location: str) -> None:
-
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
-            raise ValueError("LocalInputFile location must have a scheme of `file`")
-        elif parsed_location.netloc:
-            raise ValueError(f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}")
-
-        super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
-
-    def __len__(self) -> int:
-        return os.path.getsize(self.parsed_location.path)
-
-    def exists(self) -> bool:
-        return os.path.exists(self.parsed_location.path)
-
-    def open(self) -> InputStream:
-        input_file = open(self.parsed_location.path, "rb")
-        if not isinstance(input_file, InputStream):
-            raise TypeError("Object returned from LocalInputFile.open() does not match the OutputStream protocol.")
-        return input_file
-
-
-class LocalOutputFile(OutputFile):
-    """An OutputFile implementation for local files (for test use only)"""
-
-    def __init__(self, location: str) -> None:
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
-            raise ValueError("LocalOutputFile location must have a scheme of `file`")
-        elif parsed_location.netloc:
-            raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
-
-        super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
-
-    def __len__(self) -> int:
-        return os.path.getsize(self.parsed_location.path)
-
-    def exists(self) -> bool:
-        return os.path.exists(self.parsed_location.path)
-
-    def to_input_file(self) -> LocalInputFile:
-        return LocalInputFile(location=self.location)
-
-    def create(self, overwrite: bool = False) -> OutputStream:
-        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
-        if not issubclass(type(output_file), OutputStream):
-            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
-        return output_file
-
-
-class LocalFileIO(FileIO):
-    """A FileIO implementation for local files (for test use only)"""
-
-    def new_input(self, location: str) -> LocalInputFile:
-        return LocalInputFile(location=location)
-
-    def new_output(self, location: str) -> LocalOutputFile:
-        return LocalOutputFile(location=location)
-
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        parsed_location = urlparse(location)
-        try:
-            os.remove(parsed_location.path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path}") from e
-
-
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_custom_local_input_file(CustomFileIO: Type[FileIO]) -> None:
+def test_custom_local_input_file() -> None:
     """Test initializing an InputFile implementation to read a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -145,7 +42,7 @@ def test_custom_local_input_file(CustomFileIO: Type[FileIO]) -> None:
 
         # Instantiate the input file
         absolute_file_location = os.path.abspath(file_location)
-        input_file = CustomFileIO().new_input(location=f"{absolute_file_location}")
+        input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
@@ -154,15 +51,14 @@ def test_custom_local_input_file(CustomFileIO: Type[FileIO]) -> None:
         assert len(input_file) == 3
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_custom_local_output_file(CustomFileIO: Type[FileIO]) -> None:
+def test_custom_local_output_file() -> None:
     """Test initializing an OutputFile implementation to write to a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Instantiate the output file
         absolute_file_location = os.path.abspath(file_location)
-        output_file = CustomFileIO().new_output(location=f"{absolute_file_location}")
+        output_file = PyArrowFileIO().new_output(location=f"{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -175,8 +71,7 @@ def test_custom_local_output_file(CustomFileIO: Type[FileIO]) -> None:
         assert len(output_file) == 3
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_custom_local_output_file_with_overwrite(CustomFileIO: Type[FileIO]) -> None:
+def test_custom_local_output_file_with_overwrite() -> None:
     """Test initializing an OutputFile implementation to overwrite a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -186,7 +81,7 @@ def test_custom_local_output_file_with_overwrite(CustomFileIO: Type[FileIO]) -> 
             write_file.write(b"foo")
 
         # Instantiate an output file
-        output_file = CustomFileIO().new_output(location=f"{output_file_location}")
+        output_file = PyArrowFileIO().new_output(location=f"{output_file_location}")
 
         # Confirm that a FileExistsError is raised when overwrite=False
         with pytest.raises(FileExistsError):
@@ -200,8 +95,7 @@ def test_custom_local_output_file_with_overwrite(CustomFileIO: Type[FileIO]) -> 
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_custom_file_exists(CustomFileIO: Type[FileIO]) -> None:
+def test_custom_file_exists() -> None:
     """Test that the exists property returns the proper value for existing and non-existing files"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -218,30 +112,29 @@ def test_custom_file_exists(CustomFileIO: Type[FileIO]) -> None:
         non_existent_absolute_file_location = os.path.abspath(nonexistent_file_location)
 
         # Create InputFile instances
-        input_file = CustomFileIO().new_input(location=f"{absolute_file_location}")
-        non_existent_input_file = CustomFileIO().new_input(location=f"{non_existent_absolute_file_location}")
+        input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
+        non_existent_input_file = PyArrowFileIO().new_input(location=f"{non_existent_absolute_file_location}")
 
         # Test opening and reading the file
         assert input_file.exists()
         assert not non_existent_input_file.exists()
 
         # Create OutputFile instances
-        file = CustomFileIO().new_output(location=f"{absolute_file_location}")
-        non_existent_file = CustomFileIO().new_output(location=f"{non_existent_absolute_file_location}")
+        file = PyArrowFileIO().new_output(location=f"{absolute_file_location}")
+        non_existent_file = PyArrowFileIO().new_output(location=f"{non_existent_absolute_file_location}")
 
         # Test opening and reading the file
         assert file.exists()
         assert not non_existent_file.exists()
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_output_file_to_input_file(CustomFileIO: Type[FileIO]) -> None:
+def test_output_file_to_input_file() -> None:
     """Test initializing an InputFile using the `to_input_file()` method on an OutputFile instance"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Create an output file instance
-        output_file = CustomFileIO().new_output(location=f"{output_file_location}")
+        output_file = PyArrowFileIO().new_output(location=f"{output_file_location}")
 
         # Create the output file and write to it
         with output_file.create() as output_stream:
@@ -254,20 +147,17 @@ def test_output_file_to_input_file(CustomFileIO: Type[FileIO]) -> None:
 
 
 @pytest.mark.parametrize(
-    "CustomFileIO,string_uri",
+    "string_uri",
     [
-        (LocalFileIO, "foo/bar.parquet"),
-        (LocalFileIO, "file:///foo/bar.parquet"),
-        (LocalFileIO, "file:/foo/bar/baz.parquet"),
-        (PyArrowFileIO, "foo/bar/baz.parquet"),
-        (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
-        (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
+        "foo/bar/baz.parquet",
+        "file:/foo/bar/baz.parquet",
+        "file:/foo/bar/baz.parquet",
     ],
 )
-def test_custom_file_io_locations(CustomFileIO: Type[FileIO], string_uri: str) -> None:
+def test_custom_file_io_locations(string_uri: str) -> None:
     """Test that the location property is maintained as the value of the location argument"""
     # Instantiate the file-io and create a new input and output file
-    file_io = CustomFileIO()
+    file_io = PyArrowFileIO()
     input_file = file_io.new_input(location=string_uri)
     assert input_file.location == string_uri
 
@@ -275,32 +165,7 @@ def test_custom_file_io_locations(CustomFileIO: Type[FileIO], string_uri: str) -
     assert output_file.location == string_uri
 
 
-@pytest.mark.parametrize(
-    "string_uri_w_netloc",
-    ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
-)
-def test_raise_on_network_location_in_input_file(string_uri_w_netloc: str) -> None:
-    """Test raising a ValueError when providing a network location to a LocalInputFile"""
-    with pytest.raises(ValueError) as exc_info:
-        LocalInputFile(location=string_uri_w_netloc)
-
-    assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
-
-
-@pytest.mark.parametrize(
-    "string_uri_w_netloc",
-    ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
-)
-def test_raise_on_network_location_in_output_file(string_uri_w_netloc: str) -> None:
-    """Test raising a ValueError when providing a network location to a LocalOutputFile"""
-    with pytest.raises(ValueError) as exc_info:
-        LocalInputFile(location=string_uri_w_netloc)
-
-    assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
-
-
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_deleting_local_file_using_file_io(CustomFileIO: Type[FileIO]) -> None:
+def test_deleting_local_file_using_file_io() -> None:
     """Test deleting a local file using FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -309,7 +174,7 @@ def test_deleting_local_file_using_file_io(CustomFileIO: Type[FileIO]) -> None:
             f.write(b"foo")
 
         # Instantiate the file-io
-        file_io = CustomFileIO()
+        file_io = PyArrowFileIO()
 
         # Confirm that the file initially exists
         assert os.path.exists(output_file_location)
@@ -321,15 +186,14 @@ def test_deleting_local_file_using_file_io(CustomFileIO: Type[FileIO]) -> None:
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO: Type[FileIO]) -> None:
+def test_raise_file_not_found_error_for_fileio_delete() -> None:
     """Test raising a FileNotFound error when trying to delete a non-existent file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Instantiate the file-io
-        file_io = CustomFileIO()
+        file_io = PyArrowFileIO()
 
         # Delete the non-existent file using the file-io implementations delete method
         with pytest.raises(FileNotFoundError) as exc_info:
@@ -341,8 +205,7 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO: Type[FileIO]
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_deleting_local_file_using_file_io_input_file(CustomFileIO: Type[FileIO]) -> None:
+def test_deleting_local_file_using_file_io_input_file() -> None:
     """Test deleting a local file by passing an InputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -351,13 +214,13 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO: Type[FileIO]
             f.write(b"foo")
 
         # Instantiate the file-io
-        file_io = CustomFileIO()
+        file_io = PyArrowFileIO()
 
         # Confirm that the file initially exists
         assert os.path.exists(file_location)
 
         # Instantiate the custom InputFile
-        input_file = CustomFileIO().new_input(location=f"{file_location}")
+        input_file = PyArrowFileIO().new_input(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(input_file)
@@ -366,8 +229,7 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO: Type[FileIO]
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_deleting_local_file_using_file_io_output_file(CustomFileIO: Type[FileIO]) -> None:
+def test_deleting_local_file_using_file_io_output_file() -> None:
     """Test deleting a local file by passing an OutputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -376,13 +238,13 @@ def test_deleting_local_file_using_file_io_output_file(CustomFileIO: Type[FileIO
             f.write(b"foo")
 
         # Instantiate the file-io
-        file_io = CustomFileIO()
+        file_io = PyArrowFileIO()
 
         # Confirm that the file initially exists
         assert os.path.exists(file_location)
 
         # Instantiate the custom OutputFile
-        output_file = CustomFileIO().new_output(location=f"{file_location}")
+        output_file = PyArrowFileIO().new_output(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(output_file)
@@ -426,14 +288,12 @@ def test_load_file_io_location_no_schema() -> None:
     assert isinstance(load_file_io({"location": "/no-schema/"}), PyArrowFileIO)
 
 
-@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.LocalFileIO"]})
 def test_mock_warehouse_location_file_io() -> None:
     # For testing the selection logic
     io = load_file_io({"warehouse": "test://some-path/"})
     assert io.properties["warehouse"] == "test://some-path/"
 
 
-@patch.dict("pyiceberg.io.SCHEMA_TO_FILE_IO", {"test": ["tests.io.test_io.LocalFileIO"]})
 def test_mock_table_location_file_io() -> None:
     # For testing the selection logic
     io = load_file_io({}, "test://some-path/")

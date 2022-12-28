@@ -347,7 +347,7 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 
 ```sql
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
 -- use optional AS keyword to specify a custom name for the partition field 
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
@@ -373,7 +373,7 @@ Partition fields can be removed using `DROP PARTITION FIELD`:
 ```sql
 ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
 ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```

@@ -16,16 +16,12 @@
 # under the License.
 import decimal
 import struct
-from datetime import date, datetime, time
+from datetime import datetime, time
 from io import SEEK_CUR
+from uuid import UUID
 
 from pyiceberg.io import InputStream
-from pyiceberg.utils.datetime import (
-    days_to_date,
-    micros_to_time,
-    micros_to_timestamp,
-    micros_to_timestamptz,
-)
+from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from pyiceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
@@ -128,13 +124,9 @@ class BinaryDecoder:
         """
         return self.read_bytes().decode("utf-8")
 
-    def read_date_from_int(self) -> date:
-        """
-        int is decoded as python date object.
-        int stores the number of days from
-        the unix epoch, 1 January 1970 (ISO calendar).
-        """
-        return days_to_date(self.read_int())
+    def read_uuid_from_fixed(self) -> UUID:
+        """Reads a UUID as a fixed[16]"""
+        return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
         """

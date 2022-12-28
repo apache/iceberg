@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
+import errno
 import logging
+import os
 from functools import lru_cache, partial
 from typing import (
     Any,
@@ -26,6 +28,7 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
+from adlfs import AzureBlobFileSystem
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
@@ -106,10 +109,17 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     return fs
 
 
+def _adlfs(properties: Properties) -> AbstractFileSystem:
+    fs = AzureBlobFileSystem(**properties)
+    return fs
+
+
 SCHEME_TO_FS = {
     "s3": _s3,
     "s3a": _s3,
     "s3n": _s3,
+    "abfs": _adlfs,
+    "abfss": _adlfs,
 }
 
 
@@ -143,8 +153,15 @@ class FsspecInputFile(InputFile):
 
         Returns:
             OpenFile: An fsspec compliant file-like object
+
+        Raises:
+            FileNotFoundError: If the file does not exist
         """
-        return self._fs.open(self.location, "rb")
+        try:
+            return self._fs.open(self.location, "rb")
+        except FileNotFoundError as e:
+            # To have a consistent error handling experience, make sure exception contains missing file location.
+            raise e if e.filename else FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.location) from e
 
 
 class FsspecOutputFile(OutputFile):

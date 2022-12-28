@@ -41,7 +41,7 @@ All version 1 data and metadata files are valid after upgrading a table to versi
 
 Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
-The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+The primary change in version 2 adds delete files to encode rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
 
 In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
@@ -581,7 +581,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan. 
 
-Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more then once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
 
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
@@ -684,7 +684,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
 
 | v1 | v2 | Field name | Type | Description |
 |----|----|------------|------|-------------|
-| _required_ | _required_ | **`snapshot-id`** | `string` | ID of the Iceberg table's snapshot the statistics were computed from. |
+| _required_ | _required_ | **`snapshot-id`** | `string` | ID of the Iceberg table's snapshot the statistics file is associated with. |
 | _required_ | _required_ | **`statistics-path`** | `string` | Path of the statistics file. See [Puffin file format](../puffin-spec). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the statistics file. |
 | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long` | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](../puffin-spec) for footer definition. |
@@ -777,10 +777,10 @@ When the deleted row column is present, its schema may be any subset of the tabl
 
 To ensure the accuracy of statistics, all delete entries must include row values, or the column must be omitted (this is why the column type is `required`).
 
-The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning. 
 
 *  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
-*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+*  Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
 
 #### Equality Delete Files
 

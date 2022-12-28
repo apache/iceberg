@@ -61,16 +61,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
     return context().snapshotId();
   }
 
-  /**
-   * @return whether column stats are returned.
-   * @deprecated Will be removed in 1.2.0, use {@link TableScanContext#returnColumnStats()}
-   *     directly.
-   */
-  @Deprecated
-  protected boolean colStats() {
-    return context().returnColumnStats();
-  }
-
   protected Map<String, String> options() {
     return context().options();
   }

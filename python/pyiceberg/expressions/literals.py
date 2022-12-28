@@ -25,6 +25,7 @@ import struct
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
+from math import isnan
 from typing import Any, Generic, Type
 from uuid import UUID
 
@@ -65,6 +66,8 @@ class Literal(Generic[L], ABC):
     def __init__(self, value: L, value_type: Type[L]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
+        if isinstance(value, float) and isnan(value):
+            raise ValueError("Cannot create expression literal from NaN.")
         self._value = value
 
     @property
@@ -108,10 +111,10 @@ class Literal(Generic[L], ABC):
 
 def literal(value: L) -> Literal[L]:
     """
-    A generic Literal factory to construct an iceberg Literal based on python primitive data type
+    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
 
     Args:
-        value(python primitive type): the value to be associated with literal
+        value(Python primitive type): the value to be associated with literal
 
     Example:
         from pyiceberg.expressions.literals import literal

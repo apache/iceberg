@@ -42,6 +42,7 @@ from pyiceberg.exceptions import (
     NoSuchNamespaceError,
     NoSuchTableError,
 )
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
@@ -68,7 +69,6 @@ from pyiceberg.types import (
     NestedField,
     StringType,
 )
-from tests.conftest import LocalFileIO
 
 HIVE_CATALOG_NAME = "hive"
 HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
@@ -78,7 +78,8 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 def hive_table(tmp_path_factory: pytest.TempPathFactory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
     metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
     metadata = TableMetadataV2(**example_table_metadata_v2)
-    ToOutputFile.table_metadata(metadata, LocalFileIO().new_output(str(metadata_path)), True)
+
+    ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=str(metadata_path)), True)
 
     return HiveTable(
         tableName="new_tabl2e",
