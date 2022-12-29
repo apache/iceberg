@@ -54,12 +54,9 @@ class KeyDefaultDict(Dict[K, V]):
         self.default_factory = default_factory
 
     def __missing__(self, key: K) -> V:
-        if self.default_factory is None:
-            raise KeyError(key)
-        else:
-            val = self.default_factory(key)
-            self[key] = val
-            return val
+        val = self.default_factory(key)
+        self[key] = val
+        return val
 
 
 Identifier = Tuple[str, ...]
@@ -100,4 +97,4 @@ class Record(StructProtocol):
         return True if isinstance(other, Record) and other._data == self._data else False
 
     def __repr__(self) -> str:
-        return "[" + ", ".join([repr(e) for e in self._data]) + "]"
+        return f"{self.__class__.__name__}[" + ", ".join([repr(e) for e in self._data]) + "]"
