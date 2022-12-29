@@ -260,12 +260,13 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
               "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
     }
 
+    String fullFilePath = getFullFilePath(path);
+
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new ValidationException("File %s does not specify a partitionValues", path);
+      throw new ValidationException("File %s does not specify a partitionValues", fullFilePath);
     }
 
-    String fullFilePath = deltaLog.getPath().toString() + File.separator + path;
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     FileIO io = table.io();
     InputFile file;
@@ -343,5 +344,21 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     properties.putAll(additionalProperties);
 
     return properties;
+  }
+
+  /**
+   * Get the full file path, the input {@code String} can be either a relative path or an absolute
+   * path of a data file in delta table
+   *
+   * @param path the return value of {@link AddFile#getPath()} or {@link RemoveFile#getPath()}
+   *     (either absolute or relative)
+   */
+  private String getFullFilePath(String path) {
+    String tableRoot = deltaLog.getPath().toString();
+    if (path.startsWith(tableRoot)) {
+      return path;
+    } else {
+      return tableRoot + File.separator + path;
+    }
   }
 }
