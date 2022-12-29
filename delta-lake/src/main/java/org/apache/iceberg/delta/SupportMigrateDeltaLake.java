@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.delta;
 
-import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
-
 /**
  * An API that should be implemented by query engine integrations that want to support migration
  * from Delta Lake table to Iceberg table.

@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
+import org.apache.iceberg.delta.MigrateDeltaLakeTable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkDeltaLakeMigrationTestBase;

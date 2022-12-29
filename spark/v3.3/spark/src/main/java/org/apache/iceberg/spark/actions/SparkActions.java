@@ -20,8 +20,8 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.delta.MigrateDeltaLakeTable;
 import org.apache.iceberg.delta.SupportMigrateDeltaLake;
-import org.apache.iceberg.delta.actions.MigrateDeltaLakeTable;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;

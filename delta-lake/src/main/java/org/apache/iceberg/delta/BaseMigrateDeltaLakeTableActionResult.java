@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.delta.actions;
+package org.apache.iceberg.delta;
 
 public class BaseMigrateDeltaLakeTableActionResult implements MigrateDeltaLakeTable.Result {
 
