@@ -29,7 +29,6 @@ from typing import (
     Any,
     Callable,
     List,
-    Optional,
     Set,
     Tuple,
     Union,
@@ -112,10 +111,10 @@ class PyArrowFile(InputFile, OutputFile):
     _path: str
     _buffer_size: int
 
-    def __init__(self, location: str, path: str, fs: FileSystem, buffer_size: Optional[int] = None):
+    def __init__(self, location: str, path: str, fs: FileSystem, buffer_size: int = ONE_MEGABYTE):
         self._filesystem = fs
         self._path = path
-        self._buffer_size = buffer_size or ONE_MEGABYTE
+        self._buffer_size = buffer_size
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
@@ -240,14 +239,6 @@ class PyArrowFileIO(FileIO):
         else:
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
-    def _get_file(self, location: str) -> PyArrowFile:
-        scheme, path = self.parse_location(location)
-        fs = self._get_fs(scheme)
-
-        buffer_size = self.properties.get(BUFFER_SIZE)
-
-        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(buffer_size) if buffer_size else None)
-
     def new_input(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to read bytes from the file at the given location
 
@@ -257,7 +248,9 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        return self._get_file(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location
@@ -268,7 +261,9 @@ class PyArrowFileIO(FileIO):
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
         """
-        return self._get_file(location)
+        scheme, path = self.parse_location(location)
+        fs = self._get_fs(scheme)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
