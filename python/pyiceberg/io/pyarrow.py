@@ -483,7 +483,7 @@ def project_table(
         case_sensitive(bool): Case sensitivity when looking up column names
 
     Raises:
-        ResolveException: When an incompatible query is done
+        ResolveError: When an incompatible query is done
     """
 
     if isinstance(table.io, PyArrowFileIO):
@@ -506,13 +506,17 @@ def project_table(
         with fs.open_input_file(path) as fout:
             parquet_schema = pq.read_schema(fout)
             schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
+            if schema_raw is None:
+                raise ValueError(
+                    "Iceberg schema is not embedded into the Parquet file, see https://github.com/apache/iceberg/issues/6505"
+                )
             file_schema = Schema.parse_raw(schema_raw)
 
         pyarrow_filter = None
         if row_filter is not AlwaysTrue():
             translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
-            bound_row_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
-            pyarrow_filter = expression_to_pyarrow(bound_row_filter)
+            bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
+            pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
         file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
 
@@ -558,9 +562,8 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
 
     def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
         file_field = self.file_schema.find_field(field.field_id)
-        if field.field_type != file_field.field_type:
+        if field.field_type.is_primitive and field.field_type != file_field.field_type:
             return values.cast(schema_to_pyarrow(promote(file_field.field_type, field.field_type)))
-
         return values
 
     def schema(self, schema: Schema, schema_partner: Optional[pa.Array], struct_result: Optional[pa.Array]) -> Optional[pa.Array]:
@@ -571,16 +574,24 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
     ) -> Optional[pa.Array]:
         if struct_array is None:
             return None
-        return pa.StructArray.from_arrays(arrays=field_results, fields=pa.struct(schema_to_pyarrow(struct)))
+        field_arrays: List[pa.Array] = []
+        fields: List[pa.Field] = []
+        for field, field_array in zip(struct.fields, field_results):
+            if field_array is not None:
+                array = self.cast_if_needed(field, field_array)
+                field_arrays.append(array)
+                fields.append(pa.field(field.name, array.type, field.optional))
+            elif field.optional:
+                arrow_type = schema_to_pyarrow(field.field_type)
+                field_arrays.append(pa.nulls(len(struct_array), type=arrow_type))
+                fields.append(pa.field(field.name, arrow_type, field.optional))
+            else:
+                raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+
+        return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
 
     def field(self, field: NestedField, _: Optional[pa.Array], field_array: Optional[pa.Array]) -> Optional[pa.Array]:
-        if field_array is not None:
-            return self.cast_if_needed(field, field_array)
-        elif field.optional:
-            arrow_type = schema_to_pyarrow(field.field_type)
-            return pa.nulls(self.table_length, type=arrow_type)
-        else:
-            raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+        return field_array
 
     def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
         return (

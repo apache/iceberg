@@ -1203,7 +1203,7 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
         read_type (IcebergType): The requested read type
 
     Raises:
-        ResolveException: If attempting to resolve an unrecognized object type
+        ResolveError: If attempting to resolve an unrecognized object type
     """
     if file_type == read_type:
         return file_type
@@ -1254,20 +1254,3 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
             raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveError(f"Cannot promote an decimal to {read_type}")
-
-
-@promote.register(StructType)
-def _(file_type: StructType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, StructType):
-        id_to_type = {file_field.field_id: file_field.field_type for file_field in file_type.fields}
-        for read_field in read_type.fields:
-            if file_field_type := id_to_type.get(read_field.field_id):
-                if file_field_type != read_field.field_type:
-                    # Check if the promotion is valid in case they differ
-                    promote(file_field_type, read_field.field_type)
-            else:
-                if read_field.required:
-                    raise ResolveError(f"Adding required fields to struct is not allowed: {read_field}")
-        return read_type
-    else:
-        raise ResolveError(f"Cannot promote a struct to {read_type}")
