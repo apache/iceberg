@@ -558,7 +558,7 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
 
     def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
         file_field = self.file_schema.find_field(field.field_id)
-        if field.field_type != file_field.field_type:
+        if field.field_type.is_primitive and field.field_type != file_field.field_type:
             return values.cast(schema_to_pyarrow(promote(file_field.field_type, field.field_type)))
 
         return values
@@ -571,16 +571,25 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
     ) -> Optional[pa.Array]:
         if struct_array is None:
             return None
-        return pa.StructArray.from_arrays(arrays=field_results, fields=pa.struct(schema_to_pyarrow(struct)))
+
+        field_arrays: List[pa.Array] = []
+        fields: List[pa.Field] = []
+        for field, field_array in zip(struct.fields, field_results):
+            if field_array is not None:
+                array = self.cast_if_needed(field, field_array)
+                field_arrays.append(array)
+                fields.append(pa.field(field.name, array.type, field.optional))
+            elif field.optional:
+                arrow_type = schema_to_pyarrow(field.field_type)
+                field_arrays.append(pa.nulls(len(struct_array), type=arrow_type))
+                fields.append(pa.field(field.name, arrow_type, field.optional))
+            else:
+                raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+
+        return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
 
     def field(self, field: NestedField, _: Optional[pa.Array], field_array: Optional[pa.Array]) -> Optional[pa.Array]:
-        if field_array is not None:
-            return self.cast_if_needed(field, field_array)
-        elif field.optional:
-            arrow_type = schema_to_pyarrow(field.field_type)
-            return pa.nulls(self.table_length, type=arrow_type)
-        else:
-            raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+        return field_array
 
     def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
         return (

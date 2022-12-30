@@ -626,6 +626,22 @@ def schema_list() -> Schema:
 
 
 @pytest.fixture
+def schema_list_of_structs() -> Schema:
+    return Schema(
+        NestedField(
+            5,
+            "locations",
+            ListType(
+                51,
+                StructType(NestedField(511, "lat", DoubleType()), NestedField(512, "long", DoubleType())),
+                element_required=False,
+            ),
+            required=False,
+        ),
+    )
+
+
+@pytest.fixture
 def schema_map() -> Schema:
     return Schema(
         NestedField(
@@ -711,6 +727,25 @@ def file_list(schema_list: Schema, tmpdir: str) -> str:
                 {"ids": list(range(1, 10))},
                 {"ids": list(range(2, 20))},
                 {"ids": list(range(3, 30))},
+            ],
+            schema=pyarrow_schema,
+        ),
+    )
+
+
+@pytest.fixture
+def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(
+        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.json()}
+    )
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"locations": [{"lat": 52.371807, "long": 4.896029}, {"lat": 52.387386, "long": 4.646219}]},
+                {"locations": []},
+                {"locations": [{"lat": 52.078663, "long": 4.288788}, {"lat": 52.387386, "long": 4.646219}]},
             ],
             schema=pyarrow_schema,
         ),
@@ -1011,6 +1046,52 @@ def test_projection_nested_struct(schema_struct: Schema, file_struct: str) -> No
     assert (
         repr(result_table.schema)
         == "location: struct<lat: double, null: double, long: double> not null\n  child 0, lat: double\n  child 1, null: double\n  child 2, long: double"
+    )
+
+
+def test_projection_list_of_structs(schema_list_of_structs: Schema, file_list_of_structs: str) -> None:
+    schema = Schema(
+        NestedField(
+            5,
+            "locations",
+            ListType(
+                51,
+                StructType(
+                    NestedField(511, "latitude", DoubleType()),
+                    NestedField(512, "longitude", DoubleType()),
+                    NestedField(513, "altitude", DoubleType(), required=False),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+    )
+
+    result_table = project(schema, [file_list_of_structs])
+    assert len(result_table.columns) == 1
+    assert len(result_table.columns[0]) == 3
+    for actual, expected in zip(
+        result_table.columns[0],
+        [
+            [
+                {"latitude": 52.371807, "longitude": 4.896029, "altitude": None},
+                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+            ],
+            [],
+            [
+                {"latitude": 52.078663, "longitude": 4.288788, "altitude": None},
+                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+            ],
+        ],
+    ):
+        assert actual.as_py() == expected
+    assert (
+        repr(result_table.schema)
+        == """locations: list<item: struct<latitude: double not null, longitude: double not null, altitude: double>>
+  child 0, item: struct<latitude: double not null, longitude: double not null, altitude: double>
+      child 0, latitude: double not null
+      child 1, longitude: double not null
+      child 2, altitude: double"""
     )
 
 
