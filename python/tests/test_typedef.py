@@ -41,4 +41,4 @@ def test_keydefaultdict() -> None:
 
 def test_record_repr() -> None:
     r = Record(1, "vo", True)
-    assert repr(r) == "Record[1, 'vo', True]"
+    assert repr(r) == "Record(1, 'vo', True)"
