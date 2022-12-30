@@ -148,8 +148,11 @@ class PyArrowFile(InputFile, OutputFile):
         except FileNotFoundError:
             return False
 
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = False) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the location
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
@@ -160,7 +163,10 @@ class PyArrowFile(InputFile, OutputFile):
                 an AWS error code 15
         """
         try:
-            input_file = self._filesystem.open_input_stream(self._path, buffer_size=self._buffer_size)
+            if seekable:
+                input_file = self._filesystem.open_input_file(self._path)
+            else:
+                input_file = self._filesystem.open_input_stream(self._path, buffer_size=self._buffer_size)
         except FileNotFoundError:
             raise
         except PermissionError:

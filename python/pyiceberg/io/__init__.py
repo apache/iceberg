@@ -139,8 +139,11 @@ class InputFile(ABC):
         """
 
     @abstractmethod
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = False) -> InputStream:
         """This method should return an object that matches the InputStream protocol
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             InputStream: An object that matches the InputStream protocol
