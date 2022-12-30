@@ -14,31 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+from unittest.mock import Mock, patch
 
-from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
-
-
-def test_setitem_frozendict() -> None:
-    d = FrozenDict(foo=1, bar=2)
-    with pytest.raises(AttributeError):
-        d["foo"] = 3
+from pyiceberg.utils.deprecated import deprecated
 
 
-def test_update_frozendict() -> None:
-    d = FrozenDict(foo=1, bar=2)
-    with pytest.raises(AttributeError):
-        d.update({"yes": 2})
+@patch("warnings.warn")
+def test_deprecated(warn: Mock) -> None:
+    @deprecated(
+        deprecated_in="0.1.0",
+        removed_in="0.2.0",
+        help_message="Please use load_something_else() instead",
+    )
+    def deprecated_method() -> None:
+        pass
 
+    deprecated_method()
 
-def test_keydefaultdict() -> None:
-    def one(_: int) -> int:
-        return 1
-
-    defaultdict = KeyDefaultDict(one)
-    assert defaultdict[22] == 1
-
-
-def test_record_repr() -> None:
-    r = Record(1, "vo", True)
-    assert repr(r) == "Record[1, 'vo', True]"
+    assert warn.called
+    assert warn.call_args[0] == (
+        "Call to deprecated_method, deprecated in 0.1.0, will be removed in 0.2.0. Please use load_something_else() instead.",
+    )
