@@ -41,6 +41,7 @@ setup(
     extras_require={
         "dev": [
             "tox-travis==0.12",
+            "tox>=2.0,<4",
             "virtualenv<20.0.0",
         ],
     },
