@@ -539,9 +539,7 @@ def project_table(
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
-    struct_array = visit_with_partner(
-        requested_schema, table, ArrowProjectionVisitor(file_schema, len(table)), ArrowAccessor(file_schema)
-    )
+    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(file_schema), ArrowAccessor(file_schema))
 
     arrays = []
     fields = []
@@ -554,11 +552,9 @@ def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa
 
 class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Array]]):
     file_schema: Schema
-    table_length: int
 
-    def __init__(self, file_schema: Schema, table_length: int):
+    def __init__(self, file_schema: Schema):
         self.file_schema = file_schema
-        self.table_length = table_length
 
     def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
         file_field = self.file_schema.find_field(field.field_id)
