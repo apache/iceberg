@@ -39,12 +39,15 @@ from pyiceberg.expressions import (
     BoundIsNull,
     BoundLessThan,
     BoundLessThanOrEqual,
+    BoundLiteralPredicate,
     BoundNotEqualTo,
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
     BoundPredicate,
+    BoundSetPredicate,
     BoundTerm,
+    BoundUnaryPredicate,
     L,
     Not,
     Or,
@@ -753,3 +756,89 @@ def inclusive_projection(
     schema: Schema, spec: PartitionSpec, case_sensitive: bool = True
 ) -> Callable[[BooleanExpression], BooleanExpression]:
     return InclusiveProjection(schema, spec, case_sensitive).project
+
+
+class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
+    """Converts the column names with the ones in the actual file
+
+    Args:
+      file_schema (Schema): The schema of the file
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case of an UnboundPredicate
+        ValueError: When a column name cannot be found
+    """
+
+    file_schema: Schema
+    case_sensitive: bool
+
+    def __init__(self, file_schema: Schema, case_sensitive: bool) -> None:
+        self.file_schema = file_schema
+        self.case_sensitive = case_sensitive
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return Not(child=child_result)
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
+        raise TypeError(f"Expected Bound Predicate, got: {predicate.term}")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
+        file_column_name = self.file_schema.find_column_name(predicate.term.ref().field.field_id)
+
+        if not file_column_name:
+            raise ValueError(f"Not found in file schema: {file_column_name}")
+
+        if isinstance(predicate, BoundUnaryPredicate):
+            return predicate.as_unbound(file_column_name)
+        elif isinstance(predicate, BoundLiteralPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literal)
+        elif isinstance(predicate, BoundSetPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literals)
+        else:
+            raise ValueError(f"Unsupported predicate: {predicate}")
+
+
+def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_sensitive: bool) -> BooleanExpression:
+    return visit(expr, _ColumnNameTranslator(file_schema, case_sensitive))
+
+
+class _ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
+    """Extracts the field IDs used in the BooleanExpression"""
+
+    def visit_true(self) -> Set[int]:
+        return set()
+
+    def visit_false(self) -> Set[int]:
+        return set()
+
+    def visit_not(self, child_result: Set[int]) -> Set[int]:
+        return child_result
+
+    def visit_and(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_or(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Set[int]:
+        raise ValueError("Only works on bound records")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Set[int]:
+        return {predicate.term.ref().field.field_id}
+
+
+def extract_field_ids(expr: BooleanExpression) -> Set[int]:
+    return visit(expr, _ExpressionFieldIDs())
