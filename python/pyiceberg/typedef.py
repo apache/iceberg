@@ -55,12 +55,9 @@ class KeyDefaultDict(Dict[K, V]):
         self.default_factory = default_factory
 
     def __missing__(self, key: K) -> V:
-        if self.default_factory is None:
-            raise KeyError(key)
-        else:
-            val = self.default_factory(key)
-            self[key] = val
-            return val
+        val = self.default_factory(key)
+        self[key] = val
+        return val
 
 
 Identifier = Tuple[str, ...]
