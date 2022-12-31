@@ -396,6 +396,10 @@ class SchemaWithPartnerVisitor(Generic[P, T], ABC):
 
 class PartnerAccessor(Generic[P], ABC):
     @abstractmethod
+    def schema_partner(self, partner: Optional[P]) -> Optional[P]:
+        """Returns the equivalent of the schema as a struct"""
+
+    @abstractmethod
     def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
         """Returns the equivalent struct field by name or id in the partner struct"""
 
@@ -421,7 +425,8 @@ def visit_with_partner(
 
 @visit_with_partner.register(Schema)
 def _(schema: Schema, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
-    return visitor.schema(schema, partner, visit_with_partner(schema.as_struct(), partner, visitor, accessor))  # type: ignore
+    struct_partner = accessor.schema_partner(partner)
+    return visitor.schema(schema, partner, visit_with_partner(schema.as_struct(), struct_partner, visitor, accessor))  # type: ignore
 
 
 @visit_with_partner.register(StructType)

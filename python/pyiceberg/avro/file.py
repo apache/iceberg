@@ -24,7 +24,12 @@ import json
 from dataclasses import dataclass
 from io import SEEK_SET, BufferedReader
 from types import TracebackType
-from typing import Optional, Type
+from typing import (
+    Callable,
+    Dict,
+    Optional,
+    Type,
+)
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
@@ -33,7 +38,7 @@ from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema, visit
-from pyiceberg.typedef import Record
+from pyiceberg.typedef import Record, StructProtocol
 from pyiceberg.types import (
     FixedType,
     MapType,
@@ -112,6 +117,7 @@ class Block:
 class AvroFile:
     input_file: InputFile
     read_schema: Optional[Schema]
+    read_types: Dict[str, Callable[[Schema], StructProtocol]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema

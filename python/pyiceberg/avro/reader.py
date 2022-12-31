@@ -37,7 +37,6 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Union,
 )
 from uuid import UUID
 
@@ -260,23 +259,41 @@ class OptionReader(Reader):
             return self.option.skip(decoder)
 
 
-@dataclass(frozen=True)
-class StructReader(Reader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...] = dataclassfield()
+class StructProtocolReader(Reader):
+    create_struct: Callable[[], StructProtocol]
+    fields: Tuple[Tuple[Optional[int], Reader], ...]
 
-    def read(self, decoder: BinaryDecoder) -> Record:
-        result: List[Union[Any, StructProtocol]] = [None] * len(self.fields)
+    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Callable[[], StructProtocol]):
+        self.create_struct = create_struct
+        self.fields = fields
+
+    def create_or_reuse(self, reuse: Optional[StructProtocol]) -> StructProtocol:
+        if reuse:
+            return reuse
+        else:
+            return self.create_struct()
+
+    def read(self, decoder: BinaryDecoder) -> Any:
+        struct = self.create_or_reuse(None)
+
         for (pos, field) in self.fields:
             if pos is not None:
-                result[pos] = field.read(decoder)
+                struct.set(pos, field.read(decoder))  # TODO: pass reuse in here
             else:
                 field.skip(decoder)
 
-        return Record(*result)
+        return struct
 
     def skip(self, decoder: BinaryDecoder) -> None:
         for _, field in self.fields:
             field.skip(decoder)
+
+
+class StructReader(StructProtocolReader):
+    fields: Tuple[Tuple[Optional[int], Reader], ...]
+
+    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...]):
+        super().__init__(fields, lambda: Record.of(len(fields)))
 
 
 @dataclass(frozen=True)
@@ -328,6 +345,11 @@ class MapReader(Reader):
 
 
 class ConstructReader(SchemaVisitorPerPrimitiveType[Reader]):
+    # read_types: Dict[str, Callable[[Schema], StructProtocol]]
+    #
+    # def __init__(self, read_types: Dict[str, Callable[[], StructProtocol]]):
+    #     self.read_types = read_types
+
     def schema(self, schema: Schema, struct_result: Reader) -> Reader:
         return struct_result
 

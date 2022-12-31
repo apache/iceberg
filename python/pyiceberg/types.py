@@ -268,6 +268,12 @@ class StructType(IcebergType):
             data["fields"] = fields
         super().__init__(**data)
 
+    def field(self, field_id: int) -> Optional[NestedField]:
+        for field in self.fields:
+            if field.field_id == field_id:
+                return field
+        return None
+
     def __str__(self) -> str:
         return f"struct<{', '.join(map(str, self.fields))}>"
 
