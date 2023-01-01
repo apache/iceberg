@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=arguments-renamed,unused-argument
 from typing import (
+    Callable,
     Dict,
     List,
     Optional,
@@ -23,53 +25,103 @@ from typing import (
 )
 
 from pyiceberg.avro.reader import (
-    ConstructReader,
+    BinaryReader,
+    BooleanReader,
+    DateReader,
+    DecimalReader,
+    DoubleReader,
+    FixedReader,
+    FloatReader,
+    IntegerReader,
     ListReader,
     MapReader,
     NoneReader,
+    OptionReader,
     Reader,
+    StringReader,
     StructReader,
+    TimeReader,
+    TimestampReader,
+    TimestamptzReader,
+    UUIDReader,
 )
 from pyiceberg.exceptions import ResolveError
 from pyiceberg.schema import (
     PartnerAccessor,
+    PrimitiveWithPartnerVisitor,
     Schema,
-    SchemaWithPartnerVisitor,
     promote,
-    visit,
     visit_with_partner,
 )
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
     IcebergType,
+    IntegerType,
     ListType,
+    LongType,
     MapType,
     NestedField,
     PrimitiveType,
+    StringType,
     StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
 )
 
 
-def resolve(file_schema: Union[Schema, IcebergType], read_schema: Union[Schema, IcebergType]) -> Reader:
-    """This resolves the file and read schema
+def construct_reader(file_schema: Union[Schema, IcebergType]) -> Reader:
+    """Constructs a reader from a file schema
 
-    The function traverses the schema in post-order fashion
+    Args:
+        file_schema (Schema | IcebergType): The schema of the Avro file
 
-     Args:
-         file_schema (Schema | IcebergType): The schema of the Avro file
-         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
-
-     Raises:
-         NotImplementedError: If attempting to resolve an unrecognized object type
+    Raises:
+        NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    return visit_with_partner(file_schema, read_schema, SchemaResolver(), SchemaPartnerAccessor())
+    return resolve(file_schema, file_schema)
 
 
-class SchemaResolver(SchemaWithPartnerVisitor[IcebergType, Reader]):
+def resolve(
+    file_schema: Union[Schema, IcebergType],
+    read_schema: Union[Schema, IcebergType],
+    read_types: Dict[int, Callable[[Schema], StructProtocol]] = EMPTY_DICT,
+) -> Reader:
+    """Resolves the file and read schema to produce a reader
+
+    Args:
+        file_schema (Schema | IcebergType): The schema of the Avro file
+        read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
+        read_types (Dict[int, Callable[[Schema], StructProtocol]]): A dict of types to use for struct data
+
+    Raises:
+        NotImplementedError: If attempting to resolve an unrecognized object type
+    """
+    return visit_with_partner(file_schema, read_schema, SchemaResolver(read_types), SchemaPartnerAccessor())  # type: ignore
+
+
+class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
+    read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]
+
+    def __init__(self, read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]):
+        self.read_types = read_types
+
     def schema(self, schema: Schema, expected_schema: Optional[IcebergType], result: Reader) -> Reader:
         return result
 
     def struct(self, struct: StructType, expected_struct: Optional[IcebergType], field_readers: List[Reader]) -> Reader:
-        if expected_struct and not isinstance(expected_struct, StructType):
+        if not expected_struct:
+            return StructReader(tuple(enumerate(field_readers)))
+
+        if not isinstance(expected_struct, StructType):
             raise ResolveError(f"File/read schema are not aligned for struct, got {expected_struct}")
 
         results: List[Tuple[Optional[int], Reader]] = []
@@ -91,19 +143,19 @@ class SchemaResolver(SchemaWithPartnerVisitor[IcebergType, Reader]):
         return StructReader(tuple(results))
 
     def field(self, field: NestedField, expected_field: Optional[IcebergType], field_reader: Reader) -> Reader:
-        return field_reader
+        return field_reader if field.required else OptionReader(field_reader)
 
     def list(self, list_type: ListType, expected_list: Optional[IcebergType], element_reader: Reader) -> Reader:
         if expected_list and not isinstance(expected_list, ListType):
             raise ResolveError(f"File/read schema are not aligned for list, got {expected_list}")
 
-        return ListReader(element_reader)
+        return ListReader(element_reader if list_type.element_required else OptionReader(element_reader))
 
     def map(self, map_type: MapType, expected_map: Optional[IcebergType], key_reader: Reader, value_reader: Reader) -> Reader:
         if expected_map and not isinstance(expected_map, MapType):
             raise ResolveError(f"File/read schema are not aligned for map, got {expected_map}")
 
-        return MapReader(key_reader, value_reader)
+        return MapReader(key_reader, value_reader if map_type.value_required else OptionReader(value_reader))
 
     def primitive(self, primitive: PrimitiveType, expected_primitive: Optional[IcebergType]) -> Reader:
         if expected_primitive is not None:
@@ -114,7 +166,49 @@ class SchemaResolver(SchemaWithPartnerVisitor[IcebergType, Reader]):
             if primitive != expected_primitive:
                 promote(primitive, expected_primitive)
 
-        return visit(primitive, ConstructReader())
+        return super().primitive(primitive, expected_primitive)
+
+    def visit_boolean(self, boolean_type: BooleanType, partner: Optional[IcebergType]) -> Reader:
+        return BooleanReader()
+
+    def visit_integer(self, integer_type: IntegerType, partner: Optional[IcebergType]) -> Reader:
+        return IntegerReader()
+
+    def visit_long(self, long_type: LongType, partner: Optional[IcebergType]) -> Reader:
+        return IntegerReader()
+
+    def visit_float(self, float_type: FloatType, partner: Optional[IcebergType]) -> Reader:
+        return FloatReader()
+
+    def visit_double(self, double_type: DoubleType, partner: Optional[IcebergType]) -> Reader:
+        return DoubleReader()
+
+    def visit_decimal(self, decimal_type: DecimalType, partner: Optional[IcebergType]) -> Reader:
+        return DecimalReader(decimal_type.precision, decimal_type.scale)
+
+    def visit_date(self, date_type: DateType, partner: Optional[IcebergType]) -> Reader:
+        return DateReader()
+
+    def visit_time(self, time_type: TimeType, partner: Optional[IcebergType]) -> Reader:
+        return TimeReader()
+
+    def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[IcebergType]) -> Reader:
+        return TimestampReader()
+
+    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
+        return TimestamptzReader()
+
+    def visit_string(self, string_type: StringType, partner: Optional[IcebergType]) -> Reader:
+        return StringReader()
+
+    def visit_uuid(self, uuid_type: UUIDType, partner: Optional[IcebergType]) -> Reader:
+        return UUIDReader()
+
+    def visit_fixed(self, fixed_type: FixedType, partner: Optional[IcebergType]) -> Reader:
+        return FixedReader(len(fixed_type))
+
+    def visit_binary(self, binary_type: BinaryType, partner: Optional[IcebergType]) -> Reader:
+        return BinaryReader()
 
 
 class SchemaPartnerAccessor(PartnerAccessor[IcebergType]):

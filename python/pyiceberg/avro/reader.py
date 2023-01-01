@@ -41,28 +41,7 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType
 from pyiceberg.typedef import Record, StructProtocol
-from pyiceberg.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FixedType,
-    FloatType,
-    IntegerType,
-    ListType,
-    LongType,
-    MapType,
-    NestedField,
-    StringType,
-    StructType,
-    TimestampType,
-    TimestamptzType,
-    TimeType,
-    UUIDType,
-)
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -278,7 +257,7 @@ class StructProtocolReader(Reader):
 
         for (pos, field) in self.fields:
             if pos is not None:
-                struct.set(pos, field.read(decoder))  # TODO: pass reuse in here
+                struct.set(pos, field.read(decoder))  # later: pass reuse in here
             else:
                 field.skip(decoder)
 
@@ -342,69 +321,3 @@ class MapReader(Reader):
             self.value.skip(decoder)
 
         _skip_map_array(decoder, skip)
-
-
-class ConstructReader(SchemaVisitorPerPrimitiveType[Reader]):
-    # read_types: Dict[str, Callable[[Schema], StructProtocol]]
-    #
-    # def __init__(self, read_types: Dict[str, Callable[[], StructProtocol]]):
-    #     self.read_types = read_types
-
-    def schema(self, schema: Schema, struct_result: Reader) -> Reader:
-        return struct_result
-
-    def struct(self, struct: StructType, field_results: List[Reader]) -> Reader:
-        return StructReader(tuple(enumerate(field_results)))
-
-    def field(self, field: NestedField, field_result: Reader) -> Reader:
-        return field_result if field.required else OptionReader(field_result)
-
-    def list(self, list_type: ListType, element_result: Reader) -> Reader:
-        element_reader = element_result if list_type.element_required else OptionReader(element_result)
-        return ListReader(element_reader)
-
-    def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
-        value_reader = value_result if map_type.value_required else OptionReader(value_result)
-        return MapReader(key_result, value_reader)
-
-    def visit_fixed(self, fixed_type: FixedType) -> Reader:
-        return FixedReader(len(fixed_type))
-
-    def visit_decimal(self, decimal_type: DecimalType) -> Reader:
-        return DecimalReader(decimal_type.precision, decimal_type.scale)
-
-    def visit_boolean(self, boolean_type: BooleanType) -> Reader:
-        return BooleanReader()
-
-    def visit_integer(self, integer_type: IntegerType) -> Reader:
-        return IntegerReader()
-
-    def visit_long(self, long_type: LongType) -> Reader:
-        return IntegerReader()
-
-    def visit_float(self, float_type: FloatType) -> Reader:
-        return FloatReader()
-
-    def visit_double(self, double_type: DoubleType) -> Reader:
-        return DoubleReader()
-
-    def visit_date(self, date_type: DateType) -> Reader:
-        return DateReader()
-
-    def visit_time(self, time_type: TimeType) -> Reader:
-        return TimeReader()
-
-    def visit_timestamp(self, timestamp_type: TimestampType) -> Reader:
-        return TimestampReader()
-
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> Reader:
-        return TimestamptzReader()
-
-    def visit_string(self, string_type: StringType) -> Reader:
-        return StringReader()
-
-    def visit_uuid(self, uuid_type: UUIDType) -> Reader:
-        return UUIDReader()
-
-    def visit_binary(self, binary_ype: BinaryType) -> Reader:
-        return BinaryReader()

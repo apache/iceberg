@@ -23,7 +23,6 @@ from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
     BooleanReader,
-    ConstructReader,
     DateReader,
     DecimalReader,
     DoubleReader,
@@ -36,9 +35,10 @@ from pyiceberg.avro.reader import (
     TimestamptzReader,
     UUIDReader,
 )
+from pyiceberg.avro.resolver import construct_reader
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import _convert_pos_to_dict
-from pyiceberg.schema import Schema, visit
+from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
@@ -446,55 +446,55 @@ def test_null_struct_convert_pos_to_dict() -> None:
 
 
 def test_fixed_reader() -> None:
-    assert visit(FixedType(22), ConstructReader()) == FixedReader(22)
+    assert construct_reader(FixedType(22)) == FixedReader(22)
 
 
 def test_decimal_reader() -> None:
-    assert visit(DecimalType(19, 25), ConstructReader()) == DecimalReader(19, 25)
+    assert construct_reader(DecimalType(19, 25)) == DecimalReader(19, 25)
 
 
 def test_boolean_reader() -> None:
-    assert visit(BooleanType(), ConstructReader()) == BooleanReader()
+    assert construct_reader(BooleanType()) == BooleanReader()
 
 
 def test_integer_reader() -> None:
-    assert visit(IntegerType(), ConstructReader()) == IntegerReader()
+    assert construct_reader(IntegerType()) == IntegerReader()
 
 
 def test_long_reader() -> None:
-    assert visit(LongType(), ConstructReader()) == IntegerReader()
+    assert construct_reader(LongType()) == IntegerReader()
 
 
 def test_float_reader() -> None:
-    assert visit(FloatType(), ConstructReader()) == FloatReader()
+    assert construct_reader(FloatType()) == FloatReader()
 
 
 def test_double_reader() -> None:
-    assert visit(DoubleType(), ConstructReader()) == DoubleReader()
+    assert construct_reader(DoubleType()) == DoubleReader()
 
 
 def test_date_reader() -> None:
-    assert visit(DateType(), ConstructReader()) == DateReader()
+    assert construct_reader(DateType()) == DateReader()
 
 
 def test_time_reader() -> None:
-    assert visit(TimeType(), ConstructReader()) == TimeReader()
+    assert construct_reader(TimeType()) == TimeReader()
 
 
 def test_timestamp_reader() -> None:
-    assert visit(TimestampType(), ConstructReader()) == TimestampReader()
+    assert construct_reader(TimestampType()) == TimestampReader()
 
 
 def test_timestamptz_reader() -> None:
-    assert visit(TimestamptzType(), ConstructReader()) == TimestamptzReader()
+    assert construct_reader(TimestamptzType()) == TimestamptzReader()
 
 
 def test_string_reader() -> None:
-    assert visit(StringType(), ConstructReader()) == StringReader()
+    assert construct_reader(StringType()) == StringReader()
 
 
 def test_binary_reader() -> None:
-    assert visit(BinaryType(), ConstructReader()) == BinaryReader()
+    assert construct_reader(BinaryType()) == BinaryReader()
 
 
 def test_unknown_type() -> None:
@@ -502,10 +502,10 @@ def test_unknown_type() -> None:
         __root__ = "UnknownType"
 
     with pytest.raises(ValueError) as exc_info:
-        visit(UnknownType(), ConstructReader())
+        construct_reader(UnknownType())
 
     assert "Unknown type:" in str(exc_info.value)
 
 
 def test_uuid_reader() -> None:
-    assert visit(UUIDType(), ConstructReader()) == UUIDReader()
+    assert construct_reader(UUIDType()) == UUIDReader()

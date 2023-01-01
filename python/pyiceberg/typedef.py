@@ -84,7 +84,7 @@ class Record(StructProtocol):
     _data: List[Union[Any, StructProtocol]]
 
     @staticmethod
-    def of(num_fields: int):
+    def of(num_fields: int) -> Record:
         return Record(*([None] * num_fields))
 
     def __init__(self, *data: Union[Any, StructProtocol]) -> None:
