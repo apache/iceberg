@@ -732,7 +732,7 @@ tests = ["pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-mypy (>=0.8.0)", "p
 
 [[package]]
 name = "pre-commit"
-version = "2.20.0"
+version = "2.21.0"
 description = "A framework for managing and maintaining multi-language pre-commit hooks."
 category = "dev"
 optional = false
@@ -743,8 +743,7 @@ cfgv = ">=2.0.0"
 identify = ">=1.0.0"
 nodeenv = ">=0.11.1"
 pyyaml = ">=5.1"
-toml = "*"
-virtualenv = ">=20.0.8"
+virtualenv = ">=20.10.0"
 
 [[package]]
 name = "pyarrow"
@@ -1192,7 +1191,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "565b8068555fa388cea32b84eb0d9a97efc0ef950b4467cbe6d92b0abe34bbb5"
+content-hash = "d476ca7c2ecc999681b7cc3380488043686338a30e508c69ead925ef05e5b2f4"
 
 [metadata.files]
 adal = [
@@ -1965,8 +1964,8 @@ portalocker = [
     {file = "portalocker-2.6.0.tar.gz", hash = "sha256:964f6830fb42a74b5d32bce99ed37d8308c1d7d44ddf18f3dd89f4680de97b39"},
 ]
 pre-commit = [
-    {file = "pre_commit-2.20.0-py2.py3-none-any.whl", hash = "sha256:51a5ba7c480ae8072ecdb6933df22d2f812dc897d5fe848778116129a681aac7"},
-    {file = "pre_commit-2.20.0.tar.gz", hash = "sha256:a978dac7bc9ec0bcee55c18a277d553b0f419d259dadb4b9418ff2d00eb43959"},
+    {file = "pre_commit-2.21.0-py2.py3-none-any.whl", hash = "sha256:e2f91727039fc39a92f58a588a25b87f936de6567eed4f0e673e0507edc75bad"},
+    {file = "pre_commit-2.21.0.tar.gz", hash = "sha256:31ef31af7e474a8d8995027fefdfcf509b5c913ff31f2015b4ec4beb26a6f658"},
 ]
 pyarrow = [
     {file = "pyarrow-10.0.1-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:e00174764a8b4e9d8d5909b6d19ee0c217a6cf0232c5682e31fdfbd5a9f0ae52"},
