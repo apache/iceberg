@@ -223,7 +223,7 @@ public class CatalogHandlers {
   }
 
   public static void dropTable(Catalog catalog, TableIdentifier ident) {
-    boolean dropped = catalog.dropTable(ident);
+    boolean dropped = catalog.dropTable(ident, false);
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
