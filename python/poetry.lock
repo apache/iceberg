@@ -966,11 +966,11 @@ tests = ["coverage (>=6.0.0)", "flake8", "mypy", "pytest (>=7.0.0)", "pytest-asy
 
 [[package]]
 name = "rich"
-version = "12.6.0"
+version = "13.0.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
 category = "main"
 optional = false
-python-versions = ">=3.6.3,<4.0.0"
+python-versions = ">=3.7.0"
 
 [package.dependencies]
 commonmark = ">=0.9.0,<0.10.0"
@@ -1191,7 +1191,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "fbcc62ec8c07a67dc0bd1b043d66317ef5665d84b237bea34525425e257d052a"
+content-hash = "2c443e612fc0e2253a3d1ed8b3c9761817c3ab2b35d593aa6403faa3d46e7195"
 
 [metadata.files]
 adal = [
@@ -2189,8 +2189,8 @@ responses = [
     {file = "responses-0.22.0.tar.gz", hash = "sha256:396acb2a13d25297789a5866b4881cf4e46ffd49cc26c43ab1117f40b973102e"},
 ]
 rich = [
-    {file = "rich-12.6.0-py3-none-any.whl", hash = "sha256:a4eb26484f2c82589bd9a17c73d32a010b1e29d89f1604cd9bf3a2097b81bb5e"},
-    {file = "rich-12.6.0.tar.gz", hash = "sha256:ba3a3775974105c221d31141f2c116f4fd65c5ceb0698657a11e9f295ec93fd0"},
+    {file = "rich-13.0.0-py3-none-any.whl", hash = "sha256:12b1d77ee7edf251b741531323f0d990f5f570a4e7c054d0bfb59fb7981ad977"},
+    {file = "rich-13.0.0.tar.gz", hash = "sha256:3aa9eba7219b8c575c6494446a59f702552efe1aa261e7eeb95548fa586e1950"},
 ]
 s3fs = [
     {file = "s3fs-2022.10.0-py3-none-any.whl", hash = "sha256:1e134c3577171699feb7c1a0c4713260d5b48296e1708737ff940baef6e2c153"},
