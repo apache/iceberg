@@ -48,22 +48,22 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom workerRNG = null;
 
   /**
+   * @param tableKeyId table encryption key id
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    * @param encryptionProperties encryption properties
-   * @param tableKeyId table encryption key id
    */
   public EnvelopeEncryptionManager(
       String tableKeyId, KeyManagementClient kmsClient, Map<String, String> encryptionProperties) {
+    Preconditions.checkNotNull(
+            tableKeyId,
+            "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
     Preconditions.checkNotNull(
         kmsClient, "Cannot create EnvelopeEncryptionManager because kmsClient is null");
     Preconditions.checkNotNull(
         encryptionProperties,
         "Cannot create EnvelopeEncryptionManager because encryptionProperties are not passed");
-    Preconditions.checkNotNull(
-        tableKeyId,
-        "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
-    this.kmsClient = kmsClient;
     this.tableKeyId = tableKeyId;
+    this.kmsClient = kmsClient;
     this.kmsGeneratedKeys = kmsClient.supportsKeyGeneration();
 
     this.dataKeyLength =

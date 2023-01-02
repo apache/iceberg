@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.SchemaBuilder;
@@ -130,7 +131,7 @@ public class AvroKeyRecord extends SpecificRecordBase {
         record.aadPrefix =
             fieldSetFlags()[2] ? this.aadPrefix : (ByteBuffer) defaultValue(fields()[2]);
         return record;
-      } catch (Exception e) {
+      } catch (IOException e) {
         throw new AvroRuntimeException(e);
       }
     }
