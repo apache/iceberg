@@ -24,16 +24,21 @@ import json
 from dataclasses import dataclass
 from io import SEEK_SET, BufferedReader
 from types import TracebackType
-from typing import Optional, Type
+from typing import (
+    Callable,
+    Dict,
+    Optional,
+    Type,
+)
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.reader import ConstructReader, Reader
-from pyiceberg.avro.resolver import resolve
+from pyiceberg.avro.reader import Reader
+from pyiceberg.avro.resolver import construct_reader, resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
-from pyiceberg.schema import Schema, visit
-from pyiceberg.typedef import Record
+from pyiceberg.schema import Schema
+from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
     FixedType,
     MapType,
@@ -112,6 +117,7 @@ class Block:
 class AvroFile:
     input_file: InputFile
     read_schema: Optional[Schema]
+    read_types: Dict[int, Callable[[Schema], StructProtocol]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -120,9 +126,15 @@ class AvroFile:
     decoder: BinaryDecoder
     block: Optional[Block] = None
 
-    def __init__(self, input_file: InputFile, read_schema: Optional[Schema] = None) -> None:
+    def __init__(
+        self,
+        input_file: InputFile,
+        read_schema: Optional[Schema] = None,
+        read_types: Dict[int, Callable[[Schema], StructProtocol]] = EMPTY_DICT,
+    ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
+        self.read_types = read_types
 
     def __enter__(self) -> AvroFile:
         """
@@ -137,9 +149,9 @@ class AvroFile:
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         if not self.read_schema:
-            self.reader = visit(self.schema, ConstructReader())
-        else:
-            self.reader = resolve(self.schema, self.read_schema)
+            self.read_schema = self.schema
+
+        self.reader = resolve(self.schema, self.read_schema, self.read_types)
 
         return self
 
@@ -184,6 +196,6 @@ class AvroFile:
 
     def _read_header(self) -> AvroFileHeader:
         self.input_stream.seek(0, SEEK_SET)
-        reader = visit(META_SCHEMA, ConstructReader())
+        reader = construct_reader(META_SCHEMA)
         _header = reader.read(self.decoder)
         return AvroFileHeader(magic=_header.get(0), meta=_header.get(1), sync=_header.get(2))

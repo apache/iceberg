@@ -160,7 +160,7 @@ def test_resolver_change_type() -> None:
     with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
+    assert "File/read schema are not aligned for list, got map<string, string>" in str(exc_info.value)
 
 
 def test_resolve_int_to_long() -> None:
@@ -174,7 +174,7 @@ def test_resolve_float_to_double() -> None:
 
 def test_resolve_decimal_to_decimal() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    assert resolve(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
+    assert resolve(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(19, 25)
 
 
 def test_struct_not_aligned() -> None:

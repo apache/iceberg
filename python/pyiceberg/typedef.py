@@ -83,10 +83,15 @@ class StructProtocol(Protocol):  # pragma: no cover
 class Record(StructProtocol):
     _data: List[Union[Any, StructProtocol]]
 
+    @staticmethod
+    def of(num_fields: int) -> Record:
+        return Record(*([None] * num_fields))
+
     def __init__(self, *data: Union[Any, StructProtocol]) -> None:
         self._data = list(data)
 
     def set(self, pos: int, value: Any) -> None:
+        print(f"set({pos}, {repr(value)})")
         self._data[pos] = value
 
     def get(self, pos: int) -> Any:
