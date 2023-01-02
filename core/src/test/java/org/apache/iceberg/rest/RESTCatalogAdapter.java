@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -126,6 +127,11 @@ public class RESTCatalogAdapter implements RESTClient {
         LoadTableResponse.class),
     LOAD_TABLE(
         HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}", null, LoadTableResponse.class),
+    REGISTER_TABLE(
+        HTTPMethod.POST,
+        "v1/namespaces/{namespace}/register",
+        RegisterTableRequest.class,
+        LoadTableResponse.class),
     UPDATE_TABLE(
         HTTPMethod.POST,
         "v1/namespaces/{namespace}/tables/{table}",
@@ -343,6 +349,14 @@ public class RESTCatalogAdapter implements RESTClient {
         {
           TableIdentifier ident = identFromPathVars(vars);
           return castResponse(responseType, CatalogHandlers.loadTable(catalog, ident));
+        }
+
+      case REGISTER_TABLE:
+        {
+          Namespace namespace = namespaceFromPathVars(vars);
+          RegisterTableRequest request = castRequest(RegisterTableRequest.class, body);
+          return castResponse(
+              responseType, CatalogHandlers.registerTable(catalog, namespace, request));
         }
 
       case UPDATE_TABLE:
