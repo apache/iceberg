@@ -282,17 +282,17 @@ public class TestPositionFilter {
 
   @Test
   public void testCombinedPositionSetRowFilter() {
-    testCombinedPositionSetRowFilter(false);
+    testCombinedPositionSetRowFilter("1");
+    testCombinedPositionSetRowFilter("");
   }
 
   @Test
   public void testCombinedPositionSetRowFilterInParallel() {
-    testCombinedPositionSetRowFilter(true);
+    testCombinedPositionSetRowFilter("4");
   }
 
-  void testCombinedPositionSetRowFilter(boolean deletePosProperty) {
-    System.setProperty(
-        SystemProperties.DELETE_POS_FILES_THREADS_ENABLED, Boolean.toString(deletePosProperty));
+  void testCombinedPositionSetRowFilter(String threadPoolSize) {
+    System.setProperty(SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE, threadPoolSize);
     CloseableIterable<StructLike> positionDeletes1 =
         CloseableIterable.withNoopClose(
             Lists.newArrayList(

@@ -29,7 +29,6 @@ import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -54,7 +53,7 @@ public class Deletes {
   private static final Accessor<StructLike> POSITION_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
-  private static ExecutorService deletePosThreadPool = getDeletePosThreadPool();
+  private static ExecutorService deletePosThreadPool = ThreadPools.newDeleteWorkerPool();
 
   private Deletes() {}
 
@@ -142,15 +141,9 @@ public class Deletes {
     }
   }
 
-  static ExecutorService getDeletePosThreadPool() {
-    return (SystemProperties.getBoolean(SystemProperties.DELETE_POS_FILES_THREADS_ENABLED, false))
-        ? ThreadPools.newWorkerPool(SystemProperties.DELETE_POS_FILES_THREADS_ENABLED)
-        : null;
-  }
-
   @VisibleForTesting
   static void resetDeletePosThreadPool() {
-    deletePosThreadPool = getDeletePosThreadPool();
+    deletePosThreadPool = ThreadPools.newDeleteWorkerPool();
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
@@ -162,17 +155,10 @@ public class Deletes {
             deletes ->
                 CloseableIterable.transform(
                     locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    return toPositionIndex(positions);
-  }
-
-  public static PositionDeleteIndex toPositionIndex(List<CloseableIterable<Long>> positions) {
-    PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
-    CloseableIterable<Long> itr =
+    return toPositionIndex(
         (positions.size() > 1 && (deletePosThreadPool != null))
             ? new ParallelIterable<>(positions, deletePosThreadPool)
-            : CloseableIterable.concat(positions);
-    itr.forEach(positionDeleteIndex::delete);
-    return positionDeleteIndex;
+            : CloseableIterable.concat(positions));
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {

@@ -56,6 +56,22 @@ public class ThreadPools {
     return WORKER_POOL;
   }
 
+  /**
+   * Returns delete worker pool for Positional Deletes.
+   *
+   * <p>Size of this thread-pool is controlled by System Property {@code
+   * iceberg.delete.pos.read-worker-pool}.
+   *
+   * @return {@link ExecutorService} that is delete worker pool
+   */
+  public static ExecutorService newDeleteWorkerPool() {
+    int poolSize =
+        getPoolSize(
+            SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE,
+            Math.max(2, Runtime.getRuntime().availableProcessors()));
+    return newWorkerPool("iceberg-delete-files-worker-pool", poolSize);
+  }
+
   public static ExecutorService newWorkerPool(String namePrefix) {
     return newWorkerPool(namePrefix, WORKER_THREAD_POOL_SIZE);
   }
