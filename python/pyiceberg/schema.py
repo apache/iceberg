@@ -394,7 +394,102 @@ class SchemaWithPartnerVisitor(Generic[P, T], ABC):
         """Visit a primitive type with a partner"""
 
 
+class PrimitiveWithPartnerVisitor(SchemaWithPartnerVisitor[P, T]):
+    def primitive(self, primitive: PrimitiveType, primitive_partner: Optional[P]) -> T:
+        """Visit a PrimitiveType"""
+        if isinstance(primitive, BooleanType):
+            return self.visit_boolean(primitive, primitive_partner)
+        elif isinstance(primitive, IntegerType):
+            return self.visit_integer(primitive, primitive_partner)
+        elif isinstance(primitive, LongType):
+            return self.visit_long(primitive, primitive_partner)
+        elif isinstance(primitive, FloatType):
+            return self.visit_float(primitive, primitive_partner)
+        elif isinstance(primitive, DoubleType):
+            return self.visit_double(primitive, primitive_partner)
+        elif isinstance(primitive, DecimalType):
+            return self.visit_decimal(primitive, primitive_partner)
+        elif isinstance(primitive, DateType):
+            return self.visit_date(primitive, primitive_partner)
+        elif isinstance(primitive, TimeType):
+            return self.visit_time(primitive, primitive_partner)
+        elif isinstance(primitive, TimestampType):
+            return self.visit_timestamp(primitive, primitive_partner)
+        elif isinstance(primitive, TimestamptzType):
+            return self.visit_timestampz(primitive, primitive_partner)
+        elif isinstance(primitive, StringType):
+            return self.visit_string(primitive, primitive_partner)
+        elif isinstance(primitive, UUIDType):
+            return self.visit_uuid(primitive, primitive_partner)
+        elif isinstance(primitive, FixedType):
+            return self.visit_fixed(primitive, primitive_partner)
+        elif isinstance(primitive, BinaryType):
+            return self.visit_binary(primitive, primitive_partner)
+        else:
+            raise ValueError(f"Unknown type: {primitive}")
+
+    @abstractmethod
+    def visit_boolean(self, boolean_type: BooleanType, partner: Optional[P]) -> T:
+        """Visit a BooleanType"""
+
+    @abstractmethod
+    def visit_integer(self, integer_type: IntegerType, partner: Optional[P]) -> T:
+        """Visit a IntegerType"""
+
+    @abstractmethod
+    def visit_long(self, long_type: LongType, partner: Optional[P]) -> T:
+        """Visit a LongType"""
+
+    @abstractmethod
+    def visit_float(self, float_type: FloatType, partner: Optional[P]) -> T:
+        """Visit a FloatType"""
+
+    @abstractmethod
+    def visit_double(self, double_type: DoubleType, partner: Optional[P]) -> T:
+        """Visit a DoubleType"""
+
+    @abstractmethod
+    def visit_decimal(self, decimal_type: DecimalType, partner: Optional[P]) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_date(self, date_type: DateType, partner: Optional[P]) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_time(self, time_type: TimeType, partner: Optional[P]) -> T:
+        """Visit a DecimalType"""
+
+    @abstractmethod
+    def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[P]) -> T:
+        """Visit a TimestampType"""
+
+    @abstractmethod
+    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[P]) -> T:
+        """Visit a TimestamptzType"""
+
+    @abstractmethod
+    def visit_string(self, string_type: StringType, partner: Optional[P]) -> T:
+        """Visit a StringType"""
+
+    @abstractmethod
+    def visit_uuid(self, uuid_type: UUIDType, partner: Optional[P]) -> T:
+        """Visit a UUIDType"""
+
+    @abstractmethod
+    def visit_fixed(self, fixed_type: FixedType, partner: Optional[P]) -> T:
+        """Visit a FixedType"""
+
+    @abstractmethod
+    def visit_binary(self, binary_type: BinaryType, partner: Optional[P]) -> T:
+        """Visit a BinaryType"""
+
+
 class PartnerAccessor(Generic[P], ABC):
+    @abstractmethod
+    def schema_partner(self, partner: Optional[P]) -> Optional[P]:
+        """Returns the equivalent of the schema as a struct"""
+
     @abstractmethod
     def field_partner(self, partner_struct: Optional[P], field_id: int, field_name: str) -> Optional[P]:
         """Returns the equivalent struct field by name or id in the partner struct"""
@@ -416,12 +511,13 @@ class PartnerAccessor(Generic[P], ABC):
 def visit_with_partner(
     schema_or_type: Union[Schema, IcebergType], partner: P, visitor: SchemaWithPartnerVisitor[T, P], accessor: PartnerAccessor[P]
 ) -> T:
-    raise ValueError(f"Unsupported type: {type}")
+    raise ValueError(f"Unsupported type: {schema_or_type}")
 
 
 @visit_with_partner.register(Schema)
 def _(schema: Schema, partner: P, visitor: SchemaWithPartnerVisitor[P, T], accessor: PartnerAccessor[P]) -> T:
-    return visitor.schema(schema, partner, visit_with_partner(schema.as_struct(), partner, visitor, accessor))  # type: ignore
+    struct_partner = accessor.schema_partner(partner)
+    return visitor.schema(schema, partner, visit_with_partner(schema.as_struct(), struct_partner, visitor, accessor))  # type: ignore
 
 
 @visit_with_partner.register(StructType)
@@ -561,7 +657,7 @@ class SchemaVisitorPerPrimitiveType(SchemaVisitor[T], ABC):
         """Visit a UUIDType"""
 
     @abstractmethod
-    def visit_binary(self, binary_ype: BinaryType) -> T:
+    def visit_binary(self, binary_type: BinaryType) -> T:
         """Visit a BinaryType"""
 
 
