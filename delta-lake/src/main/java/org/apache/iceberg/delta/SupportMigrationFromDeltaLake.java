@@ -29,4 +29,10 @@ public interface SupportMigrationFromDeltaLake {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement migrateDeltaLakeTable");
   }
+
+  default MigrateDeltaLakeTable migrateDeltaLakeTable(
+      String tableIdent, String deltaS3Location, String newTableLocation) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement migrateDeltaLakeTable");
+  }
 }

@@ -22,8 +22,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.delta.BaseMigrateDeltaLakeTableAction;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Takes a Delta Lake table and attempts to transform it into an Iceberg table in the same location
@@ -31,19 +29,29 @@ import org.slf4j.LoggerFactory;
  * table will refer to the newly migrated Iceberg table.
  */
 public class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
-
-  private static final Logger LOG = LoggerFactory.getLogger(MigrateDeltaLakeTableSparkAction.class);
-
-  private final SparkSession spark;
-
   MigrateDeltaLakeTableSparkAction(
-      SparkSession spark, String deltaTableLocation, String newTableIdentifier) {
+      SparkSession spark,
+      String deltaTableLocation,
+      String newTableIdentifier,
+      String catalogName) {
     super(
-        Spark3Util.loadIcebergCatalog(
-            spark, spark.sessionState().catalogManager().currentCatalog().name()),
+        Spark3Util.loadIcebergCatalog(spark, catalogName),
         deltaTableLocation,
         TableIdentifier.parse(newTableIdentifier),
         spark.sessionState().newHadoopConf());
-    this.spark = spark;
+  }
+
+  MigrateDeltaLakeTableSparkAction(
+      SparkSession spark,
+      String deltaTableLocation,
+      String newTableIdentifier,
+      String catalogName,
+      String newTableLocation) {
+    super(
+        Spark3Util.loadIcebergCatalog(spark, catalogName),
+        deltaTableLocation,
+        TableIdentifier.parse(newTableIdentifier),
+        newTableLocation,
+        spark.sessionState().newHadoopConf());
   }
 }

@@ -458,8 +458,6 @@ project(':iceberg-delta-lake') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
-
-
   }
 }
 
