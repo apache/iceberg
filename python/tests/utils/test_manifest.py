@@ -534,7 +534,7 @@ def test_read_manifest_list(generated_manifest_file_file: str) -> None:
                 )
             ],
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=0,
             deleted_rows_count=0,
         )
     ]
@@ -567,7 +567,7 @@ def test_read_manifest(generated_manifest_file_file: str, generated_manifest_ent
             existing_data_files_count=0,
             deleted_data_files_count=0,
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=0,
             deleted_rows_count=0,
             partitions=[
                 PartitionFieldSummary(

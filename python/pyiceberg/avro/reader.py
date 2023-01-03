@@ -257,7 +257,7 @@ class StructProtocolReader(Reader):
 
         for (pos, field) in self.fields:
             if pos is not None:
-                struct.set(pos, field.read(decoder))  # later: pass reuse in here
+                struct[pos] = field.read(decoder)
             else:
                 field.skip(decoder)
 

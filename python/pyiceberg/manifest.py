@@ -15,28 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 from enum import Enum
-from functools import singledispatch
 from typing import (
     Any,
     Dict,
     Iterator,
     List,
     Optional,
-    Union, Callable, Tuple,
+    Callable,
 )
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import Record, StructProtocol
 from pyiceberg.types import (
-    IcebergType,
     ListType,
-    MapType,
-    PrimitiveType,
-    StructType, NestedField, StringType, LongType, IntegerType, BooleanType, BinaryType,
+    StructType,
+    NestedField,
+    StringType,
+    LongType,
+    IntegerType,
+    BooleanType,
+    BinaryType,
 )
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -108,7 +109,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
     NestedField(509, "contains_null", BooleanType(), required=True),
     NestedField(518, "contains_nan", BooleanType(), required=False),
     NestedField(510, "lower_bound", BinaryType(), required=False),
-    NestedField(511, "upper_bound", BinaryType(), required=False)
+    NestedField(511, "upper_bound", BinaryType(), required=False),
 )
 
 
@@ -127,9 +128,9 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(515, "sequence_number", LongType(), required=False),
     NestedField(516, "min_sequence_number", LongType(), required=False),
     NestedField(503, "added_snapshot_id", LongType(), required=False),
-    NestedField(504, "added_data_files_count", IntegerType(), required=False),
-    NestedField(505, "existing_data_files_count", IntegerType(), required=False),
-    NestedField(506, "deleted_data_files_count", IntegerType(), required=False),
+    NestedField(504, "added_files_count", IntegerType(), required=False),
+    NestedField(505, "existing_files_count", IntegerType(), required=False),
+    NestedField(506, "deleted_files_count", IntegerType(), required=False),
     NestedField(512, "added_rows_count", LongType(), required=False),
     NestedField(513, "existing_rows_count", LongType(), required=False),
     NestedField(514, "deleted_rows_count", LongType(), required=False),
@@ -137,51 +138,43 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
-MANIFEST_FILE_FIELD_NAMES: Dict[int, str] = {pos: field.name for pos, field in MANIFEST_FILE_SCHEMA.fields}
-IN_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {
-    3: lambda id: ManifestContent.DATA if id == 0 else ManifestContent.DELETES
-}
-OUT_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {
-    3: lambda content: content.id
-}
+MANIFEST_FILE_FIELD_NAMES: Dict[int, str] = {pos: field.name for pos, field in enumerate(MANIFEST_FILE_SCHEMA.fields)}
+IN_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {3: lambda id: ManifestContent.DATA if id == 0 else ManifestContent.DELETES}
+OUT_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {3: lambda content: content.id}
+
+class ManifestList(IcebergBaseModel):
+    pass
 
 
-class ManifestFile(StructProtocol):
-    manifest_path: str
-    manifest_length: int
-    partition_spec_id: int
-    content: ManifestContent
-    sequence_number: int
-    min_sequence_number: int
-    added_snapshot_id: Optional[int]
-    added_data_files_count: Optional[int]
-    existing_data_files_count: Optional[int]
-    deleted_data_files_count: Optional[int]
-    added_rows_count: Optional[int]
-    existing_rows_count: Optional[int]
-    deleted_rows_count: Optional[int]
-    partitions: Optional[List[PartitionFieldSummary]]
-    key_metadata: Optional[bytes]
+class ManifestFile(IcebergBaseModel):
+    manifest_path: str = Field()
+    manifest_length: int = Field()
+    partition_spec_id: int = Field()
+    content: ManifestContent = Field()
+    sequence_number: int = Field(default=0)
+    min_sequence_number: int = Field(default=0)
+    added_snapshot_id: Optional[int] = Field()
+    added_files_count: Optional[int] = Field()
+    existing_files_count: Optional[int] = Field()
+    deleted_files_count: Optional[int] = Field()
+    added_rows_count: Optional[int] = Field()
+    existing_rows_count: Optional[int] = Field()
+    deleted_rows_count: Optional[int] = Field()
+    partitions: List[PartitionFieldSummary] = Field(default_factory=[])
+    key_metadata: Optional[bytes] = Field()
 
-    _projection_positions: Dict[int, int]
+    _projection_positions: Dict[int, int] = PrivateAttr()
 
-    def __init__(self, read_schema: Optional[Schema] = None):
+    def __init__(self, read_schema: Optional[Schema] = None, **data: Any):
         if read_schema:
             id_to_pos = {field.field_id: pos for pos, field in enumerate(MANIFEST_FILE_SCHEMA.fields)}
             self._projection_positions = {pos: id_to_pos[field.field_id] for pos, field in enumerate(read_schema.fields)}
         else:
             # all fields are projected
-            self._projection_positions = {pos: pos for pos, field in MANIFEST_FILE_SCHEMA.fields}
+            self._projection_positions = {pos: pos for pos in range(len(MANIFEST_FILE_SCHEMA.fields))}
+        super().__init__(**data)
 
-    @property
-    def content(self) -> ManifestContent:
-        if self.content == 0:
-            return ManifestContent.DATA
-        elif self.content == 1:
-            return ManifestContent.DELETES
-        raise ValueError(f"Invalid manifest content id: {self.content_id}")
-
-    def get(self, read_pos: int) -> Any:
+    def __getitem__(self, read_pos: int) -> Any:
         pos = self._projection_positions[read_pos]
         value = getattr(self, MANIFEST_FILE_FIELD_NAMES[pos])
         if transform := OUT_TRANSFORMS.get(pos):
@@ -189,7 +182,7 @@ class ManifestFile(StructProtocol):
         else:
             return value
 
-    def set(self, read_pos: int, value: Any) -> None:
+    def __setitem__(self, read_pos: int, value: Any) -> None:
         pos = self._projection_positions[read_pos]
         if transform := IN_TRANSFORMS.get(pos):
             self._set_by_position(pos, transform[0](value))
@@ -205,11 +198,8 @@ class ManifestFile(StructProtocol):
 
 
 def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    with AvroFile(input_file) as reader:
-        schema = reader.schema
-        for record in reader:
-            dict_repr = _convert_pos_to_dict(schema, record)
-            yield ManifestEntry(**dict_repr)
+    with AvroFile(input_file, None, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+        return list(reader)
 
 
 def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
@@ -221,63 +211,7 @@ def files(input_file: InputFile) -> Iterator[DataFile]:
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
-    with AvroFile(input_file) as reader:
-        schema = reader.schema
-        for record in reader:
-            dict_repr = _convert_pos_to_dict(schema, record)
-            yield ManifestFile(**dict_repr)
+    with AvroFile(input_file, None, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+        return list(reader)
 
 
-@singledispatch
-def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: Record) -> Dict[str, Any]:
-    """Converts the positions in the field names
-
-    This makes it easy to map it onto a Pydantic model. Might change later on depending on the performance
-
-     Args:
-         schema (Schema | IcebergType): The schema of the file
-         struct (Record): The struct containing the data by positions
-
-     Raises:
-         NotImplementedError: If attempting to handle an unknown type in the schema
-    """
-    raise NotImplementedError(f"Cannot traverse non-type: {schema}")
-
-
-@_convert_pos_to_dict.register
-def _(schema: Schema, struct: Record) -> Dict[str, Any]:
-    return _convert_pos_to_dict(schema.as_struct(), struct)
-
-
-@_convert_pos_to_dict.register
-def _(struct_type: StructType, values: Record) -> Dict[str, Any]:
-    """Iterates over all the fields in the dict, and gets the data from the struct"""
-    return (
-        {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
-        if values is not None
-        else None
-    )
-
-
-@_convert_pos_to_dict.register
-def _(list_type: ListType, values: List[Any]) -> Any:
-    """In the case of a list, we'll go over the elements in the list to handle complex types"""
-    return [_convert_pos_to_dict(list_type.element_type, value) for value in values] if values is not None else None
-
-
-@_convert_pos_to_dict.register
-def _(map_type: MapType, values: Dict[Any, Any]) -> Dict[Any, Any]:
-    """In the case of a map, we both traverse over the key and value to handle complex types"""
-    return (
-        {
-            _convert_pos_to_dict(map_type.key_type, key): _convert_pos_to_dict(map_type.value_type, value)
-            for key, value in values.items()
-        }
-        if values is not None
-        else None
-    )
-
-
-@_convert_pos_to_dict.register
-def _(_: PrimitiveType, value: Any) -> Any:
-    return value

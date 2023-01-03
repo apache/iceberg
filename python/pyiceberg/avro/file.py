@@ -198,4 +198,4 @@ class AvroFile:
         self.input_stream.seek(0, SEEK_SET)
         reader = construct_reader(META_SCHEMA)
         _header = reader.read(self.decoder)
-        return AvroFileHeader(magic=_header.get(0), meta=_header.get(1), sync=_header.get(2))
+        return AvroFileHeader(magic=_header[0], meta=_header[1], sync=_header[2])

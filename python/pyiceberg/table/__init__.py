@@ -270,10 +270,10 @@ class _DictAsStruct(StructProtocol):
         self.wrapped = to_wrap
         return self
 
-    def get(self, pos: int) -> Any:
+    def __getitem__(self, pos: int) -> Any:
         return self.wrapped[self.pos_to_name[pos]]
 
-    def set(self, pos: int, value: Any) -> None:
+    def __setitem__(self, pos: int, value: Any) -> None:
         raise NotImplementedError("Cannot set values in DictAsStruct")
 
 

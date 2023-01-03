@@ -148,7 +148,7 @@ def test_fetch_manifest_list(generated_manifest_file_file: str) -> None:
             existing_data_files_count=0,
             deleted_data_files_count=0,
             added_rows_count=237993,
-            existing_rows_counts=None,
+            existing_rows_count=0,
             deleted_rows_count=0,
             partitions=[
                 PartitionFieldSummary(

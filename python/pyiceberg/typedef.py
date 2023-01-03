@@ -72,11 +72,11 @@ class StructProtocol(Protocol):  # pragma: no cover
     """A generic protocol used by accessors to get and set at positions of an object"""
 
     @abstractmethod
-    def get(self, pos: int) -> Any:
+    def __getitem__(self, pos: int) -> Any:
         ...
 
     @abstractmethod
-    def set(self, pos: int, value: Any) -> None:
+    def __setitem__(self, pos: int, value: Any) -> None:
         ...
 
 
@@ -90,11 +90,11 @@ class Record(StructProtocol):
     def __init__(self, *data: Union[Any, StructProtocol]) -> None:
         self._data = list(data)
 
-    def set(self, pos: int, value: Any) -> None:
+    def __setitem__(self, pos: int, value: Any) -> None:
         print(f"set({pos}, {repr(value)})")
         self._data[pos] = value
 
-    def get(self, pos: int) -> Any:
+    def __getitem__(self, pos: int) -> Any:
         return self._data[pos]
 
     def __eq__(self, other: Any) -> bool:
