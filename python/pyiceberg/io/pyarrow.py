@@ -457,7 +457,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 
 
 def project_table(
-    files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, requested_schema: Schema, case_sensitive: bool
+    files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
 ) -> pa.Table:
     """Resolves the right columns based on the identifier
 
@@ -465,7 +465,7 @@ def project_table(
         files(Iterable[FileScanTask]): A URI or a path to a local file
         table(Table): The table that's being queried
         row_filter(BooleanExpression): The expression for filtering rows
-        requested_schema(Schema): The output schema
+        projected_schema(Schema): The output schema
         case_sensitive(bool): Case sensitivity when looking up column names
 
     Raises:
@@ -481,7 +481,7 @@ def project_table(
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
     # Get the leaf IDs
-    requested_field_ids = {id for id in requested_schema.field_ids if requested_schema.find_type(id).is_primitive}.union(
+    requested_field_ids = {id for id in projected_schema.field_ids if projected_schema.find_type(id).is_primitive}.union(
         extract_field_ids(bound_row_filter)
     )
 
@@ -505,7 +505,7 @@ def project_table(
             bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
             pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
-        check_schema_compatibility(requested_schema, file_schema)
+        check_schema_compatibility(projected_schema, file_schema)
         file_project_schema = prune_columns(file_schema, requested_field_ids, select_full_types=False)
 
         if file_schema is None:
@@ -518,7 +518,7 @@ def project_table(
             source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
         ).to_table(filter=pyarrow_filter)
 
-        tables.append(to_requested_schema(requested_schema, file_project_schema, arrow_table))
+        tables.append(to_requested_schema(projected_schema, file_project_schema, arrow_table))
     if len(tables) > 1:
         return pa.concat_tables(tables)
     else:

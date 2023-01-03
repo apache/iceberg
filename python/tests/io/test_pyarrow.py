@@ -899,6 +899,21 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
     )
 
 
+def test_projection_add_column_struct_required(file_int: str) -> None:
+    schema = Schema(
+        # A new ID
+        NestedField(
+            2,
+            "other_id",
+            IntegerType(),
+            required=True,
+        )
+    )
+    with pytest.raises(ResolveError) as exc_info:
+        _ = project(schema, [file_int])
+    assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
+
+
 def test_projection_rename_column(schema_int: Schema, file_int: str) -> None:
     schema = Schema(
         # Reuses the id 1

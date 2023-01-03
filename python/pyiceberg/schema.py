@@ -1308,7 +1308,7 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(IntegerType)
 def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, (IntegerType, LongType)):
+    if isinstance(read_type, LongType):
         # Ints/Longs are binary compatible in Avro, so this is okay
         return read_type
     else:
@@ -1317,7 +1317,7 @@ def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(FloatType)
 def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, (FloatType, DoubleType)):
+    if isinstance(read_type, DoubleType):
         # A double type is wider
         return read_type
     else:
@@ -1326,7 +1326,7 @@ def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(StringType)
 def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, (StringType, BinaryType)):
+    if isinstance(read_type, BinaryType):
         return read_type
     else:
         raise ResolveError(f"Cannot promote an string to {read_type}")
@@ -1334,7 +1334,7 @@ def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(BinaryType)
 def _(file_type: BinaryType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, (BinaryType, StringType)):
+    if isinstance(read_type, StringType):
         return read_type
     else:
         raise ResolveError(f"Cannot promote an binary to {read_type}")
@@ -1411,7 +1411,7 @@ class _RequiredFieldVisitor(SchemaWithPartnerVisitor[Union[Schema, IcebergType],
     def primitive(
         self, primitive: PrimitiveType, primitive_partner: Optional[Union[Schema, IcebergType]]
     ) -> Union[Schema, IcebergType]:
-        if primitive_partner:
+        if primitive_partner and primitive_partner != primitive:
             return promote(primitive_partner, primitive)
         else:
             return primitive
@@ -1422,6 +1422,9 @@ class _PartnerSchemaAccessor(PartnerAccessor[Union[Schema, IcebergType]]):
 
     def __init__(self, partner_schema: Schema) -> None:
         self.partner_schema = partner_schema
+
+    def schema_partner(self, partner: Optional[Union[Schema, IcebergType]]) -> Optional[Union[Schema, IcebergType]]:
+        return partner
 
     def field_partner(
         self, partner_struct: Optional[Union[Schema, IcebergType]], field_id: int, _: str
