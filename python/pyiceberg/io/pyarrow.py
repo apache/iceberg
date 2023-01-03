@@ -600,6 +600,9 @@ class ArrowAccessor(PartnerAccessor[pa.Array]):
     def __init__(self, file_schema: Schema):
         self.file_schema = file_schema
 
+    def schema_partner(self, partner: Optional[pa.Array]) -> Optional[pa.Array]:
+        return partner
+
     def field_partner(self, partner_struct: Optional[pa.Array], field_id: int, _: str) -> Optional[pa.Array]:
         if partner_struct:
             # use the field name from the file schema
