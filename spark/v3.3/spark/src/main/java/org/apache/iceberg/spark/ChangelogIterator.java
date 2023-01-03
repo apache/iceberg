@@ -80,7 +80,8 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
    *
    * @param rowIterator the iterator of rows from a changelog table
    * @param changeTypeIndex the index of the change type column
-   * @param identifierFieldIdx the indices of the identifier columns
+   * @param identifierFieldIdx the indices of the identifier columns, which determine if rows are
+   *     the same
    * @return a new {@link ChangelogIterator} instance concatenated with the null-removal iterator
    */
   public static Iterator<Row> iterator(
