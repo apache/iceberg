@@ -301,6 +301,26 @@ public class TestMetricsRowGroupFilter {
   }
 
   @Test
+  public void testFloatWithNan() {
+    // NaN's should break Parquet's Min/Max stats we should be reading in all cases
+    // Only ORC should be able to distinguish using min/max when NaN is present
+    boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
+    Assert.assertTrue(shouldRead);
+
+    shouldRead = shouldRead(greaterThanOrEqual("some_nans", 1.0));
+    Assert.assertTrue(shouldRead);
+
+    shouldRead = shouldRead(lessThan("some_nans", 3.0));
+    Assert.assertTrue(shouldRead);
+
+    shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
+    Assert.assertTrue(shouldRead);
+
+    shouldRead = shouldRead(equal("some_nans", 2.0));
+    Assert.assertTrue(shouldRead);
+  }
+
+  @Test
   public void testIsNaN() {
     boolean shouldRead = shouldRead(isNaN("all_nans"));
     Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);

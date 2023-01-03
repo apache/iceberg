@@ -216,6 +216,10 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
+        if (minMaxUndefined(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -243,6 +247,10 @@ public class ParquetMetricsRowGroupFilter {
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -276,6 +284,10 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
+        if (minMaxUndefined(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -303,6 +315,10 @@ public class ParquetMetricsRowGroupFilter {
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -340,6 +356,10 @@ public class ParquetMetricsRowGroupFilter {
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -390,6 +410,10 @@ public class ParquetMetricsRowGroupFilter {
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -449,6 +473,10 @@ public class ParquetMetricsRowGroupFilter {
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -578,6 +606,10 @@ public class ParquetMetricsRowGroupFilter {
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
     return statistics.getNumNulls() < valueCount
         && (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  }
+
+  static boolean minMaxUndefined(Statistics statistics) {
+    return !statistics.isEmpty() && !statistics.hasNonNullValue();
   }
 
   private static boolean mayContainNull(Statistics statistics) {
