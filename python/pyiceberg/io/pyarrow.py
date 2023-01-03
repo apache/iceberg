@@ -51,7 +51,6 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
-from pyiceberg.avro.resolver import ResolveError, promote
 from pyiceberg.expressions import (
     AlwaysTrue,
     BooleanExpression,
@@ -77,6 +76,7 @@ from pyiceberg.schema import (
     Schema,
     SchemaVisitorPerPrimitiveType,
     SchemaWithPartnerVisitor,
+    check_schema_compatibility,
     prune_columns,
     visit,
     visit_with_partner,
@@ -457,7 +457,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 
 
 def project_table(
-    files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
+    files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, requested_schema: Schema, case_sensitive: bool
 ) -> pa.Table:
     """Resolves the right columns based on the identifier
 
@@ -465,7 +465,7 @@ def project_table(
         files(Iterable[FileScanTask]): A URI or a path to a local file
         table(Table): The table that's being queried
         row_filter(BooleanExpression): The expression for filtering rows
-        projected_schema(Schema): The output schema
+        requested_schema(Schema): The output schema
         case_sensitive(bool): Case sensitivity when looking up column names
 
     Raises:
@@ -480,9 +480,10 @@ def project_table(
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
-    projected_field_ids = {
-        id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
-    }.union(extract_field_ids(bound_row_filter))
+    # Get the leaf IDs
+    requested_field_ids = {id for id in requested_schema.field_ids if requested_schema.find_type(id).is_primitive}.union(
+        extract_field_ids(bound_row_filter)
+    )
 
     tables = []
     for task in files:
@@ -504,7 +505,8 @@ def project_table(
             bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
             pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
-        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
+        check_schema_compatibility(requested_schema, file_schema)
+        file_project_schema = prune_columns(file_schema, requested_field_ids, select_full_types=False)
 
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
@@ -516,8 +518,7 @@ def project_table(
             source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
         ).to_table(filter=pyarrow_filter)
 
-        tables.append(to_requested_schema(projected_schema, file_project_schema, arrow_table))
-
+        tables.append(to_requested_schema(requested_schema, file_project_schema, arrow_table))
     if len(tables) > 1:
         return pa.concat_tables(tables)
     else:
@@ -525,7 +526,7 @@ def project_table(
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
-    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(file_schema), ArrowAccessor(file_schema))
+    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(), ArrowAccessor(file_schema))
 
     arrays = []
     fields = []
@@ -537,15 +538,11 @@ def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa
 
 
 class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Array]]):
-    file_schema: Schema
-
-    def __init__(self, file_schema: Schema):
-        self.file_schema = file_schema
-
-    def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
-        file_field = self.file_schema.find_field(field.field_id)
-        if field.field_type.is_primitive and field.field_type != file_field.field_type:
-            return values.cast(schema_to_pyarrow(promote(file_field.field_type, field.field_type)))
+    def _cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
+        if field.field_type.is_primitive:
+            requested_type = schema_to_pyarrow(field.field_type)
+            if values.type != requested_type:
+                return values.cast(requested_type)
         return values
 
     def schema(self, schema: Schema, schema_partner: Optional[pa.Array], struct_result: Optional[pa.Array]) -> Optional[pa.Array]:
@@ -560,15 +557,13 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
         fields: List[pa.Field] = []
         for field, field_array in zip(struct.fields, field_results):
             if field_array is not None:
-                array = self.cast_if_needed(field, field_array)
+                array = self._cast_if_needed(field, field_array)
                 field_arrays.append(array)
                 fields.append(pa.field(field.name, array.type, field.optional))
-            elif field.optional:
+            else:
                 arrow_type = schema_to_pyarrow(field.field_type)
                 field_arrays.append(pa.nulls(len(struct_array), type=arrow_type))
                 fields.append(pa.field(field.name, arrow_type, field.optional))
-            else:
-                raise ResolveError(f"Field is required, and could not be found in the file: {field}")
 
         return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
 
@@ -577,7 +572,7 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
 
     def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
         return (
-            pa.ListArray.from_arrays(list_array.offsets, self.cast_if_needed(list_type.element_field, value_array))
+            pa.ListArray.from_arrays(list_array.offsets, self._cast_if_needed(list_type.element_field, value_array))
             if isinstance(list_array, pa.ListArray)
             else None
         )
@@ -588,8 +583,8 @@ class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Arra
         return (
             pa.MapArray.from_arrays(
                 map_array.offsets,
-                self.cast_if_needed(map_type.key_field, key_result),
-                self.cast_if_needed(map_type.value_field, value_result),
+                self._cast_if_needed(map_type.key_field, key_result),
+                self._cast_if_needed(map_type.value_field, value_result),
             )
             if isinstance(map_array, pa.MapArray)
             else None

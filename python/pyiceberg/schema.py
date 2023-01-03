@@ -1076,8 +1076,7 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
         selected_fields = []
         same_type = True
 
-        for idx, projected_type in enumerate(field_results):
-            field = fields[idx]
+        for field, projected_type in zip(fields, field_results):
             if field.field_type == projected_type:
                 selected_fields.append(field)
             elif projected_type is not None:
@@ -1164,7 +1163,7 @@ class _PruneColumnsVisitor(SchemaVisitor[Optional[IcebergType]]):
     @staticmethod
     def _project_selected_struct(projected_field: Optional[IcebergType]) -> StructType:
         if projected_field and not isinstance(projected_field, StructType):
-            raise ValueError("Expected a struct")
+            raise ValueError(f"Expected a struct, got: {projected_field}")
 
         if projected_field is None:
             return StructType()
@@ -1213,7 +1212,7 @@ def promote(file_type: IcebergType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(IntegerType)
 def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, LongType):
+    if isinstance(read_type, (IntegerType, LongType)):
         # Ints/Longs are binary compatible in Avro, so this is okay
         return read_type
     else:
@@ -1222,7 +1221,7 @@ def _(file_type: IntegerType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(FloatType)
 def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, DoubleType):
+    if isinstance(read_type, (FloatType, DoubleType)):
         # A double type is wider
         return read_type
     else:
@@ -1231,7 +1230,7 @@ def _(file_type: FloatType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(StringType)
 def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, BinaryType):
+    if isinstance(read_type, (StringType, BinaryType)):
         return read_type
     else:
         raise ResolveError(f"Cannot promote an string to {read_type}")
@@ -1239,7 +1238,7 @@ def _(file_type: StringType, read_type: IcebergType) -> IcebergType:
 
 @promote.register(BinaryType)
 def _(file_type: BinaryType, read_type: IcebergType) -> IcebergType:
-    if isinstance(read_type, StringType):
+    if isinstance(read_type, (BinaryType, StringType)):
         return read_type
     else:
         raise ResolveError(f"Cannot promote an binary to {read_type}")
@@ -1254,3 +1253,95 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
             raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveError(f"Cannot promote an decimal to {read_type}")
+
+
+def check_schema_compatibility(requested_schema: Schema, file_schema: Schema) -> Schema:
+    return visit_with_partner(requested_schema, file_schema, _RequiredFieldVisitor(), _PartnerSchemaAccessor(file_schema))
+
+
+class _RequiredFieldVisitor(SchemaWithPartnerVisitor[Union[Schema, IcebergType], Union[Schema, IcebergType]]):
+    def schema(
+        self, schema: Schema, schema_partner: Optional[Union[Schema, IcebergType]], struct_result: Union[Schema, IcebergType]
+    ) -> Union[Schema, IcebergType]:
+        return schema
+
+    def struct(
+        self,
+        struct: StructType,
+        struct_partner: Optional[Union[Schema, IcebergType]],
+        field_results: List[Union[Schema, IcebergType]],
+    ) -> Union[Schema, IcebergType]:
+        assert len(struct.fields) == len(field_results)
+
+        if struct_partner is not None:
+            if isinstance(struct_partner, Schema):
+                struct_partner = struct_partner.as_struct()
+            if not isinstance(struct_partner, StructType):
+                raise ValueError(f"Expected StructType, got: {struct_partner}")
+            struct_partner_ids = {field.field_id for field in struct_partner.fields}
+            for field in field_results:
+                assert isinstance(field, NestedField)
+                # The field does not exist in the partner_struct
+                if field.field_id not in struct_partner_ids and field.required:
+                    raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+
+        return struct
+
+    def field(
+        self, field: NestedField, field_partner: Optional[Union[Schema, IcebergType]], field_result: Union[Schema, IcebergType]
+    ) -> Union[Schema, IcebergType]:
+        return field
+
+    def list(
+        self, list_type: ListType, list_partner: Optional[Union[Schema, IcebergType]], element_result: Union[Schema, IcebergType]
+    ) -> Union[Schema, IcebergType]:
+        if list_partner is not None and not isinstance(list_partner, ListType):
+            raise ValueError(f"Expected ListType, got: {list_partner}")
+
+        return list_type
+
+    def map(
+        self,
+        map_type: MapType,
+        map_partner: Optional[Union[Schema, IcebergType]],
+        key_result: Union[Schema, IcebergType],
+        value_result: Union[Schema, IcebergType],
+    ) -> Union[Schema, IcebergType]:
+        if map_type is not None and not isinstance(map_type, MapType):
+            raise ValueError(f"Expected MapType, got: {map_type}")
+
+        return map_type
+
+    def primitive(
+        self, primitive: PrimitiveType, primitive_partner: Optional[Union[Schema, IcebergType]]
+    ) -> Union[Schema, IcebergType]:
+        if primitive_partner:
+            return promote(primitive_partner, primitive)
+        else:
+            return primitive
+
+
+class _PartnerSchemaAccessor(PartnerAccessor[Union[Schema, IcebergType]]):
+    partner_schema: Schema
+
+    def __init__(self, partner_schema: Schema) -> None:
+        self.partner_schema = partner_schema
+
+    def field_partner(
+        self, partner_struct: Optional[Union[Schema, IcebergType]], field_id: int, _: str
+    ) -> Optional[Union[Schema, IcebergType]]:
+        if partner_struct is not None:
+            try:
+                return self.partner_schema.find_field(field_id).field_type
+            except ValueError:
+                return None
+        return None
+
+    def list_element_partner(self, partner_list: Optional[Union[Schema, IcebergType]]) -> Optional[Union[Schema, IcebergType]]:
+        return partner_list.element_type if isinstance(partner_list, ListType) else None
+
+    def map_key_partner(self, partner_map: Optional[Union[Schema, IcebergType]]) -> Optional[Union[Schema, IcebergType]]:
+        return partner_map.key_type if isinstance(partner_map, MapType) else None
+
+    def map_value_partner(self, partner_map: Optional[Union[Schema, IcebergType]]) -> Optional[Union[Schema, IcebergType]]:
+        return partner_map.value_type if isinstance(partner_map, MapType) else None

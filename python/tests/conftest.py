@@ -31,6 +31,8 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Type,
+    Union,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -47,14 +49,18 @@ import pytest
 from moto import mock_glue, mock_s3
 
 from pyiceberg import schema
-from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.io import (
+    FileIO,
+    InputFile,
+    OutputFile,
+    OutputStream,
+    fsspec,
+)
 from pyiceberg.io.fsspec import FsspecFileIO
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
-    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -66,10 +72,10 @@ from pyiceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
+from tests.io.test_io import LocalInputFile
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    # S3 options
     parser.addoption(
         "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
@@ -77,24 +83,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
     )
-    # ADLFS options
-    # Azurite provides default account name and key.  Those can be customized using env variables.
-    # For more information, see README file at https://github.com/azure/azurite#default-storage-account
-    parser.addoption(
-        "--adlfs.endpoint",
-        action="store",
-        default="http://127.0.0.1:10000",
-        help="The ADLS endpoint URL for tests marked as adlfs",
-    )
-    parser.addoption(
-        "--adlfs.account-name", action="store", default="devstoreaccount1", help="The ADLS account key for tests marked as adlfs"
-    )
-    parser.addoption(
-        "--adlfs.account-key",
-        action="store",
-        default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-        help="The ADLS secret account key for tests marked as adlfs",
-    )
+
+
+class FooStruct:
+    """An example of an object that abides by StructProtocol"""
+
+    content: Dict[int, Any]
+
+    def __init__(self) -> None:
+        self.content = {}
+
+    def get(self, pos: int) -> Any:
+        return self.content[pos]
+
+    def set(self, pos: int, value: Any) -> None:
+        self.content[pos] = value
 
 
 @pytest.fixture(scope="session")
@@ -157,6 +160,11 @@ def table_schema_nested() -> Schema:
         schema_id=1,
         identifier_field_ids=[1],
     )
+
+
+@pytest.fixture(scope="session")
+def foo_struct() -> FooStruct:
+    return FooStruct()
 
 
 @pytest.fixture(scope="session")
@@ -322,7 +330,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
+            "partition": {"VendorID": None},
             "record_count": 19513,
             "file_size_in_bytes": 388872,
             "block_size_in_bytes": 67108864,
@@ -442,7 +450,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
+            "partition": {"VendorID": 1},
             "record_count": 95050,
             "file_size_in_bytes": 1265950,
             "block_size_in_bytes": 67108864,
@@ -715,15 +723,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [
-                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]},
-                                    {
-                                        "field-id": 1001,
-                                        "default": None,
-                                        "name": "tpep_pickup_datetime",
-                                        "type": ["null", {"type": "int", "logicalType": "date"}],
-                                    },
-                                ],
+                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
                             },
                             "field-id": 102,
                         },
@@ -922,14 +922,33 @@ class LocalOutputFile(OutputFile):
     def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self) -> PyArrowFile:
-        return PyArrowFileIO().new_input(location=self.location)
+    def to_input_file(self) -> LocalInputFile:
+        return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self._path, "wb" if overwrite else "xb")
         if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
+
+
+class LocalFileIO(FileIO):
+    """A FileIO implementation for local files (for test use only)"""
+
+    def new_input(self, location: str) -> LocalInputFile:
+        return LocalInputFile(location=location)
+
+    def new_output(self, location: str) -> LocalOutputFile:
+        return LocalOutputFile(location=location)
+
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        os.remove(location)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalFileIOFixture() -> Type[LocalFileIO]:
+    return LocalFileIO
 
 
 @pytest.fixture(scope="session")
@@ -994,12 +1013,6 @@ def iceberg_manifest_entry_schema() -> Schema:
                             field_id=1000,
                             name="VendorID",
                             field_type=IntegerType(),
-                            required=False,
-                        ),
-                        NestedField(
-                            field_id=1001,
-                            name="tpep_pickup_datetime",
-                            field_type=DateType(),
                             required=False,
                         ),
                     ),
@@ -1246,28 +1259,3 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
-
-
-@pytest.fixture
-def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileIO, None, None]:
-    from azure.storage.blob import BlobServiceClient
-
-    azurite_url = request.config.getoption("--adlfs.endpoint")
-    azurite_account_name = request.config.getoption("--adlfs.account-name")
-    azurite_account_key = request.config.getoption("--adlfs.account-key")
-    azurite_connection_string = f"DefaultEndpointsProtocol=http;AccountName={azurite_account_name};AccountKey={azurite_account_key};BlobEndpoint={azurite_url}/{azurite_account_name};"
-    properties = {
-        "connection_string": azurite_connection_string,
-        "account_name": azurite_account_name,
-    }
-
-    bbs = BlobServiceClient.from_connection_string(conn_str=azurite_connection_string)
-    bbs.create_container("tests")
-    yield fsspec.FsspecFileIO(properties=properties)
-    bbs.delete_container("tests")
-
-
-@pytest.fixture(scope="session")
-def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
-    home_path = str(tmp_path_factory.mktemp("home"))
-    return home_path

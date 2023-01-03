@@ -61,7 +61,7 @@ from pyiceberg.io.pyarrow import (
 )
 from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.partitioning import PartitionSpec
-from pyiceberg.schema import Schema, visit
+from pyiceberg.schema import Schema, check_schema_compatibility, visit
 from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
@@ -899,21 +899,6 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
     )
 
 
-def test_projection_add_column_struct_required(file_int: str) -> None:
-    schema = Schema(
-        # A new ID
-        NestedField(
-            2,
-            "other_id",
-            IntegerType(),
-            required=True,
-        )
-    )
-    with pytest.raises(ResolveError) as exc_info:
-        _ = project(schema, [file_int])
-    assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
-
-
 def test_projection_rename_column(schema_int: Schema, file_int: str) -> None:
     schema = Schema(
         # Reuses the id 1
@@ -1003,7 +988,7 @@ def test_projection_nested_struct_subset(file_struct: str) -> None:
 def test_projection_nested_new_field(file_struct: str) -> None:
     schema = Schema(
         NestedField(
-            4,
+            4,  # This is in the file
             "location",
             StructType(
                 NestedField(43, "null", DoubleType(), required=False),  # Whoa, this column doesn't exist in the file
@@ -1014,7 +999,7 @@ def test_projection_nested_new_field(file_struct: str) -> None:
     result_table = project(schema, [file_struct])
 
     for actual, expected in zip(result_table.columns[0], [None, None, None]):
-        assert actual.as_py() == {"null": expected}
+        assert actual.as_py() == expected
     assert len(result_table.columns[0]) == 3
     assert repr(result_table.schema) == "location: struct<null: double> not null\n  child 0, null: double"
 
@@ -1140,3 +1125,30 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
         _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
+
+
+def test_schema_missing_required_field() -> None:
+    with pytest.raises(ResolveError) as exc_info:
+        _ = check_schema_compatibility(
+            # Requested
+            Schema(NestedField(2, "other_id", IntegerType(), required=True)),
+            # File schema
+            Schema(NestedField(1, "id", IntegerType(), required=True)),
+        )
+    assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
+
+
+def test_schema_compatible() -> None:
+    requested_schema = Schema(
+        NestedField(1, "id", IntegerType(), required=True), NestedField(2, "other_id", IntegerType(), required=False)
+    )
+
+    assert (
+        check_schema_compatibility(
+            # Requested
+            requested_schema,
+            # File schema
+            Schema(NestedField(1, "id", IntegerType(), required=True)),
+        )
+        == requested_schema
+    )
