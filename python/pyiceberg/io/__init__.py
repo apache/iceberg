@@ -139,7 +139,7 @@ class InputFile(ABC):
         """
 
     @abstractmethod
-    def open(self, seekable: bool = False) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """This method should return an object that matches the InputStream protocol
 
         Args:

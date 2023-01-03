@@ -143,7 +143,7 @@ class AvroFile:
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = self.input_file.open()
+        self.input_stream = self.input_file.open(seekable=False)
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()

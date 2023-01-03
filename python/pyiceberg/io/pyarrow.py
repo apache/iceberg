@@ -178,7 +178,7 @@ class PyArrowFile(InputFile, OutputFile):
         except FileNotFoundError:
             return False
 
-    def open(self, seekable: bool = False) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the location
 
         Args:

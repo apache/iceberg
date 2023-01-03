@@ -101,7 +101,7 @@ def test_pyarrow_input_file() -> None:
         input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
-        r = input_file.open()
+        r = input_file.open(seekable=False)
         assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
         data = r.read()
         assert data == b"foo"
@@ -182,7 +182,7 @@ def test_pyarrow_violating_input_stream_protocol() -> None:
 
     # Create a mocked filesystem that returns input_file_mock
     filesystem_mock = MagicMock()
-    filesystem_mock.open_input_stream.return_value = input_file_mock
+    filesystem_mock.open_input_file.return_value = input_file_mock
 
     input_file = PyArrowFile("foo.txt", path="foo.txt", fs=filesystem_mock)
 
@@ -285,7 +285,7 @@ def test_raise_on_opening_an_s3_file_no_permission() -> None:
     """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
-    s3fs_mock.open_input_stream.side_effect = OSError("AWS Error [code 15]")
+    s3fs_mock.open_input_file.side_effect = OSError("AWS Error [code 15]")
 
     f = PyArrowFile("s3://foo/bar.txt", path="foo/bar.txt", fs=s3fs_mock)
 
@@ -299,7 +299,7 @@ def test_raise_on_opening_an_s3_file_not_found() -> None:
     """Test that a PyArrowFile raises a FileNotFoundError when the pyarrow error includes 'Path does not exist'"""
 
     s3fs_mock = MagicMock()
-    s3fs_mock.open_input_stream.side_effect = OSError("Path does not exist")
+    s3fs_mock.open_input_file.side_effect = OSError("Path does not exist")
 
     f = PyArrowFile("s3://foo/bar.txt", path="foo/bar.txt", fs=s3fs_mock)
 

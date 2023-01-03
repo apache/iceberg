@@ -150,7 +150,7 @@ class FsspecInputFile(InputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def open(self, seekable: bool = False) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """Create an input stream for reading the contents of the file
 
         Args:
