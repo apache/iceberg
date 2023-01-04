@@ -23,8 +23,6 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -59,7 +57,6 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.PartitionSpecParser;
@@ -449,23 +446,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     Preconditions.checkNotNull(metadata, "'metadata' parameter can't be null");
     final long currentTimeMillis = System.currentTimeMillis();
 
-    String owner = metadata.properties().get(HiveCatalog.HMS_TABLE_OWNER);
-    if (owner == null) {
-      try {
-        owner = UserGroupInformation.getCurrentUser().getUserName();
-      } catch (IOException e) {
-        throw new UncheckedIOException(
-            String.format(
-                "Fail to obtain default (UGI) user when creating table %s.%s", database, tableName),
-            e);
-      }
-    }
-
     Table newTable =
         new Table(
             tableName,
             database,
-            owner,
+            metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.getCurrentUser()),
             (int) currentTimeMillis / 1000,
             (int) currentTimeMillis / 1000,
             Integer.MAX_VALUE,

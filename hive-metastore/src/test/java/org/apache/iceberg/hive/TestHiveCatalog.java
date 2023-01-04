@@ -248,7 +248,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateTableWithOwner() throws IOException {
+  public void testCreateTableWithOwner() throws Exception {
     createTableAndVerifyOwner(
         DB_NAME,
         "tbl_specified_owner",
@@ -262,19 +262,20 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   private void createTableAndVerifyOwner(
-      String db, String tbl, Map<String, String> prop, String expectedOwner) {
+      String db, String tbl, Map<String, String> prop, String expectedOwner)
+      throws IOException, TException {
+    TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
     try {
       Schema schema = getTestSchema();
       PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
       String location = temp.newFolder(tbl).toString();
-      catalog.createTable(TableIdentifier.of(db, tbl), schema, spec, location, prop);
+      catalog.createTable(tableIdent, schema, spec, location, prop);
       org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
       Assert.assertEquals(expectedOwner, hmsTable.getOwner());
-      Assert.assertFalse(hmsTable.getParameters().containsKey(HiveCatalog.HMS_TABLE_OWNER));
-    } catch (IOException | TException e) {
-      throw new RuntimeException("Unexpected exception", e);
+      Map<String, String> hmsTableParams = hmsTable.getParameters();
+      Assert.assertFalse(hmsTableParams.containsKey(HiveCatalog.HMS_TABLE_OWNER));
     } finally {
-      catalog.dropTable(TableIdentifier.of(db, tbl));
+      catalog.dropTable(tableIdent);
     }
   }
 
