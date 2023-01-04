@@ -643,7 +643,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     boolean timeout = false;
 
     try {
-      if (LockState.WAITING.equals(state.get())) {
+      if (state.get().equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact,
         // the maximum number of
         // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use
@@ -684,18 +684,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       timeout = true;
       duration = System.currentTimeMillis() - start;
     } finally {
-      if (!LockState.ACQUIRED.equals(state.get())) {
-        unlock(Optional.ofNullable(lockId.get()), agentInfo);
+      if (!state.get().equals(LockState.ACQUIRED)) {
+        unlock(Optional.of(lockId.get()), agentInfo);
       }
     }
 
     // timeout and do not have lock acquired
-    if (timeout && !LockState.ACQUIRED.equals(state.get())) {
+    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException(
           "Timed out after %s ms waiting for lock on %s.%s", duration, database, tableName);
     }
 
-    if (!LockState.ACQUIRED.equals(state.get())) {
+    if (!state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException(
           "Could not acquire the lock on %s.%s, lock request ended in state %s",
           database, tableName, state);
