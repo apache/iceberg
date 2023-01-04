@@ -99,11 +99,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
-  private static final String HIVE_LOCK_REQUEST_TIMEOUT_MS = "iceberg.hive.lock-request-timeout-ms";
-  private static final String HIVE_LOCK_REQUEST_MIN_WAIT_MS =
-      "iceberg.hive.lock-request-min-wait-ms";
-  private static final String HIVE_LOCK_REQUEST_MAX_WAIT_MS =
-      "iceberg.hive.lock-request-max-wait-ms";
+  private static final String HIVE_LOCK_CREATION_TIMEOUT_MS =
+      "iceberg.hive.lock-creation-timeout-ms";
+  private static final String HIVE_LOCK_CREATION_MIN_WAIT_MS =
+      "iceberg.hive.lock-creation-min-wait-ms";
+  private static final String HIVE_LOCK_CREATION_MAX_WAIT_MS =
+      "iceberg.hive.lock-creation-max-wait-ms";
   private static final String HIVE_LOCK_HEARTBEAT_INTERVAL_MS =
       "iceberg.hive.lock-heartbeat-interval-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
@@ -120,9 +121,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
-  private static final long HIVE_LOCK_REQUEST_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
-  private static final long HIVE_LOCK_REQUEST_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
-  private static final long HIVE_LOCK_REQUEST_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
+  private static final long HIVE_LOCK_CREATION_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final long HIVE_LOCK_CREATION_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
+  private static final long HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 4 * 60 * 1000; // 4 minutes
   private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
@@ -173,9 +174,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
-  private final long lockRequestTimeout;
-  private final long lockRequestMinWaitTime;
-  private final long lockRequestMaxWaitTime;
+  private final long lockCreationTimeout;
+  private final long lockCreationMinWaitTime;
+  private final long lockCreationMaxWaitTime;
   private final long lockHeartbeatIntervalTime;
   private final long maxHiveTablePropertySize;
   private final int metadataRefreshMaxRetries;
@@ -202,12 +203,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
-    this.lockRequestTimeout =
-        conf.getLong(HIVE_LOCK_REQUEST_TIMEOUT_MS, HIVE_LOCK_REQUEST_TIMEOUT_MS_DEFAULT);
-    this.lockRequestMinWaitTime =
-        conf.getLong(HIVE_LOCK_REQUEST_MIN_WAIT_MS, HIVE_LOCK_REQUEST_MIN_WAIT_MS_DEFAULT);
-    this.lockRequestMaxWaitTime =
-        conf.getLong(HIVE_LOCK_REQUEST_MAX_WAIT_MS, HIVE_LOCK_REQUEST_MAX_WAIT_MS_DEFAULT);
+    this.lockCreationTimeout =
+        conf.getLong(HIVE_LOCK_CREATION_TIMEOUT_MS, HIVE_LOCK_CREATION_TIMEOUT_MS_DEFAULT);
+    this.lockCreationMinWaitTime =
+        conf.getLong(HIVE_LOCK_CREATION_MIN_WAIT_MS, HIVE_LOCK_CREATION_MIN_WAIT_MS_DEFAULT);
+    this.lockCreationMaxWaitTime =
+        conf.getLong(HIVE_LOCK_CREATION_MAX_WAIT_MS, HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT);
     this.lockHeartbeatIntervalTime =
         conf.getLong(HIVE_LOCK_HEARTBEAT_INTERVAL_MS, HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
     this.metadataRefreshMaxRetries =
@@ -831,9 +832,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     Tasks.foreach(lockRequest)
         .retry(Integer.MAX_VALUE - 100)
-        .exponentialBackoff(lockRequestMinWaitTime, lockRequestMaxWaitTime, lockRequestTimeout, 2.0)
+        .exponentialBackoff(
+            lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
         .shouldRetryTest(
-            e -> e instanceof TException && MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2))
+            e ->
+                e instanceof TException
+                    && MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2))
         .throwFailureWhenFinished()
         .run(
             request -> {
