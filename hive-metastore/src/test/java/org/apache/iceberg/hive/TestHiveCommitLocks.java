@@ -468,11 +468,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   }
 
   @Test
-  public void testLockHeartbeat() throws TException {
+  public void testLockHeartbeat() throws TException, InterruptedException {
     doReturn(acquiredLockResponse).when(spyClient).lock(any());
     doAnswer(AdditionalAnswers.answersWithDelay(5000, InvocationOnMock::callRealMethod))
-        .when(spyClient)
-        .getTable(any(), any());
+        .when(spyOps)
+        .loadHmsTable();
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
     spyOps.doCommit(metadataV2, metadataV1);
