@@ -160,14 +160,20 @@ Here are the catalog properties related to locking. They are used by some catalo
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 
-| Property                              | Default          | Description                                                                        |
-| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
-| iceberg.hive.client-pool-size         | 5                | The size of the Hive client pool when tracking tables in HMS                       |
-| iceberg.hive.lock-timeout-ms          | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                                     |
-| iceberg.hive.lock-check-min-wait-ms   | 50               | Minimum time in milliseconds to check back on the status of lock acquisition       |
-| iceberg.hive.lock-check-max-wait-ms   | 5000             | Maximum time in milliseconds to check back on the status of lock acquisition       |
+| Property                                  | Default         | Description                                                                  |
+|-------------------------------------------|-----------------|------------------------------------------------------------------------------|
+| iceberg.hive.client-pool-size             | 5               | The size of the Hive client pool when tracking tables in HMS                 |
+| iceberg.hive.lock-timeout-ms              | 180000 (3 min)  | Maximum time in milliseconds to acquire a lock                               |
+| iceberg.hive.lock-check-min-wait-ms       | 50              | Minimum time in milliseconds to check back on the status of lock acquisition |
+| iceberg.hive.lock-check-max-wait-ms       | 5000            | Maximum time in milliseconds to check back on the status of lock acquisition |
+| iceberg.hive.lock-request-timeout-ms      | 180000 (3 min)  | Maximum time in milliseconds to create a lock in the HMS                     |
+| iceberg.hive.lock-request-min-wait-ms     | 50              | Minimum time in milliseconds to check the lock creation in the HMS           |
+| iceberg.hive.lock-request-max-wait-ms     | 5000            | Maximum time in milliseconds to check the lock creation in the HMS           |
+| iceberg.hive.lock-heartbeat-interval-ms   | 240000 (4 min)  | The heartbeat interval for the HMS locks.                                    |
+| iceberg.hive.metadata-refresh-max-retries | 2               | Maximum number of retries when the metadata file is missing                  |
+| iceberg.hive.table-level-lock-evict-ms    | 600000 (10 min) | The timeout for the JVM table lock is                                        |
 
-Note: `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
+Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
 of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
 Hive Metastore before the lock is retried from Iceberg.
 
