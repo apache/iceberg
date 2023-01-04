@@ -70,5 +70,9 @@ public class ManifestEntriesTable extends BaseEntriesTable {
           CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
       return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
+
+    int partitionSpecId() {
+      return manifest.partitionSpecId();
+    }
   }
 }

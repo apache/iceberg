@@ -163,6 +163,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public RemoveUnusedSpecs removeUnusedSpecs() {
+    return new BaseRemoveUnusedSpecs(ops, this);
+  }
+
+  @Override
   public UpdateLocation updateLocation() {
     return new SetLocation(ops);
   }

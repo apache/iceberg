@@ -308,6 +308,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public RemoveUnusedSpecs removeUnusedSpecs() {
+    throw new UnsupportedOperationException(errorMsg("removeUnusedSpecs"));
+  }
+
+  @Override
   public RewriteFiles newRewrite() {
     throw new UnsupportedOperationException(errorMsg("newRewrite"));
   }
