@@ -29,9 +29,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -106,41 +106,50 @@ public class SparkScanBuilder
   @Override
   public Filter[] pushFilters(Filter[] filters) {
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = null;
-      try {
-        expr = SparkFilters.convert(filter);
-      } catch (IllegalArgumentException e) {
-        // converting to Iceberg Expression failed, so this expression cannot be pushed down
-        LOG.info(
-            "Failed to convert filter to Iceberg expression, skipping push down for this expression: {}. {}",
-            filter,
-            e.getMessage());
-      }
+      Expression expr = safelyConvertFilter(filter);
 
       if (expr != null) {
-        try {
-          Binder.bind(schema.asStruct(), expr, caseSensitive);
-          expressions.add(expr);
-          pushed.add(filter);
-        } catch (ValidationException e) {
-          // binding to the table schema failed, so this expression cannot be pushed down
-          LOG.info(
-              "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
-              filter,
-              e.getMessage());
-        }
+        expressions.add(expr);
+        pushableFilters.add(filter);
+      }
+
+      if (expr == null || requiresRecordLevelFiltering(expr)) {
+        postScanFilters.add(filter);
       }
     }
 
     this.filterExpressions = expressions;
-    this.pushedFilters = pushed.toArray(new Filter[0]);
+    this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
-    // Spark doesn't support residuals per task, so return all filters
-    // to get Spark to handle record-level filtering
-    return filters;
+    // all unsupported filters and filters that require record-level filtering
+    // must be reported back and handled on the Spark side
+    return postScanFilters.toArray(new Filter[0]);
+  }
+
+  private Expression safelyConvertFilter(Filter filter) {
+    try {
+      Expression expr = SparkFilters.convert(filter);
+
+      if (expr != null) {
+        // try binding the expression to ensure it can be pushed down
+        Binder.bind(schema.asStruct(), expr, caseSensitive);
+        return expr;
+      }
+
+    } catch (Exception e) {
+      LOG.warn("Exception while converting {} to Iceberg: {}.", filter, e.getMessage());
+    }
+
+    return null;
+  }
+
+  private boolean requiresRecordLevelFiltering(Expression expr) {
+    return table.specs().values().stream()
+        .anyMatch(spec -> !ExpressionUtil.selectsPartitions(expr, spec, caseSensitive));
   }
 
   @Override

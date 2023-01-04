@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -226,6 +227,16 @@ public abstract class SparkTestBase {
       for (String location : locations) {
         move(location + "_temp", location);
       }
+    }
+  }
+
+  protected void withDefaultTimeZone(String zoneId, Action action) {
+    TimeZone currentZone = TimeZone.getDefault();
+    try {
+      TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
+      action.invoke();
+    } finally {
+      TimeZone.setDefault(currentZone);
     }
   }
 
