@@ -470,7 +470,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @Test
   public void testLockHeartbeat() throws TException, InterruptedException {
     doReturn(acquiredLockResponse).when(spyClient).lock(any());
-    doAnswer(AdditionalAnswers.answersWithDelay(5000, InvocationOnMock::callRealMethod))
+    doAnswer(AdditionalAnswers.answersWithDelay(2000, InvocationOnMock::callRealMethod))
         .when(spyOps)
         .loadHmsTable();
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
@@ -483,7 +483,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @Test
   public void testLockHeartbeatFailureDuringCommit() throws TException, InterruptedException {
     doReturn(acquiredLockResponse).when(spyClient).lock(any());
-    doAnswer(AdditionalAnswers.answersWithDelay(5000, InvocationOnMock::callRealMethod))
+    doAnswer(AdditionalAnswers.answersWithDelay(2000, InvocationOnMock::callRealMethod))
         .when(spyOps)
         .loadHmsTable();
     doThrow(new TException("Failed to heart beat."))
