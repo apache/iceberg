@@ -118,6 +118,31 @@ This type of representation stores the original view definition in SQL and its S
 For `CREATE VIEW v (alias_name COMMENT 'docs', alias_name2, ...) AS SELECT col1, col2, ...`,
 the field aliases are 'alias_name', 'alias_name2', and etc., and the field docs are 'docs', null, and etc.
 
+#### Atomic swap for File System Views
+
+An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems.
+
+Each version of the view metadata is stored in a metadata folder under the view’s base location using a file naming scheme that includes a version number, `V`: `v<V>.metadata.json`. This version number has to be distinguished from the `current-version-id` field of the view metadata. To commit a new metadata version, `V+1`, the writer performs the following steps:
+
+1. Read the current view metadata version `V`.
+2. Create new view metadata based on version `V`.
+3. Write the new view metadata to a unique file: `<random-uuid>.metadata.json`.
+4. Rename the unique file to the well-known file for version `V`: `v<V+1>.metadata.json`.
+    1. If the rename succeeds, the commit succeeded and `V+1` is the view’s current version
+    2. If the rename fails, go back to step 1.
+
+#### Atomic swap for Metastore Views
+
+The atomic swap needed to commit new versions of view metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation. The check-and-put validates that the version of the view that a write is based on is still current and then makes the new metadata from the write the current version.
+
+Each version of view metadata is stored in a metadata folder under the view’s base location using a naming scheme that includes a version and UUID: `<V>-<random-uuid>.metadata.json`. This version number has to be distinguished from the `current-version-id` field of the view metadata. To commit a new metadata version, `V+1`, the writer performs the following steps:
+
+1. Create a new view metadata file based on the current metadata.
+2. Write the new view metadata to a unique file: `<V+1>-<random-uuid>.metadata.json`.
+3. Request that the metastore swap the view’s metadata pointer from the location of `V` to the location of `V+1`.
+    1. If the swap succeeds, the commit succeeded. `V` was still the latest metadata version and the metadata file for `V+1` is now the current metadata.
+    2. If the swap fails, another writer has already created `V+1`. The current writer goes back to step 1.
+
 ## Appendix A: An Example
 
 The JSON metadata file format is described using an example below.
