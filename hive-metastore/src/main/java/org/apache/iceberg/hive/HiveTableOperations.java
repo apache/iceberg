@@ -726,7 +726,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     try {
       if (!lockId.isPresent()) {
         // Try to find the lock based on agentInfo. Only works with Hive 2 or later.
-        if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
+        if (MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
           AtomicReference<Long> foundLockId = new AtomicReference<>();
           AtomicReference<LockState> state = new AtomicReference<>();
           if (!findLock(agentInfo, foundLockId, state)) {
@@ -737,7 +737,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
           id = foundLockId.get();
         } else {
-          LOG.warn("Could not find lock with HMSClient {}", MetastoreVersion.current());
+          LOG.warn("Could not find lock with HMSClient {}", MetastoreClientVersion.current());
           return;
         }
       } else {
@@ -825,7 +825,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             InetAddress.getLocalHost().getHostName());
 
     // Only works in Hive 2 or later.
-    if (MetastoreVersion.min(MetastoreVersion.HIVE_2)) {
+    if (MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
       lockRequest.setAgentInfo(agentInfo);
     }
 
@@ -833,7 +833,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         .retry(Integer.MAX_VALUE - 100)
         .exponentialBackoff(lockRequestMinWaitTime, lockRequestMaxWaitTime, lockRequestTimeout, 2.0)
         .shouldRetryTest(
-            e -> e instanceof TException && MetastoreVersion.min(MetastoreVersion.HIVE_2))
+            e -> e instanceof TException && MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2))
         .throwFailureWhenFinished()
         .run(
             request -> {
@@ -846,7 +846,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 try {
                   // If we can not check for lock, or we do not find it, then rethrow the exception
                   // Otherwise we are happy as the findLock sets the lockId and the state correctly
-                  if (!MetastoreVersion.min(MetastoreVersion.HIVE_2)
+                  if (!MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)
                       || !findLock(agentInfo, lockId, state)) {
                     throw te;
                   } else {
