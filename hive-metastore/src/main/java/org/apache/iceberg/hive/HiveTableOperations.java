@@ -450,7 +450,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         new Table(
             tableName,
             database,
-            metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.getCurrentUser()),
+            metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.getUserName()),
             (int) currentTimeMillis / 1000,
             (int) currentTimeMillis / 1000,
             Integer.MAX_VALUE,

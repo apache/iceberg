@@ -26,7 +26,7 @@ public class HiveHadoopUtil {
 
   private HiveHadoopUtil() {}
 
-  public static String getCurrentUser() {
+  public static String getUserName() {
     try {
       return UserGroupInformation.getCurrentUser().getUserName();
     } catch (IOException e) {
