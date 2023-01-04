@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -36,10 +35,10 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  private final Map<K, Long> globalDataStatistics;
+  private final DataStatistics<K> globalDataStatistics;
   private final T record;
 
-  private ShuffleRecordWrapper(T record, Map<K, Long> globalDataStatistics) {
+  private ShuffleRecordWrapper(T record, DataStatistics<K> globalDataStatistics) {
     Preconditions.checkArgument(
         record != null ^ globalDataStatistics != null,
         "A ShuffleRecordWrapper contain either record and stats, not neither or both");
@@ -51,7 +50,7 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
     return new ShuffleRecordWrapper<>(record, null);
   }
 
-  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(Map<K, Long> globalDataStatistics) {
+  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(DataStatistics<K> globalDataStatistics) {
     return new ShuffleRecordWrapper<>(null, globalDataStatistics);
   }
 
@@ -63,7 +62,7 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
     return record != null;
   }
 
-  Map<K, Long> globalDataDistributionWeight() {
+  DataStatistics<K> globalDataDistributionWeight() {
     return globalDataStatistics;
   }
 

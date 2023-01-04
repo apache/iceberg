@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.OperatorStateStore;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -80,9 +79,9 @@ public class TestShuffleOperator {
             return value;
           }
         };
+    DataStatisticsFactory<String> dataStatisticsFactory = new DataStatisticsFactory<>();
 
-    this.operator =
-        new ShuffleOperator<>(keySelector, TypeInformation.of(String.class), mockGateway);
+    this.operator = new ShuffleOperator<>(keySelector, mockGateway, dataStatisticsFactory);
     Environment env = getTestingEnvironment();
     this.operator.setup(
         new OneInputStreamTask<String, String>(env),
@@ -113,10 +112,13 @@ public class TestShuffleOperator {
     operator.processElement(new StreamRecord<>("a"));
     operator.processElement(new StreamRecord<>("a"));
     operator.processElement(new StreamRecord<>("b"));
-    assertTrue(operator.localDataStatistics().containsKey("a"));
-    assertTrue(operator.localDataStatistics().containsKey("b"));
-    assertEquals(2L, (long) operator.localDataStatistics().get("a"));
-    assertEquals(1L, (long) operator.localDataStatistics().get("b"));
+    assertTrue(operator.localDataStatistics() instanceof MapDataStatistics);
+    MapDataStatistics<String> mapDataStatistics =
+        (MapDataStatistics<String>) operator.localDataStatistics();
+    assertTrue(mapDataStatistics.dataStatistics().containsKey("a"));
+    assertTrue(mapDataStatistics.dataStatistics().containsKey("b"));
+    assertEquals(2L, (long) mapDataStatistics.dataStatistics().get("a"));
+    assertEquals(1L, (long) mapDataStatistics.dataStatistics().get("b"));
   }
 
   @Test
