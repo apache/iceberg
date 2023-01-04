@@ -262,14 +262,14 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   private void createTableAndVerifyOwner(
-      String db, String tbl, Map<String, String> prop, String owner)
+      String db, String tbl, Map<String, String> properties, String owner)
       throws IOException, TException {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
     TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
     String location = temp.newFolder(tbl).toString();
     try {
-      Table table = catalog.createTable(tableIdent, schema, spec, location, prop);
+      Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
       org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
       Assert.assertEquals(owner, hmsTable.getOwner());
       Map<String, String> hmsTableParams = hmsTable.getParameters();
