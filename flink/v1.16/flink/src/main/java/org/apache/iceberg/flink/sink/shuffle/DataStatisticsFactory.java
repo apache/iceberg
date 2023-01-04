@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-public class DataStatisticsFactory<K> {
+/**
+ * DataStatisticsFactory provides the DataStatistics definition for different mode like HASH, RANGE
+ */
+class DataStatisticsFactory<K> {
 
-  public DataStatistics<K> createDataStatistics() {
+  DataStatistics<K> createDataStatistics() {
     // Only support MapDataStatistics for now. New DataStatistics type will be added for high
     // cardinality case.
     return new MapDataStatistics<>();

@@ -23,13 +23,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/**
- * Shuffle operator can help to improve data clustering based on the key.
- *
- * <p>It collects the data statistics information, sends to coordinator and gets the global data
- * distribution weight from coordinator. Then it will ingest the weight into data stream(wrap by a
- * class{@link ShuffleRecordWrapper}) and send to partitioner.
- */
+/** MapDataStatistics uses map to count key frequency */
 class MapDataStatistics<K> implements DataStatistics<K> {
   private final Map<K, Long> dataStatistics = Maps.newHashMap();
 

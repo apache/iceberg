@@ -19,11 +19,10 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 /**
- * Shuffle operator can help to improve data clustering based on the key.
+ * DataStatistics defines the interface to collect data statistics.
  *
- * <p>It collects the data statistics information, sends to coordinator and gets the global data
- * distribution weight from coordinator. Then it will ingest the weight into data stream(wrap by a
- * class{@link ShuffleRecordWrapper}) and send to partitioner.
+ * <p>{@link ShuffleOperator} will store local data statistics and later distribute
+ * the global statistics(received from ShuffleCoordiantor) to Partitioner.
  */
 interface DataStatistics<K> {
   long size();
