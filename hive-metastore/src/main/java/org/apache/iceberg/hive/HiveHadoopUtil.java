@@ -30,7 +30,7 @@ public class HiveHadoopUtil {
     try {
       return UserGroupInformation.getCurrentUser().getUserName();
     } catch (IOException e) {
-      throw new UncheckedIOException("Fail to obtain default (UGI) user", e);
+      throw new UncheckedIOException("Fail to obtain Hadoop UGI user", e);
     }
   }
 }
