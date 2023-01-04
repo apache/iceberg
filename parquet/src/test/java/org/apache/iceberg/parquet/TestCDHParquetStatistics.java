@@ -39,7 +39,6 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(0L);
-    Assert.assertTrue(
-        ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats));
+    Assert.assertTrue(ParquetMetricsRowGroupFilter.minMaxUndefined(cdhBinaryColumnStats));
   }
 }

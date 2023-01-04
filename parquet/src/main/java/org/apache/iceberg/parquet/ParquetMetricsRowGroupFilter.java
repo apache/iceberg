@@ -560,8 +560,8 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   /**
-   * Older versions of Parquet statistics which may have a null count but undefined
-   * min and max statistics. This is similar to the current behavior when NaN values are present.
+   * Older versions of Parquet statistics which may have a null count but undefined min and max
+   * statistics. This is similar to the current behavior when NaN values are present.
    *
    * <p>This is specifically for 1.5.0-CDH Parquet builds and later which contain the different
    * unusual hasNonNull behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits
