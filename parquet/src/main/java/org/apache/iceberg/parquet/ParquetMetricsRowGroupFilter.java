@@ -212,16 +212,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         T lower = min(colStats, id);
@@ -246,16 +242,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         T lower = min(colStats, id);
@@ -280,16 +272,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
@@ -314,16 +302,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
@@ -355,16 +339,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         T lower = min(colStats, id);
@@ -409,16 +389,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         Collection<T> literals = literalSet;
@@ -472,16 +448,12 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
-          return ROWS_MIGHT_MATCH;
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
-        }
-
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
         }
 
         ByteBuffer prefixAsBytes = lit.toByteBuffer();
@@ -529,7 +501,7 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+        if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -588,28 +560,26 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   /**
-   * Checks against older versions of Parquet statistics which may have a null count but undefined
-   * min and max statistics. Returns true if nonNull values exist in the row group but no further
-   * statistics are available.
-   *
-   * <p>We can't use {@code statistics.hasNonNullValue()} because it is inaccurate with older files
-   * and will return false if min and max are not set.
+   * Older versions of Parquet statistics which may have a null count but undefined
+   * min and max statistics. This is similar to the current behavior when NaN values are present.
    *
    * <p>This is specifically for 1.5.0-CDH Parquet builds and later which contain the different
    * unusual hasNonNull behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits
    * the reading of these statistics from versions of Parquet earlier than 1.8.0.
    *
    * @param statistics Statistics to check
-   * @param valueCount Number of values in the row group
-   * @return true if nonNull values exist and no other stats can be used
+   * @return true if min and max statistics are null
    */
-  static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
-    return statistics.getNumNulls() < valueCount
-        && (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  static boolean nullMinMax(Statistics statistics) {
+    return statistics.getMaxBytes() == null || statistics.getMinBytes() == null;
   }
 
   static boolean minMaxUndefined(Statistics statistics) {
-    return !statistics.isEmpty() && !statistics.hasNonNullValue();
+    return (!statistics.isEmpty() && !statistics.hasNonNullValue()) || nullMinMax(statistics);
+  }
+
+  static boolean allNulls(Statistics statistics, long valueCount) {
+    return statistics.isNumNullsSet() && valueCount == statistics.getNumNulls();
   }
 
   private static boolean mayContainNull(Statistics statistics) {
