@@ -156,37 +156,41 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             + "PARTITIONED BY (hours(t))",
         tableName);
 
-    sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30 01:00:00.000')", tableName);
-    sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30 02:00:00.000')", tableName);
+    sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30T01:00:00.000Z')", tableName);
+    sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-06-30T02:00:00.000Z')", tableName);
     sql("INSERT INTO %s VALUES (3, 300, null)", tableName);
 
-    checkCompleteFilterPushdown(
-        "t IS NULL" /* query predicate */,
-        "t IS NULL" /* Iceberg scan filters */,
-        ImmutableList.of(row(3, 300, null)));
+    withDefaultTimeZone(
+        "UTC",
+        () -> {
+          checkCompleteFilterPushdown(
+              "t IS NULL" /* query predicate */,
+              "t IS NULL" /* Iceberg scan filters */,
+              ImmutableList.of(row(3, 300, null)));
 
-    // strict/inclusive projections for t < TIMESTAMP '2021-06-30 02:00:00.000' are equal
-    // so this filter selects entire partitions and can be pushed down completely
-    checkCompleteFilterPushdown(
-        "t < TIMESTAMP '2021-06-30 02:00:00.000'" /* query predicate */,
-        "t IS NOT NULL, t < 1625043600000000" /* Iceberg scan filters */,
-        ImmutableList.of(row(1, 100, Timestamp.valueOf("2021-06-30 01:00:00.0"))));
+          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T02:00:00.000Z' are equal,
+          // so this filter selects entire partitions and can be pushed down completely
+          checkCompleteFilterPushdown(
+              "t < TIMESTAMP '2021-06-30T02:00:00.000Z'" /* query predicate */,
+              "t IS NOT NULL, t < 1625018400000000" /* Iceberg scan filters */,
+              ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
-    // strict/inclusive projections for t < TIMESTAMP '2021-06-30 01:00:00.001' are NOT equal
-    // so this filter does NOT select entire partitions and can't be pushed down completely
-    checkFilterPushdown(
-        "t < TIMESTAMP '2021-06-30 01:00:00.001'" /* query predicate */,
-        "t < 2021-06-30 01:00:00.001" /* post scan filter */,
-        "t IS NOT NULL, t < 1625040000001000" /* Iceberg scan filters */,
-        ImmutableList.of(row(1, 100, Timestamp.valueOf("2021-06-30 01:00:00.0"))));
+          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T01:00:00.001Z' differ,
+          // so this filter does NOT select entire partitions and can't be pushed down completely
+          checkFilterPushdown(
+              "t < TIMESTAMP '2021-06-30T01:00:00.001Z'" /* query predicate */,
+              "t < 2021-06-30 01:00:00.001" /* post scan filter */,
+              "t IS NOT NULL, t < 1625014800001000" /* Iceberg scan filters */,
+              ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
-    // strict/inclusive projections for t <= TIMESTAMP '2021-06-30 01:00:00.000' are NOT equal
-    // so this filter does NOT select entire partitions and can't be pushed down completely
-    checkFilterPushdown(
-        "t <= TIMESTAMP '2021-06-30 01:00:00.000'" /* query predicate */,
-        "t <= 2021-06-30 01:00:00" /* post scan filter */,
-        "t IS NOT NULL, t <= 1625040000000000" /* Iceberg scan filters */,
-        ImmutableList.of(row(1, 100, Timestamp.valueOf("2021-06-30 01:00:00.0"))));
+          // strict/inclusive projections for t <= TIMESTAMP '2021-06-30T01:00:00.000Z' differ,
+          // so this filter does NOT select entire partitions and can't be pushed down completely
+          checkFilterPushdown(
+              "t <= TIMESTAMP '2021-06-30T01:00:00.000Z'" /* query predicate */,
+              "t <= 2021-06-30 01:00:00" /* post scan filter */,
+              "t IS NOT NULL, t <= 1625014800000000" /* Iceberg scan filters */,
+              ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
+        });
   }
 
   @Test
@@ -210,24 +214,24 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
-          // strict/inclusive projections for t < TIMESTAMP '2021-07-05T00:00:00.000Z' are equal
+          // strict/inclusive projections for t < TIMESTAMP '2021-07-05T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkCompleteFilterPushdown(
               "t < TIMESTAMP '2021-07-05T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1625443200000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-15T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-15T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
 
-          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' are NOT equal
+          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
           checkFilterPushdown(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-15T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-15T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
         });
   }
 
@@ -252,24 +256,24 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
-          // strict/inclusive projections for t < TIMESTAMP '2021-07-01T00:00:00.000Z' are equal
+          // strict/inclusive projections for t < TIMESTAMP '2021-07-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkCompleteFilterPushdown(
               "t < TIMESTAMP '2021-07-01T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1625097600000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-30T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
 
-          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' are NOT equal
+          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
           checkFilterPushdown(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-30T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
         });
   }
 
@@ -294,24 +298,24 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(3, 300, null)));
 
-          // strict/inclusive projections for t < TIMESTAMP '2022-01-01T00:00:00.000Z' are equal
+          // strict/inclusive projections for t < TIMESTAMP '2022-01-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkCompleteFilterPushdown(
               "t < TIMESTAMP '2022-01-01T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1640995200000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-30T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
 
-          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' are NOT equal
+          // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
           checkFilterPushdown(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
-                  row(1, 100, Timestamp.from(Instant.parse("2021-06-30T01:00:00.000Z"))),
-                  row(2, 200, Timestamp.from(Instant.parse("2021-06-30T02:00:00.000Z")))));
+                  row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
+                  row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
         });
   }
 
@@ -461,5 +465,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     Assertions.assertThat(planAsString)
         .as("Pushed filters must match")
         .contains("[filters=" + pushedFilters + ",");
+  }
+
+  private Timestamp timestamp(String timestampAsString) {
+    return Timestamp.from(Instant.parse(timestampAsString));
   }
 }
