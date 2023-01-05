@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
@@ -58,9 +56,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
-public abstract class SparkTestBase {
-
-  protected static final Object ANY = new Object();
+public abstract class SparkTestBase extends SparkTestHelperBase {
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
@@ -124,32 +120,6 @@ public abstract class SparkTestBase {
     return rowsToJava(rows);
   }
 
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
-  }
-
-  private Object[] toJava(Row row) {
-    return IntStream.range(0, row.size())
-        .mapToObj(
-            pos -> {
-              if (row.isNullAt(pos)) {
-                return null;
-              }
-
-              Object value = row.get(pos);
-              if (value instanceof Row) {
-                return toJava((Row) value);
-              } else if (value instanceof scala.collection.Seq) {
-                return row.getList(pos);
-              } else if (value instanceof scala.collection.Map) {
-                return row.getJavaMap(pos);
-              } else {
-                return value;
-              }
-            })
-        .toArray(Object[]::new);
-  }
-
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
     Assert.assertEquals("Scalar SQL should return one row", 1, rows.size());
@@ -160,39 +130,6 @@ public abstract class SparkTestBase {
 
   protected Object[] row(Object... values) {
     return values;
-  }
-
-  protected void assertEquals(
-      String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(
-        context + ": number of results should match", expectedRows.size(), actualRows.size());
-    for (int row = 0; row < expectedRows.size(); row += 1) {
-      Object[] expected = expectedRows.get(row);
-      Object[] actual = actualRows.get(row);
-      Assert.assertEquals("Number of columns should match", expected.length, actual.length);
-      for (int col = 0; col < actualRows.get(row).length; col += 1) {
-        String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
-        assertEquals(newContext, expected, actual);
-      }
-    }
-  }
-
-  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
-    Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
-    for (int col = 0; col < actualRow.length; col += 1) {
-      Object expectedValue = expectedRow[col];
-      Object actualValue = actualRow[col];
-      if (expectedValue != null && expectedValue.getClass().isArray()) {
-        String newContext = String.format("%s (nested col %d)", context, col + 1);
-        if (expectedValue instanceof byte[]) {
-          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
-        } else {
-          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
-        }
-      } else if (expectedValue != ANY) {
-        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
-      }
-    }
   }
 
   protected static String dbPath(String dbName) {
