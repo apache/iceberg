@@ -23,11 +23,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -76,11 +74,7 @@ public class SchemaParser {
     }
 
     if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
-      generator.writeArrayFieldStart(IDENTIFIER_FIELD_IDS);
-      for (int id : identifierFieldIds) {
-        generator.writeNumber(id);
-      }
-      generator.writeEndArray();
+      JsonUtil.writeIntegerArray(IDENTIFIER_FIELD_IDS, identifierFieldIds, generator);
     }
 
     generator.writeArrayFieldStart(FIELDS);
@@ -165,19 +159,9 @@ public class SchemaParser {
   }
 
   public static String toJson(Schema schema, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(
+        gen -> toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), gen),
+        pretty);
   }
 
   private static Type typeFromJson(JsonNode json) {
@@ -276,14 +260,6 @@ public class SchemaParser {
       Caffeine.newBuilder().weakValues().build();
 
   public static Schema fromJson(String json) {
-    return SCHEMA_CACHE.get(
-        json,
-        jsonKey -> {
-          try {
-            return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-        });
+    return SCHEMA_CACHE.get(json, jsonKey -> JsonUtil.parse(json, SchemaParser::fromJson));
   }
 }

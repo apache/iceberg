@@ -96,7 +96,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
-        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+        "max_concurrent_deletes should have value > 0, value: %s",
+        maxConcurrentDeletes);
 
     return withIcebergTable(
         tableIdent,
@@ -119,7 +120,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             action.deleteWith(file -> {});
           }
 
-          if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+          if (maxConcurrentDeletes != null) {
             action.executeDeleteWith(removeService(maxConcurrentDeletes));
           }
 

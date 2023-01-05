@@ -35,6 +35,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -197,18 +198,23 @@ public class RewriteManifestsSparkAction
         loadMetadataTable(table, ENTRIES)
             .filter("status < 2") // select only live entries
             .selectExpr(
-                "input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
+                "input_file_name() as manifest",
+                "snapshot_id",
+                "sequence_number",
+                "file_sequence_number",
+                "data_file");
 
     Column joinCond = manifestDF.col("manifest").equalTo(manifestEntryDF.col("manifest"));
     return manifestEntryDF
         .join(manifestDF, joinCond, "left_semi")
-        .select("snapshot_id", "sequence_number", "data_file");
+        .select("snapshot_id", "sequence_number", "file_sequence_number", "data_file");
   }
 
   private List<ManifestFile> writeManifestsForUnpartitionedTable(
       Dataset<Row> manifestEntryDF, int numManifests) {
     Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
+    Types.StructType combinedPartitionType = Partitioning.partitionType(table);
 
     // we rely only on the target number of manifests for unpartitioned tables
     // as we should not worry about having too much metadata per partition
@@ -217,7 +223,14 @@ public class RewriteManifestsSparkAction
     return manifestEntryDF
         .repartition(numManifests)
         .mapPartitions(
-            toManifests(io, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
+            toManifests(
+                io,
+                maxNumManifestEntries,
+                stagingLocation,
+                formatVersion,
+                combinedPartitionType,
+                spec,
+                sparkType),
             manifestEncoder)
         .collectAsList();
   }
@@ -227,6 +240,7 @@ public class RewriteManifestsSparkAction
 
     Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
+    Types.StructType combinedPartitionType = Partitioning.partitionType(table);
 
     // we allow the actual size of manifests to be 10% higher if the estimation is not precise
     // enough
@@ -240,7 +254,13 @@ public class RewriteManifestsSparkAction
               .sortWithinPartitions(partitionColumn)
               .mapPartitions(
                   toManifests(
-                      io, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
+                      io,
+                      maxNumManifestEntries,
+                      stagingLocation,
+                      formatVersion,
+                      combinedPartitionType,
+                      spec,
+                      sparkType),
                   manifestEncoder)
               .collectAsList();
         });
@@ -337,6 +357,7 @@ public class RewriteManifestsSparkAction
       Broadcast<FileIO> io,
       String location,
       int format,
+      Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType)
       throws IOException {
@@ -346,8 +367,9 @@ public class RewriteManifestsSparkAction
     OutputFile outputFile =
         io.value().newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
 
-    Types.StructType dataFileType = DataFile.getType(spec.partitionType());
-    SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkType);
+    Types.StructType combinedFileType = DataFile.getType(combinedPartitionType);
+    Types.StructType manifestFileType = DataFile.getType(spec.partitionType());
+    SparkDataFile wrapper = new SparkDataFile(combinedFileType, manifestFileType, sparkType);
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null);
 
@@ -356,8 +378,9 @@ public class RewriteManifestsSparkAction
         Row row = rows.get(index);
         long snapshotId = row.getLong(0);
         long sequenceNumber = row.getLong(1);
-        Row file = row.getStruct(2);
-        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber);
+        Long fileSequenceNumber = row.isNullAt(2) ? null : row.getLong(2);
+        Row file = row.getStruct(3);
+        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber, fileSequenceNumber);
       }
     } finally {
       writer.close();
@@ -371,6 +394,7 @@ public class RewriteManifestsSparkAction
       long maxNumManifestEntries,
       String location,
       int format,
+      Types.StructType combinedPartitionType,
       PartitionSpec spec,
       StructType sparkType) {
 
@@ -384,14 +408,40 @@ public class RewriteManifestsSparkAction
       List<ManifestFile> manifests = Lists.newArrayList();
       if (rowsAsList.size() <= maxNumManifestEntries) {
         manifests.add(
-            writeManifest(rowsAsList, 0, rowsAsList.size(), io, location, format, spec, sparkType));
+            writeManifest(
+                rowsAsList,
+                0,
+                rowsAsList.size(),
+                io,
+                location,
+                format,
+                combinedPartitionType,
+                spec,
+                sparkType));
       } else {
         int midIndex = rowsAsList.size() / 2;
         manifests.add(
-            writeManifest(rowsAsList, 0, midIndex, io, location, format, spec, sparkType));
+            writeManifest(
+                rowsAsList,
+                0,
+                midIndex,
+                io,
+                location,
+                format,
+                combinedPartitionType,
+                spec,
+                sparkType));
         manifests.add(
             writeManifest(
-                rowsAsList, midIndex, rowsAsList.size(), io, location, format, spec, sparkType));
+                rowsAsList,
+                midIndex,
+                rowsAsList.size(),
+                io,
+                location,
+                format,
+                combinedPartitionType,
+                spec,
+                sparkType));
       }
 
       return manifests.iterator();

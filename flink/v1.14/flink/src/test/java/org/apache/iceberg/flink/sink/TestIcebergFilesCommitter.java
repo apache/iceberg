@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -92,7 +91,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   public TestIcebergFilesCommitter(String format, int formatVersion) {
     super(formatVersion);
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
   }
 
   @Override
@@ -772,6 +771,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
           table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()
         };
     return new FlinkAppenderFactory(
+        table,
         table.schema(),
         FlinkSchemaUtil.convert(table.schema()),
         table.properties(),
@@ -814,7 +814,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(
-        table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
+        table, table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
   }
 
   private void assertMaxCommittedCheckpointId(JobID jobID, long expectedId) {

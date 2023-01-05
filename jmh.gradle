@@ -29,10 +29,6 @@ if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))
 }
 
-if (sparkVersions.contains("3.0")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.0_2.12"))
-}
-
 if (sparkVersions.contains("3.1")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.1_2.12"))
 }
@@ -49,6 +45,10 @@ jmhProjects.add(project(":iceberg-data"))
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
+  apply plugin: 'io.morethan.jmhreport'
+
+  def jmhReportDir = project.property("jmhJsonOutputPath").toString().replace(".json", "")
+  mkdir(file(jmhReportDir))
 
   jmh {
     jmhVersion = '1.32'
@@ -56,8 +56,15 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
+    resultsFile = file(jmhJsonOutputPath)
+    resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
     zip64 = true
+  }
+
+  jmhReport {
+    jmhResultPath = file(jmhJsonOutputPath)
+    jmhReportOutput = file(jmhReportDir)
   }
 
   jmhCompileGeneratedClasses {
@@ -65,4 +72,6 @@ configure(jmhProjects) {
       options.errorprone.enabled = false
     }
   }
+
+  tasks.jmh.finalizedBy tasks.jmhReport
 }

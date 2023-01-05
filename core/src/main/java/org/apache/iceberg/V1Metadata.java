@@ -286,13 +286,23 @@ class V1Metadata {
     }
 
     @Override
-    public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
     }
 
     @Override
-    public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
     }
 
     @Override

@@ -35,21 +35,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestMetadataTableScans extends TableTestBase {
-
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
+public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   public TestMetadataTableScans(int formatVersion) {
     super(formatVersion);
@@ -537,6 +528,93 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testFilesTableReadableMetricsSchema() {
+    Table filesTable = new FilesTable(table.ops(), table);
+    Types.StructType actual = filesTable.newScan().schema().select("readable_metrics").asStruct();
+    int highestId = filesTable.schema().highestFieldId();
+
+    Types.StructType expected =
+        Types.StructType.of(
+            optional(
+                highestId,
+                "readable_metrics",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        highestId - 14,
+                        "data",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                highestId - 13,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
+                            Types.NestedField.optional(
+                                highestId - 12,
+                                "value_count",
+                                Types.LongType.get(),
+                                "Total count, including null and NaN"),
+                            Types.NestedField.optional(
+                                highestId - 11,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
+                            Types.NestedField.optional(
+                                highestId - 10,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
+                            Types.NestedField.optional(
+                                highestId - 9,
+                                "lower_bound",
+                                Types.StringType.get(),
+                                "Lower bound"),
+                            Types.NestedField.optional(
+                                highestId - 8,
+                                "upper_bound",
+                                Types.StringType.get(),
+                                "Upper bound")),
+                        "Metrics for column data"),
+                    Types.NestedField.optional(
+                        highestId - 7,
+                        "id",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                highestId - 6,
+                                "column_size",
+                                Types.LongType.get(),
+                                "Total size on disk"),
+                            Types.NestedField.optional(
+                                highestId - 5,
+                                "value_count",
+                                Types.LongType.get(),
+                                "Total count, including null and NaN"),
+                            Types.NestedField.optional(
+                                highestId - 4,
+                                "null_value_count",
+                                Types.LongType.get(),
+                                "Null value count"),
+                            Types.NestedField.optional(
+                                highestId - 3,
+                                "nan_value_count",
+                                Types.LongType.get(),
+                                "NaN value count"),
+                            Types.NestedField.optional(
+                                highestId - 2,
+                                "lower_bound",
+                                Types.IntegerType.get(),
+                                "Lower bound"),
+                            Types.NestedField.optional(
+                                highestId - 1,
+                                "upper_bound",
+                                Types.IntegerType.get(),
+                                "Upper bound")),
+                        "Metrics for column id")),
+                "Column metrics in readable form"));
+
+    Assert.assertEquals("Dynamic schema for readable_metrics should match", actual, expected);
+  }
+
+  @Test
   public void testPartitionSpecEvolutionAdditive() {
     preparePartitionedTable();
 
@@ -961,53 +1039,5 @@ public class TestMetadataTableScans extends TableTestBase {
         "Expected snapshots do not match",
         expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
         actualManifestListPaths(manifestsTableScan));
-  }
-
-  private Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
-        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
-        .map(t -> t.file().path().toString())
-        .collect(Collectors.toSet());
-  }
-
-  private Set<String> expectedManifestListPaths(Iterable<Snapshot> snapshots, Long... snapshotIds) {
-    Set<Long> snapshotIdSet = Sets.newHashSet(snapshotIds);
-    return StreamSupport.stream(snapshots.spliterator(), false)
-        .filter(s -> snapshotIdSet.contains(s.snapshotId()))
-        .map(Snapshot::manifestListLocation)
-        .collect(Collectors.toSet());
-  }
-
-  private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
-      throws IOException {
-    try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
-      for (CombinedScanTask combinedScanTask : tasks) {
-        for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          if (ignoreResiduals) {
-            Assert.assertEquals(
-                "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
-          } else {
-            Assert.assertNotEquals(
-                "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
-          }
-        }
-      }
-    }
-  }
-
-  private void validateIncludesPartitionScan(CloseableIterable<FileScanTask> tasks, int partValue) {
-    Assert.assertTrue(
-        "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
-            .anyMatch(a -> a.file().partition().get(0, Object.class).equals(partValue)));
-  }
-
-  private boolean manifestHasPartition(ManifestFile mf, int partValue) {
-    int lower =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).lowerBound());
-    int upper =
-        Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
-    return (lower <= partValue) && (upper >= partValue);
   }
 }

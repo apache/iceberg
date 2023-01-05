@@ -22,15 +22,19 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+from __future__ import annotations
+
 import importlib
 import logging
 from abc import ABC, abstractmethod
 from io import SEEK_SET
+from types import TracebackType
 from typing import (
     Dict,
     List,
     Optional,
     Protocol,
+    Type,
     Union,
     runtime_checkable,
 )
@@ -65,12 +69,13 @@ class InputStream(Protocol):
     def close(self) -> None:
         ...
 
-    @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> InputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 
@@ -91,11 +96,13 @@ class OutputStream(Protocol):  # pragma: no cover
         ...
 
     @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> OutputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 
@@ -239,14 +246,19 @@ LOCATION = "location"
 WAREHOUSE = "warehouse"
 
 ARROW_FILE_IO = "pyiceberg.io.pyarrow.PyArrowFileIO"
+FSSPEC_FILE_IO = "pyiceberg.io.fsspec.FsspecFileIO"
 
 # Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
 # If an implementation isn't installed, it will fall back to the next one.
 SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
-    "s3": [ARROW_FILE_IO],
+    "s3": [FSSPEC_FILE_IO, ARROW_FILE_IO],
+    "s3a": [FSSPEC_FILE_IO, ARROW_FILE_IO],
+    "s3n": [FSSPEC_FILE_IO, ARROW_FILE_IO],
     "gcs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
+    "abfs": [FSSPEC_FILE_IO],
+    "abfss": [FSSPEC_FILE_IO],
 }
 
 
@@ -259,8 +271,8 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
         module = importlib.import_module(module_name)
         class_ = getattr(module, class_name)
         return class_(properties)
-    except ImportError:
-        logger.exception("Could not initialize FileIO: %s", io_impl)
+    except ModuleNotFoundError:
+        logger.warning("Could not initialize FileIO: %s", io_impl)
         return None
 
 
@@ -278,10 +290,11 @@ def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[Fi
     return None
 
 
-def load_file_io(properties: Properties, location: Optional[str] = None) -> FileIO:
+def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = None) -> FileIO:
     # First look for the py-io-impl property to directly load the class
     if io_impl := properties.get(PY_IO_IMPL):
         if file_io := _import_file_io(io_impl, properties):
+            logger.info("Loaded FileIO: %s", io_impl)
             return file_io
         else:
             raise ValueError(f"Could not initialize FileIO: {io_impl}")
@@ -296,7 +309,13 @@ def load_file_io(properties: Properties, location: Optional[str] = None) -> File
         if file_io := _infer_file_io_from_schema(warehouse_location, properties):
             return file_io
 
-    # Default to PyArrow
-    from pyiceberg.io.pyarrow import PyArrowFileIO
+    try:
+        # Default to PyArrow
+        logger.info("Defaulting to PyArrow FileIO")
+        from pyiceberg.io.pyarrow import PyArrowFileIO
 
-    return PyArrowFileIO(properties)
+        return PyArrowFileIO(properties)
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            'Could not load a FileIO, please consider installing one: pip3 install "pyiceberg[s3fs]", for more options refer to the docs.'
+        ) from e

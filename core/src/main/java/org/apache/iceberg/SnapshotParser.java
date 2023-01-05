@@ -21,20 +21,23 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
 
   private SnapshotParser() {}
+
+  /** A dummy {@link FileIO} implementation that is only used to retrieve the path */
+  private static final DummyFileIO DUMMY_FILE_IO = new DummyFileIO();
 
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";
@@ -79,11 +82,10 @@ public class SnapshotParser {
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
       // embed the manifest list in the JSON, v1 only
-      generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.allManifests()) {
-        generator.writeString(file.path());
-      }
-      generator.writeEndArray();
+      JsonUtil.writeStringArray(
+          MANIFESTS,
+          Iterables.transform(snapshot.allManifests(DUMMY_FILE_IO), ManifestFile::path),
+          generator);
     }
 
     // schema ID might be null for snapshots written by old writers
@@ -100,21 +102,10 @@ public class SnapshotParser {
   }
 
   public static String toJson(Snapshot snapshot, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(snapshot, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", snapshot);
-    }
+    return JsonUtil.generate(gen -> toJson(snapshot, gen), pretty);
   }
 
-  static Snapshot fromJson(FileIO io, JsonNode node) {
+  static Snapshot fromJson(JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -157,7 +148,6 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io,
           sequenceNumber,
           snapshotId,
           parentId,
@@ -170,20 +160,60 @@ public class SnapshotParser {
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
-      List<ManifestFile> manifests =
-          Lists.transform(
-              JsonUtil.getStringList(MANIFESTS, node),
-              location -> new GenericManifestFile(io.newInputFile(location), 0));
       return new BaseSnapshot(
-          io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
+          sequenceNumber,
+          snapshotId,
+          parentId,
+          timestamp,
+          operation,
+          summary,
+          schemaId,
+          JsonUtil.getStringList(MANIFESTS, node).toArray(new String[0]));
     }
   }
 
-  public static Snapshot fromJson(FileIO io, String json) {
-    try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
+  public static Snapshot fromJson(String json) {
+    return JsonUtil.parse(json, SnapshotParser::fromJson);
+  }
+
+  /**
+   * The main purpose of this class is to lazily retrieve the path from a v1 Snapshot that has
+   * manifest lists
+   */
+  private static class DummyFileIO implements FileIO {
+    @Override
+    public InputFile newInputFile(String path) {
+      return new InputFile() {
+        @Override
+        public long getLength() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SeekableInputStream newStream() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String location() {
+          return path;
+        }
+
+        @Override
+        public boolean exists() {
+          return true;
+        }
+      };
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      throw new UnsupportedOperationException();
     }
   }
 }

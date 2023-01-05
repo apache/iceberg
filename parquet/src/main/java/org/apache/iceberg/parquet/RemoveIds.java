@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -47,12 +48,25 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type item) {
-    return Types.list(array.getRepetition()).element(item).named(array.getName());
+    Types.GroupBuilder<GroupType> listBuilder =
+        Types.buildGroup(array.getRepetition()).as(LogicalTypeAnnotation.listType());
+    final Type listElement = ParquetSchemaUtil.determineListElementType(array);
+    if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+      listBuilder.addFields(item);
+    } else {
+      listBuilder.repeatedGroup().addFields(item).named(array.getFieldName(0));
+    }
+    return listBuilder.named(array.getName());
   }
 
   @Override
   public Type map(GroupType map, Type key, Type value) {
-    return Types.map(map.getRepetition()).key(key).value(value).named(map.getName());
+    return Types.buildGroup(map.getRepetition())
+        .as(LogicalTypeAnnotation.mapType())
+        .repeatedGroup()
+        .addFields(key, value)
+        .named(map.getFieldName(0))
+        .named(map.getName());
   }
 
   @Override

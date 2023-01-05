@@ -17,29 +17,25 @@
 # pylint: disable=broad-except,redefined-builtin,redefined-outer-name
 from functools import wraps
 from typing import (
-    Dict,
+    Any,
+    Callable,
     Literal,
     Optional,
     Tuple,
-    Type,
 )
 
 import click
 from click import Context
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.catalog.hive import HiveCatalog
-from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
 
-SUPPORTED_CATALOGS: Dict[str, Type[Catalog]] = {"thrift": HiveCatalog, "http": RestCatalog}
 
-
-def catch_exception():
-    def decorator(func):
+def catch_exception() -> Callable:  # type: ignore
+    def decorator(func: Callable) -> Callable:  # type: ignore
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any):  # type: ignore
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -60,7 +56,7 @@ def catch_exception():
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[str], credential: Optional[str]):
+def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[str], credential: Optional[str]) -> None:
     properties = {}
     if uri:
         properties["uri"] = uri
@@ -74,12 +70,7 @@ def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[st
         ctx.obj["output"] = JsonOutput(verbose=verbose)
 
     try:
-        try:
-            ctx.obj["catalog"] = load_catalog(catalog, **properties)
-        except ValueError as exc:
-            raise ValueError(
-                f"URI missing, please provide using --uri, the config or environment variable PYICEBERG_CATALOG__{catalog.upper()}__URI"
-            ) from exc
+        ctx.obj["catalog"] = load_catalog(catalog, **properties)
     except Exception as e:
         ctx.obj["output"].exception(e)
         ctx.exit(1)
@@ -102,7 +93,7 @@ def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
 @click.pass_context
 @click.argument("parent", required=False)
 @catch_exception()
-def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-builtin
+def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefined-builtin
     """Lists tables or namespaces"""
     catalog, output = _catalog_and_output(ctx)
 
@@ -117,8 +108,8 @@ def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-buil
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str):
-    """Describes a namespace xor table"""
+def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str) -> None:
+    """Describes a namespace or a table"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
@@ -148,9 +139,22 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 
 @run.command()
 @click.argument("identifier")
+@click.option("--history", is_flag=True)
 @click.pass_context
 @catch_exception()
-def schema(ctx: Context, identifier: str):
+def files(ctx: Context, identifier: str, history: bool) -> None:
+    """Lists all the files of the table"""
+    catalog, output = _catalog_and_output(ctx)
+
+    catalog_table = catalog.load_table(identifier)
+    output.files(catalog_table, history)
+
+
+@run.command()
+@click.argument("identifier")
+@click.pass_context
+@catch_exception()
+def schema(ctx: Context, identifier: str) -> None:
     """Gets the schema of the table"""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
@@ -161,7 +165,7 @@ def schema(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def spec(ctx: Context, identifier: str):
+def spec(ctx: Context, identifier: str) -> None:
     """Returns the partition spec of the table"""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
@@ -172,7 +176,7 @@ def spec(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def uuid(ctx: Context, identifier: str):
+def uuid(ctx: Context, identifier: str) -> None:
     """Returns the UUID of the table"""
     catalog, output = _catalog_and_output(ctx)
     metadata = catalog.load_table(identifier).metadata
@@ -183,7 +187,7 @@ def uuid(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def location(ctx: Context, identifier: str):
+def location(ctx: Context, identifier: str) -> None:
     """Returns the location of the table"""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)
@@ -191,7 +195,7 @@ def location(ctx: Context, identifier: str):
 
 
 @run.group()
-def drop():
+def drop() -> None:
     """Operations to drop a namespace or table"""
 
 
@@ -199,8 +203,8 @@ def drop():
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def table(ctx: Context, identifier: str):  # noqa: F811
-    """Drop table"""
+def table(ctx: Context, identifier: str) -> None:  # noqa: F811
+    """Drops a table"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_table(identifier)
@@ -211,8 +215,8 @@ def table(ctx: Context, identifier: str):  # noqa: F811
 @click.argument("identifier")
 @click.pass_context
 @catch_exception()
-def namespace(ctx, identifier: str):
-    """Drop namespace"""
+def namespace(ctx: Context, identifier: str) -> None:
+    """Drops a namespace"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.drop_namespace(identifier)
@@ -224,7 +228,7 @@ def namespace(ctx, identifier: str):
 @click.argument("to_identifier")
 @click.pass_context
 @catch_exception()
-def rename(ctx, from_identifier: str, to_identifier: str):
+def rename(ctx: Context, from_identifier: str, to_identifier: str) -> None:
     """Renames a table"""
     catalog, output = _catalog_and_output(ctx)
 
@@ -233,64 +237,62 @@ def rename(ctx, from_identifier: str, to_identifier: str):
 
 
 @run.group()
-def properties():
+def properties() -> None:
     """Properties on tables/namespaces"""
 
 
-@properties.command()
-@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
+@properties.group()
+def get() -> None:
+    """Fetch properties on tables/namespaces"""
+
+
+@get.command("namespace")
 @click.argument("identifier")
 @click.argument("property_name", required=False)
 @click.pass_context
 @catch_exception()
-def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):
-    """Fetches a property of a namespace or table"""
+def get_namespace(ctx: Context, identifier: str, property_name: str) -> None:
+    """Fetch properties on a namespace"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    is_namespace = False
-    if entity in {"namespace", "any"}:
-        try:
-            namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+    assert namespace_properties
 
-            if property_name:
-                if property_value := namespace_properties.get(property_name):
-                    output.text(property_value)
-                    is_namespace = True
-                else:
-                    raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
-            else:
-                output.describe_properties(namespace_properties)
-                is_namespace = True
-        except NoSuchNamespaceError as exc:
-            if entity != "any" or len(identifier_tuple) <= 1:  # type: ignore
-                raise exc
-    is_table = False
-    if is_namespace is False and len(identifier_tuple) > 1 and entity in {"table", "any"}:
-        metadata = catalog.load_table(identifier_tuple).metadata
-        assert metadata
-
-        if property_name:
-            if property_value := metadata.properties.get(property_name):
-                output.text(property_value)
-                is_table = True
-            else:
-                raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    if property_name:
+        if property_value := namespace_properties.get(property_name):
+            output.text(property_value)
         else:
-            output.describe_properties(metadata.properties)
-            is_table = True
+            raise NoSuchPropertyException(f"Could not find property {property_name} on namespace {identifier}")
+    else:
+        output.describe_properties(namespace_properties)
 
-    if is_namespace is False and is_table is False:
-        property_err = ""
-        if property_name:
-            property_err = f" with property {property_name}"
 
-        raise NoSuchNamespaceError(f"Table or namespace does not exist: {identifier}{property_err}")
+@get.command("table")
+@click.argument("identifier")
+@click.argument("property_name", required=False)
+@click.pass_context
+@catch_exception()
+def get_table(ctx: Context, identifier: str, property_name: str) -> None:
+    """Fetch properties on a table"""
+    catalog, output = _catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    metadata = catalog.load_table(identifier_tuple).metadata
+    assert metadata
+
+    if property_name:
+        if property_value := metadata.properties.get(property_name):
+            output.text(property_value)
+        else:
+            raise NoSuchPropertyException(f"Could not find property {property_name} on table {identifier}")
+    else:
+        output.describe_properties(metadata.properties)
 
 
 @properties.group()
-def set():
-    """Removes properties on tables/namespaces"""
+def set() -> None:
+    """Sets a property on tables/namespaces"""
 
 
 @set.command()  # type: ignore
@@ -299,8 +301,8 @@ def set():
 @click.argument("property_value")
 @click.pass_context
 @catch_exception()
-def namespace(ctx: Context, identifier: str, property_name: str, property_value: str):  # noqa: F811
-    """Sets a property of a namespace or table"""
+def namespace(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
+    """Sets a property on a namespace"""
     catalog, output = _catalog_and_output(ctx)
 
     catalog.update_namespace_properties(identifier, updates={property_name: property_value})
@@ -313,7 +315,7 @@ def namespace(ctx: Context, identifier: str, property_name: str, property_value:
 @click.argument("property_value")
 @click.pass_context
 @catch_exception()
-def table(ctx: Context, identifier: str, property_name: str, property_value: str):  # noqa: F811
+def table(ctx: Context, identifier: str, property_name: str, property_value: str) -> None:  # noqa: F811
     """Sets a property on a table"""
     catalog, output = _catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
@@ -324,8 +326,8 @@ def table(ctx: Context, identifier: str, property_name: str, property_value: str
 
 
 @properties.group()
-def remove():
-    """Removes properties on tables/namespaces"""
+def remove() -> None:
+    """Removes a property from tables/namespaces"""
 
 
 @remove.command()  # type: ignore
@@ -333,7 +335,7 @@ def remove():
 @click.argument("property_name")
 @click.pass_context
 @catch_exception()
-def namespace(ctx: Context, identifier: str, property_name: str):  # noqa: F811
+def namespace(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
     """Removes a property from a namespace"""
     catalog, output = _catalog_and_output(ctx)
 
@@ -350,7 +352,7 @@ def namespace(ctx: Context, identifier: str, property_name: str):  # noqa: F811
 @click.argument("property_name")
 @click.pass_context
 @catch_exception()
-def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
+def table(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F811
     """Removes a property from a table"""
     catalog, output = _catalog_and_output(ctx)
     table = catalog.load_table(identifier)

@@ -18,7 +18,7 @@
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 
 
-def test_snapshot_with_properties_repr():
+def test_snapshot_with_properties_repr() -> None:
     snapshot_ref = SnapshotRef(
         snapshot_id=3051729675574597004,
         snapshot_ref_type=SnapshotRefType.TAG,

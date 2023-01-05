@@ -27,6 +27,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -114,12 +115,14 @@ public class TestFastAppend extends TableTestBase {
 
     validateManifest(
         snap.allManifests(FILE_IO).get(0),
-        seqs(1, 1),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
         ids(commitId, commitId),
         files(FILE_C, FILE_D));
     validateManifest(
         snap.allManifests(FILE_IO).get(1),
-        seqs(1, 1),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
         ids(commitId, commitId),
         files(FILE_A, FILE_B));
 
@@ -401,6 +404,36 @@ public class TestFastAppend extends TableTestBase {
         IllegalArgumentException.class,
         "Cannot append manifest with deleted files",
         () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit());
+  }
+
+  @Test
+  public void testPartitionSummariesOnUnpartitionedTable() {
+    Table table =
+        TestTables.create(
+            tableDir,
+            "x",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .build())
+        .commit();
+
+    Assertions.assertThat(
+            table.currentSnapshot().summary().keySet().stream()
+                .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+                .collect(Collectors.toSet()))
+        .as("Should not include any partition summaries")
+        .isEmpty();
   }
 
   @Test

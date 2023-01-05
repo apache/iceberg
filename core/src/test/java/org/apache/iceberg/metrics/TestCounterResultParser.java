@@ -20,7 +20,6 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.apache.iceberg.metrics.ScanReport.CounterResult;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -52,7 +51,7 @@ public class TestCounterResultParser {
   public void extraFields() {
     Assertions.assertThat(
             CounterResultParser.fromJson("{\"unit\":\"bytes\",\"value\":23,\"extra\": \"value\"}"))
-        .isEqualTo(new CounterResult(Unit.BYTES, 23L));
+        .isEqualTo(CounterResult.of(Unit.BYTES, 23L));
   }
 
   @Test
@@ -60,7 +59,7 @@ public class TestCounterResultParser {
     Assertions.assertThatThrownBy(
             () -> CounterResultParser.fromJson("{\"unit\":\"unknown\",\"value\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.metrics.MetricsContext.Unit.UNKNOWN");
+        .hasMessage("Invalid unit: unknown");
   }
 
   @Test
@@ -73,7 +72,7 @@ public class TestCounterResultParser {
 
   @Test
   public void roundTripSerde() {
-    CounterResult counter = new CounterResult(Unit.BYTES, Long.MAX_VALUE);
+    CounterResult counter = CounterResult.of(Unit.BYTES, Long.MAX_VALUE);
 
     String json = CounterResultParser.toJson(counter);
     Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);

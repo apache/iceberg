@@ -55,6 +55,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -68,12 +71,14 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkException;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -160,16 +165,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Should only contain one manifest", 1, snapshot.allManifests().size());
+    Assert.assertEquals(
+        "Should only contain one manifest", 1, snapshot.allManifests(table.io()).size());
 
-    InputFile manifest = table.io().newInputFile(snapshot.allManifests().get(0).path());
+    InputFile manifest = table.io().newInputFile(snapshot.allManifests(table.io()).get(0).path());
     List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows =
         Avro.read(manifest).project(entriesTable.schema()).build()) {
       // each row must inherit snapshot_id and sequence_number
       rows.forEach(
           row -> {
-            row.put(2, 0L);
+            row.put(2, 0L); // data sequence number
+            row.put(3, 0L); // file sequence number
             GenericData.Record file = (GenericData.Record) row.get("data_file");
             asMetadataRecord(file);
             expected.add(row);
@@ -226,7 +233,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> singleActual =
         rowsToJava(
@@ -259,7 +266,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -297,7 +304,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -355,14 +362,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest :
-        Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::allManifests))) {
+        Iterables.concat(
+            Iterables.transform(
+                table.snapshots(), snapshot -> snapshot.allManifests(table.io())))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              row.put(2, 0L);
+              row.put(2, 0L); // data sequence number
+              row.put(3, 0L); // file sequence number
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               asMetadataRecord(file);
               expected.add(row);
@@ -415,7 +425,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -438,11 +447,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // delete the first file to test that only live files are listed
     table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
 
-    List<Row> actual =
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+    List<Row> actual = selectNonDerived(filesTableDs).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -458,7 +468,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(nonDerivedSchema(filesTableDs), expected.get(0), actual.get(0));
   }
 
   @Test
@@ -469,7 +479,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     spark.sql(
         String.format(
@@ -483,6 +492,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
     inputDF.select("data", "id").write().mode("overwrite").insertInto("parquet_table");
 
+    NameMapping mapping = MappingUtil.create(table.schema());
+    String mappingJson = NameMappingParser.toJson(mapping);
+
+    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
+
     try {
       String stagingLocation = table.location() + "/metadata";
       SparkTableUtil.importSparkTable(
@@ -491,15 +505,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           table,
           stagingLocation);
 
-      List<Row> actual =
-          spark
-              .read()
-              .format("iceberg")
-              .load(loadLocation(tableIdentifier, "files"))
-              .collectAsList();
+      Dataset<Row> filesTableDs =
+          spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+      List<Row> actual = selectNonDerived(filesTableDs).collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
-      for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+      for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
         InputFile in = table.io().newInputFile(manifest.path());
         try (CloseableIterable<GenericData.Record> rows =
             Avro.read(in).project(entriesTable.schema()).build()) {
@@ -511,10 +522,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         }
       }
 
+      Types.StructType struct = nonDerivedSchema(filesTableDs);
       Assert.assertEquals("Files table should have one row", 2, expected.size());
       Assert.assertEquals("Actual results should have one row", 2, actual.size());
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(1), actual.get(1));
+      TestHelpers.assertEqualsSafe(struct, expected.get(0), actual.get(0));
+      TestHelpers.assertEqualsSafe(struct, expected.get(1), actual.get(1));
     } finally {
       spark.sql("DROP TABLE parquet_table");
     }
@@ -577,7 +589,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -591,7 +602,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedFiles());
+    DataFile toDelete =
+        Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
 
     // add a second file
     df2.select("id", "data")
@@ -603,11 +615,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // delete the first file to test that only live files are listed
     table.newDelete().deleteFile(toDelete).commit();
 
-    List<Row> actual =
-        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files")).collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "files"));
+    List<Row> actual = selectNonDerived(filesTableDs).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -623,7 +636,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(nonDerivedSchema(filesTableDs), expected.get(0), actual.get(0));
   }
 
   @Test
@@ -686,7 +699,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
-    Table filesTable = loadTable(tableIdentifier, "all_data_files");
 
     Dataset<Row> df1 =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -712,18 +724,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // ensure table data isn't stale
     table.refresh();
 
-    List<Row> actual =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "all_data_files"))
-            .orderBy("file_path")
-            .collectAsList();
+    Dataset<Row> filesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_data_files"));
+    List<Row> actual = selectNonDerived(filesTableDs).collectAsList();
     actual.sort(Comparator.comparing(o -> o.getString(1)));
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest :
-        Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::dataManifests))) {
+    Iterable<ManifestFile> dataManifests =
+        Iterables.concat(
+            Iterables.transform(table.snapshots(), snapshot -> snapshot.dataManifests(table.io())));
+    for (ManifestFile manifest : dataManifests) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows =
           Avro.read(in).project(entriesTable.schema()).build()) {
@@ -742,7 +752,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Files table should have two rows", 2, expected.size());
     Assert.assertEquals("Actual results should have two rows", 2, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
-      TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(i), actual.get(i));
+      TestHelpers.assertEqualsSafe(nonDerivedSchema(filesTableDs), expected.get(i), actual.get(i));
     }
   }
 
@@ -778,7 +788,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
 
     inputDf
@@ -864,7 +874,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     String secondManifestList = table.currentSnapshot().manifestListLocation();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     List<Row> actual =
         spark
@@ -937,7 +947,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
 
     // rollback the table state to the first snapshot
-    table.rollback().toSnapshotId(firstSnapshotId).commit();
+    table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
 
     Dataset<Row> actualDf =
         spark
@@ -1020,7 +1030,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "partition_summary"));
     List<GenericData.Record> expected =
         Lists.transform(
-            table.currentSnapshot().allManifests(),
+            table.currentSnapshot().allManifests(table.io()),
             manifest ->
                 builder
                     .set("content", manifest.content().id())
@@ -1122,7 +1132,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 "partition_summary"));
     List<GenericData.Record> expected =
         Lists.transform(
-            table.currentSnapshot().allManifests(),
+            table.currentSnapshot().allManifests(table.io()),
             manifest ->
                 builder
                     .set("partition_spec_id", manifest.partitionSpecId())
@@ -1636,7 +1646,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.refresh();
     Snapshot snapshot1 = table.currentSnapshot();
     snapshotIdToManifests.addAll(
-        snapshot1.allManifests().stream()
+        snapshot1.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot1.snapshotId(), manifest))
             .collect(Collectors.toList()));
 
@@ -1648,9 +1658,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
     Snapshot snapshot2 = table.currentSnapshot();
-    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests().size());
+    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests(table.io()).size());
     snapshotIdToManifests.addAll(
-        snapshot2.allManifests().stream()
+        snapshot2.allManifests(table.io()).stream()
             .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
             .collect(Collectors.toList()));
 
@@ -1743,7 +1753,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .build();
   }
 
-  private void asMetadataRecord(GenericData.Record file) {
+  public static void asMetadataRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
     file.put(3, 0); // specId
   }
@@ -1774,5 +1784,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
 
     return positionDeleteWriter.toDeleteFile();
+  }
+
+  public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
+    StructField[] fields = metadataTable.schema().fields();
+    return metadataTable.select(
+        Stream.of(fields)
+            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .map(f -> new Column(f.name()))
+            .toArray(Column[]::new));
+  }
+
+  public static Types.StructType nonDerivedSchema(Dataset<Row> metadataTable) {
+    return SparkSchemaUtil.convert(selectNonDerived(metadataTable).schema()).asStruct();
   }
 }

@@ -21,10 +21,8 @@ package org.apache.iceberg.mapping;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -51,16 +49,7 @@ public class NameMappingParser {
   private static final String FIELDS = "fields";
 
   public static String toJson(NameMapping mapping) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
-      toJson(mapping, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", mapping);
-    }
+    return JsonUtil.generate(gen -> toJson(mapping, gen), true);
   }
 
   static void toJson(NameMapping nameMapping, JsonGenerator generator) throws IOException {
@@ -82,11 +71,7 @@ public class NameMappingParser {
 
     generator.writeNumberField(FIELD_ID, field.id());
 
-    generator.writeArrayFieldStart(NAMES);
-    for (String name : field.names()) {
-      generator.writeString(name);
-    }
-    generator.writeEndArray();
+    JsonUtil.writeStringArray(NAMES, field.names(), generator);
 
     MappedFields nested = field.nestedMapping();
     if (nested != null) {
@@ -98,11 +83,7 @@ public class NameMappingParser {
   }
 
   public static NameMapping fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to convert version from json: %s", json);
-    }
+    return JsonUtil.parse(json, NameMappingParser::fromJson);
   }
 
   static NameMapping fromJson(JsonNode node) {

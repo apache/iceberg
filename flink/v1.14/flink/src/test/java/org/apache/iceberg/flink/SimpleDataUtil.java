@@ -49,6 +49,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
@@ -124,6 +125,7 @@ public class SimpleDataUtil {
   }
 
   public static DataFile writeFile(
+      Table table,
       Schema schema,
       PartitionSpec spec,
       Configuration conf,
@@ -137,7 +139,8 @@ public class SimpleDataUtil {
 
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(schema, flinkSchema, ImmutableMap.of(), spec);
+        new FlinkAppenderFactory(
+            table, schema, flinkSchema, ImmutableMap.of(), spec, null, null, null);
 
     FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
     try (FileAppender<RowData> closeableAppender = appender) {
@@ -164,7 +167,7 @@ public class SimpleDataUtil {
     EqualityDeleteWriter<RowData> eqWriter =
         appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
-      writer.deleteAll(deletes);
+      writer.write(deletes);
     }
     return eqWriter.toDeleteFile();
   }
@@ -182,9 +185,10 @@ public class SimpleDataUtil {
 
     PositionDeleteWriter<RowData> posWriter =
         appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    PositionDelete<RowData> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
-        writer.delete(p.first(), p.second());
+        writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }
     return posWriter.toDeleteFile();

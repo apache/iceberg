@@ -21,6 +21,9 @@ package org.apache.iceberg;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 
 public class UnboundSortOrder {
   private static final UnboundSortOrder UNSORTED_ORDER =
@@ -38,8 +41,14 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      builder.addSortField(
-          field.transformAsString, field.sourceId, field.direction, field.nullOrder);
+      Type sourceType = schema.findType(field.sourceId);
+      Transform<?, ?> transform;
+      if (sourceType != null) {
+        transform = Transforms.fromString(sourceType, field.transform.toString());
+      } else {
+        transform = field.transform;
+      }
+      builder.addSortField(transform, field.sourceId, field.direction, field.nullOrder);
     }
 
     return builder.build();
@@ -49,8 +58,7 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      builder.addSortField(
-          field.transformAsString, field.sourceId, field.direction, field.nullOrder);
+      builder.addSortField(field.transform, field.sourceId, field.direction, field.nullOrder);
     }
 
     return builder.buildUnchecked();
@@ -114,21 +122,21 @@ public class UnboundSortOrder {
   }
 
   static class UnboundSortField {
-    private final String transformAsString;
+    private final Transform<?, ?> transform;
     private final int sourceId;
     private final SortDirection direction;
     private final NullOrder nullOrder;
 
     private UnboundSortField(
         String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
-      this.transformAsString = transformAsString;
+      this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
       this.direction = direction;
       this.nullOrder = nullOrder;
     }
 
     public String transformAsString() {
-      return transformAsString;
+      return transform.toString();
     }
 
     public int sourceId() {

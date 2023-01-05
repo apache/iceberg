@@ -57,7 +57,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.hamcrest.CoreMatchers;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -158,7 +158,7 @@ public class TestSparkParquetReader extends AvroDataTest {
     InputFile parquetInputFile = Files.localInput(outputFilePath);
     List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
     Assert.assertEquals(rows.size(), readRows.size());
-    Assert.assertThat(readRows, CoreMatchers.is(rows));
+    Assertions.assertThat(readRows).isEqualTo(rows);
 
     // Now we try to import that file as an Iceberg table to make sure Iceberg can read
     // Int96 end to end.

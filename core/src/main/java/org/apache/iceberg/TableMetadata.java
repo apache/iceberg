@@ -109,8 +109,7 @@ public class TableMetadata implements Serializable {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
-      specBuilder.add(
-          freshSchema.findField(sourceName).fieldId(), field.name(), field.transform().toString());
+      specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
     }
     PartitionSpec freshSpec = specBuilder.build();
 
@@ -916,6 +915,17 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder assignUUID(String newUuid) {
+      Preconditions.checkArgument(newUuid != null, "Cannot set uuid to null");
+
+      if (!newUuid.equals(uuid)) {
+        this.uuid = newUuid;
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
     public Builder upgradeFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
           newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
@@ -1161,27 +1171,6 @@ public class TableMetadata implements Serializable {
       SnapshotRef ref = refs.remove(name);
       if (ref != null) {
         changes.add(new MetadataUpdate.RemoveSnapshotRef(name));
-      }
-
-      return this;
-    }
-
-    /**
-     * Removes the given branch
-     *
-     * @deprecated will be removed in 0.15.0. Use removeRef instead.
-     */
-    @Deprecated
-    public Builder removeBranch(String branch) {
-      if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
-        this.currentSnapshotId = -1;
-        snapshotLog.clear();
-      }
-
-      SnapshotRef ref = refs.remove(branch);
-      if (ref != null) {
-        ValidationException.check(ref.isBranch(), "Cannot remove branch: %s is a tag", branch);
-        changes.add(new MetadataUpdate.RemoveSnapshotRef(branch));
       }
 
       return this;

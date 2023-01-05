@@ -119,6 +119,8 @@ public class SparkParquetWritersFlatDataBenchmark {
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
             .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+            .set("spark.sql.caseSensitive", "false")
+            .set("spark.sql.parquet.fieldId.write.enabled", "false")
             .schema(SCHEMA)
             .build()) {
 

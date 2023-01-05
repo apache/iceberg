@@ -21,17 +21,21 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
+import java.util.List;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ScanReportParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
-  private static final String PROJECTION = "projection";
+  private static final String FILTER = "filter";
+  private static final String SCHEMA_ID = "schema-id";
+  private static final String PROJECTED_FIELD_IDS = "projected-field-ids";
+  private static final String PROJECTED_FIELD_NAMES = "projected-field-names";
   private static final String METRICS = "metrics";
+  private static final String METADATA = "metadata";
 
   private ScanReportParser() {}
 
@@ -47,17 +51,39 @@ public class ScanReportParser {
     Preconditions.checkArgument(null != scanReport, "Invalid scan report: null");
 
     gen.writeStartObject();
+    toJsonWithoutStartEnd(scanReport, gen);
+    gen.writeEndObject();
+  }
+
+  /**
+   * This serializes the {@link ScanReport} without writing a start/end object and is mainly used by
+   * {@link org.apache.iceberg.rest.requests.ReportMetricsRequestParser}.
+   *
+   * @param scanReport The {@link ScanReport} to serialize
+   * @param gen The {@link JsonGenerator} to use
+   * @throws IOException If an error occurs while serializing
+   */
+  public static void toJsonWithoutStartEnd(ScanReport scanReport, JsonGenerator gen)
+      throws IOException {
+    Preconditions.checkArgument(null != scanReport, "Invalid scan report: null");
 
     gen.writeStringField(TABLE_NAME, scanReport.tableName());
     gen.writeNumberField(SNAPSHOT_ID, scanReport.snapshotId());
 
-    gen.writeFieldName(PROJECTION);
-    SchemaParser.toJson(scanReport.projection(), gen);
+    gen.writeFieldName(FILTER);
+    ExpressionParser.toJson(scanReport.filter(), gen);
+
+    gen.writeNumberField(SCHEMA_ID, scanReport.schemaId());
+
+    JsonUtil.writeIntegerArray(PROJECTED_FIELD_IDS, scanReport.projectedFieldIds(), gen);
+    JsonUtil.writeStringArray(PROJECTED_FIELD_NAMES, scanReport.projectedFieldNames(), gen);
 
     gen.writeFieldName(METRICS);
     ScanMetricsResultParser.toJson(scanReport.scanMetrics(), gen);
 
-    gen.writeEndObject();
+    if (!scanReport.metadata().isEmpty()) {
+      JsonUtil.writeStringMap(METADATA, scanReport.metadata(), gen);
+    }
   }
 
   public static ScanReport fromJson(String json) {
@@ -71,14 +97,26 @@ public class ScanReportParser {
 
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
-    Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, json));
+    Expression filter = ExpressionParser.fromJson(JsonUtil.get(FILTER, json));
+    int schemaId = JsonUtil.getInt(SCHEMA_ID, json);
+    List<Integer> projectedFieldIds = JsonUtil.getIntegerList(PROJECTED_FIELD_IDS, json);
+    List<String> projectedFieldNames = JsonUtil.getStringList(PROJECTED_FIELD_NAMES, json);
     ScanMetricsResult scanMetricsResult =
         ScanMetricsResultParser.fromJson(JsonUtil.get(METRICS, json));
-    return ScanReport.builder()
-        .withTableName(tableName)
-        .withSnapshotId(snapshotId)
-        .withProjection(projection)
-        .fromScanMetricsResult(scanMetricsResult)
-        .build();
+    ImmutableScanReport.Builder builder =
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .snapshotId(snapshotId)
+            .schemaId(schemaId)
+            .projectedFieldIds(projectedFieldIds)
+            .projectedFieldNames(projectedFieldNames)
+            .filter(filter)
+            .scanMetrics(scanMetricsResult);
+
+    if (json.has(METADATA)) {
+      builder.metadata(JsonUtil.getStringMap(METADATA, json));
+    }
+
+    return builder.build();
   }
 }

@@ -23,9 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Iterator;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -66,19 +64,7 @@ public class PartitionSpecParser {
   }
 
   public static String toJson(UnboundPartitionSpec spec, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(spec, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(spec, gen), pretty);
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
@@ -99,13 +85,7 @@ public class PartitionSpecParser {
   public static PartitionSpec fromJson(Schema schema, String json) {
     return SPEC_CACHE.get(
         Pair.of(schema.asStruct(), json),
-        schemaJsonPair -> {
-          try {
-            return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-        });
+        schemaJsonPair -> JsonUtil.parse(json, node -> PartitionSpecParser.fromJson(schema, node)));
   }
 
   static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {
@@ -126,16 +106,7 @@ public class PartitionSpecParser {
   }
 
   static String toJsonFields(PartitionSpec spec) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJsonFields(spec, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJsonFields(spec, gen), false);
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, JsonNode json) {
@@ -145,11 +116,7 @@ public class PartitionSpecParser {
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, String json) {
-    try {
-      return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse partition spec fields: %s", json);
-    }
+    return JsonUtil.parse(json, node -> PartitionSpecParser.fromJsonFields(schema, specId, node));
   }
 
   private static void buildFromJsonFields(UnboundPartitionSpec.Builder builder, JsonNode json) {

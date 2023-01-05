@@ -18,11 +18,16 @@
  */
 package org.apache.iceberg;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.ClosureSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.lang.invoke.SerializedLambda;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -34,7 +39,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.util.ByteBuffers;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 
 public class TestHelpers {
 
@@ -94,9 +101,9 @@ public class TestHelpers {
   }
 
   public static void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
-    if (list1.size() != list2.size()) {
-      Assert.fail("Should have same number of schemas in both lists");
-    }
+    Assertions.assertThat(list1)
+        .as("Should have same number of schemas in both lists")
+        .hasSameSizeAs(list2);
 
     IntStream.range(0, list1.size())
         .forEach(
@@ -131,9 +138,9 @@ public class TestHelpers {
   }
 
   public static void assertSameSchemaMap(Map<Integer, Schema> map1, Map<Integer, Schema> map2) {
-    if (map1.size() != map2.size()) {
-      Assert.fail("Should have same number of schemas in both maps");
-    }
+    Assertions.assertThat(map1)
+        .as("Should have same number of schemas in both maps")
+        .hasSameSizeAs(map2);
 
     map1.forEach(
         (schemaId, schema1) -> {
@@ -148,6 +155,34 @@ public class TestHelpers {
                   "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2),
               schema1.sameSchema(schema2));
         });
+  }
+
+  public static class KryoHelpers {
+    private KryoHelpers() {}
+
+    @SuppressWarnings("unchecked")
+    public static <T> T roundTripSerialize(T obj) throws IOException {
+      Kryo kryo = new Kryo();
+
+      // required for avoiding requirement of zero arg constructor
+      kryo.setInstantiatorStrategy(
+          new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
+
+      // required for serializing and deserializing $$Lambda$ Anonymous Classes
+      kryo.register(SerializedLambda.class);
+      kryo.register(ClosureSerializer.Closure.class, new ClosureSerializer());
+
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try (Output out = new Output(new ObjectOutputStream(bytes))) {
+        kryo.writeClassAndObject(out, obj);
+      }
+
+      try (Input in =
+          new Input(new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray())))) {
+        return (T) kryo.readClassAndObject(in);
+      }
+    }
   }
 
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {

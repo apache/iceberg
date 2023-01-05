@@ -260,6 +260,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
+        manifest.partitionSpecId(),
         toCopy,
         current.specsById(),
         newManifestPath,

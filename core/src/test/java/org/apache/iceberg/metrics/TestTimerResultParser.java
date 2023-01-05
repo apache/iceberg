@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -60,7 +59,7 @@ public class TestTimerResultParser {
     Assertions.assertThat(
             TimerResultParser.fromJson(
                 "{\"count\":44,\"time-unit\":\"hours\",\"total-duration\":24,\"extra\": \"value\"}"))
-        .isEqualTo(new TimerResult(TimeUnit.HOURS, Duration.ofHours(24), 44));
+        .isEqualTo(TimerResult.of(TimeUnit.HOURS, Duration.ofHours(24), 44));
   }
 
   @Test
@@ -80,7 +79,7 @@ public class TestTimerResultParser {
                 TimerResultParser.fromJson(
                     "{\"count\":44,\"time-unit\":\"unknown\",\"total-duration\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant java.util.concurrent.TimeUnit.UNKNOWN");
+        .hasMessage("Invalid time unit: unknown");
   }
 
   @Test
@@ -95,7 +94,7 @@ public class TestTimerResultParser {
 
   @Test
   public void roundTripSerde() {
-    TimerResult timer = new TimerResult(TimeUnit.HOURS, Duration.ofHours(23), 44);
+    TimerResult timer = TimerResult.of(TimeUnit.HOURS, Duration.ofHours(23), 44);
 
     String json = TimerResultParser.toJson(timer);
     Assertions.assertThat(TimerResultParser.fromJson(json)).isEqualTo(timer);

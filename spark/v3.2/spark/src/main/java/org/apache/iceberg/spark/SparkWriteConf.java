@@ -140,7 +140,7 @@ public class SparkWriteConf {
             .tableProperty(TableProperties.DEFAULT_FILE_FORMAT)
             .defaultValue(TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
             .parse();
-    return FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH));
+    return FileFormat.fromString(valueAsString);
   }
 
   public long targetDataFileSize() {
@@ -168,9 +168,7 @@ public class SparkWriteConf {
             .option(SparkWriteOptions.DELETE_FORMAT)
             .tableProperty(TableProperties.DELETE_DEFAULT_FILE_FORMAT)
             .parseOptional();
-    return valueAsString != null
-        ? FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH))
-        : dataFileFormat();
+    return valueAsString != null ? FileFormat.fromString(valueAsString) : dataFileFormat();
   }
 
   public long targetDeleteFileSize() {

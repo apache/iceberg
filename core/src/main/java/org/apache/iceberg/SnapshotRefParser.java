@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -42,19 +40,7 @@ public class SnapshotRefParser {
   }
 
   public static String toJson(SnapshotRef ref, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-
-      toJson(ref, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(ref, gen), pretty);
   }
 
   public static void toJson(SnapshotRef ref, JsonGenerator generator) throws IOException {
@@ -76,19 +62,14 @@ public class SnapshotRefParser {
   public static SnapshotRef fromJson(String json) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Cannot parse snapshot ref from invalid JSON: %s", json);
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to parse snapshot ref: " + json, e);
-    }
+    return JsonUtil.parse(json, SnapshotRefParser::fromJson);
   }
 
   public static SnapshotRef fromJson(JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse snapshot reference from a non-object: %s", node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type =
-        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type = SnapshotRefType.fromString(JsonUtil.getString(TYPE, node));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);

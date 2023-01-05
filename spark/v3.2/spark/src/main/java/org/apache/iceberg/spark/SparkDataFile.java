@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -28,6 +27,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
@@ -52,13 +52,29 @@ public class SparkDataFile implements DataFile {
   private final Type keyMetadataType;
 
   private final SparkStructLike wrappedPartition;
+  private final StructLike partitionProjection;
   private Row wrapped;
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
+    this(type, null, sparkType);
+  }
+
+  public SparkDataFile(
+      Types.StructType type, Types.StructType projectedType, StructType sparkType) {
     this.lowerBoundsType = type.fieldType("lower_bounds");
     this.upperBoundsType = type.fieldType("upper_bounds");
     this.keyMetadataType = type.fieldType("key_metadata");
-    this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
+
+    Types.StructType partitionType = type.fieldType("partition").asStructType();
+    this.wrappedPartition = new SparkStructLike(partitionType);
+
+    if (projectedType != null) {
+      Types.StructType projectedPartitionType = projectedType.fieldType("partition").asStructType();
+      this.partitionProjection =
+          StructProjection.create(partitionType, projectedPartitionType).wrap(wrappedPartition);
+    } else {
+      this.partitionProjection = wrappedPartition;
+    }
 
     Map<String, Integer> positions = Maps.newHashMap();
     type.fields()
@@ -109,13 +125,12 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public FileFormat format() {
-    String formatAsString = wrapped.getString(fileFormatPosition).toUpperCase(Locale.ROOT);
-    return FileFormat.valueOf(formatAsString);
+    return FileFormat.fromString(wrapped.getString(fileFormatPosition));
   }
 
   @Override
   public StructLike partition() {
-    return wrappedPartition;
+    return partitionProjection;
   }
 
   @Override

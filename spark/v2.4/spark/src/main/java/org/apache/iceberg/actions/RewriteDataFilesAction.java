@@ -33,7 +33,7 @@ import org.apache.spark.sql.SparkSession;
 
 /**
  * @deprecated since 0.12.0, keeping this in Spark 2.4 for backward compatibility. This
- *     implementation is no longer maintained, the new implementation is available with Spark 3.x
+ *     implementation is no longer maintained, the new implementation is available with Spark 3
  */
 @Deprecated
 public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {

@@ -32,6 +32,15 @@ public interface ScanTask extends Serializable {
   }
 
   /**
+   * The estimated number of rows produced by this scan task.
+   *
+   * @return the estimated number of produced rows
+   */
+  default long estimatedRowsCount() {
+    return 100_000;
+  }
+
+  /**
    * The number of files that will be opened by this scan task.
    *
    * @return the number of files to open

@@ -18,17 +18,18 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SerializableFunction;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -36,39 +37,54 @@ enum Timestamps implements Transform<Long, Integer> {
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  @Immutable
+  static class Apply implements SerializableFunction<Long, Integer> {
+    private final ChronoUnit granularity;
+
+    Apply(ChronoUnit granularity) {
+      this.granularity = granularity;
+    }
+
+    @Override
+    public Integer apply(Long timestampMicros) {
+      if (timestampMicros == null) {
+        return null;
+      }
+
+      switch (granularity) {
+        case YEARS:
+          return DateTimeUtil.microsToYears(timestampMicros);
+        case MONTHS:
+          return DateTimeUtil.microsToMonths(timestampMicros);
+        case DAYS:
+          return DateTimeUtil.microsToDays(timestampMicros);
+        case HOURS:
+          return DateTimeUtil.microsToHours(timestampMicros);
+        default:
+          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+      }
+    }
+  }
+
   private final ChronoUnit granularity;
   private final String name;
+  private final Apply apply;
 
   Timestamps(ChronoUnit granularity, String name) {
     this.granularity = granularity;
     this.name = name;
+    this.apply = new Apply(granularity);
   }
 
   @Override
   public Integer apply(Long timestampMicros) {
-    if (timestampMicros == null) {
-      return null;
-    }
+    return apply.apply(timestampMicros);
+  }
 
-    if (timestampMicros >= 0) {
-      OffsetDateTime timestamp =
-          Instant.ofEpochSecond(
-                  Math.floorDiv(timestampMicros, 1_000_000),
-                  Math.floorMod(timestampMicros, 1_000_000) * 1000)
-              .atOffset(ZoneOffset.UTC);
-      return (int) granularity.between(EPOCH, timestamp);
-    } else {
-      // add 1 micro to the value to account for the case where there is exactly 1 unit between the
-      // timestamp and epoch
-      // because the result will always be decremented.
-      OffsetDateTime timestamp =
-          Instant.ofEpochSecond(
-                  Math.floorDiv(timestampMicros, 1_000_000),
-                  Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
-              .atOffset(ZoneOffset.UTC);
-      return (int) granularity.between(EPOCH, timestamp) - 1;
-    }
+  @Override
+  public SerializableFunction<Long, Integer> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    return apply;
   }
 
   @Override
@@ -117,12 +133,12 @@ enum Timestamps implements Transform<Long, Integer> {
 
     } else if (pred.isLiteralPredicate()) {
       UnboundPredicate<Integer> projected =
-          ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+          ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), apply);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
       UnboundPredicate<Integer> projected =
-          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), apply);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
     }
 
@@ -140,12 +156,12 @@ enum Timestamps implements Transform<Long, Integer> {
 
     } else if (pred.isLiteralPredicate()) {
       UnboundPredicate<Integer> projected =
-          ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
+          ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), apply);
       return ProjectionUtil.fixStrictTimeProjection(projected);
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
       UnboundPredicate<Integer> projected =
-          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), apply);
       return ProjectionUtil.fixStrictTimeProjection(projected);
     }
 
@@ -153,7 +169,7 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public String toHumanString(Integer value) {
+  public String toHumanString(Type outputType, Integer value) {
     if (value == null) {
       return "null";
     }

@@ -31,13 +31,13 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class EqualityDeleteRowReader extends RowDataReader {
   public EqualityDeleteRowReader(
       CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table, expectedSchema, caseSensitive);
+    super(table, task, expectedSchema, caseSensitive);
   }
 
   @Override
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     SparkDeleteFilter matches =
-        new SparkDeleteFilter(task.file().path().toString(), task.deletes());
+        new SparkDeleteFilter(task.file().path().toString(), task.deletes(), counter());
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();

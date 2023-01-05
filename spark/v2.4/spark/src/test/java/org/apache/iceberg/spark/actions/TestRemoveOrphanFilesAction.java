@@ -22,6 +22,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -37,11 +40,16 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,6 +57,11 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -59,6 +72,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -643,5 +657,81 @@ public class TestRemoveOrphanFilesAction extends SparkTestBase {
         ValidationException.class,
         "Cannot remove orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"),
+            tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long snapshotSequenceNumber = table.currentSnapshot().sequenceNumber();
+
+    File statsLocation =
+        new File(new URI(tableLocation))
+            .toPath()
+            .resolve("data")
+            .resolve("some-stats-file")
+            .toFile();
+    StatisticsFile statisticsFile;
+    try (PuffinWriter puffinWriter = Puffin.write(Files.localOutput(statsLocation)).build()) {
+      puffinWriter.add(
+          new Blob(
+              "some-blob-type",
+              ImmutableList.of(1),
+              snapshotId,
+              snapshotSequenceNumber,
+              ByteBuffer.wrap("blob content".getBytes(StandardCharsets.UTF_8))));
+      puffinWriter.finish();
+      statisticsFile =
+          new GenericStatisticsFile(
+              snapshotId,
+              statsLocation.toString(),
+              puffinWriter.fileSize(),
+              puffinWriter.footerSize(),
+              puffinWriter.writtenBlobsMetadata().stream()
+                  .map(GenericBlobMetadata::from)
+                  .collect(ImmutableList.toImmutableList()));
+    }
+
+    Transaction transaction = table.newTransaction();
+    transaction.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    transaction.commitTransaction();
+
+    SparkActions.get()
+        .deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis() + 1000)
+        .execute();
+
+    Assertions.assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
+    Assertions.assertThat(statsLocation.length())
+        .as("stats file length")
+        .isEqualTo(statisticsFile.fileSizeInBytes());
+
+    transaction = table.newTransaction();
+    transaction.updateStatistics().removeStatistics(statisticsFile.snapshotId()).commit();
+    transaction.commitTransaction();
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis() + 1000)
+            .execute();
+    Iterable<String> orphanFileLocations = result.orphanFileLocations();
+    Assertions.assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
+    Assertions.assertThat(Iterables.getOnlyElement(orphanFileLocations))
+        .as("Deleted file")
+        .isEqualTo(statsLocation.toURI().toString());
+    Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
   }
 }

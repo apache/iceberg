@@ -102,6 +102,8 @@ public class RESTUtil {
   }
 
   private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
+  private static final Splitter.MapSplitter FORM_SPLITTER =
+      Splitter.on("&").withKeyValueSeparator("=");
 
   /**
    * Encodes a map of form data as application/x-www-form-urlencoded.
@@ -117,6 +119,21 @@ public class RESTUtil {
         (key, value) ->
             builder.put(encodeString(String.valueOf(key)), encodeString(String.valueOf(value))));
     return FORM_JOINER.join(builder.build());
+  }
+
+  /**
+   * Decodes a map of form data from application/x-www-form-urlencoded.
+   *
+   * <p>This decodes the form with pairs separated by &amp; and keys separated from values by =.
+   *
+   * @param formString a map of form data
+   * @return a map of key/value form data
+   */
+  public static Map<String, String> decodeFormData(String formString) {
+    return FORM_SPLITTER.split(formString).entrySet().stream()
+        .collect(
+            ImmutableMap.toImmutableMap(
+                e -> RESTUtil.decodeString(e.getKey()), e -> RESTUtil.decodeString(e.getValue())));
   }
 
   /**

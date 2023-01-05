@@ -64,10 +64,19 @@ public class TestPartitionSpecInfo {
   }
 
   @Test
+  public void testSpecIsUnpartitionedForVoidTranforms() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).alwaysNull("id").alwaysNull("data").build();
+
+    Assert.assertTrue(spec.isUnpartitioned());
+  }
+
+  @Test
   public void testSpecInfoUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
+    Assert.assertTrue(spec.isUnpartitioned());
     Assert.assertEquals(spec, table.spec());
     Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
@@ -83,6 +92,33 @@ public class TestPartitionSpecInfo {
     Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
+  }
+
+  @Test
+  public void testColumnDropWithPartitionSpecEvolution() {
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
+
+    Assert.assertEquals(spec, table.spec());
+
+    TableMetadata base = TestTables.readMetadata("test");
+    PartitionSpec newSpec =
+        PartitionSpec.builderFor(table.schema()).identity("data").withSpecId(1).build();
+    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+
+    int initialColSize = table.schema().columns().size();
+    table.updateSchema().deleteColumn("id").commit();
+
+    final Schema expectedSchema = new Schema(required(2, "data", Types.StringType.get()));
+
+    Assert.assertEquals(newSpec, table.spec());
+    Assert.assertEquals(newSpec, table.specs().get(newSpec.specId()));
+    Assert.assertEquals(spec, table.specs().get(spec.specId()));
+    Assert.assertEquals(
+        ImmutableMap.of(spec.specId(), spec, newSpec.specId(), newSpec), table.specs());
+    Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
+    Assert.assertTrue(
+        "Schema must have only \"data\" column", table.schema().sameSchema(expectedSchema));
   }
 
   @Test

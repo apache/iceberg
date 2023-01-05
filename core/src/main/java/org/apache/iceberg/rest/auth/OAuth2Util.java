@@ -25,14 +25,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -133,7 +131,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -161,7 +159,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -179,7 +177,7 @@ public class OAuth2Util {
             request,
             OAuthTokenResponse.class,
             headers,
-            ErrorHandlers.defaultErrorHandler());
+            ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -252,15 +250,7 @@ public class OAuth2Util {
   }
 
   public static String tokenResponseToJson(OAuthTokenResponse response) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      tokenResponseToJson(response, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.generate(gen -> tokenResponseToJson(response, gen), false);
   }
 
   public static void tokenResponseToJson(OAuthTokenResponse response, JsonGenerator gen)
@@ -288,11 +278,7 @@ public class OAuth2Util {
   }
 
   public static OAuthTokenResponse tokenResponseFromJson(String json) {
-    try {
-      return tokenResponseFromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return JsonUtil.parse(json, OAuth2Util::tokenResponseFromJson);
   }
 
   public static OAuthTokenResponse tokenResponseFromJson(JsonNode json) {

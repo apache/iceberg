@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -40,6 +41,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -208,6 +210,15 @@ public class SparkScanBuilder
         SparkReadOptions.END_SNAPSHOT_ID,
         SparkReadOptions.START_SNAPSHOT_ID);
 
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+    Preconditions.checkArgument(
+        startTimestamp == null && endTimestamp == null,
+        "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
+            + "changelog scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP);
+
     Schema expectedSchema = schemaWithMetadataColumns();
 
     TableScan scan =
@@ -236,6 +247,83 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  public Scan buildChangelogScan() {
+    Preconditions.checkArgument(
+        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        "Cannot set neither %s nor %s for changelogs",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
+
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+
+    Preconditions.checkArgument(
+        !(startSnapshotId != null && startTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.START_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        !(endSnapshotId != null && endTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.END_TIMESTAMP);
+
+    if (startTimestamp != null && endTimestamp != null) {
+      Preconditions.checkArgument(
+          startTimestamp < endTimestamp,
+          "Cannot set %s to be greater than %s for changelogs",
+          SparkReadOptions.START_TIMESTAMP,
+          SparkReadOptions.END_TIMESTAMP);
+    }
+
+    if (startTimestamp != null) {
+      startSnapshotId = getStartSnapshotId(startTimestamp);
+    }
+
+    if (endTimestamp != null) {
+      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+    }
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalChangelogScan scan =
+        table
+            .newIncrementalChangelogScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (startSnapshotId != null) {
+      scan = scan.fromSnapshotExclusive(startSnapshotId);
+    }
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  private Long getStartSnapshotId(Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
   }
 
   public Scan buildMergeOnReadScan() {
@@ -306,8 +394,8 @@ public class SparkScanBuilder
         spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
   }
 
-  private TableScan configureSplitPlanning(TableScan scan) {
-    TableScan configuredScan = scan;
+  private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {
+    T configuredScan = scan;
 
     Long splitSize = readConf.splitSizeOption();
     if (splitSize != null) {

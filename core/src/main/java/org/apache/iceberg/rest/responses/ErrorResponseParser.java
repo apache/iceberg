@@ -21,8 +21,6 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -42,19 +40,7 @@ public class ErrorResponseParser {
   }
 
   public static String toJson(ErrorResponse errorResponse, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(errorResponse, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to write error response json for: %s", errorResponse), e);
-    }
+    return JsonUtil.generate(gen -> toJson(errorResponse, gen), pretty);
   }
 
   public static void toJson(ErrorResponse errorResponse, JsonGenerator generator)
@@ -67,11 +53,7 @@ public class ErrorResponseParser {
     generator.writeStringField(TYPE, errorResponse.type());
     generator.writeNumberField(CODE, errorResponse.code());
     if (errorResponse.stack() != null) {
-      generator.writeArrayFieldStart(STACK);
-      for (String line : errorResponse.stack()) {
-        generator.writeString(line);
-      }
-      generator.writeEndArray();
+      JsonUtil.writeStringArray(STACK, errorResponse.stack(), generator);
     }
 
     generator.writeEndObject();
@@ -86,11 +68,7 @@ public class ErrorResponseParser {
    * @return an ErrorResponse object
    */
   public static ErrorResponse fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, ErrorResponseParser::fromJson);
   }
 
   public static ErrorResponse fromJson(JsonNode jsonNode) {

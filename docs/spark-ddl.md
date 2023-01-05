@@ -32,12 +32,12 @@ To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions. Spark 2.4 does not support SQL DDL.
 
 {{< hint info >}}
-Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3.x or the [Iceberg API](..//java-api-quickstart).
+Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3 or the [Iceberg API](..//java-api-quickstart).
 {{< /hint >}}
 
 ## `CREATE TABLE`
 
-Spark 3.0 can create tables in any Iceberg catalog with the clause `USING iceberg`:
+Spark 3 can create tables in any Iceberg catalog with the clause `USING iceberg`:
 
 ```sql
 CREATE TABLE prod.db.sample (
@@ -103,6 +103,16 @@ USING iceberg
 AS SELECT ...
 ```
 
+The newly created table won't inherit the partition spec and table properties from the source table in SELECT, you can use PARTITIONED BY and TBLPROPERTIES in CTAS to declare partition spec and table properties for the new table.
+
+```sql
+CREATE TABLE prod.db.sample
+USING iceberg
+PARTITIONED BY (part)
+TBLPROPERTIES ('key'='value')
+AS SELECT ...
+```
+
 ## `REPLACE TABLE ... AS SELECT`
 
 Iceberg supports RTAS as an atomic operation when using a [`SparkCatalog`](../spark-configuration#catalog-configuration). RTAS is supported, but is not atomic when using [`SparkSessionCatalog`](../spark-configuration#replacing-the-session-catalog).
@@ -132,12 +142,28 @@ The new table properties in the `REPLACE TABLE` command will be merged with any 
 
 ## `DROP TABLE`
 
-To delete a table, run:
+The drop table behavior changed in 0.14.
+
+Prior to 0.14, running `DROP TABLE` would remove the table from the catalog and delete the table contents as well.
+
+From 0.14 onwards, `DROP TABLE` would only remove the table from the catalog.
+In order to delete the table contents `DROP TABLE PURGE` should be used.
+
+### `DROP TABLE`
+
+To drop the table from the catalog, run:
 
 ```sql
 DROP TABLE prod.db.sample
 ```
 
+### `DROP TABLE PURGE`
+
+To drop the table from the catalog and delete the table's contents, run:
+
+```sql
+DROP TABLE prod.db.sample PURGE
+```
 
 ## `ALTER TABLE`
 
@@ -307,7 +333,7 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z
 
 ## `ALTER TABLE` SQL extensions
 
-These commands are available in Spark 3.x when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
+These commands are available in Spark 3 when using Iceberg [SQL extensions](../spark-configuration#sql-extensions).
 
 ### `ALTER TABLE ... ADD PARTITION FIELD`
 
@@ -321,7 +347,7 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 
 ```sql
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(4, data)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
 -- use optional AS keyword to specify a custom name for the partition field 
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
@@ -347,7 +373,7 @@ Partition fields can be removed using `DROP PARTITION FIELD`:
 ```sql
 ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
 ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
-ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(4, data)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
@@ -420,3 +446,29 @@ ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
 ```
+
+### `ALTER TABLE ... SET IDENTIFIER FIELDS`
+
+Iceberg supports setting identifier fields to a spec using `SET IDENTIFIER FIELDS`:
+
+```sql
+ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id
+-- single column
+ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id, data
+-- multiple columns
+```
+
+identifier fields must be `NOT NULL`, The later `ALTER` statement will overwrite the previous setting.
+
+### `ALTER TABLE ... DROP IDENTIFIER FIELDS`
+
+Identifier fields can be removed using `DROP IDENTIFIER FIELDS`:
+
+```sql
+ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id
+-- single column
+ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id, data
+-- multiple columns
+```
+
+Note that although the identifier is removed, the column will still exist in the table schema.

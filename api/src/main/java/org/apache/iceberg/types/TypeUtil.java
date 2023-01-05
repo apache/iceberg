@@ -142,9 +142,21 @@ public class TypeUtil {
   }
 
   public static Schema join(Schema left, Schema right) {
-    List<Types.NestedField> joinedColumns = Lists.newArrayList();
-    joinedColumns.addAll(left.columns());
-    joinedColumns.addAll(right.columns());
+    List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
+    for (Types.NestedField rightColumn : right.columns()) {
+      Types.NestedField leftColumn = left.findField(rightColumn.fieldId());
+
+      if (leftColumn == null) {
+        joinedColumns.add(rightColumn);
+      } else {
+        Preconditions.checkArgument(
+            leftColumn.equals(rightColumn),
+            "Schemas have different columns with same id: %s, %s",
+            leftColumn,
+            rightColumn);
+      }
+    }
+
     return new Schema(joinedColumns);
   }
 
@@ -332,10 +344,10 @@ public class TypeUtil {
 
     switch (from.typeId()) {
       case INTEGER:
-        return to == Types.LongType.get();
+        return to.typeId() == Type.TypeID.LONG;
 
       case FLOAT:
-        return to == Types.DoubleType.get();
+        return to.typeId() == Type.TypeID.DOUBLE;
 
       case DECIMAL:
         Types.DecimalType fromDecimal = (Types.DecimalType) from;
@@ -601,13 +613,13 @@ public class TypeUtil {
   }
 
   /**
-   * Used to traverse types with traversals other than pre-order.
+   * Used to traverse types with traversals other than post-order.
    *
    * <p>This passes a {@link Supplier} to each {@link CustomOrderSchemaVisitor visitor} method that
    * returns the result of traversing child types. Structs are passed an {@link Iterable} that
    * traverses child fields during iteration.
    *
-   * <p>An example use is assigning column IDs, which should be done with a post-order traversal.
+   * <p>An example use is assigning column IDs, which should be done with a pre-order traversal.
    *
    * @param type a type to traverse with a visitor
    * @param visitor a custom order visitor

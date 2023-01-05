@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.jdbc;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -30,6 +33,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 final class JdbcUtil {
+  // property to control strict-mode (aka check if namespace exists when creating a table)
+  static final String STRICT_MODE_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "strict-mode";
+
   // Catalog Table
   static final String CATALOG_TABLE_NAME = "iceberg_tables";
   static final String CATALOG_NAME = "catalog_name";
@@ -66,9 +72,9 @@ final class JdbcUtil {
           + TABLE_NAME
           + " VARCHAR(255) NOT NULL,"
           + METADATA_LOCATION
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + PREVIOUS_METADATA_LOCATION
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
           + ", "
@@ -179,9 +185,9 @@ final class JdbcUtil {
           + NAMESPACE_NAME
           + " VARCHAR(255) NOT NULL,"
           + NAMESPACE_PROPERTY_KEY
-          + " VARCHAR(5500),"
+          + " VARCHAR(255),"
           + NAMESPACE_PROPERTY_VALUE
-          + " VARCHAR(5500),"
+          + " VARCHAR(1000),"
           + "PRIMARY KEY ("
           + CATALOG_NAME
           + ", "
@@ -335,5 +341,53 @@ final class JdbcUtil {
     sqlStatement.append("(").append(values).append(")");
 
     return sqlStatement.toString();
+  }
+
+  static boolean namespaceExists(
+      String catalogName, JdbcClientPool connections, Namespace namespace) {
+    if (exists(
+        connections,
+        JdbcUtil.GET_NAMESPACE_SQL,
+        catalogName,
+        JdbcUtil.namespaceToString(namespace) + "%")) {
+      return true;
+    }
+
+    if (exists(
+        connections,
+        JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL,
+        catalogName,
+        JdbcUtil.namespaceToString(namespace) + "%")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  @SuppressWarnings("checkstyle:NestedTryDepth")
+  private static boolean exists(JdbcClientPool connections, String sql, String... args) {
+    try {
+      return connections.run(
+          conn -> {
+            try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+              for (int pos = 0; pos < args.length; pos += 1) {
+                preparedStatement.setString(pos + 1, args[pos]);
+              }
+
+              try (ResultSet rs = preparedStatement.executeQuery()) {
+                if (rs.next()) {
+                  return true;
+                }
+              }
+            }
+
+            return false;
+          });
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Failed to execute exists query: %s", sql);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e, "Interrupted in SQL query");
+    }
   }
 }

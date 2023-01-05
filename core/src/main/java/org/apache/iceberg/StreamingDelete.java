@@ -59,4 +59,10 @@ public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implem
     deleteByRowFilter(expr);
     return this;
   }
+
+  @Override
+  public StreamingDelete toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
 }

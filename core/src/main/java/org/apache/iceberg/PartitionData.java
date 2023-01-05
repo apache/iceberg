@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-class PartitionData
+public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
 
   static Schema partitionDataSchema(Types.StructType partitionType) {
@@ -46,7 +46,7 @@ class PartitionData
   private final int size;
   private final Object[] data;
   private final String stringSchema;
-  private transient Schema schema = null;
+  private transient Schema schema;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   PartitionData(Schema schema) {
@@ -57,7 +57,7 @@ class PartitionData
     this.schema = schema;
   }
 
-  PartitionData(Types.StructType partitionType) {
+  public PartitionData(Types.StructType partitionType) {
     for (Types.NestedField field : partitionType.fields()) {
       Preconditions.checkArgument(
           field.type().isPrimitiveType(),

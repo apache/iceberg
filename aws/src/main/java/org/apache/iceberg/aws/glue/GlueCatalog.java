@@ -36,7 +36,6 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -45,6 +44,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -125,7 +125,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         builder.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
       }
 
-      this.catalogProperties = builder.build();
+      this.catalogProperties = builder.buildOrThrow();
       awsClientFactory = AwsClientFactories.from(catalogProperties);
       Preconditions.checkArgument(
           awsClientFactory instanceof LakeFormationAwsClientFactory,
@@ -135,7 +135,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       catalogFileIO = null;
     } else {
       awsClientFactory = AwsClientFactories.from(properties);
-      catalogFileIO = initializeFileIO(properties);
+      catalogFileIO = GlueTableOperations.initializeFileIO(properties, hadoopConf);
     }
 
     initialize(
@@ -154,17 +154,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
       return LockManagers.defaultLockManager();
     }
     return null;
-  }
-
-  private FileIO initializeFileIO(Map<String, String> properties) {
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    if (fileIOImpl == null) {
-      FileIO io = new S3FileIO();
-      io.initialize(properties);
-      return io;
-    } else {
-      return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
-    }
   }
 
   @VisibleForTesting
@@ -209,18 +198,33 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     if (catalogProperties != null) {
-      Map<String, String> tableSpecificCatalogProperties =
-          ImmutableMap.<String, String>builder()
-              .putAll(catalogProperties)
-              .put(
-                  AwsProperties.LAKE_FORMATION_DB_NAME,
-                  IcebergToGlueConverter.getDatabaseName(
-                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
-              .put(
-                  AwsProperties.LAKE_FORMATION_TABLE_NAME,
-                  IcebergToGlueConverter.getTableName(
-                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
-              .build();
+      ImmutableMap.Builder<String, String> tableSpecificCatalogPropertiesBuilder =
+          ImmutableMap.<String, String>builder().putAll(catalogProperties);
+      boolean skipNameValidation = awsProperties.glueCatalogSkipNameValidation();
+
+      if (awsProperties.s3WriteTableTagEnabled()) {
+        tableSpecificCatalogPropertiesBuilder.put(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_TABLE),
+            IcebergToGlueConverter.getTableName(tableIdentifier, skipNameValidation));
+      }
+
+      if (awsProperties.s3WriteNamespaceTagEnabled()) {
+        tableSpecificCatalogPropertiesBuilder.put(
+            AwsProperties.S3_WRITE_TAGS_PREFIX.concat(AwsProperties.S3_TAG_ICEBERG_NAMESPACE),
+            IcebergToGlueConverter.getDatabaseName(tableIdentifier, skipNameValidation));
+      }
+
+      if (awsProperties.glueLakeFormationEnabled()) {
+        tableSpecificCatalogPropertiesBuilder
+            .put(
+                AwsProperties.LAKE_FORMATION_DB_NAME,
+                IcebergToGlueConverter.getDatabaseName(tableIdentifier, skipNameValidation))
+            .put(
+                AwsProperties.LAKE_FORMATION_TABLE_NAME,
+                IcebergToGlueConverter.getTableName(tableIdentifier, skipNameValidation))
+            .put(AwsProperties.S3_PRELOAD_CLIENT_ENABLED, String.valueOf(true));
+      }
+
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
       // initialized each time
       return new GlueTableOperations(
@@ -228,12 +232,19 @@ public class GlueCatalog extends BaseMetastoreCatalog
           lockManager,
           catalogName,
           awsProperties,
-          initializeFileIO(tableSpecificCatalogProperties),
+          tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
+          hadoopConf,
           tableIdentifier);
     }
 
     return new GlueTableOperations(
-        glue, lockManager, catalogName, awsProperties, fileIO, tableIdentifier);
+        glue,
+        lockManager,
+        catalogName,
+        awsProperties,
+        catalogProperties,
+        hadoopConf,
+        tableIdentifier);
   }
 
   /**
@@ -250,6 +261,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     GetDatabaseResponse response =
         glue.getDatabase(
             GetDatabaseRequest.builder()
+                .catalogId(awsProperties.glueCatalogId())
                 .name(
                     IcebergToGlueConverter.getDatabaseName(
                         tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
@@ -307,7 +319,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     try {
       TableOperations ops = newTableOps(identifier);
-      TableMetadata lastMetadata = ops.current();
+      TableMetadata lastMetadata = null;
+      if (purge) {
+        try {
+          lastMetadata = ops.current();
+        } catch (NotFoundException e) {
+          LOG.warn(
+              "Failed to load table metadata for table: {}, continuing drop without purge",
+              identifier,
+              e);
+        }
+      }
       glue.deleteTable(
           DeleteTableRequest.builder()
               .catalogId(awsProperties.glueCatalogId())

@@ -19,9 +19,11 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.io.Serializable;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.SerializableFunction;
 
 class VoidTransform<S> implements Transform<S, Void> {
   private static final VoidTransform<Object> INSTANCE = new VoidTransform<>();
@@ -31,11 +33,30 @@ class VoidTransform<S> implements Transform<S, Void> {
     return (VoidTransform<T>) INSTANCE;
   }
 
+  private static class Apply<S> implements SerializableFunction<S, Void>, Serializable {
+    private static final Apply<?> APPLY_INSTANCE = new Apply<>();
+
+    @SuppressWarnings("unchecked")
+    private static <S> Apply<S> get() {
+      return (Apply<S>) APPLY_INSTANCE;
+    }
+
+    @Override
+    public Void apply(S t) {
+      return null;
+    }
+  }
+
   private VoidTransform() {}
 
   @Override
   public Void apply(Object value) {
     return null;
+  }
+
+  @Override
+  public SerializableFunction<S, Void> bind(Type type) {
+    return Apply.get();
   }
 
   @Override
@@ -56,6 +77,11 @@ class VoidTransform<S> implements Transform<S, Void> {
   @Override
   public UnboundPredicate<Void> project(String name, BoundPredicate<S> predicate) {
     return null;
+  }
+
+  @Override
+  public boolean isVoid() {
+    return true;
   }
 
   @Override

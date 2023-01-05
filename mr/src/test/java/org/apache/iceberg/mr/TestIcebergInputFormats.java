@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -105,7 +104,7 @@ public class TestIcebergInputFormats {
   @Before
   public void before() throws IOException {
     conf = new Configuration();
-    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     HadoopTables tables = new HadoopTables(conf);
 
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
@@ -133,7 +132,7 @@ public class TestIcebergInputFormats {
   public TestIcebergInputFormats(
       TestInputFormat.Factory<Record> testInputFormat, String fileFormat) {
     this.testInputFormat = testInputFormat;
-    this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.fileFormat = FileFormat.fromString(fileFormat);
   }
 
   @Test

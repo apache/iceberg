@@ -21,24 +21,37 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -51,6 +64,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -445,6 +459,86 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     List<SimpleRecord> actualRecords =
         resultDF.as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
+    sql(
+        "CREATE TABLE %s USING iceberg "
+            + "TBLPROPERTIES('format-version'='2') "
+            + "AS SELECT 10 int, 'abc' data",
+        tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    String statsFileName = "stats-file-" + UUID.randomUUID();
+    File statsLocation =
+        new File(new URI(table.location()))
+            .toPath()
+            .resolve("data")
+            .resolve(statsFileName)
+            .toFile();
+    StatisticsFile statisticsFile;
+    try (PuffinWriter puffinWriter = Puffin.write(Files.localOutput(statsLocation)).build()) {
+      long snapshotId = table.currentSnapshot().snapshotId();
+      long snapshotSequenceNumber = table.currentSnapshot().sequenceNumber();
+      puffinWriter.add(
+          new Blob(
+              "some-blob-type",
+              ImmutableList.of(1),
+              snapshotId,
+              snapshotSequenceNumber,
+              ByteBuffer.wrap("blob content".getBytes(StandardCharsets.UTF_8))));
+      puffinWriter.finish();
+      statisticsFile =
+          new GenericStatisticsFile(
+              snapshotId,
+              statsLocation.toString(),
+              puffinWriter.fileSize(),
+              puffinWriter.footerSize(),
+              puffinWriter.writtenBlobsMetadata().stream()
+                  .map(GenericBlobMetadata::from)
+                  .collect(ImmutableList.toImmutableList()));
+    }
+
+    Transaction transaction = table.newTransaction();
+    transaction
+        .updateStatistics()
+        .setStatistics(statisticsFile.snapshotId(), statisticsFile)
+        .commit();
+    transaction.commitTransaction();
+
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s')",
+            catalogName, tableIdent, currentTimestamp);
+    Assertions.assertThat(output).as("Should be no orphan files").isEmpty();
+
+    Assertions.assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
+    Assertions.assertThat(statsLocation.length())
+        .as("stats file length")
+        .isEqualTo(statisticsFile.fileSizeInBytes());
+
+    transaction = table.newTransaction();
+    transaction.updateStatistics().removeStatistics(statisticsFile.snapshotId()).commit();
+    transaction.commitTransaction();
+
+    output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s')",
+            catalogName, tableIdent, currentTimestamp);
+    Assertions.assertThat(output).as("Should be orphan files").hasSize(1);
+    Assertions.assertThat(Iterables.getOnlyElement(output))
+        .as("Deleted files")
+        .containsExactly(statsLocation.toURI().toString());
+    Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
   }
 
   @Test

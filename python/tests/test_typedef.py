@@ -16,16 +16,29 @@
 # under the License.
 import pytest
 
-from pyiceberg.typedef import FrozenDict
+from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
 
 
-def test_setitem_frozendict():
+def test_setitem_frozendict() -> None:
     d = FrozenDict(foo=1, bar=2)
     with pytest.raises(AttributeError):
         d["foo"] = 3
 
 
-def test_update_frozendict():
+def test_update_frozendict() -> None:
     d = FrozenDict(foo=1, bar=2)
     with pytest.raises(AttributeError):
         d.update({"yes": 2})
+
+
+def test_keydefaultdict() -> None:
+    def one(_: int) -> int:
+        return 1
+
+    defaultdict = KeyDefaultDict(one)
+    assert defaultdict[22] == 1
+
+
+def test_record_repr() -> None:
+    r = Record(1, "vo", True)
+    assert repr(r) == "Record[1, 'vo', True]"

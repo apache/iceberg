@@ -24,10 +24,6 @@ if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
   apply from: file("$projectDir/v2.4/build.gradle")
 }
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
-}
-
 if (sparkVersions.contains("3.1")) {
   apply from: file("$projectDir/v3.1/build.gradle")
 }

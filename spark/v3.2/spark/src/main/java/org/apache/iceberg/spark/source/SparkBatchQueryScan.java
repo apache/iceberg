@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
@@ -179,7 +180,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       }
 
       LOG.info(
-          "Trying to filter {} files using runtime filter {}", files().size(), runtimeFilterExpr);
+          "Trying to filter {} files using runtime filter {}",
+          files().size(),
+          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       List<FileScanTask> filteredFiles =
           files().stream()
@@ -194,7 +197,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
           "{}/{} files matched runtime filter {}",
           filteredFiles.size(),
           files().size(),
-          runtimeFilterExpr);
+          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
       if (filteredFiles.size() < files().size()) {

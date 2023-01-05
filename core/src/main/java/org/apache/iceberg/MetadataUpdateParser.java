@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -100,10 +98,16 @@ public class MetadataUpdateParser {
   private static final String MAX_REF_AGE_MS = "max-ref-age-ms";
 
   // SetProperties
+  // the REST API Spec defines "updates" but we initially used "updated",
+  // thus we need to support reading both indefinitely
   private static final String UPDATED = "updated";
+  private static final String UPDATES = "updates";
 
   // RemoveProperties
+  // the REST API Spec defines "removals" but we initially used "removed",
+  // thus we need to support reading both indefinitely
   private static final String REMOVED = "removed";
+  private static final String REMOVALS = "removals";
 
   // SetLocation
   private static final String LOCATION = "location";
@@ -127,26 +131,14 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
           .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
-          .build();
+          .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
     return toJson(metadataUpdate, false);
   }
 
   public static String toJson(MetadataUpdate metadataUpdate, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(metadataUpdate, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to write metadata update json for: %s", metadataUpdate), e);
-    }
+    return JsonUtil.generate(gen -> toJson(metadataUpdate, gen), pretty);
   }
 
   public static void toJson(MetadataUpdate metadataUpdate, JsonGenerator generator)
@@ -232,11 +224,7 @@ public class MetadataUpdateParser {
    * @return a MetadataUpdate object
    */
   public static MetadataUpdate fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, MetadataUpdateParser::fromJson);
   }
 
   public static MetadataUpdate fromJson(JsonNode jsonNode) {
@@ -355,11 +343,7 @@ public class MetadataUpdateParser {
   // handles one value.
   private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshot update, JsonGenerator gen)
       throws IOException {
-    gen.writeArrayFieldStart(SNAPSHOT_IDS);
-    for (long snapshotId : ImmutableSet.of(update.snapshotId())) {
-      gen.writeNumber(snapshotId);
-    }
-    gen.writeEndArray();
+    JsonUtil.writeLongArray(SNAPSHOT_IDS, ImmutableSet.of(update.snapshotId()), gen);
   }
 
   private static void writeSetSnapshotRef(MetadataUpdate.SetSnapshotRef update, JsonGenerator gen)
@@ -385,13 +369,13 @@ public class MetadataUpdateParser {
 
   private static void writeSetProperties(MetadataUpdate.SetProperties update, JsonGenerator gen)
       throws IOException {
-    gen.writeFieldName(UPDATED);
+    gen.writeFieldName(UPDATES);
     gen.writeObject(update.updated());
   }
 
   private static void writeRemoveProperties(
       MetadataUpdate.RemoveProperties update, JsonGenerator gen) throws IOException {
-    gen.writeFieldName(REMOVED);
+    gen.writeFieldName(REMOVALS);
     gen.writeObject(update.removed());
   }
 
@@ -457,7 +441,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {
-    Snapshot snapshot = SnapshotParser.fromJson(null, JsonUtil.get(SNAPSHOT, node));
+    Snapshot snapshot = SnapshotParser.fromJson(JsonUtil.get(SNAPSHOT, node));
     return new MetadataUpdate.AddSnapshot(snapshot);
   }
 
@@ -474,8 +458,7 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {
     String refName = JsonUtil.getString(REF_NAME, node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type =
-        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type = SnapshotRefType.fromString(JsonUtil.getString(TYPE, node));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);
@@ -489,13 +472,35 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readSetProperties(JsonNode node) {
-    Map<String, String> updated = JsonUtil.getStringMap(UPDATED, node);
-    return new MetadataUpdate.SetProperties(updated);
+    Map<String, String> updates;
+
+    boolean hasLegacyField = node.has(UPDATED);
+    boolean hasUpdatesField = node.has(UPDATES);
+    if (hasLegacyField && hasUpdatesField) {
+      updates = JsonUtil.getStringMap(UPDATES, node);
+    } else if (hasLegacyField) {
+      updates = JsonUtil.getStringMap(UPDATED, node);
+    } else {
+      updates = JsonUtil.getStringMap(UPDATES, node);
+    }
+
+    return new MetadataUpdate.SetProperties(updates);
   }
 
   private static MetadataUpdate readRemoveProperties(JsonNode node) {
-    Set<String> removed = JsonUtil.getStringSet(REMOVED, node);
-    return new MetadataUpdate.RemoveProperties(removed);
+    Set<String> removals;
+
+    boolean hasLegacyField = node.has(REMOVED);
+    boolean hasRemovalsField = node.has(REMOVALS);
+    if (hasLegacyField && hasRemovalsField) {
+      removals = JsonUtil.getStringSet(REMOVALS, node);
+    } else if (hasLegacyField) {
+      removals = JsonUtil.getStringSet(REMOVED, node);
+    } else {
+      removals = JsonUtil.getStringSet(REMOVALS, node);
+    }
+
+    return new MetadataUpdate.RemoveProperties(removals);
   }
 
   private static MetadataUpdate readSetLocation(JsonNode node) {

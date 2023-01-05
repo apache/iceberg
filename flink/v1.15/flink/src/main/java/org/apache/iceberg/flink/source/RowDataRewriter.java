@@ -22,7 +22,6 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -74,11 +73,17 @@ public class RowDataRewriter {
             table.properties(),
             TableProperties.DEFAULT_FILE_FORMAT,
             TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    FileFormat format = FileFormat.fromString(formatString);
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory =
         new RowDataTaskWriterFactory(
-            SerializableTable.copyOf(table), flinkSchema, Long.MAX_VALUE, format, null, false);
+            SerializableTable.copyOf(table),
+            flinkSchema,
+            Long.MAX_VALUE,
+            format,
+            table.properties(),
+            null,
+            false);
   }
 
   public List<DataFile> rewriteDataForTasks(

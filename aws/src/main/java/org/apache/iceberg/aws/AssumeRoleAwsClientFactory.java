@@ -19,11 +19,8 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
@@ -34,133 +31,94 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
-import software.amazon.awssdk.services.sts.model.Tag;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
-
-  private String roleArn;
-  private String externalId;
-  private Set<Tag> tags;
-  private int timeout;
-  private String region;
-  private String s3Endpoint;
-  private boolean s3UseArnRegionEnabled;
-  private String dynamoDbEndpoint;
-  private String httpClientType;
+  private AwsProperties awsProperties;
+  private String roleSessionName;
 
   @Override
   public S3Client s3() {
     return S3Client.builder()
-        .applyMutation(this::configure)
-        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
-        .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyS3EndpointConfigurations)
+        .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .build();
   }
 
   @Override
   public GlueClient glue() {
-    return GlueClient.builder().applyMutation(this::configure).build();
+    return GlueClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
   }
 
   @Override
   public KmsClient kms() {
-    return KmsClient.builder().applyMutation(this::configure).build();
+    return KmsClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
   }
 
   @Override
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder()
-        .applyMutation(this::configure)
-        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, dynamoDbEndpoint))
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
         .build();
   }
 
   @Override
   public void initialize(Map<String, String> properties) {
-    this.roleArn = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_ARN);
+    this.awsProperties = new AwsProperties(properties);
+    this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
-        roleArn, "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
-    this.timeout =
-        PropertyUtil.propertyAsInt(
-            properties,
-            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC,
-            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
-    this.externalId = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_EXTERNAL_ID);
-
-    this.region = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_REGION);
+        awsProperties.clientAssumeRoleArn(),
+        "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
     Preconditions.checkNotNull(
-        region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
-
-    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
-    this.tags = toTags(properties);
-    this.s3UseArnRegionEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            AwsProperties.S3_ACCESS_POINTS_PREFIX,
-            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
-    this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
-    this.httpClientType =
-        PropertyUtil.propertyAsString(
-            properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+        awsProperties.clientAssumeRoleRegion(),
+        "Cannot initialize AssumeRoleClientConfigFactory with null region");
   }
 
-  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
-    AssumeRoleRequest request =
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
+      T clientBuilder) {
+    AssumeRoleRequest assumeRoleRequest =
         AssumeRoleRequest.builder()
-            .roleArn(roleArn)
-            .roleSessionName(genSessionName())
-            .durationSeconds(timeout)
-            .externalId(externalId)
-            .tags(tags)
+            .roleArn(awsProperties.clientAssumeRoleArn())
+            .roleSessionName(roleSessionName)
+            .durationSeconds(awsProperties.clientAssumeRoleTimeoutSec())
+            .externalId(awsProperties.clientAssumeRoleExternalId())
+            .tags(awsProperties.stsClientAssumeRoleTags())
             .build();
-
-    clientBuilder.credentialsProvider(
-        StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(sts())
-            .refreshRequest(request)
-            .build());
-
-    clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType));
-
+    clientBuilder
+        .credentialsProvider(
+            StsAssumeRoleCredentialsProvider.builder()
+                .stsClient(sts())
+                .refreshRequest(assumeRoleRequest)
+                .build())
+        .region(Region.of(awsProperties.clientAssumeRoleRegion()));
     return clientBuilder;
   }
 
-  protected Set<Tag> tags() {
-    return tags;
-  }
-
   protected String region() {
-    return region;
+    return awsProperties.clientAssumeRoleRegion();
   }
 
-  protected String s3Endpoint() {
-    return s3Endpoint;
-  }
-
-  protected String httpClientType() {
-    return httpClientType;
-  }
-
-  protected boolean s3UseArnRegionEnabled() {
-    return s3UseArnRegionEnabled;
+  protected AwsProperties awsProperties() {
+    return awsProperties;
   }
 
   private StsClient sts() {
-    return StsClient.builder()
-        .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType))
-        .build();
+    return StsClient.builder().applyMutation(awsProperties::applyHttpClientConfigurations).build();
   }
 
   private String genSessionName() {
+    if (awsProperties.clientAssumeRoleSessionName() != null) {
+      return awsProperties.clientAssumeRoleSessionName();
+    }
     return String.format("iceberg-aws-%s", UUID.randomUUID());
-  }
-
-  private static Set<Tag> toTags(Map<String, String> properties) {
-    return PropertyUtil.propertiesWithPrefix(
-            properties, AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX)
-        .entrySet().stream()
-        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
-        .collect(Collectors.toSet());
   }
 }

@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -59,7 +58,11 @@ public class TableMetadataParser {
 
     public static Codec fromName(String codecName) {
       Preconditions.checkArgument(codecName != null, "Codec name is null");
-      return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      try {
+        return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid codec name: %s", codecName), e);
+      }
     }
 
     public static Codec fromFileName(String fileName) {
@@ -154,6 +157,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -207,11 +211,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     // write properties map
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
     generator.writeNumberField(
         CURRENT_SNAPSHOT_ID,
@@ -222,6 +222,12 @@ public class TableMetadataParser {
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
+    }
+    generator.writeEndArray();
+
+    generator.writeArrayFieldStart(STATISTICS);
+    for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
+      StatisticsFileParser.toJson(statisticsFile, generator);
     }
     generator.writeEndArray();
 
@@ -264,7 +270,7 @@ public class TableMetadataParser {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -275,41 +281,34 @@ public class TableMetadataParser {
    *
    * <p>The TableMetadata's metadata file location will be unset.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String json) {
-    return fromJson(io, null, json);
+  public static TableMetadata fromJson(String json) {
+    return fromJson(null, json);
   }
 
   /**
    * Read TableMetadata from a JSON string.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
    * @param metadataLocation metadata location for the returned {@link TableMetadata}
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(io, metadataLocation, node);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+  public static TableMetadata fromJson(String metadataLocation, String json) {
+    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
-  static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
-    return fromJson(io, file.location(), node);
+  static TableMetadata fromJson(InputFile file, JsonNode node) {
+    return fromJson(file.location(), node);
   }
 
   public static TableMetadata fromJson(JsonNode node) {
-    return fromJson(null, (String) null, node);
+    return fromJson((String) null, node);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
-  static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
+  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
@@ -380,7 +379,12 @@ public class TableMetadataParser {
       // parse the spec array
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
-        builder.add(PartitionSpecParser.fromJson(schema, spec));
+        UnboundPartitionSpec unboundSpec = PartitionSpecParser.fromJson(spec);
+        if (unboundSpec.specId() == defaultSpecId) {
+          builder.add(unboundSpec.bind(schema));
+        } else {
+          builder.add(unboundSpec.bindUnchecked(schema));
+        }
       }
       specs = builder.build();
 
@@ -451,7 +455,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(iterator.next()));
     }
 
     List<StatisticsFile> statisticsFiles;

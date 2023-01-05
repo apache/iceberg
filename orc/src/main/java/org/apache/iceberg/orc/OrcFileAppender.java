@@ -20,13 +20,11 @@ package org.apache.iceberg.orc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
@@ -37,7 +35,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
@@ -89,8 +86,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
       options.fileSystem(((HadoopOutputFile) file).getFileSystem());
     }
     options.setSchema(orcSchema);
-    this.writer = newOrcWriter(file, options, metadata);
-
+    this.writer = ORC.newFileWriter(file, options, metadata);
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
 
@@ -147,11 +143,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
   @Override
   public List<Long> splitOffsets() {
     Preconditions.checkState(isClosed, "File is not yet closed");
-    try (Reader reader = ORC.newFileReader(file.toInputFile(), conf)) {
-      List<StripeInformation> stripes = reader.getStripes();
+    try {
+      List<StripeInformation> stripes = writer.getStripes();
       return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Can't close ORC reader %s", file.location());
+      throw new RuntimeIOException(
+          e, "Failed to get stripe information from writer for: %s", file.location());
     }
   }
 
@@ -168,22 +165,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
         this.isClosed = true;
       }
     }
-  }
-
-  private static Writer newOrcWriter(
-      OutputFile file, OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
-    final Path locPath = new Path(file.location());
-    final Writer writer;
-
-    try {
-      writer = OrcFile.createWriter(locPath, options);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
-    }
-
-    metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
-
-    return writer;
   }
 
   @SuppressWarnings("unchecked")

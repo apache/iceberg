@@ -206,7 +206,13 @@
         </module>
         <module name="IllegalImport">
             <property name="id" value="BanUnrelocatedGuavaClasses"/>
-            <property name="illegalPkgs" value="com.google.common"/>
+            <property name="regexp" value="true"/>
+            <property name="illegalPkgs" value="com\.google\.common\.((?!testing).*)"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanGuavaTesting"/>
+            <property name="illegalPkgs" value="com.google.common.testing"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
         <module name="IllegalImport">
@@ -382,6 +388,21 @@
             <property name="ignoreComments" value="true"/>
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanExpectedExceptionUsage"/>
+            <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
+            <message key="import.illegal" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanHamcrestUsage"/>
+            <property name="illegalPkgs" value="org.hamcrest"/>
+            <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="ignoreComments" value="true"/>
+            <property name="format" value="@Json(S|Des)erialize"/>
+            <property name="message" value="Avoid using Jackson-related ser-de annotations"/>
         </module>
         <module name="SimplifyBooleanExpression"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->
         <module name="SimplifyBooleanReturn"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->

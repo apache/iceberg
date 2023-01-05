@@ -23,45 +23,50 @@ from rich.console import Console
 from rich.table import Table as RichTable
 from rich.tree import Tree
 
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table import Table, TableMetadata
 from pyiceberg.typedef import Identifier, Properties
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 class Output(ABC):
     """Output interface for exporting"""
 
     @abstractmethod
-    def exception(self, ex: Exception):
+    def exception(self, ex: Exception) -> None:
         ...
 
     @abstractmethod
-    def identifiers(self, identifiers: List[Identifier]):
+    def identifiers(self, identifiers: List[Identifier]) -> None:
         ...
 
     @abstractmethod
-    def describe_table(self, table):
+    def describe_table(self, table: Table) -> None:
         ...
 
     @abstractmethod
-    def describe_properties(self, properties: Properties):
+    def files(self, table: Table, history: bool) -> None:
         ...
 
     @abstractmethod
-    def text(self, response: str):
+    def describe_properties(self, properties: Properties) -> None:
         ...
 
     @abstractmethod
-    def schema(self, schema: Schema):
+    def text(self, response: str) -> None:
         ...
 
     @abstractmethod
-    def spec(self, spec: PartitionSpec):
+    def schema(self, schema: Schema) -> None:
         ...
 
     @abstractmethod
-    def uuid(self, uuid: Optional[UUID]):
+    def spec(self, spec: PartitionSpec) -> None:
+        ...
+
+    @abstractmethod
+    def uuid(self, uuid: Optional[UUID]) -> None:
         ...
 
 
@@ -70,27 +75,27 @@ class ConsoleOutput(Output):
 
     verbose: bool
 
-    def __init__(self, **properties: Any):
+    def __init__(self, **properties: Any) -> None:
         self.verbose = properties.get("verbose", False)
 
     @property
     def _table(self) -> RichTable:
         return RichTable.grid(padding=(0, 2))
 
-    def exception(self, ex: Exception):
+    def exception(self, ex: Exception) -> None:
         if self.verbose:
             Console(stderr=True).print_exception()
         else:
             Console(stderr=True).print(ex)
 
-    def identifiers(self, identifiers: List[Identifier]):
+    def identifiers(self, identifiers: List[Identifier]) -> None:
         table = self._table
         for identifier in identifiers:
             table.add_row(".".join(identifier))
 
         Console().print(table)
 
-    def describe_table(self, table: Table):
+    def describe_table(self, table: Table) -> None:
         metadata = table.metadata
         table_properties = self._table
 
@@ -119,25 +124,48 @@ class ConsoleOutput(Output):
         output_table.add_row("Properties", table_properties)
         Console().print(output_table)
 
-    def describe_properties(self, properties: Properties):
+    def files(self, table: Table, history: bool) -> None:
+        if history:
+            snapshots = table.metadata.snapshots
+        else:
+            if snapshot := table.current_snapshot():
+                snapshots = [snapshot]
+            else:
+                snapshots = []
+
+        snapshot_tree = Tree(f"Snapshots: {'.'.join(table.identifier)}")
+        io = table.io
+
+        for snapshot in snapshots:
+            manifest_list_str = f": {snapshot.manifest_list}" if snapshot.manifest_list else ""
+            list_tree = snapshot_tree.add(f"Snapshot {snapshot.snapshot_id}, schema {snapshot.schema_id}{manifest_list_str}")
+
+            manifest_list = snapshot.manifests(io)
+            for manifest in manifest_list:
+                manifest_tree = list_tree.add(f"Manifest: {manifest.manifest_path}")
+                for manifest_entry in manifest.fetch_manifest_entry(io):
+                    manifest_tree.add(f"Datafile: {manifest_entry.data_file.file_path}")
+        Console().print(snapshot_tree)
+
+    def describe_properties(self, properties: Properties) -> None:
         output_table = self._table
         for k, v in properties.items():
             output_table.add_row(k, v)
         Console().print(output_table)
 
-    def text(self, response: str):
+    def text(self, response: str) -> None:
         Console().print(response)
 
-    def schema(self, schema: Schema):
+    def schema(self, schema: Schema) -> None:
         output_table = self._table
         for field in schema.fields:
             output_table.add_row(field.name, str(field.field_type), field.doc or "")
         Console().print(output_table)
 
-    def spec(self, spec: PartitionSpec):
+    def spec(self, spec: PartitionSpec) -> None:
         Console().print(str(spec))
 
-    def uuid(self, uuid: Optional[UUID]):
+    def uuid(self, uuid: Optional[UUID]) -> None:
         Console().print(str(uuid) if uuid else "missing")
 
 
@@ -146,32 +174,42 @@ class JsonOutput(Output):
 
     verbose: bool
 
-    def __init__(self, **properties: Any):
+    def __init__(self, **properties: Any) -> None:
         self.verbose = properties.get("verbose", False)
 
     def _out(self, d: Any) -> None:
         print(json.dumps(d))
 
-    def exception(self, ex: Exception):
+    def exception(self, ex: Exception) -> None:
         self._out({"type": ex.__class__.__name__, "message": str(ex)})
 
-    def identifiers(self, identifiers: List[Identifier]):
+    def identifiers(self, identifiers: List[Identifier]) -> None:
         self._out([".".join(identifier) for identifier in identifiers])
 
-    def describe_table(self, table: Table):
-        print(table.json())
+    def describe_table(self, table: Table) -> None:
+        class FauxTable(IcebergBaseModel):
+            """Just to encode it using Pydantic"""
 
-    def describe_properties(self, properties: Properties):
+            identifier: Identifier
+            metadata_location: str
+            metadata: TableMetadata
+
+        print(FauxTable(identifier=table.identifier, metadata=table.metadata, metadata_location=table.metadata_location).json())
+
+    def describe_properties(self, properties: Properties) -> None:
         self._out(properties)
 
-    def text(self, response: str):
+    def text(self, response: str) -> None:
         print(json.dumps(response))
 
-    def schema(self, schema: Schema):
+    def schema(self, schema: Schema) -> None:
         print(schema.json())
 
-    def spec(self, spec: PartitionSpec):
+    def files(self, table: Table, history: bool) -> None:
+        pass
+
+    def spec(self, spec: PartitionSpec) -> None:
         print(spec.json())
 
-    def uuid(self, uuid: Optional[UUID]):
+    def uuid(self, uuid: Optional[UUID]) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})

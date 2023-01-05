@@ -18,21 +18,51 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.nio.ByteBuffer;
+import java.io.ObjectStreamException;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 
 class Identity<T> implements Transform<T, T> {
-  @SuppressWarnings("unchecked")
+  private static final Identity<?> INSTANCE = new Identity<>();
+
+  private final Type type;
+
+  /**
+   * Instantiates a new Identity Transform
+   *
+   * @deprecated use {@link #get()} instead; will be removed in 2.0.0
+   */
+  @Deprecated
   public static <I> Identity<I> get(Type type) {
     return new Identity<>(type);
   }
 
-  private final Type type;
+  @SuppressWarnings("unchecked")
+  public static <I> Identity<I> get() {
+    return (Identity<I>) INSTANCE;
+  }
+
+  private static class Apply<T> implements SerializableFunction<T, T> {
+    private static final Apply<?> APPLY_INSTANCE = new Apply<>();
+
+    @SuppressWarnings("unchecked")
+    private static <T> Apply<T> get() {
+      return (Apply<T>) APPLY_INSTANCE;
+    }
+
+    @Override
+    public T apply(T t) {
+      return t;
+    }
+  }
+
+  private Identity() {
+    this(null);
+  }
 
   private Identity(Type type) {
     this.type = type;
@@ -44,8 +74,33 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:HiddenField")
+  public SerializableFunction<T, T> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    return Apply.get();
+  }
+
+  @Override
   public boolean canTransform(Type maybePrimitive) {
     return maybePrimitive.isPrimitiveType();
+  }
+
+  /**
+   * Returns a human-readable String representation of a transformed value.
+   *
+   * <p>null values will return "null"
+   *
+   * @param value a transformed value
+   * @return a human-readable String representation of the value
+   * @deprecated use {@link #toHumanString(Type, Object)} instead; will be removed in 2.0.0
+   */
+  @Deprecated
+  @Override
+  public String toHumanString(T value) {
+    if (this.type != null) {
+      return toHumanString(this.type, value);
+    }
+    return Transform.super.toHumanString(value);
   }
 
   @Override
@@ -88,34 +143,20 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
-  public String toHumanString(T value) {
-    if (value == null) {
-      return "null";
+  public boolean equals(Object o) {
+    // Can be removed with 2.0.0 deprecation of get(Type)
+    if (this == o) {
+      return true;
+    } else if (o instanceof Identity) {
+      return true;
     }
+    return false;
+  }
 
-    switch (type.typeId()) {
-      case DATE:
-        return TransformUtil.humanDay((Integer) value);
-      case TIME:
-        return TransformUtil.humanTime((Long) value);
-      case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return TransformUtil.humanTimestampWithZone((Long) value);
-        } else {
-          return TransformUtil.humanTimestampWithoutZone((Long) value);
-        }
-      case FIXED:
-      case BINARY:
-        if (value instanceof ByteBuffer) {
-          return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
-        } else if (value instanceof byte[]) {
-          return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
-        } else {
-          throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
-        }
-      default:
-        return value.toString();
-    }
+  @Override
+  public int hashCode() {
+    // Can be removed with 2.0.0 deprecation of get(Type)
+    return 0;
   }
 
   @Override
@@ -123,20 +164,7 @@ class Identity<T> implements Transform<T, T> {
     return "identity";
   }
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    } else if (!(o instanceof Identity)) {
-      return false;
-    }
-
-    Identity<?> that = (Identity<?>) o;
-    return type.equals(that.type);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(type);
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.IdentityTransformProxy.get();
   }
 }

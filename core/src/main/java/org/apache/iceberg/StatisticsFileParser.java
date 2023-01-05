@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,19 +47,7 @@ public class StatisticsFileParser {
   }
 
   public static String toJson(StatisticsFile statisticsFile, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-
-      toJson(statisticsFile, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(statisticsFile, gen), pretty);
   }
 
   public static void toJson(StatisticsFile statisticsFile, JsonGenerator generator)
@@ -110,11 +96,7 @@ public class StatisticsFileParser {
     generator.writeEndArray();
 
     if (!blobMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : blobMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, blobMetadata.properties(), generator);
     }
     generator.writeEndObject();
   }

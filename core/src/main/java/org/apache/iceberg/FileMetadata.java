@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -61,7 +60,7 @@ public class FileMetadata {
     Builder(PartitionSpec spec) {
       this.spec = spec;
       this.specId = spec.specId();
-      this.isPartitioned = spec.fields().size() > 0;
+      this.isPartitioned = spec.isPartitioned();
       this.partitionData = isPartitioned ? DataFiles.newPartitionData(spec) : null;
     }
 
@@ -145,7 +144,7 @@ public class FileMetadata {
     }
 
     public Builder withFormat(String newFormat) {
-      this.format = FileFormat.valueOf(newFormat.toUpperCase(Locale.ENGLISH));
+      this.format = FileFormat.fromString(newFormat);
       return this;
     }
 
@@ -155,7 +154,9 @@ public class FileMetadata {
     }
 
     public Builder withPartition(StructLike newPartition) {
-      this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      if (isPartitioned) {
+        this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      }
       return this;
     }
 

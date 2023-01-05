@@ -25,7 +25,7 @@ import org.apache.iceberg.expressions.Expression;
  *
  * @param <F> the Java class of the content file
  */
-public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
+public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask, PartitionScanTask {
   /**
    * The {@link ContentFile file} to scan.
    *
@@ -33,12 +33,10 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
    */
   F file();
 
-  /**
-   * The {@link PartitionSpec spec} used to store this file.
-   *
-   * @return the partition spec from this file's manifest
-   */
-  PartitionSpec spec();
+  @Override
+  default StructLike partition() {
+    return file().partition();
+  }
 
   /**
    * The starting position of this scan range in the file.
@@ -63,4 +61,11 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
    * @return a residual expression to apply to rows from this scan
    */
   Expression residual();
+
+  @Override
+  default long estimatedRowsCount() {
+    long splitOffset = (file().splitOffsets() != null) ? file().splitOffsets().get(0) : 0L;
+    double scannedFileFraction = ((double) length()) / (file().fileSizeInBytes() - splitOffset);
+    return (long) (scannedFileFraction * file().recordCount());
+  }
 }

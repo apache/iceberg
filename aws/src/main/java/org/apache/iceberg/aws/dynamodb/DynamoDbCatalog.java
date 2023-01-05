@@ -42,6 +42,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -110,11 +111,13 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   public DynamoDbCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
@@ -371,7 +374,17 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       }
 
       TableOperations ops = newTableOps(identifier);
-      TableMetadata lastMetadata = ops.current();
+      TableMetadata lastMetadata = null;
+      if (purge) {
+        try {
+          lastMetadata = ops.current();
+        } catch (NotFoundException e) {
+          LOG.warn(
+              "Failed to load table metadata for table: {}, continuing drop without purge",
+              identifier,
+              e);
+        }
+      }
       dynamo.deleteItem(
           DeleteItemRequest.builder()
               .tableName(awsProperties.dynamoDbTableName())
@@ -674,5 +687,10 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     } catch (ConditionalCheckFailedException e) {
       return false;
     }
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

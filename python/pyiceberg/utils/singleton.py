@@ -39,9 +39,9 @@ def _convert_to_hashable_type(element: Any) -> Any:
 
 
 class Singleton:
-    _instances: ClassVar[Dict] = {}
+    _instances: ClassVar[Dict] = {}  # type: ignore
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):  # type: ignore
         key = (cls, tuple(args), _convert_to_hashable_type(kwargs))
         if key not in cls._instances:
             cls._instances[key] = super().__new__(cls)

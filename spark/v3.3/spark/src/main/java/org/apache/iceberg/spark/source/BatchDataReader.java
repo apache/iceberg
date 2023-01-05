@@ -28,17 +28,48 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
+import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.spark.rdd.InputFileBlockHolder;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class BatchDataReader extends BaseBatchReader<FileScanTask> {
+class BatchDataReader extends BaseBatchReader<FileScanTask>
+    implements PartitionReader<ColumnarBatch> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
+
+  private final long numSplits;
+
+  BatchDataReader(SparkInputPartition partition, int batchSize) {
+    this(
+        partition.table(),
+        partition.taskGroup(),
+        partition.expectedSchema(),
+        partition.isCaseSensitive(),
+        batchSize);
+  }
+
   BatchDataReader(
-      ScanTaskGroup<FileScanTask> task,
       Table table,
+      ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       int size) {
-    super(table, task, expectedSchema, caseSensitive, size);
+    super(table, taskGroup, expectedSchema, caseSensitive, size);
+
+    numSplits = taskGroup.tasks().size();
+    LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+  }
+
+  @Override
+  public CustomTaskMetric[] currentMetricsValues() {
+    return new CustomTaskMetric[] {
+      new TaskNumSplits(numSplits), new TaskNumDeletes(counter().get())
+    };
   }
 
   @Override
@@ -49,6 +80,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
   @Override
   protected CloseableIterator<ColumnarBatch> open(FileScanTask task) {
     String filePath = task.file().path().toString();
+    LOG.debug("Opening data file {}", filePath);
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
@@ -59,7 +91,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
     SparkDeleteFilter deleteFilter =
-        task.deletes().isEmpty() ? null : new SparkDeleteFilter(filePath, task.deletes());
+        task.deletes().isEmpty()
+            ? null
+            : new SparkDeleteFilter(filePath, task.deletes(), counter());
 
     return newBatchIterable(
             inputFile,

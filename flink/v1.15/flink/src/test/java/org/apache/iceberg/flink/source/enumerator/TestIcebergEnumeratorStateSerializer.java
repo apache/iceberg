@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -31,30 +32,41 @@ import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestIcebergEnumeratorStateSerializer {
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private final IcebergEnumeratorStateSerializer serializer =
       IcebergEnumeratorStateSerializer.INSTANCE;
 
+  protected final int version;
+
+  @Parameterized.Parameters(name = "version={0}")
+  public static Object[] parameters() {
+    return new Object[] {1, 2};
+  }
+
+  public TestIcebergEnumeratorStateSerializer(int version) {
+    this.version = version;
+  }
+
   @Test
   public void testEmptySnapshotIdAndPendingSplits() throws Exception {
     IcebergEnumeratorState enumeratorState = new IcebergEnumeratorState(Collections.emptyList());
-    byte[] result = serializer.serialize(enumeratorState);
-    IcebergEnumeratorState deserialized = serializer.deserialize(serializer.getVersion(), result);
-    assertEnumeratorStateEquals(enumeratorState, deserialized);
+    testSerializer(enumeratorState);
   }
 
   @Test
   public void testSomeSnapshotIdAndEmptyPendingSplits() throws Exception {
     IcebergEnumeratorPosition position =
         IcebergEnumeratorPosition.of(1L, System.currentTimeMillis());
+
     IcebergEnumeratorState enumeratorState =
         new IcebergEnumeratorState(position, Collections.emptyList());
-    byte[] result = serializer.serialize(enumeratorState);
-    IcebergEnumeratorState deserialized = serializer.deserialize(serializer.getVersion(), result);
-    assertEnumeratorStateEquals(enumeratorState, deserialized);
+    testSerializer(enumeratorState);
   }
 
   @Test
@@ -72,14 +84,47 @@ public class TestIcebergEnumeratorStateSerializer {
         new IcebergSourceSplitState(splits.get(2), IcebergSourceSplitStatus.COMPLETED));
 
     IcebergEnumeratorState enumeratorState = new IcebergEnumeratorState(position, pendingSplits);
-    byte[] result = serializer.serialize(enumeratorState);
-    IcebergEnumeratorState deserialized = serializer.deserialize(serializer.getVersion(), result);
+    testSerializer(enumeratorState);
+  }
+
+  @Test
+  public void testEnumerationSplitCountHistory() throws Exception {
+    if (version == 2) {
+      IcebergEnumeratorPosition position =
+          IcebergEnumeratorPosition.of(2L, System.currentTimeMillis());
+      List<IcebergSourceSplit> splits =
+          SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 3, 1);
+      Collection<IcebergSourceSplitState> pendingSplits = Lists.newArrayList();
+      pendingSplits.add(
+          new IcebergSourceSplitState(splits.get(0), IcebergSourceSplitStatus.UNASSIGNED));
+      pendingSplits.add(
+          new IcebergSourceSplitState(splits.get(1), IcebergSourceSplitStatus.ASSIGNED));
+      pendingSplits.add(
+          new IcebergSourceSplitState(splits.get(2), IcebergSourceSplitStatus.COMPLETED));
+      int[] enumerationSplitCountHistory = {1, 2, 3};
+
+      IcebergEnumeratorState enumeratorState =
+          new IcebergEnumeratorState(position, pendingSplits, enumerationSplitCountHistory);
+      testSerializer(enumeratorState);
+    }
+  }
+
+  private void testSerializer(IcebergEnumeratorState enumeratorState) throws IOException {
+    byte[] result;
+    if (version == 1) {
+      result = serializer.serializeV1(enumeratorState);
+    } else {
+      result = serializer.serialize(enumeratorState);
+    }
+
+    IcebergEnumeratorState deserialized = serializer.deserialize(version, result);
     assertEnumeratorStateEquals(enumeratorState, deserialized);
   }
 
   private void assertEnumeratorStateEquals(
       IcebergEnumeratorState expected, IcebergEnumeratorState actual) {
     Assert.assertEquals(expected.lastEnumeratedPosition(), actual.lastEnumeratedPosition());
+
     Assert.assertEquals(expected.pendingSplits().size(), actual.pendingSplits().size());
     Iterator<IcebergSourceSplitState> expectedIterator = expected.pendingSplits().iterator();
     Iterator<IcebergSourceSplitState> actualIterator = actual.pendingSplits().iterator();
@@ -93,5 +138,8 @@ public class TestIcebergEnumeratorStateSerializer {
           expectedSplitState.split().recordOffset(), actualSplitState.split().recordOffset());
       Assert.assertEquals(expectedSplitState.status(), actualSplitState.status());
     }
+
+    Assert.assertArrayEquals(
+        expected.enumerationSplitCountHistory(), actual.enumerationSplitCountHistory());
   }
 }

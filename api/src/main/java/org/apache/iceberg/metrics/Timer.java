@@ -165,5 +165,10 @@ public interface Timer {
         public <T> T time(Supplier<T> supplier) {
           return supplier.get();
         }
+
+        @Override
+        public String toString() {
+          return "NOOP timer";
+        }
       };
 }

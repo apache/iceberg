@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -41,11 +43,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.QueryExecution;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -57,6 +65,7 @@ public abstract class SparkTestBase {
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
+  protected static JavaSparkContext sparkContext = null;
   protected static HiveCatalog catalog = null;
 
   @BeforeClass
@@ -73,6 +82,8 @@ public abstract class SparkTestBase {
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .enableHiveSupport()
             .getOrCreate();
+
+    SparkTestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     SparkTestBase.catalog =
         (HiveCatalog)
@@ -93,6 +104,7 @@ public abstract class SparkTestBase {
     SparkTestBase.metastore = null;
     spark.stop();
     SparkTestBase.spark = null;
+    SparkTestBase.sparkContext = null;
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -255,6 +267,65 @@ public abstract class SparkTestBase {
   protected Dataset<Row> jsonToDF(String schema, String... records) {
     Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
     return spark.read().schema(schema).json(jsonDF);
+  }
+
+  protected void append(String table, String... jsonRecords) {
+    try {
+      String schema = spark.table(table).schema().toDDL();
+      Dataset<Row> df = jsonToDF(schema, jsonRecords);
+      df.coalesce(1).writeTo(table).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException("Failed to write data", e);
+    }
+  }
+
+  protected String tablePropsAsString(Map<String, String> tableProps) {
+    StringBuilder stringBuilder = new StringBuilder();
+
+    for (Map.Entry<String, String> property : tableProps.entrySet()) {
+      if (stringBuilder.length() > 0) {
+        stringBuilder.append(", ");
+      }
+      stringBuilder.append(String.format("'%s' '%s'", property.getKey(), property.getValue()));
+    }
+
+    return stringBuilder.toString();
+  }
+
+  protected SparkPlan executeAndKeepPlan(String query, Object... args) {
+    return executeAndKeepPlan(() -> sql(query, args));
+  }
+
+  protected SparkPlan executeAndKeepPlan(Action action) {
+    AtomicReference<SparkPlan> executedPlanRef = new AtomicReference<>();
+
+    QueryExecutionListener listener =
+        new QueryExecutionListener() {
+          @Override
+          public void onSuccess(String funcName, QueryExecution qe, long durationNs) {
+            executedPlanRef.set(qe.executedPlan());
+          }
+
+          @Override
+          public void onFailure(String funcName, QueryExecution qe, Exception exception) {}
+        };
+
+    spark.listenerManager().register(listener);
+
+    action.invoke();
+
+    try {
+      spark.sparkContext().listenerBus().waitUntilEmpty();
+    } catch (TimeoutException e) {
+      throw new RuntimeException("Timeout while waiting for processing events", e);
+    }
+
+    SparkPlan executedPlan = executedPlanRef.get();
+    if (executedPlan instanceof AdaptiveSparkPlanExec) {
+      return ((AdaptiveSparkPlanExec) executedPlan).executedPlan();
+    } else {
+      return executedPlan;
+    }
   }
 
   @FunctionalInterface

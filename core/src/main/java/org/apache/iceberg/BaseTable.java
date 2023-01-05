@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.metrics.LoggingScanReporter;
-import org.apache.iceberg.metrics.ScanReporter;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /**
  * Base {@link Table} implementation.
@@ -39,18 +39,16 @@ import org.apache.iceberg.metrics.ScanReporter;
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
   private final String name;
-  private final ScanReporter scanReporter;
+  private final MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
-    this.ops = ops;
-    this.name = name;
-    this.scanReporter = new LoggingScanReporter();
+    this(ops, name, LoggingMetricsReporter.instance());
   }
 
-  public BaseTable(TableOperations ops, String name, ScanReporter scanReporter) {
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
     this.ops = ops;
     this.name = name;
-    this.scanReporter = scanReporter;
+    this.reporter = reporter;
   }
 
   @Override
@@ -70,13 +68,13 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(scanReporter));
+    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
     return new BaseIncrementalAppendScan(
-        ops, this, schema(), new TableScanContext().reportWith(scanReporter));
+        ops, this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
@@ -171,52 +169,52 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(name, ops);
+    return new MergeAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(name, ops);
+    return new FastAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new BaseRewriteFiles(name, ops);
+    return new BaseRewriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops);
+    return new BaseRewriteManifests(ops).reportWith(reporter);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new BaseOverwriteFiles(name, ops);
+    return new BaseOverwriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RowDelta newRowDelta() {
-    return new BaseRowDelta(name, ops);
+    return new BaseRowDelta(name, ops).reportWith(reporter);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new BaseReplacePartitions(name, ops);
+    return new BaseReplacePartitions(name, ops).reportWith(reporter);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(name, ops);
+    return new StreamingDelete(name, ops).reportWith(reporter);
+  }
+
+  @Override
+  public UpdateStatistics updateStatistics() {
+    return new SetStatistics(ops);
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
-  }
-
-  @Override
-  public Rollback rollback() {
-    return new RollbackToSnapshot(name, ops);
   }
 
   @Override
@@ -226,7 +224,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public Transaction newTransaction() {
-    return Transactions.newTransaction(name, ops);
+    return Transactions.newTransaction(name, ops, reporter);
   }
 
   @Override
@@ -242,6 +240,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return operations().locationProvider();
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ops.current().statisticsFiles();
   }
 
   @Override

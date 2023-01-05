@@ -29,6 +29,8 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -185,6 +187,32 @@ public class TestCatalogUtil {
         IllegalArgumentException.class,
         "both type and catalog-impl are set",
         () -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf));
+  }
+
+  @Test
+  public void loadCustomMetricsReporter_noArg() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("key", "val");
+
+    MetricsReporter metricsReporter =
+        CatalogUtil.loadMetricsReporter(TestMetricsReporterDefault.class.getName());
+    Assertions.assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
+  }
+
+  @Test
+  public void loadCustomMetricsReporter_badArg() {
+    Assertions.assertThatThrownBy(
+            () -> CatalogUtil.loadMetricsReporter(TestMetricsReporterBadArg.class.getName()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("missing no-arg constructor");
+  }
+
+  @Test
+  public void loadCustomMetricsReporter_badClass() {
+    Assertions.assertThatThrownBy(
+            () -> CatalogUtil.loadMetricsReporter(TestFileIONotImpl.class.getName()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not implement MetricsReporter");
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {
@@ -398,5 +426,22 @@ public class TestCatalogUtil {
 
   public static class TestFileIONotImpl {
     public TestFileIONotImpl() {}
+  }
+
+  public static class TestMetricsReporterBadArg implements MetricsReporter {
+    private final String arg;
+
+    public TestMetricsReporterBadArg(String arg) {
+      this.arg = arg;
+    }
+
+    @Override
+    public void report(MetricsReport report) {}
+  }
+
+  public static class TestMetricsReporterDefault implements MetricsReporter {
+
+    @Override
+    public void report(MetricsReport report) {}
   }
 }

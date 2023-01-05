@@ -26,8 +26,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -41,11 +39,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.CommitMetrics;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ImmutableCommitReport;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -78,6 +84,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
+  private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
   private boolean stageOnly = false;
@@ -85,6 +92,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
+  private CommitMetrics commitMetrics;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -111,6 +119,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  protected CommitMetrics commitMetrics() {
+    if (commitMetrics == null) {
+      this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
+    }
+
+    return commitMetrics;
+  }
+
+  protected ThisT reportWith(MetricsReporter newReporter) {
+    this.reporter = newReporter;
     return self();
   }
 
@@ -197,57 +218,42 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     validate(base, parentSnapshot);
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
-    if (base.formatVersion() > 1
-        || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
-      OutputFile manifestList = manifestListPath();
+    OutputFile manifestList = manifestListPath();
 
-      try (ManifestListWriter writer =
-          ManifestLists.write(
-              ops.current().formatVersion(),
-              manifestList,
-              snapshotId(),
-              parentSnapshotId,
-              sequenceNumber)) {
+    try (ManifestListWriter writer =
+        ManifestLists.write(
+            ops.current().formatVersion(),
+            manifestList,
+            snapshotId(),
+            parentSnapshotId,
+            sequenceNumber)) {
 
-        // keep track of the manifest lists created
-        manifestLists.add(manifestList.location());
+      // keep track of the manifest lists created
+      manifestLists.add(manifestList.location());
 
-        ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+      ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
 
-        Tasks.range(manifestFiles.length)
-            .stopOnFailure()
-            .throwFailureWhenFinished()
-            .executeWith(workerPool)
-            .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+      Tasks.range(manifestFiles.length)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(workerPool)
+          .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
-        writer.addAll(Arrays.asList(manifestFiles));
+      writer.addAll(Arrays.asList(manifestFiles));
 
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to write manifest list file");
-      }
-
-      return new BaseSnapshot(
-          ops.io(),
-          sequenceNumber,
-          snapshotId(),
-          parentSnapshotId,
-          System.currentTimeMillis(),
-          operation(),
-          summary(base),
-          base.currentSchemaId(),
-          manifestList.location());
-
-    } else {
-      return new BaseSnapshot(
-          ops.io(),
-          snapshotId(),
-          parentSnapshotId,
-          System.currentTimeMillis(),
-          operation(),
-          summary(base),
-          base.currentSchemaId(),
-          manifests);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
+
+    return new BaseSnapshot(
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        System.currentTimeMillis(),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        manifestList.location());
   }
 
   protected abstract Map<String, String> summary();
@@ -345,6 +351,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
+    Timed totalDuration = commitMetrics().totalDuration().start();
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -354,6 +361,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .countAttempts(commitMetrics().attempts())
           .run(
               taskOps -> {
                 Snapshot newSnapshot = apply();
@@ -414,6 +422,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           "Failed to load committed table metadata or during cleanup, skipping further cleanup", e);
     }
 
+    totalDuration.stop();
+
     try {
       notifyListeners();
     } catch (Throwable e) {
@@ -426,6 +436,21 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Object event = updateEvent();
       if (event != null) {
         Listeners.notifyAll(event);
+
+        if (event instanceof CreateSnapshotEvent) {
+          CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
+
+          reporter.report(
+              ImmutableCommitReport.builder()
+                  .tableName(createSnapshotEvent.tableName())
+                  .snapshotId(createSnapshotEvent.snapshotId())
+                  .operation(createSnapshotEvent.operation())
+                  .sequenceNumber(createSnapshotEvent.sequenceNumber())
+                  .metadata(EnvironmentContext.get())
+                  .commitMetrics(
+                      CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
+                  .build());
+        }
       }
     } catch (RuntimeException e) {
       LOG.warn("Failed to notify listeners", e);

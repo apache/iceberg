@@ -37,7 +37,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -82,7 +82,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final FileType content;
-  private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
@@ -93,7 +92,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
-  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
+  private ScanMetrics scanMetrics = ScanMetrics.noop();
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
@@ -101,6 +100,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   protected ManifestReader(
       InputFile file,
+      int specId,
       Map<Integer, PartitionSpec> specsById,
       InheritableMetadata inheritableMetadata,
       FileType content) {
@@ -108,17 +108,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     this.inheritableMetadata = inheritableMetadata;
     this.content = content;
 
-    try {
-      try (AvroIterable<ManifestEntry<F>> headerReader =
-          Avro.read(file)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .classLoader(GenericManifestEntry.class.getClassLoader())
-              .build()) {
-        this.metadata = headerReader.getMetadata();
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
+    if (specsById != null) {
+      this.spec = specsById.get(specId);
+    } else {
+      this.spec = readPartitionSpec(file);
     }
+
+    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  }
+
+  private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
+    Map<String, String> metadata = readMetadata(inputFile);
 
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
@@ -126,15 +126,24 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       specId = Integer.parseInt(specProperty);
     }
 
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
-    } else {
-      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
-      this.spec =
-          PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-    }
+    Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+    return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+  }
 
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    Map<String, String> metadata;
+    try {
+      try (AvroIterable<ManifestEntry<T>> headerReader =
+          Avro.read(inputFile)
+              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+              .classLoader(GenericManifestEntry.class.getClassLoader())
+              .build()) {
+        metadata = headerReader.getMetadata();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+    return metadata;
   }
 
   public boolean isDeleteManifestReader() {
@@ -188,7 +197,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return this;
   }
 
-  ManifestReader<F> scanMetrics(ScanReport.ScanMetrics newScanMetrics) {
+  ManifestReader<F> scanMetrics(ScanMetrics newScanMetrics) {
     this.scanMetrics = newScanMetrics;
     return this;
   }
@@ -206,6 +215,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           requireStatsProjection ? withStatsColumns(columns) : columns;
 
       return CloseableIterable.filter(
+          content == FileType.DATA_FILES
+              ? scanMetrics.skippedDataFiles()
+              : scanMetrics.skippedDeleteFiles(),
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
           entry ->
               entry != null
@@ -255,15 +267,18 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
     return CloseableIterable.filter(
-        entries(), entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
+        content == FileType.DATA_FILES
+            ? scanMetrics.skippedDataFiles()
+            : scanMetrics.skippedDeleteFiles(),
+        entries(),
+        entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
   }
 
   /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
-    return CloseableIterable.transform(
-            liveEntries(), e -> e.file().copy(!dropStats(rowFilter, columns)))
-        .iterator();
+    boolean dropStats = dropStats(columns);
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
   private static Schema projection(
@@ -316,16 +331,14 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         && !columns.containsAll(STATS_COLUMNS);
   }
 
-  static boolean dropStats(Expression rowFilter, Collection<String> columns) {
+  static boolean dropStats(Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns, except for
     // record_count column.
     // Since we don't want to keep stats map which could be huge in size just because we select
     // record_count, which
     // is a primitive type.
-    if (rowFilter != Expressions.alwaysTrue()
-        && columns != null
-        && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+    if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
       return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
     }

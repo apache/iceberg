@@ -41,6 +41,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
@@ -77,6 +78,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final NameMapping nameMapping;
   private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
+  private final DeleteCounter counter;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -94,6 +96,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+    this.counter = new DeleteCounter();
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -114,6 +117,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected Table table() {
     return table;
+  }
+
+  protected DeleteCounter counter() {
+    return counter;
   }
 
   public boolean next() throws IOException {
@@ -244,8 +251,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(String filePath, List<DeleteFile> deletes) {
-      super(filePath, deletes, table.schema(), expectedSchema);
+    SparkDeleteFilter(String filePath, List<DeleteFile> deletes, DeleteCounter counter) {
+      super(filePath, deletes, table.schema(), expectedSchema, counter);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 
@@ -261,7 +268,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected void markRowDeleted(InternalRow row) {
-      row.setBoolean(columnIsDeletedPosition(), true);
+      if (!row.getBoolean(columnIsDeletedPosition())) {
+        row.setBoolean(columnIsDeletedPosition(), true);
+        counter().increment();
+      }
     }
   }
 }

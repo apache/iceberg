@@ -43,11 +43,10 @@ task removeJavadoc(type: Exec) {
   commandLine 'rm', '-rf', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
-task refreshJavadoc(type: Exec) {
+task refreshJavadoc() {
   dependsOn aggregateJavadoc
   dependsOn removeJavadoc
   aggregateJavadoc.mustRunAfter removeJavadoc
-  commandLine 'git', 'add', "site/docs/javadoc/${getJavadocVersion()}"
 }
 
 task deploySite(type: Exec) {

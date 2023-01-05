@@ -484,4 +484,32 @@ public class TestBranchVisibility extends BaseTestIceberg {
     nessieCatalog.createTable(identifier2, schema);
     Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(2);
   }
+
+  @Test
+  public void testDifferentTableSameName() throws NessieConflictException, NessieNotFoundException {
+    String branch1 = "branch1";
+    String branch2 = "branch2";
+    createBranch(branch1, null);
+    createBranch(branch2, null);
+    Schema schema1 =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    Schema schema2 =
+        new Schema(
+            Types.StructType.of(
+                    required(1, "file_count", Types.IntegerType.get()),
+                    required(2, "record_count", Types.LongType.get()))
+                .fields());
+
+    TableIdentifier identifier = TableIdentifier.of("db", "table1");
+
+    NessieCatalog nessieCatalog = initCatalog(branch1);
+    Table table1 = nessieCatalog.createTable(identifier, schema1);
+    Assertions.assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
+
+    nessieCatalog = initCatalog(branch2);
+    Table table2 = nessieCatalog.createTable(identifier, schema2);
+    Assertions.assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
+
+    Assertions.assertThat(table1.location()).isNotEqualTo(table2.location());
+  }
 }

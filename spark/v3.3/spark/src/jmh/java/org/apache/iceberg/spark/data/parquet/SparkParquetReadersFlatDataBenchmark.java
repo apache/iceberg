@@ -88,7 +88,7 @@ public class SparkParquetReadersFlatDataBenchmark {
           required(1, "longCol", Types.LongType.get()),
           optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
           optional(8, "stringCol", Types.StringType.get()));
-  private static final int NUM_RECORDS = 10000000;
+  private static final int NUM_RECORDS = 1000000;
   private File dataFile;
 
   @Setup
@@ -154,6 +154,8 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .set("spark.sql.caseSensitive", "false")
+            .set("spark.sql.parquet.fieldId.write.enabled", "false")
             .callInit()
             .build()) {
 
@@ -211,6 +213,7 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .set("spark.sql.caseSensitive", "false")
             .callInit()
             .build()) {
 

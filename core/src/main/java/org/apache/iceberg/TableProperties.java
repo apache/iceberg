@@ -177,6 +177,13 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
+
+  public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
+  public static final String ORC_BLOOM_FILTER_COLUMNS_DEFAULT = "";
+
+  public static final String ORC_BLOOM_FILTER_FPP = "write.orc.bloom.filter.fpp";
+  public static final double ORC_BLOOM_FILTER_FPP_DEFAULT = 0.05;
+
   public static final String DELETE_ORC_STRIPE_SIZE_BYTES = "write.delete.orc.stripe-size-bytes";
   public static final long ORC_STRIPE_SIZE_BYTES_DEFAULT = 64L * 1024 * 1024; // 64 MB
 
@@ -246,8 +253,11 @@ public class TableProperties {
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
-  public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
-  public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
+  /** @deprecated will be removed in 2.0.0, writing manifest lists is always enabled */
+  @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
+
+  /** @deprecated will be removed in 2.0.0, writing manifest lists is always enabled */
+  @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";
@@ -263,7 +273,7 @@ public class TableProperties {
 
   public static final String METRICS_MAX_INFERRED_COLUMN_DEFAULTS =
       "write.metadata.metrics.max-inferred-column-defaults";
-  public static final int METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT = 32;
+  public static final int METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT = 100;
 
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
@@ -314,7 +324,7 @@ public class TableProperties {
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String DELETE_MODE = "write.delete.mode";
-  public static final String DELETE_MODE_DEFAULT = "copy-on-write";
+  public static final String DELETE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   public static final String DELETE_DISTRIBUTION_MODE = "write.delete.distribution-mode";
 
@@ -322,7 +332,7 @@ public class TableProperties {
   public static final String UPDATE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String UPDATE_MODE = "write.update.mode";
-  public static final String UPDATE_MODE_DEFAULT = "copy-on-write";
+  public static final String UPDATE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   public static final String UPDATE_DISTRIBUTION_MODE = "write.update.distribution-mode";
 
@@ -330,18 +340,18 @@ public class TableProperties {
   public static final String MERGE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String MERGE_MODE = "write.merge.mode";
-  public static final String MERGE_MODE_DEFAULT = "copy-on-write";
+  public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
+   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
+   *     performed starting from 0.13.0.
    */
   @Deprecated
   public static final String MERGE_CARDINALITY_CHECK_ENABLED =
       "write.merge.cardinality-check.enabled";
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
+   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
+   *     performed starting from 0.13.0.
    */
   @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
@@ -349,4 +359,7 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  /** @deprecated will be removed in 1.3.0, use the HMS_TABLE_OWNER constant from HiveCatalog */
+  @Deprecated public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
 }

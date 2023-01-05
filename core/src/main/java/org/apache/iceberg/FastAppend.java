@@ -133,6 +133,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
+        manifest.partitionSpecId(),
         toCopy,
         current.specsById(),
         newManifestPath,
@@ -197,7 +198,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifest == null && newFiles.size() > 0) {
-      ManifestWriter writer = newManifestWriter(spec);
+      ManifestWriter<DataFile> writer = newManifestWriter(spec);
       try {
         writer.addAll(newFiles);
       } finally {

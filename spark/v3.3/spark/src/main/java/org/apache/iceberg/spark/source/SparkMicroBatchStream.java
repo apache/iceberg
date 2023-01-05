@@ -47,8 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.source.SparkScan.ReadTask;
-import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -66,6 +65,7 @@ import org.slf4j.LoggerFactory;
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
+  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
   private final boolean caseSensitive;
@@ -122,7 +122,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     // iterator to find
     // addedFilesCount.
     addedFilesCount =
-        addedFilesCount == -1 ? Iterables.size(latestSnapshot.addedFiles()) : addedFilesCount;
+        addedFilesCount == -1
+            ? Iterables.size(latestSnapshot.addedDataFiles(table.io()))
+            : addedFilesCount;
 
     return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount, false);
   }
@@ -150,27 +152,29 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
             TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
-    InputPartition[] readTasks = new InputPartition[combinedScanTasks.size()];
 
-    Tasks.range(readTasks.length)
+    InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
+
+    Tasks.range(partitions.length)
         .stopOnFailure()
         .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
         .run(
             index ->
-                readTasks[index] =
-                    new ReadTask(
+                partitions[index] =
+                    new SparkInputPartition(
+                        EMPTY_GROUPING_KEY_TYPE,
                         combinedScanTasks.get(index),
                         tableBroadcast,
                         expectedSchema,
                         caseSensitive,
                         localityPreferred));
 
-    return readTasks;
+    return partitions;
   }
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(0);
+    return new SparkRowReaderFactory();
   }
 
   @Override

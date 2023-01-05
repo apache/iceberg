@@ -404,21 +404,44 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
-    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+    assertPartitioningEquals(sparkTable(), 2, "truncate(4, data)");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD years(ts)", tableName);
     assertPartitioningEquals(sparkTable(), 3, "years(ts)");
 
     sql("ALTER TABLE %s DROP PARTITION FIELD years(ts)", tableName);
-    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+    assertPartitioningEquals(sparkTable(), 2, "truncate(4, data)");
 
-    sql("ALTER TABLE %s DROP PARTITION FIELD truncate(data, 4)", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD truncate(4, data)", tableName);
     assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
 
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
     sql("DESCRIBE %s", tableName);
     Assert.assertEquals(
         "spark table partition should be empty", 0, sparkTable().partitioning().length);
+  }
+
+  @Test
+  public void testDropColumnOfOldPartitionFieldV1() {
+    // default table created in v1 format
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '1')",
+        tableName);
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+
+    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+  }
+
+  @Test
+  public void testDropColumnOfOldPartitionFieldV2() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '2')",
+        tableName);
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+
+    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {

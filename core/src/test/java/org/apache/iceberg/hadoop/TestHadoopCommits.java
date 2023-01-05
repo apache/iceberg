@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -58,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -377,11 +377,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
-    try {
-      spyOps.commit(tops.current(), meta1);
-      fail("Commit should fail due to mock file system");
-    } catch (CommitFailedException expected) {
-    }
+    Assertions.assertThatThrownBy(() -> spyOps.commit(tops.current(), meta1))
+        .isInstanceOf(CommitFailedException.class);
 
     // Verifies that there is no temporary metadata.json files left on rename failures.
     Set<String> actual =

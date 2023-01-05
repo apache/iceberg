@@ -52,6 +52,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
 
   private int records = 0;
   private boolean closed = false;
+  private Throwable failure;
 
   SortedPosDeleteWriter(
       FileAppenderFactory<T> appenderFactory,
@@ -72,6 +73,12 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
       FileFormat format,
       StructLike partition) {
     this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
+  }
+
+  protected void setFailure(Throwable throwable) {
+    if (failure == null) {
+      this.failure = throwable;
+    }
   }
 
   @Override
@@ -109,6 +116,8 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   public List<DeleteFile> complete() throws IOException {
     close();
 
+    Preconditions.checkState(failure == null, "Cannot return results from failed writer", failure);
+
     return completedFiles;
   }
 
@@ -119,8 +128,8 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   @Override
   public void close() throws IOException {
     if (!closed) {
-      flushDeletes();
       this.closed = true;
+      flushDeletes();
     }
   }
 
@@ -145,6 +154,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
 
     PositionDeleteWriter<T> writer =
         appenderFactory.newPosDeleteWriter(outputFile, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = writer) {
       // Sort all the paths.
       List<CharSequence> paths = Lists.newArrayListWithCapacity(posDeletes.keySet().size());
@@ -158,9 +168,11 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
         List<PosRow<T>> positions = posDeletes.get(wrapper.set(path));
         positions.sort(Comparator.comparingLong(PosRow::pos));
 
-        positions.forEach(posRow -> closeableWriter.delete(path, posRow.pos(), posRow.row()));
+        positions.forEach(
+            posRow -> closeableWriter.write(posDelete.set(path, posRow.pos(), posRow.row())));
       }
     } catch (IOException e) {
+      setFailure(e);
       throw new UncheckedIOException(
           "Failed to write the sorted path/pos pairs to pos-delete file: "
               + outputFile.encryptingOutputFile().location(),
