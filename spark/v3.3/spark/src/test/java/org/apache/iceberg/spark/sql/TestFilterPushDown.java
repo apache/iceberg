@@ -52,12 +52,12 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (5, 500, 'd5')", tableName);
     sql("INSERT INTO %s VALUES (6, 600, null)", tableName);
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep IS NULL" /* query predicate */,
         "dep IS NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(6, 600, null)));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep IS NOT NULL" /* query predicate */,
         "dep IS NOT NULL" /* Iceberg scan filters */,
         ImmutableList.of(
@@ -67,83 +67,83 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
             row(4, 400, "d4"),
             row(5, 500, "d5")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep = 'd3'" /* query predicate */,
         "dep IS NOT NULL, dep = 'd3'" /* Iceberg scan filters */,
         ImmutableList.of(row(3, 300, "d3")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep > 'd3'" /* query predicate */,
         "dep IS NOT NULL, dep > 'd3'" /* Iceberg scan filters */,
         ImmutableList.of(row(4, 400, "d4"), row(5, 500, "d5")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep >= 'd5'" /* query predicate */,
         "dep IS NOT NULL, dep >= 'd5'" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep < 'd2'" /* query predicate */,
         "dep IS NOT NULL, dep < 'd2'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep <= 'd2'" /* query predicate */,
         "dep IS NOT NULL, dep <= 'd2'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep <=> 'd3'" /* query predicate */,
         "dep = 'd3'" /* Iceberg scan filters */,
         ImmutableList.of(row(3, 300, "d3")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep IN (null, 'd1')" /* query predicate */,
         "dep IN ('d1')" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep NOT IN ('d2', 'd4')" /* query predicate */,
         "(dep IS NOT NULL AND dep NOT IN ('d2', 'd4'))" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(3, 300, "d3"), row(5, 500, "d5")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep = 'd1' AND dep IS NOT NULL" /* query predicate */,
         "dep = 'd1', dep IS NOT NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep = 'd1' OR dep = 'd2' OR dep = 'd3'" /* query predicate */,
         "((dep = 'd1' OR dep = 'd2') OR dep = 'd3')" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2"), row(3, 300, "d3")));
 
-    checkFilterPushdown(
+    checkFilters(
         "dep = 'd1' AND id = 1" /* query predicate */,
-        "isnotnull(id) AND (id = 1)" /* post scan filter */,
+        "isnotnull(id) AND (id = 1)" /* Spark post scan filter */,
         "dep IS NOT NULL, id IS NOT NULL, dep = 'd1', id = 1" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkFilterPushdown(
+    checkFilters(
         "dep = 'd2' OR id = 1" /* query predicate */,
-        "(dep = d2) OR (id = 1)" /* post scan filter */,
+        "(dep = d2) OR (id = 1)" /* Spark post scan filter */,
         "(dep = 'd2' OR id = 1)" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
-    checkFilterPushdown(
+    checkFilters(
         "dep LIKE 'd1%' AND id = 1" /* query predicate */,
-        "isnotnull(id) AND (id = 1)" /* post scan filter */,
+        "isnotnull(id) AND (id = 1)" /* Spark post scan filter */,
         "dep IS NOT NULL, id IS NOT NULL, dep LIKE 'd1%', id = 1" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkFilterPushdown(
+    checkFilters(
         "dep NOT LIKE 'd5%' AND (id = 1 OR id = 5)" /* query predicate */,
-        "(id = 1) OR (id = 5)" /* post scan filter */,
+        "(id = 1) OR (id = 5)" /* Spark post scan filter */,
         "dep IS NOT NULL, NOT (dep LIKE 'd5%'), (id = 1 OR id = 5)" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
-    checkFilterPushdown(
+    checkFilters(
         "dep LIKE '%d5' AND id IN (1, 5)" /* query predicate */,
-        "EndsWith(dep, d5) AND id IN (1,5)" /* post scan filter */,
+        "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
         "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
   }
@@ -163,31 +163,31 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     withDefaultTimeZone(
         "UTC",
         () -> {
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(3, 300, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T02:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-06-30T02:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1625018400000000" /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T01:00:00.001Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
-          checkFilterPushdown(
+          checkFilters(
               "t < TIMESTAMP '2021-06-30T01:00:00.001Z'" /* query predicate */,
-              "t < 2021-06-30 01:00:00.001" /* post scan filter */,
+              "t < 2021-06-30 01:00:00.001" /* Spark post scan filter */,
               "t IS NOT NULL, t < 1625014800001000" /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
           // strict/inclusive projections for t <= TIMESTAMP '2021-06-30T01:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
-          checkFilterPushdown(
+          checkFilters(
               "t <= TIMESTAMP '2021-06-30T01:00:00.000Z'" /* query predicate */,
-              "t <= 2021-06-30 01:00:00" /* post scan filter */,
+              "t <= 2021-06-30 01:00:00" /* Spark post scan filter */,
               "t IS NOT NULL, t <= 1625014800000000" /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
         });
@@ -209,14 +209,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     withDefaultTimeZone(
         "UTC",
         () -> {
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-07-05T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-07-05T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1625443200000000" /* Iceberg scan filters */,
               ImmutableList.of(
@@ -225,9 +225,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
-          checkFilterPushdown(
+          checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
-              "t < 2021-06-30 03:00:00" /* post scan filter */,
+              "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-15T01:00:00.000Z")),
@@ -251,14 +251,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     withDefaultTimeZone(
         "UTC",
         () -> {
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-07-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-07-01T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1625097600000000" /* Iceberg scan filters */,
               ImmutableList.of(
@@ -267,9 +267,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
-          checkFilterPushdown(
+          checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
-              "t < 2021-06-30 03:00:00" /* post scan filter */,
+              "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
@@ -293,14 +293,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     withDefaultTimeZone(
         "UTC",
         () -> {
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
               "t IS NULL" /* Iceberg scan filters */,
               ImmutableList.of(row(3, 300, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2022-01-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
-          checkCompleteFilterPushdown(
+          checkOnlyIcebergFilters(
               "t < TIMESTAMP '2022-01-01T00:00:00.000Z'" /* query predicate */,
               "t IS NOT NULL, t < 1640995200000000" /* Iceberg scan filters */,
               ImmutableList.of(
@@ -309,9 +309,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T03:00:00.000Z' differ,
           // so this filter does NOT select entire partitions and can't be pushed down completely
-          checkFilterPushdown(
+          checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
-              "t < 2021-06-30 03:00:00" /* post scan filter */,
+              "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
               "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
@@ -330,9 +330,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
 
-    checkFilterPushdown(
+    checkFilters(
         "dep = 'd1' AND id = 1" /* query predicate */,
-        "id = 1" /* post scan filter */,
+        "id = 1" /* Spark post scan filter */,
         "dep IS NOT NULL, id IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
   }
@@ -348,9 +348,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
 
-    checkFilterPushdown(
+    checkFilters(
         "dep = 'd1'" /* query predicate */,
-        "dep = d1" /* post scan filter */,
+        "dep = d1" /* Spark post scan filter */,
         "dep IS NOT NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
   }
@@ -366,7 +366,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (1, 100, 'd1', 'sd1')", tableName);
 
     // the filter can be pushed completely because all specs include identity(dep)
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep = 'd1'" /* query predicate */,
         "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
@@ -378,7 +378,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (2, 200, 'd2', 'sd2')", tableName);
 
     // the filter can be pushed completely because all specs include identity(dep)
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "dep = 'd1'" /* query predicate */,
         "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
@@ -388,9 +388,9 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (3, 300, 'd3', 'sd3')", tableName);
 
     // the filter can't be pushed completely because not all specs include identity(dep)
-    checkFilterPushdown(
+    checkFilters(
         "dep = 'd1'" /* query predicate */,
-        "isnotnull(dep) AND (dep = d1)" /* post scan filter */,
+        "isnotnull(dep) AND (dep = d1)" /* Spark post scan filter */,
         "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
   }
@@ -406,41 +406,41 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (3, double('infinity'))", tableName);
     sql("INSERT INTO %s VALUES (4, double('-infinity'))", tableName);
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "salary = 100.5" /* query predicate */,
         "salary IS NOT NULL, salary = 100.5" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100.5)));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "salary = double('NaN')" /* query predicate */,
         "salary IS NOT NULL, is_nan(salary)" /* Iceberg scan filters */,
         ImmutableList.of(row(2, Double.NaN)));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "salary != double('NaN')" /* query predicate */,
         "salary IS NOT NULL, NOT (is_nan(salary))" /* Iceberg scan filters */,
         ImmutableList.of(
             row(1, 100.5), row(3, Double.POSITIVE_INFINITY), row(4, Double.NEGATIVE_INFINITY)));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "salary = double('infinity')" /* query predicate */,
         "salary IS NOT NULL, salary = Infinity" /* Iceberg scan filters */,
         ImmutableList.of(row(3, Double.POSITIVE_INFINITY)));
 
-    checkCompleteFilterPushdown(
+    checkOnlyIcebergFilters(
         "salary = double('-infinity')" /* query predicate */,
         "salary IS NOT NULL, salary = -Infinity" /* Iceberg scan filters */,
         ImmutableList.of(row(4, Double.NEGATIVE_INFINITY)));
   }
 
-  private void checkCompleteFilterPushdown(
-      String predicate, String pushedFilters, List<Object[]> expectedRows) {
+  private void checkOnlyIcebergFilters(
+      String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
-    checkFilterPushdown(predicate, null, pushedFilters, expectedRows);
+    checkFilters(predicate, null, icebergFilters, expectedRows);
   }
 
-  private void checkFilterPushdown(
-      String predicate, String postScanFilter, String pushedFilters, List<Object[]> expectedRows) {
+  private void checkFilters(
+      String predicate, String sparkFilter, String icebergFilters, List<Object[]> expectedRows) {
 
     Action check =
         () -> {
@@ -452,10 +452,10 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     SparkPlan sparkPlan = executeAndKeepPlan(check);
     String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
 
-    if (postScanFilter != null) {
+    if (sparkFilter != null) {
       Assertions.assertThat(planAsString)
           .as("Post scan filter should match")
-          .contains("Filter (" + postScanFilter + ")");
+          .contains("Filter (" + sparkFilter + ")");
     } else {
       Assertions.assertThat(planAsString)
           .as("Should be no post scan filter")
@@ -464,7 +464,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
 
     Assertions.assertThat(planAsString)
         .as("Pushed filters must match")
-        .contains("[filters=" + pushedFilters + ",");
+        .contains("[filters=" + icebergFilters + ",");
   }
 
   private Timestamp timestamp(String timestampAsString) {

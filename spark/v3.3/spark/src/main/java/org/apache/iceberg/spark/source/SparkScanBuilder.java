@@ -105,6 +105,15 @@ public class SparkScanBuilder
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
+    // there are 3 kinds of filters:
+    // (1) filters that can be pushed down completely and don't have to evaluated by Spark
+    //     (e.g. filters that select entire partitions)
+    // (2) filters that can be pushed down partially and require record-level filtering in Spark
+    //     (e.g. filters that may select some but not necessarily all rows in a file)
+    // (3) filters that can't be pushed down at all and have to be evaluated by Spark
+    //     (e.g. unsupported filters)
+    // filters (2) and (3) form a set of post scan filters and must be reported back to Spark
+
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
     List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
     List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
@@ -121,7 +130,7 @@ public class SparkScanBuilder
           pushableFilters.add(filter);
         }
 
-        if (expr == null || requiresRecordLevelFiltering(expr)) {
+        if (expr == null || requiresSparkFiltering(expr)) {
           postScanFilters.add(filter);
         }
       } catch (Exception e) {
@@ -133,12 +142,10 @@ public class SparkScanBuilder
     this.filterExpressions = expressions;
     this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
-    // all unsupported filters and filters that require record-level filtering
-    // must be reported back and handled on the Spark side
     return postScanFilters.toArray(new Filter[0]);
   }
 
-  private boolean requiresRecordLevelFiltering(Expression expr) {
+  private boolean requiresSparkFiltering(Expression expr) {
     return table.specs().values().stream()
         .anyMatch(spec -> !ExpressionUtil.selectsPartitions(expr, spec, caseSensitive));
   }
