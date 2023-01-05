@@ -112,7 +112,8 @@ public class SparkScanBuilder
     //     (e.g. filters that may select some but not necessarily all rows in a file)
     // (3) filters that can't be pushed down at all and have to be evaluated by Spark
     //     (e.g. unsupported filters)
-    // filters (2) and (3) form a set of post scan filters and must be reported back to Spark
+    // filters (1) and (2) are used prune files during job planning in Iceberg
+    // filters (2) and (3) form a set of post scan filters and must be evaluated by Spark
 
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
     List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
@@ -131,7 +132,10 @@ public class SparkScanBuilder
 
         if (expr == null || requiresSparkFiltering(expr)) {
           postScanFilters.add(filter);
+        } else {
+          LOG.info("Evaluating completely on Iceberg side: {}", filter);
         }
+
       } catch (Exception e) {
         LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
         postScanFilters.add(filter);

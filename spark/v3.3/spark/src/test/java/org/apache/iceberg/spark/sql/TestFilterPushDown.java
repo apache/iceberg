@@ -22,6 +22,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.execution.SparkPlan;
@@ -347,6 +348,12 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
 
     sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
     sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 300, 'a3')", tableName);
+
+    checkOnlyIcebergFilters(
+        "dep LIKE 'd%'" /* query predicate */,
+        "dep IS NOT NULL, dep LIKE 'd%'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
     checkFilters(
         "dep = 'd1'" /* query predicate */,
@@ -356,7 +363,7 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testFilterPushdownWithSpecEvolution() {
+  public void testFilterPushdownWithSpecEvolutionAndIdentityTransforms() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING, sub_dep STRING)"
             + "USING iceberg "
@@ -393,6 +400,82 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         "isnotnull(dep) AND (dep = d1)" /* Spark post scan filter */,
         "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
+  }
+
+  @Test
+  public void testFilterPushdownWithSpecEvolutionAndTruncateTransform() {
+    sql(
+        "CREATE TABLE %s (id INT, salary INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(2, dep))",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, 100, 'd1')", tableName);
+
+    // the filter can be pushed completely because the current spec supports it
+    checkOnlyIcebergFilters(
+        "dep LIKE 'd1%'" /* query predicate */,
+        "dep IS NOT NULL, dep LIKE 'd1%'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1")));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table
+        .updateSpec()
+        .removeField(Expressions.truncate("dep", 2))
+        .addField(Expressions.truncate("dep", 1))
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+    sql("INSERT INTO %s VALUES (2, 200, 'd2')", tableName);
+
+    // the filter can be pushed completely because both specs support it
+    checkOnlyIcebergFilters(
+        "dep LIKE 'd%'" /* query predicate */,
+        "dep IS NOT NULL, dep LIKE 'd%'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
+
+    // the filter can't be pushed completely because the second spec is truncate(dep, 1) and
+    // the predicate literal is d1, which is two chars
+    checkFilters(
+        "dep LIKE 'd1%' AND id = 1" /* query predicate */,
+        "(isnotnull(id) AND StartsWith(dep, d1)) AND (id = 1)" /* Spark post scan filter */,
+        "dep IS NOT NULL, id IS NOT NULL, dep LIKE 'd1%', id = 1" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, 100, "d1")));
+  }
+
+  @Test
+  public void testFilterPushdownWithSpecEvolutionAndTimeTransforms() {
+    sql(
+        "CREATE TABLE %s (id INT, price INT, t TIMESTAMP)"
+            + "USING iceberg "
+            + "PARTITIONED BY (hours(t))",
+        tableName);
+
+    withDefaultTimeZone(
+        "UTC",
+        () -> {
+          sql("INSERT INTO %s VALUES (1, 100, TIMESTAMP '2021-06-30T01:00:00.000Z')", tableName);
+
+          // the filter can be pushed completely because the current spec supports it
+          checkOnlyIcebergFilters(
+              "t < TIMESTAMP '2021-07-01T00:00:00.000Z'" /* query predicate */,
+              "t IS NOT NULL, t < 1625097600000000" /* Iceberg scan filters */,
+              ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.000Z"))));
+
+          Table table = validationCatalog.loadTable(tableIdent);
+          table
+              .updateSpec()
+              .removeField(Expressions.hour("t"))
+              .addField(Expressions.month("t"))
+              .commit();
+          sql("REFRESH TABLE %s", tableName);
+          sql("INSERT INTO %s VALUES (2, 200, TIMESTAMP '2021-05-30T01:00:00.000Z')", tableName);
+
+          // the filter can be pushed completely because both specs support it
+          checkOnlyIcebergFilters(
+              "t < TIMESTAMP '2021-06-01T00:00:00.000Z'" /* query predicate */,
+              "t IS NOT NULL, t < 1622505600000000" /* Iceberg scan filters */,
+              ImmutableList.of(row(2, 200, timestamp("2021-05-30T01:00:00.000Z"))));
+        });
   }
 
   @Test
