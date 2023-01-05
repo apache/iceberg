@@ -35,13 +35,13 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import expression_evaluator
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     LongType,
     NestedField,
     StringType,
 )
+from pyiceberg.utils.iceberg_base_model import Record
 
 SIMPLE_SCHEMA = Schema(
     NestedField(id=1, name="id", field_type=LongType()), NestedField(id=2, name="data", field_type=StringType(), required=False)

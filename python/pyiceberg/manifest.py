@@ -16,30 +16,29 @@
 # under the License.
 from enum import Enum
 from typing import (
-    Any,
     Dict,
     Iterator,
     List,
     Optional,
-    Callable,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    IntegerType,
     ListType,
-    StructType,
+    LongType,
+    MapType,
     NestedField,
     StringType,
-    LongType,
-    IntegerType,
-    BooleanType,
-    BinaryType,
+    StructType,
 )
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.utils.iceberg_base_model import PydanticStruct, Record
 
 
 class DataFileContent(int, Enum):
@@ -77,19 +76,100 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-class DataFile(IcebergBaseModel):
+DATA_FILE = StructType(
+    NestedField(
+        field_id=134,
+        name="content",
+        field_type=IntegerType(),
+        required=False,
+        doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
+    ),
+    NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
+    NestedField(
+        field_id=101, name="file_format", field_type=StringType(), required=True, doc="File format name: avro, orc, or parquet"
+    ),
+    NestedField(
+        field_id=102,
+        name="partition",
+        field_type=StructType(),
+        required=True,
+        doc="Partition data tuple, schema based on the partition spec",
+    ),
+    NestedField(field_id=103, name="record_count", field_type=LongType(), required=True, doc="Number of records in the file"),
+    NestedField(field_id=104, name="file_size_in_bytes", field_type=LongType(), required=True, doc="Total file size in bytes"),
+    NestedField(
+        field_id=108,
+        name="column_sizes",
+        field_type=MapType(key_id=117, key_type=IntegerType(), value_id=118, value_type=LongType()),
+        required=True,
+        doc="Map of column id to total size on disk",
+    ),
+    NestedField(
+        field_id=109,
+        name="value_counts",
+        field_type=MapType(key_id=119, key_type=IntegerType(), value_id=120, value_type=LongType()),
+        required=True,
+        doc="Map of column id to total count, including null and NaN",
+    ),
+    NestedField(
+        field_id=110,
+        name="null_value_counts",
+        field_type=MapType(key_id=121, key_type=IntegerType(), value_id=122, value_type=LongType()),
+        required=False,
+        doc="Map of column id to null value count",
+    ),
+    NestedField(
+        field_id=137,
+        name="nan_value_counts",
+        field_type=MapType(key_id=138, key_type=IntegerType(), value_id=139, value_type=LongType()),
+        required=False,
+        doc="Map of column id to number of NaN values in the column",
+    ),
+    NestedField(
+        field_id=125,
+        name="lower_bounds",
+        field_type=MapType(key_id=126, key_type=IntegerType(), value_id=127, value_type=BinaryType()),
+        required=False,
+        doc="Map of column id to lower bound",
+    ),
+    NestedField(
+        field_id=128,
+        name="upper_bounds",
+        field_type=MapType(key_id=129, key_type=IntegerType(), value_id=130, value_type=BinaryType()),
+        required=False,
+        doc="Map of column id to upper bound",
+    ),
+    NestedField(field_id=131, name="key_metadata", field_type=BinaryType(), required=False, doc="Encryption key metadata blob"),
+    NestedField(
+        field_id=132,
+        name="split_offsets",
+        field_type=ListType(element_id=133, element_type=LongType(), element_required=True),
+        required=False,
+        doc="Splittable offsets",
+    ),
+    NestedField(
+        field_id=135,
+        name="equality_ids",
+        field_type=ListType(element_id=136, element_type=LongType(), element_required=True),
+        required=False,
+        doc="Equality comparison field IDs",
+    ),
+    NestedField(field_id=140, name="sort_order_id", field_type=IntegerType(), required=False, doc="Sort order ID"),
+    NestedField(field_id=141, name="spec_id", field_type=IntegerType(), required=False, doc="Partition spec ID"),
+)
+
+
+class DataFile(PydanticStruct):
     content: DataFileContent = Field(default=DataFileContent.DATA)
     file_path: str = Field()
     file_format: FileFormat = Field()
-    partition: Dict[str, Any] = Field()
+    partition: Record = Field()
     record_count: int = Field()
     file_size_in_bytes: int = Field()
-    block_size_in_bytes: Optional[int] = Field()
     column_sizes: Optional[Dict[int, int]] = Field()
     value_counts: Optional[Dict[int, int]] = Field()
     null_value_counts: Optional[Dict[int, int]] = Field()
     nan_value_counts: Optional[Dict[int, int]] = Field()
-    distinct_counts: Optional[Dict[int, int]] = Field()
     lower_bounds: Optional[Dict[int, bytes]] = Field()
     upper_bounds: Optional[Dict[int, bytes]] = Field()
     key_metadata: Optional[bytes] = Field()
@@ -98,10 +178,20 @@ class DataFile(IcebergBaseModel):
     sort_order_id: Optional[int] = Field()
 
 
-class ManifestEntry(IcebergBaseModel):
+MANIFEST_ENTRY_SCHEMA = Schema(
+    NestedField(0, "status", IntegerType(), required=True),
+    NestedField(1, "snapshot_id", LongType(), required=False),
+    NestedField(3, "sequence_number", LongType(), required=False),
+    NestedField(4, "file_sequence_number", LongType(), required=False),
+    NestedField(2, "data_file", DATA_FILE, required=False),
+)
+
+
+class ManifestEntry(PydanticStruct):
     status: ManifestEntryStatus = Field()
     snapshot_id: Optional[int] = Field()
     sequence_number: Optional[int] = Field()
+    file_sequence_number: Optional[int] = Field()
     data_file: DataFile = Field()
 
 
@@ -113,7 +203,7 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 )
 
 
-class PartitionFieldSummary(IcebergBaseModel):
+class PartitionFieldSummary(PydanticStruct):
     contains_null: bool = Field()
     contains_nan: Optional[bool] = Field()
     lower_bound: Optional[bytes] = Field()
@@ -138,21 +228,14 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
-MANIFEST_FILE_FIELD_NAMES: Dict[int, str] = {pos: field.name for pos, field in enumerate(MANIFEST_FILE_SCHEMA.fields)}
-IN_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {3: lambda id: ManifestContent.DATA if id == 0 else ManifestContent.DELETES}
-OUT_TRANSFORMS: Dict[int, Callable[[Any], Any]] = {3: lambda content: content.id}
 
-class ManifestList(IcebergBaseModel):
-    pass
-
-
-class ManifestFile(IcebergBaseModel):
+class ManifestFile(PydanticStruct):
     manifest_path: str = Field()
     manifest_length: int = Field()
     partition_spec_id: int = Field()
-    content: ManifestContent = Field()
-    sequence_number: int = Field(default=0)
-    min_sequence_number: int = Field(default=0)
+    content: ManifestContent = Field(default=ManifestContent.DATA)
+    sequence_number: Optional[int] = Field()
+    min_sequence_number: Optional[int] = Field()
     added_snapshot_id: Optional[int] = Field()
     added_files_count: Optional[int] = Field()
     existing_files_count: Optional[int] = Field()
@@ -160,45 +243,16 @@ class ManifestFile(IcebergBaseModel):
     added_rows_count: Optional[int] = Field()
     existing_rows_count: Optional[int] = Field()
     deleted_rows_count: Optional[int] = Field()
-    partitions: List[PartitionFieldSummary] = Field(default_factory=[])
+    partitions: List[PartitionFieldSummary] = Field(default_factory=list)
     key_metadata: Optional[bytes] = Field()
-
-    _projection_positions: Dict[int, int] = PrivateAttr()
-
-    def __init__(self, read_schema: Optional[Schema] = None, **data: Any):
-        if read_schema:
-            id_to_pos = {field.field_id: pos for pos, field in enumerate(MANIFEST_FILE_SCHEMA.fields)}
-            self._projection_positions = {pos: id_to_pos[field.field_id] for pos, field in enumerate(read_schema.fields)}
-        else:
-            # all fields are projected
-            self._projection_positions = {pos: pos for pos in range(len(MANIFEST_FILE_SCHEMA.fields))}
-        super().__init__(**data)
-
-    def __getitem__(self, read_pos: int) -> Any:
-        pos = self._projection_positions[read_pos]
-        value = getattr(self, MANIFEST_FILE_FIELD_NAMES[pos])
-        if transform := OUT_TRANSFORMS.get(pos):
-            return transform[1](value)
-        else:
-            return value
-
-    def __setitem__(self, read_pos: int, value: Any) -> None:
-        pos = self._projection_positions[read_pos]
-        if transform := IN_TRANSFORMS.get(pos):
-            self._set_by_position(pos, transform[0](value))
-        else:
-            self._set_by_position(pos, value)
-
-    def _set_by_position(self, pos: int, value: Any):
-        setattr(self, MANIFEST_FILE_FIELD_NAMES[pos], value)
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)
         return list(read_manifest_entry(file))
 
 
-def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    with AvroFile(input_file, None, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+def read_manifest_entry(input_file: InputFile) -> List[ManifestEntry]:
+    with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile, 102: Record}) as reader:
         return list(reader)
 
 
@@ -210,8 +264,6 @@ def files(input_file: InputFile) -> Iterator[DataFile]:
     return (entry.data_file for entry in live_entries(input_file))
 
 
-def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
-    with AvroFile(input_file, None, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+def read_manifest_list(input_file: InputFile) -> List[ManifestFile]:
+    with AvroFile[ManifestFile](input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
         return list(reader)
-
-

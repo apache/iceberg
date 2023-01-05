@@ -83,6 +83,7 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
+from pyiceberg.utils.iceberg_base_model import Record
 
 
 def test_pyarrow_input_file() -> None:
@@ -775,7 +776,7 @@ def project(
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition=Record(), record_count=3, file_size_in_bytes=3)
             )
             for file in files
         ],

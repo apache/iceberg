@@ -37,11 +37,13 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Type,
 )
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.typedef import Record, StructProtocol
+from pyiceberg.typedef import StructProtocol
+from pyiceberg.utils.iceberg_base_model import PydanticStruct, Record
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -89,6 +91,9 @@ class Reader(Singleton):
     @abstractmethod
     def skip(self, decoder: BinaryDecoder) -> None:
         ...
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 class NoneReader(Reader):
@@ -194,6 +199,9 @@ class FixedReader(Reader):
     def __len__(self) -> int:
         return self._len
 
+    def __repr__(self) -> str:
+        return f"FixedReader({self._len})"
+
 
 class BinaryReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bytes:
@@ -213,6 +221,9 @@ class DecimalReader(Reader):
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()
+
+    def __repr__(self) -> str:
+        return f"DecimalReader({self.precision}, {self.scale})"
 
 
 @dataclass(frozen=True)
@@ -238,22 +249,21 @@ class OptionReader(Reader):
             return self.option.skip(decoder)
 
 
-class StructProtocolReader(Reader):
-    create_struct: Callable[[], StructProtocol]
+class StructReader(Reader):
     fields: Tuple[Tuple[Optional[int], Reader], ...]
+    create_struct: Type[StructProtocol]
 
-    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Callable[[], StructProtocol]):
-        self.create_struct = create_struct
+    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Type[StructProtocol] = Record):
         self.fields = fields
-
-    def create_or_reuse(self, reuse: Optional[StructProtocol]) -> StructProtocol:
-        if reuse:
-            return reuse
-        else:
-            return self.create_struct()
+        self.create_struct = create_struct or Record
 
     def read(self, decoder: BinaryDecoder) -> Any:
-        struct = self.create_or_reuse(None)
+        if issubclass(self.create_struct, Record):
+            struct = Record.of(len(self.fields))
+        elif issubclass(self.create_struct, PydanticStruct):
+            struct = self.create_struct.construct()
+        else:
+            raise ValueError(f"Expected a subclass of PydanticStruct, got: {self.create_struct}")
 
         for (pos, field) in self.fields:
             if pos is not None:
@@ -267,12 +277,18 @@ class StructProtocolReader(Reader):
         for _, field in self.fields:
             field.skip(decoder)
 
+    def __eq__(self, other: Any) -> bool:
+        return (
+            self.fields == other.fields and self.create_struct == other.create_struct
+            if isinstance(other, StructReader)
+            else False
+        )
 
-class StructReader(StructProtocolReader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...]
+    def __repr__(self) -> str:
+        return f"StructReader(({','.join(repr(field) for field in self.fields)}), {repr(self.create_struct)})"
 
-    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...]):
-        super().__init__(fields, lambda: Record.of(len(fields)))
+    def __hash__(self) -> int:
+        return hash(self.fields)
 
 
 @dataclass(frozen=True)

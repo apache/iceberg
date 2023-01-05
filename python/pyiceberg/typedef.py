@@ -22,7 +22,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    List,
     Protocol,
     Tuple,
     TypeVar,
@@ -78,28 +77,3 @@ class StructProtocol(Protocol):  # pragma: no cover
     @abstractmethod
     def __setitem__(self, pos: int, value: Any) -> None:
         ...
-
-
-class Record(StructProtocol):
-    _data: List[Union[Any, StructProtocol]]
-
-    @staticmethod
-    def of(num_fields: int) -> Record:
-        return Record(*([None] * num_fields))
-
-    def __init__(self, *data: Union[Any, StructProtocol]) -> None:
-        self._data = list(data)
-
-    def __setitem__(self, pos: int, value: Any) -> None:
-        print(f"set({pos}, {repr(value)})")
-        self._data[pos] = value
-
-    def __getitem__(self, pos: int) -> Any:
-        return self._data[pos]
-
-    def __eq__(self, other: Any) -> bool:
-        # For testing
-        return True if isinstance(other, Record) and other._data == self._data else False
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}[" + ", ".join([repr(e) for e in self._data]) + "]"

@@ -280,6 +280,9 @@ class StructType(IcebergType):
     def __repr__(self) -> str:
         return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
 
+    def __len__(self) -> int:
+        return len(self.fields)
+
 
 class ListType(IcebergType):
     """A list type in Iceberg

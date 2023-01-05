@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=arguments-renamed,unused-argument
 from typing import (
-    Callable,
     Dict,
     List,
     Optional,
     Tuple,
+    Type,
     Union,
 )
 
@@ -35,7 +35,6 @@ from pyiceberg.avro.reader import (
     IntegerReader,
     ListReader,
     MapReader,
-    NoneReader,
     OptionReader,
     Reader,
     StringReader,
@@ -76,9 +75,10 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+from pyiceberg.utils.iceberg_base_model import Record
 
 
-def construct_reader(file_schema: Union[Schema, IcebergType]) -> Reader:
+def construct_reader(file_schema: Union[Schema, IcebergType], read_types: Dict[int, Type[StructProtocol]] = EMPTY_DICT) -> Reader:
     """Constructs a reader from a file schema
 
     Args:
@@ -87,13 +87,13 @@ def construct_reader(file_schema: Union[Schema, IcebergType]) -> Reader:
     Raises:
         NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    return resolve(file_schema, file_schema)
+    return resolve(file_schema, file_schema, read_types)
 
 
 def resolve(
     file_schema: Union[Schema, IcebergType],
     read_schema: Union[Schema, IcebergType],
-    read_types: Dict[int, Callable[[Schema], StructProtocol]] = EMPTY_DICT,
+    read_types: Dict[int, Type[StructProtocol]] = EMPTY_DICT,
 ) -> Reader:
     """Resolves the file and read schema to produce a reader
 
@@ -109,38 +109,46 @@ def resolve(
 
 
 class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
-    read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]
+    read_types: Dict[int, Type[StructProtocol]]
+    context: List[int]
 
-    def __init__(self, read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]):
+    def __init__(self, read_types: Dict[int, Type[StructProtocol]] = EMPTY_DICT) -> None:
         self.read_types = read_types
+        self.context = []
 
     def schema(self, schema: Schema, expected_schema: Optional[IcebergType], result: Reader) -> Reader:
         return result
 
+    def before_field(self, field: NestedField, field_partner: Optional[NestedField]) -> None:
+        self.context.append(field.field_id)
+
+    def after_field(self, field: NestedField, field_partner: Optional[NestedField]) -> None:
+        self.context.pop()
+
     def struct(self, struct: StructType, expected_struct: Optional[IcebergType], field_readers: List[Reader]) -> Reader:
+        # -1 indicates the struct root
+        read_struct_id = self.context[-1] if len(self.context) > 0 else -1
+        struct_callable = self.read_types.get(read_struct_id, Record)
+
         if not expected_struct:
-            return StructReader(tuple(enumerate(field_readers)))
+            return StructReader(tuple(enumerate(field_readers)), struct_callable)
 
         if not isinstance(expected_struct, StructType):
             raise ResolveError(f"File/read schema are not aligned for struct, got {expected_struct}")
 
-        results: List[Tuple[Optional[int], Reader]] = []
         expected_positions: Dict[int, int] = {field.field_id: pos for pos, field in enumerate(expected_struct.fields)}
 
         # first, add readers for the file fields that must be in order
-        for field, result_reader in zip(struct.fields, field_readers):
-            read_pos = expected_positions.get(field.field_id)
-            results.append((read_pos, result_reader))
+        results: List[Tuple[Optional[int], Reader]] = [
+            (expected_positions.get(field.field_id), result_reader) for field, result_reader in zip(struct.fields, field_readers)
+        ]
 
         file_fields = {field.field_id: field for field in struct.fields}
-        for pos, read_field in enumerate(expected_struct.fields):
-            if read_field.field_id not in file_fields:
-                if read_field.required:
-                    raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
-                # Just set the new field to None
-                results.append((pos, NoneReader()))
+        for read_field in expected_struct.fields:
+            if read_field.field_id not in file_fields and read_field.required:
+                raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
 
-        return StructReader(tuple(results))
+        return StructReader(tuple(results), struct_callable)
 
     def field(self, field: NestedField, expected_field: Optional[IcebergType], field_reader: Reader) -> Reader:
         return field_reader if field.required else OptionReader(field_reader)

@@ -205,7 +205,7 @@ class RestCatalog(Catalog):
             if ssl_client := ssl_config.get(CLIENT):  # type: ignore
                 if all(k in ssl_client for k in (CERT, KEY)):
                     self.session.cert = (ssl_client[CERT], ssl_client[KEY])
-                elif ssl_client_cert := ssl_client[CERT]:
+                elif ssl_client_cert := ssl_client.get(CERT):
                     self.session.cert = ssl_client_cert
 
         # If we have credentials, but not a token, we want to fetch a token

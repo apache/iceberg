@@ -14,15 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from functools import cached_property
 from typing import (
     Any,
     Dict,
+    List,
     Optional,
     Set,
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 
 class IcebergBaseModel(BaseModel):
@@ -60,3 +63,39 @@ class IcebergBaseModel(BaseModel):
         return super().json(
             exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
         )
+
+
+class PydanticStruct(IcebergBaseModel):
+    class Config:
+        frozen = False
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        positions = list(self.__fields__.values())
+        self.__setattr__(positions[pos].name, value)
+
+    def __getitem__(self, pos: int) -> Any:
+        positions = list(self.__fields__.values())
+        return self.__getattribute__(positions[pos].name)
+
+
+class Record(PydanticStruct):
+    """A generic record"""
+
+    _data: List[Any] = PrivateAttr()
+
+    @staticmethod
+    def of(length: int) -> Record:
+        return Record(*([None] * length))
+
+    def __init__(self, *data: Any) -> None:
+        super().__init__()
+        self._data = list(data)
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        self._data[pos] = value
+
+    def __getitem__(self, pos: int) -> Any:
+        return self._data[pos]
+
+    def __repr__(self) -> str:
+        return f"Record[{', '.join(repr(v) for v in self._data)}]"

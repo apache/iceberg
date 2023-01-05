@@ -61,7 +61,6 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.literals import Literal, literal
 from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     FloatType,
@@ -71,6 +70,7 @@ from pyiceberg.types import (
     NestedField,
     StringType,
 )
+from pyiceberg.utils.iceberg_base_model import Record
 from pyiceberg.utils.singleton import Singleton
 
 
