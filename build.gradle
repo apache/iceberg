@@ -395,6 +395,7 @@ project(':iceberg-data') {
       exclude group: 'org.codehaus.jackson'
     }
 
+    compileOnly libs.caffeine
     compileOnly libs.avro.avro
 
     testImplementation(libs.hadoop2.client) {

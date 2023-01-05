@@ -66,6 +66,11 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
   "1.1.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.util.CharSequenceWrapper"
+      new: "class org.apache.iceberg.util.CharSequenceWrapper"
+      justification: "Added class field is not serialized"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.noLongerImplementsInterface"
       old: "class org.apache.iceberg.jdbc.JdbcCatalog"

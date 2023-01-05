@@ -44,4 +44,9 @@ public interface PositionDeleteIndex {
 
   /** Returns true if this collection contains no element. */
   boolean isEmpty();
+
+  /** In-place bitwise OR (union) operation. The current bitmap is modified. */
+  default PositionDeleteIndex or(PositionDeleteIndex deleteIndex) {
+    throw new UnsupportedOperationException();
+  }
 }

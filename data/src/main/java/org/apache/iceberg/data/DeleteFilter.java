@@ -18,14 +18,19 @@
  */
 package org.apache.iceberg.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -36,23 +41,30 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,6 +166,15 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
+  public CloseableIterable<T> filter(
+      CloseableIterable<T> records, Map<String, PositionDeleteIndex> posIndexMap) {
+    Optional<PositionDeleteIndex> posIndex =
+        Optional.ofNullable(posIndexMap).map(cache -> cache.get(filePath));
+
+    boolean skipPosDeletes = posIndexMap != null && !posIndex.isPresent();
+    return applyEqDeletes(!skipPosDeletes ? applyPosDeletes(records, posIndex) : records);
+  }
+
   private List<Predicate<T>> applyEqDeletes() {
     if (isInDeleteSets != null) {
       return isInDeleteSets;
@@ -239,16 +260,20 @@ public abstract class DeleteFilter<T> {
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
+    return applyPosDeletes(records, Optional.empty());
+  }
+
+  private CloseableIterable<T> applyPosDeletes(
+      CloseableIterable<T> records, Optional<PositionDeleteIndex> posIndex) {
     if (posDeletes.isEmpty()) {
       return records;
     }
-
     List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
-      Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
+      PositionDeleteIndex pi = posIndex.orElseGet(() -> Deletes.toPositionIndex(filePath, deletes));
+      Predicate<T> isDeleted = record -> pi.isDeleted(pos(record));
       return createDeleteIterable(records, isDeleted);
     }
 
@@ -266,11 +291,20 @@ public abstract class DeleteFilter<T> {
         : Deletes.filterDeleted(records, isDeleted, counter);
   }
 
-  private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
-    return openDeletes(file, POS_DELETE_SCHEMA);
+  private CloseableIterable<Record> openPosDeletesNoFilter(DeleteFile deleteFile) {
+    return openDeletes(deleteFile, POS_DELETE_SCHEMA, null);
+  }
+
+  private CloseableIterable<Record> openPosDeletes(DeleteFile deleteFile) {
+    return openDeletes(deleteFile, POS_DELETE_SCHEMA);
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema deleteSchema) {
+    return openDeletes(deleteFile, deleteSchema, filePath);
+  }
+
+  private CloseableIterable<Record> openDeletes(
+      DeleteFile deleteFile, Schema deleteSchema, String pathFilter) {
     LOG.trace("Opening delete file {}", deleteFile.path());
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
@@ -282,38 +316,34 @@ public abstract class DeleteFilter<T> {
             .build();
 
       case PARQUET:
-        Parquet.ReadBuilder builder =
-            Parquet.read(input)
-                .project(deleteSchema)
-                .reuseContainers()
-                .createReaderFunc(
-                    fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema));
-
-        if (deleteFile.content() == FileContent.POSITION_DELETES) {
-          builder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath));
-        }
-
-        return builder.build();
+        return Parquet.read(input)
+            .project(deleteSchema)
+            .reuseContainers()
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
+            .filter(deletesFilter(deleteFile, pathFilter))
+            .build();
 
       case ORC:
         // Reusing containers is automatic for ORC. No need to set 'reuseContainers' here.
-        ORC.ReadBuilder orcBuilder =
-            ORC.read(input)
-                .project(deleteSchema)
-                .createReaderFunc(
-                    fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema));
-
-        if (deleteFile.content() == FileContent.POSITION_DELETES) {
-          orcBuilder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath));
-        }
-
-        return orcBuilder.build();
+        return ORC.read(input)
+            .project(deleteSchema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
+            .filter(deletesFilter(deleteFile, pathFilter))
+            .build();
       default:
         throw new UnsupportedOperationException(
             String.format(
                 "Cannot read deletes, %s is not a supported format: %s",
                 deleteFile.format().name(), deleteFile.path()));
     }
+  }
+
+  private Expression deletesFilter(DeleteFile deleteFile, String pathFilter) {
+    if (pathFilter != null && FileContent.POSITION_DELETES == deleteFile.content()) {
+      return Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), pathFilter);
+    }
+    return null;
   }
 
   private static Schema fileProjection(
@@ -366,5 +396,100 @@ public abstract class DeleteFilter<T> {
     }
 
     return new Schema(columns);
+  }
+
+  public Map<String, PositionDeleteIndex> createPosIndexMap(
+      Map<String, PositionDeleteIndex> posIndexMap, Iterable<FileScanTask> fileTasks) {
+    return createPosIndexMap(posIndexMap, fileTasks, DEFAULT_SET_FILTER_THRESHOLD);
+  }
+
+  public Map<String, PositionDeleteIndex> createPosIndexMap(
+      Map<String, PositionDeleteIndex> posIndexMap,
+      Iterable<FileScanTask> fileTasks,
+      long filterThreshold) {
+    Preconditions.checkNotNull(posIndexMap, "posIndexMap cannot be null");
+
+    if (!posIndexMap.isEmpty()) {
+      return posIndexMap;
+    }
+
+    List<DeleteFile> posDeleteFiles = distinctPosDeletes(fileTasks);
+    if (posDeleteFiles.isEmpty()) {
+      return ImmutableMap.of();
+    }
+
+    // if there are fewer deletes than a reasonable number to keep in memory, use a set
+    if (posDeleteFiles.stream().mapToLong(DeleteFile::recordCount).sum() < filterThreshold) {
+      CharSequenceSet filePaths =
+          CharSequenceSet.of(Iterables.transform(fileTasks, task -> task.file().path()));
+      List<CloseableIterable<Record>> deletes =
+          Lists.transform(posDeleteFiles, this::openPosDeletesNoFilter);
+      posIndexMap.putAll(Deletes.toPositionIndexMap(filePaths, deletes));
+      return posIndexMap;
+    }
+    return null;
+  }
+
+  public Map<String, PositionDeleteIndex> createPosIndexMap(
+      Cache<CharSequence, Map<String, PositionDeleteIndex>> posIndexCache,
+      Iterable<FileScanTask> fileTasks) {
+    return createPosIndexMap(posIndexCache, fileTasks, DEFAULT_SET_FILTER_THRESHOLD);
+  }
+
+  public Map<String, PositionDeleteIndex> createPosIndexMap(
+      Cache<CharSequence, Map<String, PositionDeleteIndex>> posIndexCache,
+      Iterable<FileScanTask> fileTasks,
+      long filterThreshold) {
+    Preconditions.checkNotNull(posIndexCache, "posIndexCache cannot be null");
+
+    List<DeleteFile> posDeleteFiles = distinctPosDeletes(fileTasks);
+    if (posDeleteFiles.isEmpty()) {
+      return ImmutableMap.of();
+    }
+
+    // if there are fewer deletes than a reasonable number to keep in memory, use a set
+    if (posDeleteFiles.stream().mapToLong(DeleteFile::recordCount).sum() < filterThreshold) {
+      CharSequenceSet filePaths =
+          CharSequenceSet.of(Iterables.transform(fileTasks, task -> task.file().path()));
+
+      Map<String, PositionDeleteIndex> posIndexMap = Maps.newConcurrentMap();
+      // open all of the delete files in parallel, use index to avoid reordering
+      Tasks.Task<DeleteFile, RuntimeException> task =
+          deleteFile ->
+              Maps.filterKeys(
+                      posIndexCache.get(
+                          deleteFile.path(),
+                          func -> {
+                            LOG.debug("Cache miss: {}", deleteFile.path());
+                            Instant start = Instant.now();
+                            Map<String, PositionDeleteIndex> res =
+                                Deletes.toPositionIndexMap(openPosDeletesNoFilter(deleteFile));
+                            LOG.debug(
+                                "Cache load: {}; Time taken: {} ms;",
+                                deleteFile.path(),
+                                Duration.between(start, Instant.now()).toMillis());
+                            return res;
+                          }),
+                      filePaths::contains)
+                  .forEach((key, value) -> posIndexMap.merge(key, value, PositionDeleteIndex::or));
+      Tasks.foreach(posDeleteFiles)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(ThreadPools.getDeleteWorkerPool())
+          .run(task);
+      LOG.debug("Cache size: {}", posIndexCache.estimatedSize());
+      return posIndexMap;
+    }
+    return null;
+  }
+
+  private static List<DeleteFile> distinctPosDeletes(Iterable<FileScanTask> fileTasks) {
+    CharSequenceSet deleteSet = CharSequenceSet.empty(Comparators.filePath());
+
+    return FluentIterable.from(fileTasks)
+        .transformAndConcat(FileScanTask::deletes)
+        .filter(deleteFile -> FileContent.POSITION_DELETES == deleteFile.content())
+        .filter(deleteFile -> deleteSet.add(deleteFile.path()))
+        .toList();
   }
 }

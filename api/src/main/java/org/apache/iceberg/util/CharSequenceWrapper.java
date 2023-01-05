@@ -19,19 +19,27 @@
 package org.apache.iceberg.util;
 
 import java.io.Serializable;
+import java.util.Comparator;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.JavaHashes;
 
 /** Wrapper class to adapt CharSequence for use in maps and sets. */
 public class CharSequenceWrapper implements CharSequence, Serializable {
+
   public static CharSequenceWrapper wrap(CharSequence seq) {
-    return new CharSequenceWrapper(seq);
+    return wrap(seq, Comparators.charSequences());
+  }
+
+  public static CharSequenceWrapper wrap(CharSequence seq, Comparator<CharSequence> comparator) {
+    return new CharSequenceWrapper(seq, comparator);
   }
 
   private CharSequence wrapped;
+  private final transient Comparator<CharSequence> comparator;
 
-  private CharSequenceWrapper(CharSequence wrapped) {
+  private CharSequenceWrapper(CharSequence wrapped, Comparator<CharSequence> comparator) {
     this.wrapped = wrapped;
+    this.comparator = comparator;
   }
 
   public CharSequenceWrapper set(CharSequence newWrapped) {
@@ -52,7 +60,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
     }
 
     CharSequenceWrapper that = (CharSequenceWrapper) other;
-    return Comparators.charSequences().compare(wrapped, that.wrapped) == 0;
+    return comparator.compare(wrapped, that.wrapped) == 0;
   }
 
   @Override

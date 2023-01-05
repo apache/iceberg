@@ -42,6 +42,17 @@ public class SystemConfigs {
           Math.max(2, Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /**
+   * Sets the size of the delete worker pool. The delete worker pool limits the number of tasks concurrently
+   * processing positional deletes from multiple FileScanTasks.
+   */
+  public static final ConfigEntry<Integer> DELETE_POS_FILES_THREAD_POOL_SIZE =
+      new ConfigEntry<>(
+          "iceberg.worker.num-delete-threads",
+          "ICEBERG_WORKER_NUM_DELETE_THREADS",
+          2,
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

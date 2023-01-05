@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -29,6 +30,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -40,6 +42,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -62,19 +65,32 @@ class GenericReader implements Serializable {
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
     Iterable<FileScanTask> fileTasks =
         Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
-    return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
+    return open(fileTasks).iterator();
   }
 
   public CloseableIterable<Record> open(CombinedScanTask task) {
     return new CombinedTaskIterable(task);
   }
 
+  public CloseableIterable<Record> open(Iterable<FileScanTask> fileTasks) {
+    Map<String, PositionDeleteIndex> posIndexCache = Maps.newHashMap();
+    Function<DeleteFilter<Record>, Map<String, PositionDeleteIndex>> posIndex =
+        delete -> delete.createPosIndexMap(posIndexCache, fileTasks);
+    return CloseableIterable.concat(Iterables.transform(fileTasks, task -> open(task, posIndex)));
+  }
+
   public CloseableIterable<Record> open(FileScanTask task) {
+    return open(task, filter -> null);
+  }
+
+  private CloseableIterable<Record> open(
+      FileScanTask task,
+      Function<DeleteFilter<Record>, Map<String, PositionDeleteIndex>> posIndex) {
     DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
     CloseableIterable<Record> records = openFile(task, readSchema);
-    records = deletes.filter(records);
+    records = deletes.filter(records, posIndex.apply(deletes));
     records = applyResidual(records, readSchema, task.residual());
 
     return records;

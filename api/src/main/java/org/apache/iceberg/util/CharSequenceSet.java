@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -29,24 +30,36 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.Comparators;
 
 public class CharSequenceSet implements Set<CharSequence>, Serializable {
   private static final ThreadLocal<CharSequenceWrapper> wrappers =
       ThreadLocal.withInitial(() -> CharSequenceWrapper.wrap(null));
 
   public static CharSequenceSet of(Iterable<CharSequence> charSequences) {
-    return new CharSequenceSet(charSequences);
+    return of(charSequences, Comparators.charSequences());
+  }
+
+  public static CharSequenceSet of(
+      Iterable<CharSequence> charSequences, Comparator<CharSequence> comparator) {
+    return new CharSequenceSet(charSequences, comparator);
   }
 
   public static CharSequenceSet empty() {
-    return new CharSequenceSet(ImmutableList.of());
+    return empty(Comparators.charSequences());
+  }
+
+  public static CharSequenceSet empty(Comparator<CharSequence> comparator) {
+    return new CharSequenceSet(ImmutableList.of(), comparator);
   }
 
   private final Set<CharSequenceWrapper> wrapperSet;
 
-  private CharSequenceSet(Iterable<CharSequence> charSequences) {
+  private CharSequenceSet(
+      Iterable<CharSequence> charSequences, Comparator<CharSequence> comparator) {
     this.wrapperSet =
-        Sets.newHashSet(Iterables.transform(charSequences, CharSequenceWrapper::wrap));
+        Sets.newHashSet(
+            Iterables.transform(charSequences, seq -> CharSequenceWrapper.wrap(seq, comparator)));
   }
 
   @Override
