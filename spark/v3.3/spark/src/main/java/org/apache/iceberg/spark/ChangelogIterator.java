@@ -38,11 +38,11 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
  * file which contains row1 (id=1, data='a') and row2 (id=2, data='b'). A copy-on-write delete of
  * row2 would require erasing this file and preserving row1 in a new file. The change-log table
  * would report this as (id=1, data='a', op='DELETE') and (id=1, data='a', op='INSERT'), despite it
- * not being an actual change to the table. The iterator finds out the carry-over rows and removes
- * them from the result.
+ * not being an actual change to the table. The iterator finds the carry-over rows and removes them
+ * from the result.
  *
- * <p>The iterator marks the delete-row and insert-row to be the update-rows. For example, these two
- * rows
+ * <p>This iterator also finds delete/insert rows which represent an update, and converts them into
+ * update records. For example, these two rows
  *
  * <ul>
  *   <li>(id=1, data='a', op='DELETE')
@@ -67,6 +67,7 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   private final List<Integer> identifierFieldIdx;
 
   private Row cachedRow = null;
+  private int[] indicesForIdentifySameRow = null;
 
   private ChangelogIterator(
       Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> identifierFieldIdx) {
@@ -110,6 +111,10 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
 
     Row currentRow = currentRow();
 
+    if (indicesForIdentifySameRow == null) {
+      generateIndicesForIdentifySameRow(currentRow);
+    }
+
     if (currentRow.getString(changeTypeIndex).equals(DELETE) && rowIterator.hasNext()) {
       GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
       cachedRow = nextRow;
@@ -130,6 +135,18 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     return currentRow;
   }
 
+  private int[] generateIndicesForIdentifySameRow(Row row) {
+    int[] indices = new int[row.length() - 1];
+    for (int i = 0; i < indices.length; i++) {
+      if (i < changeTypeIndex) {
+        indices[i] = i;
+      } else {
+        indices[i] = i + 1;
+      }
+    }
+    return indices;
+  }
+
   private Row[] createUpdateChangelog(
       GenericRowWithSchema currentRow, GenericRowWithSchema nextRow) {
     GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
@@ -144,13 +161,8 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   }
 
   private boolean isCarryoverRecord(Row currentRow, Row nextRow) {
-    int length = currentRow.length();
-    for (int i = 0; i < length; i++) {
-      if (i == changeTypeIndex) {
-        continue;
-      }
-
-      if (!isColumnSame(currentRow, nextRow, i)) {
+    for (int idx : indicesForIdentifySameRow) {
+      if (!isColumnSame(currentRow, nextRow, idx)) {
         return false;
       }
     }
@@ -190,16 +202,6 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   }
 
   private static boolean isColumnSame(Row currentRow, Row nextRow, int idx) {
-    if (currentRow.isNullAt(idx) && nextRow.isNullAt(idx)) {
-      return true;
-    }
-
-    if (!currentRow.isNullAt(idx)
-        && !nextRow.isNullAt(idx)
-        && nextRow.get(idx).equals(currentRow.get(idx))) {
-      return true;
-    }
-
-    return false;
+    return Objects.equals(nextRow.get(idx), currentRow.get(idx));
   }
 }
