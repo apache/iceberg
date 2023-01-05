@@ -125,7 +125,6 @@ public class SparkScanBuilder
         if (expr != null) {
           // try binding the expression to ensure it can be pushed down
           Binder.bind(schema.asStruct(), expr, caseSensitive);
-
           expressions.add(expr);
           pushableFilters.add(filter);
         }
