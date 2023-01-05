@@ -110,14 +110,22 @@ public class SparkScanBuilder
     List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = safelyConvertFilter(filter);
+      try {
+        Expression expr = SparkFilters.convert(filter);
 
-      if (expr != null) {
-        expressions.add(expr);
-        pushableFilters.add(filter);
-      }
+        if (expr != null) {
+          // try binding the expression to ensure it can be pushed down
+          Binder.bind(schema.asStruct(), expr, caseSensitive);
 
-      if (expr == null || requiresRecordLevelFiltering(expr)) {
+          expressions.add(expr);
+          pushableFilters.add(filter);
+        }
+
+        if (expr == null || requiresRecordLevelFiltering(expr)) {
+          postScanFilters.add(filter);
+        }
+      } catch (Exception e) {
+        LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
         postScanFilters.add(filter);
       }
     }
@@ -128,23 +136,6 @@ public class SparkScanBuilder
     // all unsupported filters and filters that require record-level filtering
     // must be reported back and handled on the Spark side
     return postScanFilters.toArray(new Filter[0]);
-  }
-
-  private Expression safelyConvertFilter(Filter filter) {
-    try {
-      Expression expr = SparkFilters.convert(filter);
-
-      if (expr != null) {
-        // try binding the expression to ensure it can be pushed down
-        Binder.bind(schema.asStruct(), expr, caseSensitive);
-        return expr;
-      }
-
-    } catch (Exception e) {
-      LOG.warn("Exception while converting {} to Iceberg: {}.", filter, e.getMessage());
-    }
-
-    return null;
   }
 
   private boolean requiresRecordLevelFiltering(Expression expr) {
