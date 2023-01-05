@@ -101,8 +101,38 @@ def test_pyarrow_input_file() -> None:
         input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
-        r = input_file.open()
+        r = input_file.open(seekable=False)
         assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        with pytest.raises(OSError) as exc_info:
+            r.seek(0, 0)
+        assert "only valid on seekable files" in str(exc_info.value)
+
+
+def test_pyarrow_input_file_seekable() -> None:
+    """Test reading a file using PyArrowFile"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Instantiate the input file
+        absolute_file_location = os.path.abspath(file_location)
+        input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
+
+        # Test opening and reading the file
+        r = input_file.open(seekable=True)
+        assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        r.seek(0, 0)
         data = r.read()
         assert data == b"foo"
         assert len(input_file) == 3

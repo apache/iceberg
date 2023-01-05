@@ -65,7 +65,7 @@ from pyiceberg.types import (
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
     with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
-        header = reader._read_header()
+        header = reader.header
 
     assert header.magic == b"Obj\x01"
     assert json.loads(header.meta["avro.schema"]) == {
