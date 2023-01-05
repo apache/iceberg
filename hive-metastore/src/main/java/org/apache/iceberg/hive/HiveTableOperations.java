@@ -36,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -76,6 +75,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
@@ -632,18 +632,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   @VisibleForTesting
   long acquireLock(String agentInfo) throws UnknownHostException, TException, InterruptedException {
-    AtomicReference<Long> lockId = new AtomicReference<>();
-    AtomicReference<LockState> state = new AtomicReference<>();
-
-    // This will set the lockId and state if successful
-    tryLock(agentInfo, lockId, state);
+    LockInfo lockInfo = tryLock(agentInfo);
 
     final long start = System.currentTimeMillis();
     long duration = 0;
     boolean timeout = false;
 
     try {
-      if (state.get().equals(LockState.WAITING)) {
+      if (lockInfo.lockState.equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact,
         // the maximum number of
         // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use
@@ -654,7 +650,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         // Integer.MIN_VALUE. Hence,
         // the retry is set conservatively as `Integer.MAX_VALUE - 100` so it doesn't hit any
         // boundary issues.
-        Tasks.foreach(lockId.get())
+        Tasks.foreach(lockInfo.lockId)
             .retry(Integer.MAX_VALUE - 100)
             .exponentialBackoff(lockCheckMinWaitTime, lockCheckMaxWaitTime, lockAcquireTimeout, 1.5)
             .throwFailureWhenFinished()
@@ -664,7 +660,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                   try {
                     LockResponse response = metaClients.run(client -> client.checkLock(id));
                     LockState newState = response.getState();
-                    state.set(newState);
+                    lockInfo.lockState = newState;
                     if (newState.equals(LockState.WAITING)) {
                       throw new WaitingForLockException(
                           String.format("Waiting for lock on table %s.%s", database, tableName));
@@ -684,23 +680,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       timeout = true;
       duration = System.currentTimeMillis() - start;
     } finally {
-      if (!state.get().equals(LockState.ACQUIRED)) {
-        unlock(Optional.of(lockId.get()), agentInfo);
+      if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
+        unlock(Optional.of(lockInfo.lockId), agentInfo);
       }
     }
 
     // timeout and do not have lock acquired
-    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
+    if (timeout && !lockInfo.lockState.equals(LockState.ACQUIRED)) {
       throw new CommitFailedException(
           "Timed out after %s ms waiting for lock on %s.%s", duration, database, tableName);
     }
 
-    if (!state.get().equals(LockState.ACQUIRED)) {
+    if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
       throw new CommitFailedException(
           "Could not acquire the lock on %s.%s, lock request ended in state %s",
-          database, tableName, state);
+          database, tableName, lockInfo.lockState);
     }
-    return lockId.get();
+
+    return lockInfo.lockId;
   }
 
   private void cleanupMetadataAndUnlock(
@@ -728,15 +725,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (!lockId.isPresent()) {
         // Try to find the lock based on agentInfo. Only works with Hive 2 or later.
         if (MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
-          AtomicReference<Long> foundLockId = new AtomicReference<>();
-          AtomicReference<LockState> state = new AtomicReference<>();
-          if (!findLock(agentInfo, foundLockId, state)) {
+          LockInfo lockInfo = findLock(agentInfo);
+          if (lockInfo == null) {
             // No lock found
             LOG.info("No lock found with {} agentInfo", agentInfo);
             return;
           }
 
-          id = foundLockId.get();
+          id = lockInfo.lockId;
         } else {
           LOG.warn("Could not find lock with HMSClient {}", MetastoreClientVersion.current());
           return;
@@ -812,10 +808,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
   }
 
+  /**
+   * Tries to create a lock. If the lock creation fails, and it is possible then retries the lock
+   * creation a few times. If the lock creation is successful then a {@link LockInfo} is returned,
+   * otherwise an appropriate exception is thrown.
+   *
+   * @param agentInfo The agentInfo which should be used during lock creation
+   * @return The created lock
+   * @throws UnknownHostException When we are not able to fill the hostname for lock creation
+   * @throws TException When there is an error during lock creation
+   */
   @SuppressWarnings("ReverseDnsLookup")
-  private void tryLock(
-      String agentInfo, AtomicReference<Long> lockId, AtomicReference<LockState> state)
-      throws UnknownHostException, TException {
+  private LockInfo tryLock(String agentInfo) throws UnknownHostException, TException {
+    LockInfo lockInfo = new LockInfo();
+
     final LockComponent lockComponent =
         new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
@@ -843,23 +849,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             request -> {
               try {
                 LockResponse lockResponse = metaClients.run(client -> client.lock(request));
-                lockId.set(lockResponse.getLockid());
-                state.set(lockResponse.getState());
+                lockInfo.lockId = lockResponse.getLockid();
+                lockInfo.lockState = lockResponse.getState();
               } catch (TException te) {
                 LOG.warn("Failed to acquire lock {}", request, te);
                 try {
                   // If we can not check for lock, or we do not find it, then rethrow the exception
                   // Otherwise we are happy as the findLock sets the lockId and the state correctly
-                  if (!MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)
-                      || !findLock(agentInfo, lockId, state)) {
-                    throw te;
-                  } else {
-                    LOG.info(
-                        "Found lock by agentInfo {} with id {} and state {}",
-                        agentInfo,
-                        lockId,
-                        state);
+                  if (!MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
+                    LockInfo lockFound = findLock(agentInfo);
+                    if (lockFound != null) {
+                      lockInfo.lockId = lockFound.lockId;
+                      lockInfo.lockState = lockFound.lockState;
+                      LOG.info("Found lock {} by agentInfo {}", lockInfo, agentInfo);
+                      return;
+                    }
                   }
+
+                  throw te;
                 } catch (InterruptedException e) {
                   Thread.currentThread().interrupt();
                   LOG.warn(
@@ -873,20 +880,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
               }
             },
             TException.class);
+
+    // This should be initialized always, or exception should be thrown.
+    LOG.debug("Lock {} created for table {}.{}", lockInfo, database, tableName);
+    return lockInfo;
   }
 
   /**
    * Search for the locks using HMSClient.showLocks identified by the agentInfo. If the lock is
-   * there, then the lockId and the state is set based on the result.
+   * there, then a {@link LockInfo} object is returned. If the lock is not found <code>null</code>
+   * is returned.
    *
    * @param agentInfo The key for searching the locks
-   * @param lockId The lockId if the lock has found
-   * @param state The state if the lock has found
-   * @return <code>true</code> if the the lock is there <code>false</code> if the lock is missing
+   * @return The {@link LockInfo} for the found lock, or <code>null</code> if nothing found
    */
-  private boolean findLock(
-      String agentInfo, AtomicReference<Long> lockId, AtomicReference<LockState> state)
-      throws TException, InterruptedException {
+  private LockInfo findLock(String agentInfo) throws TException, InterruptedException {
     ShowLocksRequest showLocksRequest = new ShowLocksRequest();
     showLocksRequest.setDbname(database);
     showLocksRequest.setTablename(tableName);
@@ -894,14 +902,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     for (ShowLocksResponseElement lock : response.getLocks()) {
       if (lock.getAgentInfo().equals(agentInfo)) {
         // We found our lock
-        lockId.set(lock.getLockid());
-        state.set(lock.getState());
-        return true;
+        return new LockInfo(lock.getLockid(), lock.getState());
       }
     }
 
     // Not found anything
-    return false;
+    return null;
   }
 
   private static class HiveLockHeartbeat implements Runnable {
@@ -942,6 +948,29 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (future != null) {
         future.cancel(false);
       }
+    }
+  }
+
+  private static class LockInfo {
+    private long lockId;
+    private LockState lockState;
+
+    private LockInfo() {
+      this.lockId = -1;
+      this.lockState = null;
+    }
+
+    private LockInfo(long lockId, LockState lockState) {
+      this.lockId = lockId;
+      this.lockState = lockState;
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("lockId", lockId)
+          .add("lockState", lockState)
+          .toString();
     }
   }
 }
