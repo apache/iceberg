@@ -112,7 +112,7 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     Row currentRow = currentRow();
 
     if (indicesForIdentifySameRow == null) {
-      generateIndicesForIdentifySameRow(currentRow);
+      indicesForIdentifySameRow = generateIndicesForIdentifySameRow(currentRow);
     }
 
     if (currentRow.getString(changeTypeIndex).equals(DELETE) && rowIterator.hasNext()) {
