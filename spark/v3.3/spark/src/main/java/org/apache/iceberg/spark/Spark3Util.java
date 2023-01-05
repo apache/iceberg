@@ -639,9 +639,9 @@ public class Spark3Util {
         case NOT_EQ:
           return pred.ref().name() + " != " + sqlString(pred.literal());
         case STARTS_WITH:
-          return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+          return pred.ref().name() + " LIKE '" + pred.literal().value() + "%'";
         case NOT_STARTS_WITH:
-          return pred.ref().name() + " NOT LIKE '" + pred.literal() + "%'";
+          return pred.ref().name() + " NOT LIKE '" + pred.literal().value() + "%'";
         case IN:
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
