@@ -254,8 +254,8 @@ public class RewriteDataFilesCommitManager {
       Preconditions.checkArgument(
           !timeout && completedRewrites.isEmpty(),
           "Timeout occurred when waiting for commits to complete. "
-              + "{} file groups committed. {} file groups remain uncommitted. " +
-                  "Retry this operation to attempt rewriting the failed groups.",
+              + "{} file groups committed. {} file groups remain uncommitted. "
+              + "Retry this operation to attempt rewriting the failed groups.",
           committedRewrites.size(),
           completedRewrites.size());
 
