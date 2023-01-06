@@ -144,3 +144,21 @@ rm -rf dist/
 poetry build
 twine upload -s dist/*
 ```
+
+Send out an announcement on the dev mail list:
+
+```
+To: dev@iceberg.apache.org
+Subject: [ANNOUNCE] Apache PyIceberg release <VERSION>
+
+I'm pleased to announce the release of Apache PyIceberg <VERSION>!
+
+Apache Iceberg is an open table format for huge analytic datasets. Iceberg
+delivers high query performance for tables with tens of petabytes of data,
+along with atomic commits, concurrent writes, and SQL-compatible table
+evolution.
+
+This Python release can be downloaded from: https://pypi.org/project/pyiceberg/<VERSION>/
+
+Thanks to everyone for contributing!
+```
