@@ -19,14 +19,12 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
@@ -159,6 +157,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
   private Map<String, String> readOptions(InternalRow args) {
     Map<String, String> options = Maps.newHashMap();
 
+    // todo: convert timestamp to milliseconds
     if (!args.isNullAt(2)) {
       args.getMap(2)
           .foreach(
@@ -197,7 +196,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return df.repartition(partitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
-            processRowsWithinTask(changeTypeIdx, partitionIdx, partitionedByAllColumns),
+            (MapPartitionsFunction<Row, Row>)
+                rowIterator -> ChangelogIterator.iterator(rowIterator, changeTypeIdx, partitionIdx),
             RowEncoder.apply(df.schema()));
   }
 
@@ -222,16 +222,6 @@ public class GenerateChangesProcedure extends BaseProcedure {
     System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
     sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
     return sortSpec;
-  }
-
-  private MapPartitionsFunction<Row, Row> processRowsWithinTask(
-      int changeTypeIndex, List<Integer> partitionIdx, boolean partitionedByAllColumns) {
-    return rowIterator -> {
-      Iterator<Row> iterator =
-          new ChangelogIterator(
-              rowIterator, changeTypeIndex, partitionIdx, partitionedByAllColumns);
-      return Iterators.filter(iterator, Objects::nonNull);
-    };
   }
 
   private InternalRow[] toOutputRows(String viewName) {

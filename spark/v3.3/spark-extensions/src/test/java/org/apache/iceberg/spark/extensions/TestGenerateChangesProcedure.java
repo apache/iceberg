@@ -31,7 +31,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
@@ -102,7 +101,6 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
         sql("select * from %s order by _change_ordinal, id", viewName));
   }
 
-  @Ignore
   @Test
   public void testTimestampsBasedQuery() {
     String beginning = LocalDateTime.now().toString();
@@ -124,9 +122,13 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.generate_changes(table => '%s', "
-                + "start_timestamp => TIMESTAMP '%s', "
-                + "end_timestamp => TIMESTAMP '%s')",
-            catalogName, tableName, beginning, afterInsertOverwrite);
+                + "options => map('%s', '%s','%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_TIMESTAMP,
+            beginning,
+            SparkReadOptions.END_TIMESTAMP,
+            afterInsertOverwrite);
 
     assertEquals(
         "Rows should match",
@@ -141,9 +143,13 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     returns =
         sql(
             "CALL %s.system.generate_changes(table => '%s', "
-                + "start_timestamp => TIMESTAMP '%s', "
-                + "end_timestamp => TIMESTAMP '%s')",
-            catalogName, tableName, afterFirstInsert, afterInsertOverwrite);
+                + "options => map('%s', '%s','%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_TIMESTAMP,
+            afterFirstInsert,
+            SparkReadOptions.END_TIMESTAMP,
+            afterInsertOverwrite);
 
     assertEquals(
         "Rows should match",
