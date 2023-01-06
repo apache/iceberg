@@ -69,7 +69,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
   private static final String FLINK_JOB_ID = "flink.job-id";
-  private static final String OPERATOR_UNIQUE_ID = "flink.operator-unique-id";
+  private static final String OPERATOR_ID = "flink.operator-id";
 
   // The max checkpoint id we've committed to iceberg table. As the flink's checkpoint is always
   // increasing, so we could correctly commit all the data files whose checkpoint id is greater than
@@ -393,7 +393,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
-    operation.set(OPERATOR_UNIQUE_ID, operatorId);
+    operation.set(OPERATOR_ID, operatorId);
 
     long startNano = System.nanoTime();
     operation.commit(); // abort is automatically called if this fails.
@@ -478,7 +478,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
       String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_UNIQUE_ID);
+      String snapshotOperatorId = summary.get(OPERATOR_ID);
       if (flinkJobId.equals(snapshotFlinkJobId)
           && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
