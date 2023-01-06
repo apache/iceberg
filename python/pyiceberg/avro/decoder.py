@@ -50,10 +50,10 @@ class BinaryDecoder:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
         read_bytes = self._input_stream.read(n)
         read_len = len(read_bytes)
-        if read_len <= 0:
-            raise EOFError
+        if read_len < 0:
+            raise EOFError(f"Got negative length: {read_len}")
         elif read_len != n:
-            raise ValueError(f"Read {len(read_bytes)} bytes, expected {n} bytes")
+            raise EOFError(f"Read {read_len} bytes, expected {n} bytes")
         return read_bytes
 
     def skip(self, n: int) -> None:
@@ -115,7 +115,8 @@ class BinaryDecoder:
         """
         Bytes are encoded as a long followed by that many bytes of data.
         """
-        return self.read(self.read_int())
+        num_bytes = self.read_int()
+        return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
         """
