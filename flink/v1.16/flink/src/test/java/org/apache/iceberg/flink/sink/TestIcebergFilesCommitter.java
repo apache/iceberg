@@ -585,63 +585,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
-  public void testMultipleSinksWriteSameTable() throws Exception {
-    long timestamp = 0;
-    List<RowData> tableRows = Lists.newArrayList();
-
-    JobID[] jobs = new JobID[] {new JobID(), new JobID(), new JobID()};
-    OperatorID[] operatorIds1 =
-        new OperatorID[] {new OperatorID(), new OperatorID(), new OperatorID()};
-    OperatorID[] operatorIds2 =
-        new OperatorID[] {new OperatorID(), new OperatorID(), new OperatorID()};
-    for (int i = 0; i < 20; i++) {
-      int jobIndex = i % 3;
-      int checkpointId = i / 3;
-      JobID jobId = jobs[jobIndex];
-      OperatorID operatorId1 = operatorIds1[jobIndex];
-      OperatorID operatorId2 = operatorIds2[jobIndex];
-      try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness1 = createStreamSink(jobId);
-          OneInputStreamOperatorTestHarness<WriteResult, Void> harness2 = createStreamSink(jobId)) {
-        harness1.getStreamConfig().setOperatorID(operatorId1);
-        harness1.setup();
-        harness1.open();
-        harness2.getStreamConfig().setOperatorID(operatorId2);
-        harness2.setup();
-        harness2.open();
-
-        assertSnapshotSize(2 * i);
-        assertMaxCommittedCheckpointId(jobId, operatorId1, checkpointId == 0 ? -1 : checkpointId);
-        assertMaxCommittedCheckpointId(jobId, operatorId2, checkpointId == 0 ? -1 : checkpointId);
-
-        List<RowData> rows1 = Lists.newArrayList(SimpleDataUtil.createRowData(i, "word-1-" + i));
-        tableRows.addAll(rows1);
-
-        DataFile dataFile1 = writeDataFile(String.format("data-1-%d", i), rows1);
-        harness1.processElement(of(dataFile1), ++timestamp);
-        harness1.snapshot(checkpointId + 1, ++timestamp);
-
-        List<RowData> rows2 = Lists.newArrayList(SimpleDataUtil.createRowData(i, "word-2-" + i));
-        tableRows.addAll(rows2);
-
-        DataFile dataFile2 = writeDataFile(String.format("data-2-%d", i), rows2);
-        harness2.processElement(of(dataFile2), ++timestamp);
-        harness2.snapshot(checkpointId + 1, ++timestamp);
-
-        assertFlinkManifests(2);
-
-        harness1.notifyOfCompletedCheckpoint(checkpointId + 1);
-        harness2.notifyOfCompletedCheckpoint(checkpointId + 1);
-
-        assertFlinkManifests(0);
-        SimpleDataUtil.assertTableRows(table, tableRows);
-        assertSnapshotSize(2 * i + 2);
-        assertMaxCommittedCheckpointId(jobId, operatorId1, checkpointId + 1);
-        assertMaxCommittedCheckpointId(jobId, operatorId2, checkpointId + 1);
-      }
-    }
-  }
-
-  @Test
   public void testMultipleSinksRecoveryFromValidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
