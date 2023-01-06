@@ -26,6 +26,8 @@ import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.connector.expressions.filter.Predicate
@@ -38,8 +40,15 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   import ExtendedDataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
+    // use regular planning for delta-based plans and copy-on-write MERGE operations
+    case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan)
+        if rewritePlan.isInstanceOf[WriteDelta] || command.isInstanceOf[MergeIntoIcebergTable] =>
+
+      val newRewritePlan = V2ScanRelationPushDown.apply(rewritePlan)
+      command.withNewRewritePlan(newRewritePlan)
+
     // push down the filter from the command condition instead of the filter in the rewrite plan,
-    // which may be negated for copy-on-write operations
+    // which may be negated for copy-on-write DELETE and UPDATE operations
     case RewrittenRowLevelCommand(command, relation: DataSourceV2Relation, rewritePlan) =>
       val table = relation.table.asRowLevelOperationTable
       val scanBuilder = table.newScanBuilder(relation.options)
