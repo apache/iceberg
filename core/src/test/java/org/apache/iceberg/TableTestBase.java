@@ -472,6 +472,20 @@ public class TableTestBase {
     Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
+  void validateTableDeleteFilesWithRef(Table tbl, String ref, DeleteFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DeleteFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().useRef(ref).planFiles()) {
+      for (DeleteFile file : task.deletes()) {
+        actualFilePaths.add(file.path());
+      }
+    }
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
+  }
+
   List<String> paths(DataFile... dataFiles) {
     List<String> paths = Lists.newArrayListWithExpectedSize(dataFiles.length);
     for (DataFile file : dataFiles) {

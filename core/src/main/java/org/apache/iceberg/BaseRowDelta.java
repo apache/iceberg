@@ -103,14 +103,14 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  protected void validate(TableMetadata base, Snapshot snapshot) {
-    if (snapshot != null) {
+  protected void validate(TableMetadata base, Snapshot parent) {
+    if (parent != null) {
       if (startingSnapshotId != null) {
         Preconditions.checkArgument(
-            SnapshotUtil.isAncestorOf(snapshot.snapshotId(), startingSnapshotId, base::snapshot),
+            SnapshotUtil.isAncestorOf(parent.snapshotId(), startingSnapshotId, base::snapshot),
             "Snapshot %s is not an ancestor of %s",
             startingSnapshotId,
-            snapshot.snapshotId());
+            parent.snapshotId());
       }
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
@@ -119,15 +119,15 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             referencedDataFiles,
             !validateDeletes,
             conflictDetectionFilter,
-            snapshot);
+            parent);
       }
 
       if (validateNewDataFiles) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, snapshot);
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
       if (validateNewDeleteFiles) {
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, snapshot);
+        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
     }
   }
