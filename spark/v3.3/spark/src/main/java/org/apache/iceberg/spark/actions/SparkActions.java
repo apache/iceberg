@@ -33,7 +33,7 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
  * <p>This class is the primary API for interacting with actions in Spark that users should use to
  * instantiate particular actions.
  */
-public class SparkActions implements SupportMigrationFromDeltaLake, ActionsProvider {
+public class SparkActions implements ActionsProvider, SupportMigrationFromDeltaLake {
 
   private final SparkSession spark;
 

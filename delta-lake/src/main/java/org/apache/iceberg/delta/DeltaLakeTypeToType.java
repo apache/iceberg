@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.delta.utils;
+package org.apache.iceberg.delta;
 
 import io.delta.standalone.types.ArrayType;
 import io.delta.standalone.types.BinaryType;
@@ -40,7 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
+class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
 
@@ -48,7 +48,7 @@ public class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
     this.root = null;
   }
 
-  public DeltaLakeTypeToType(StructType root) {
+  DeltaLakeTypeToType(StructType root) {
     this.root = root;
     this.nextId = root.getFields().length;
   }

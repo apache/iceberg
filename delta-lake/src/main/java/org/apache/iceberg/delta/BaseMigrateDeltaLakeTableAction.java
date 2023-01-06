@@ -24,12 +24,12 @@ import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import java.io.File;
+import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -41,7 +41,6 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -49,11 +48,8 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.delta.utils.DeltaLakeDataTypeVisitor;
-import org.apache.iceberg.delta.utils.DeltaLakeTypeToType;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -63,7 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,13 +78,14 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private static final String PARQUET_SUFFIX = ".parquet";
   private static final String AVRO_SUFFIX = ".avro";
   private static final String ORC_SUFFIX = ".orc";
-  private final Map<String, String> additionalProperties = Maps.newHashMap();
+  private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
+      ImmutableMap.builder();
   private final DeltaLog deltaLog;
   private final Catalog icebergCatalog;
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
-  private final Configuration hadoopConfiguration;
   private final String newTableLocation;
+  private final HadoopFileIO hadoopFileIO;
 
   public BaseMigrateDeltaLakeTableAction(
       Catalog icebergCatalog,
@@ -99,9 +95,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.hadoopConfiguration = hadoopConfiguration;
     this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
+    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
+    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
   }
 
   public BaseMigrateDeltaLakeTableAction(
@@ -113,20 +109,20 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.hadoopConfiguration = hadoopConfiguration;
-    this.newTableLocation = newTableLocation;
-    this.deltaLog = DeltaLog.forTable(this.hadoopConfiguration, this.deltaTableLocation);
+    this.newTableLocation = newTableLocation == null ? deltaTableLocation : newTableLocation;
+    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
+    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
   }
 
   @Override
   public MigrateDeltaLakeTable tableProperties(Map<String, String> properties) {
-    additionalProperties.putAll(properties);
+    additionalPropertiesBuilder.putAll(properties);
     return this;
   }
 
   @Override
   public MigrateDeltaLakeTable tableProperty(String name, String value) {
-    additionalProperties.put(name, value);
+    additionalPropertiesBuilder.put(name, value);
     return this;
   }
 
@@ -136,21 +132,15 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
     Transaction icebergTransaction =
-        this.icebergCatalog.newCreateTableTransaction(
+        icebergCatalog.newCreateTableTransaction(
             newTableIdentifier,
             schema,
             partitionSpec,
-            this.newTableLocation,
-            destTableProperties(
-                updatedSnapshot, this.deltaTableLocation, this.additionalProperties));
+            newTableLocation,
+            destTableProperties(updatedSnapshot, deltaTableLocation));
 
-    copyFromDeltaLakeToIceberg(icebergTransaction);
+    long totalDataFiles = copyFromDeltaLakeToIceberg(icebergTransaction);
     icebergTransaction.commitTransaction();
-
-    Table icebergTable = icebergCatalog.loadTable(newTableIdentifier);
-    Snapshot snapshot = icebergTable.currentSnapshot();
-    long totalDataFiles =
-        Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info(
         "Successfully loaded Iceberg metadata for {} files in {}",
         totalDataFiles,
@@ -177,7 +167,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     return builder.build();
   }
 
-  private void copyFromDeltaLakeToIceberg(Transaction transaction) {
+  private long copyFromDeltaLakeToIceberg(Transaction transaction) {
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
@@ -187,6 +177,9 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, transaction);
     }
+
+    return Long.parseLong(
+        transaction.table().currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
   }
 
   private void commitDeltaVersionLogToIcebergTransaction(
@@ -195,7 +188,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
 
     // We first need to iterate through to see what kind of transaction this was. There are 3
     // cases:
-    // 1. AppendFile - when there are only AddFile instances (an INSERT on the table)
+    // 1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
     // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
     // of file(s) were removed
     // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
@@ -221,18 +214,18 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
 
     if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
-      // Overwrite_Files case
+      // OverwriteFiles case
       OverwriteFiles overwriteFiles = transaction.newOverwrite();
       filesToAdd.forEach(overwriteFiles::addFile);
       filesToRemove.forEach(overwriteFiles::deleteFile);
       overwriteFiles.commit();
     } else if (filesToAdd.size() > 0) {
-      // Append_Files case
+      // AppendFiles case
       AppendFiles appendFiles = transaction.newAppend();
       filesToAdd.forEach(appendFiles::appendFile);
       appendFiles.commit();
     } else if (filesToRemove.size() > 0) {
-      // Delete_Files case
+      // DeleteFiles case
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
@@ -253,27 +246,20 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       path = removeFile.getPath();
       partitionValues = removeFile.getPartitionValues();
     } else {
-      throw new IllegalStateException(
-          String.format(
-              "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName()));
+      throw new ValidationException(
+          "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName());
     }
 
     String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
 
     if (partitionValues == null) {
       // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new ValidationException("File %s does not specify a partitionValues", fullFilePath);
+      throw new IllegalArgumentException(
+          String.format("File %s does not specify a partitionValues", fullFilePath));
     }
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
-    FileIO io = table.io();
-    InputFile file;
-    if (io != null) {
-      file = io.newInputFile(fullFilePath);
-    } else {
-      file = HadoopInputFile.fromPath(new Path(fullFilePath), this.hadoopConfiguration);
-    }
-
+    InputFile file = hadoopFileIO.newInputFile(fullFilePath);
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
@@ -322,19 +308,14 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
   }
 
-  private static Map<String, String> destTableProperties(
-      io.delta.standalone.Snapshot deltaSnapshot,
-      String originalLocation,
-      Map<String, String> additionalProperties) {
-    Map<String, String> properties = Maps.newHashMap();
-
-    properties.putAll(deltaSnapshot.getMetadata().getConfiguration());
-    properties.putAll(
+  private Map<String, String> destTableProperties(
+      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation) {
+    additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
+    additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             MIGRATION_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
-    properties.putAll(additionalProperties);
 
-    return properties;
+    return additionalPropertiesBuilder.build();
   }
 
   /**
@@ -347,7 +328,8 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
    */
   @VisibleForTesting
   static String getFullFilePath(String path, String tableRoot) {
-    if (path.startsWith(tableRoot)) {
+    URI dataFileUri = URI.create(path);
+    if (dataFileUri.isAbsolute()) {
       return path;
     } else {
       return tableRoot + File.separator + path;

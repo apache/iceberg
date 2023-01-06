@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.delta.utils;
+package org.apache.iceberg.delta;
 
 import io.delta.standalone.types.ArrayType;
 import io.delta.standalone.types.DataType;
@@ -26,7 +26,7 @@ import io.delta.standalone.types.StructType;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public abstract class DeltaLakeDataTypeVisitor<T> {
+abstract class DeltaLakeDataTypeVisitor<T> {
   public static <T> T visit(DataType type, DeltaLakeDataTypeVisitor<T> visitor) {
     if (type instanceof StructType) {
       StructField[] fields = ((StructType) type).getFields();
