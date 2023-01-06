@@ -222,27 +222,42 @@ public class RewriteDataFilesCommitManager {
     public void close() {
       Preconditions.checkState(
           running.compareAndSet(true, false), "Cannot close already closed RewriteService");
-      LOG.info("Closing commit service for {}", table);
+      LOG.info("Closing commit service for {} waiting for all commits to finish", table);
       committerService.shutdown();
 
+      boolean timeout = false;
       try {
         // All rewrites have completed and all new files have been created, we are now waiting for
         // the commit
-        // pool to finish doing it's commits to Iceberg State. In the case of partial progress this
+        // pool to finish doing its commits to Iceberg State. In the case of partial progress this
         // should
         // have been occurring simultaneously with rewrites, if not there should be only a single
         // commit operation.
-        // In either case this should take much less than 10 minutes to actually complete.
-        if (!committerService.awaitTermination(10, TimeUnit.MINUTES)) {
+        if (!committerService.awaitTermination(120, TimeUnit.MINUTES)) {
           LOG.warn(
-              "Commit operation did not complete within 10 minutes of the files being written. This may mean "
-                  + "that changes were not successfully committed to the the Iceberg table.");
+              "Commit operation did not complete within 120 minutes of the all files "
+                  + "being rewritten. This may mean that some changes were not successfully committed to the "
+                  + "table.");
+          timeout = true;
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new RuntimeException(
             "Cannot complete commit for rewrite, commit service interrupted", e);
       }
+
+      if (!completedRewrites.isEmpty() && timeout) {
+        LOG.error("Attempting to cleanup uncommitted file groups");
+        completedRewrites.forEach(RewriteDataFilesCommitManager.this::abortFileGroup);
+      }
+
+      Preconditions.checkArgument(
+          !timeout && completedRewrites.isEmpty(),
+          "Timeout occurred when waiting for commits to complete. "
+              + "{} file groups committed. {} file groups remain uncommitted. "
+              + "Retry this operation to attempt rewriting the failed groups.",
+          committedRewrites.size(),
+          completedRewrites.size());
 
       Preconditions.checkState(
           completedRewrites.isEmpty(),
