@@ -247,8 +247,4 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public void setConf(Object conf) {
     this.conf = conf;
   }
-
-  public Object getConf() {
-    return conf;
-  }
 }

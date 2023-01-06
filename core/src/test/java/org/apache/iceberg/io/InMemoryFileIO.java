@@ -48,13 +48,13 @@ public class InMemoryFileIO implements FileIO {
 
   @Override
   public OutputFile newOutputFile(String path) {
-    Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
+    Preconditions.checkState(!closed, "Cannot call newOutputFile after calling close()");
     return new InMemoryOutputFile(path, this);
   }
 
   @Override
   public void deleteFile(String path) {
-    Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
+    Preconditions.checkState(!closed, "Cannot call deleteFile after calling close()");
     if (!inMemoryFiles.containsKey(path)) {
       throw new NotFoundException("No in-memory file found for path: %s", path);
     }
