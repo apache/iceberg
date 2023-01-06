@@ -574,6 +574,10 @@ public class ParquetMetricsRowGroupFilter {
     return statistics.getMaxBytes() == null || statistics.getMinBytes() == null;
   }
 
+  /**
+   * This check is from Statistics.java in parquet-mr whose toString
+   * method declares undefined min/max when these checks are true
+   */
   static boolean minMaxUndefined(Statistics statistics) {
     return (!statistics.isEmpty() && !statistics.hasNonNullValue()) || nullMinMax(statistics);
   }
