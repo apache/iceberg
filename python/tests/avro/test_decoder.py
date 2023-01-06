@@ -137,7 +137,7 @@ class OneByteAtATimeInputStream(InputStream):
 def test_read_single_byte_at_the_time() -> None:
     decoder = BinaryDecoder(OneByteAtATimeInputStream())
 
-    with pytest.raises(EOFError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         decoder.read(2)
 
     assert "Read 1 bytes, expected 2 bytes" in str(exc_info.value)
