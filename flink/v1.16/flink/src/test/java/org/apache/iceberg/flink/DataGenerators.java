@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -67,6 +68,7 @@ public class DataGenerators {
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
     private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
+    private static final byte[] FIXED_BYTES = "012345689012345".getBytes(StandardCharsets.UTF_8);
 
     private final Schema icebergSchema =
         new Schema(
@@ -85,7 +87,8 @@ public class DataGenerators {
                 11, "ts_without_zone_field", Types.TimestampType.withoutZone()),
             Types.NestedField.required(12, "uuid_field", Types.UUIDType.get()),
             Types.NestedField.required(13, "binary_field", Types.BinaryType.get()),
-            Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)));
+            Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(15, "fixed_field", Types.FixedType.ofLength(16)));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
@@ -128,6 +131,7 @@ public class DataGenerators {
       genericRecord.setField("binary_field", ByteBuffer.wrap(binaryBytes));
 
       genericRecord.setField("decimal_field", BIG_DECIMAL_NEGATIVE);
+      genericRecord.setField("fixed_field", FIXED_BYTES);
 
       return genericRecord;
     }
@@ -160,7 +164,8 @@ public class DataGenerators {
           TimestampData.fromEpochMillis(JODA_DATETIME_20220110.getMillis()),
           uuidBytes,
           binaryBytes,
-          DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2));
+          DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
+          FIXED_BYTES);
     }
   }
 
