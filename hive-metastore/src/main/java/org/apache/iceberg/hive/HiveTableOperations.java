@@ -895,6 +895,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * @return The {@link LockInfo} for the found lock, or <code>null</code> if nothing found
    */
   private LockInfo findLock(String agentInfo) throws TException, InterruptedException {
+    Preconditions.checkArgument(
+        MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2),
+        "Minimally Hive 2 HMS client is needed to find the Lock using the showLocks API call");
     ShowLocksRequest showLocksRequest = new ShowLocksRequest();
     showLocksRequest.setDbname(database);
     showLocksRequest.setTablename(tableName);
