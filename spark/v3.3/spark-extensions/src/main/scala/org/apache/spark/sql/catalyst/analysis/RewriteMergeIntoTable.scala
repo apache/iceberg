@@ -446,16 +446,16 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     ProjectingInternalRow(schema, projectedOrdinals)
   }
 
-  // splits the condition into a predicate on the target table, which can be pushed down, and join
-  // condition that must be evaluated while finding matches
+  // splits the MERGE condition into a predicate that references columns only from the target table,
+  // which can be pushed down, and a predicate used as a join condition to find matches
   private def splitMergeCond(
       cond: Expression,
       targetTable: LogicalPlan): (Expression, Expression) = {
 
     val (targetPredicates, joinPredicates) = splitConjunctivePredicates(cond)
       .partition(_.references.subsetOf(targetTable.outputSet))
-    val targetCond = targetPredicates.reduceOption(And).getOrElse(Literal.TrueLiteral)
-    val joinCond = joinPredicates.reduceOption(And).getOrElse(Literal.TrueLiteral)
+    val targetCond = targetPredicates.reduceOption(And).getOrElse(TrueLiteral)
+    val joinCond = joinPredicates.reduceOption(And).getOrElse(TrueLiteral)
     (targetCond, joinCond)
   }
 }

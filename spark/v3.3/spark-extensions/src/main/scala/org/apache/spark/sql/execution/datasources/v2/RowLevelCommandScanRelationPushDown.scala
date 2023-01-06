@@ -40,7 +40,8 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   import ExtendedDataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
-    // use regular planning for delta-based plans and copy-on-write MERGE operations
+    // use native Spark planning for delta-based plans and copy-on-write MERGE operations
+    // unlike other commands, these plans have filters that can be pushed down directly
     case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan)
         if rewritePlan.isInstanceOf[WriteDelta] || command.isInstanceOf[MergeIntoIcebergTable] =>
 
