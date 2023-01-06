@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -99,7 +99,7 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals(3, dateField.getFieldID());
     Assert.assertEquals("date_field", dateField.getFieldName());
     Assert.assertEquals("date comment", dateField.getFieldComment());
-    if (MetastoreUtil.hive3PresentOnClasspath()) {
+    if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assert.assertEquals(
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3",
           dateField.getFieldObjectInspector().getClass().getName());
@@ -169,7 +169,7 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals(11, timestampField.getFieldID());
     Assert.assertEquals("timestamp_field", timestampField.getFieldName());
     Assert.assertEquals("timestamp comment", timestampField.getFieldComment());
-    if (MetastoreUtil.hive3PresentOnClasspath()) {
+    if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assert.assertEquals(
           "IcebergTimestampObjectInspectorHive3",
           timestampField.getFieldObjectInspector().getClass().getSimpleName());
@@ -183,7 +183,7 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals(12, timestampTzField.getFieldID());
     Assert.assertEquals("timestamptz_field", timestampTzField.getFieldName());
     Assert.assertEquals("timestamptz comment", timestampTzField.getFieldComment());
-    if (MetastoreUtil.hive3PresentOnClasspath()) {
+    if (HiveVersion.min(HiveVersion.HIVE_3)) {
       Assert.assertEquals(
           "IcebergTimestampWithZoneObjectInspectorHive3",
           timestampTzField.getFieldObjectInspector().getClass().getSimpleName());

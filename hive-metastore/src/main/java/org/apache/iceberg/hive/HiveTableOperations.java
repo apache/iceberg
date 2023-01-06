@@ -724,7 +724,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     try {
       if (!lockId.isPresent()) {
         // Try to find the lock based on agentInfo. Only works with Hive 2 or later.
-        if (MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
+        if (HiveVersion.min(HiveVersion.HIVE_2)) {
           LockInfo lockInfo = findLock(agentInfo);
           if (lockInfo == null) {
             // No lock found
@@ -734,7 +734,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
           id = lockInfo.lockId;
         } else {
-          LOG.warn("Could not find lock with HMSClient {}", MetastoreClientVersion.current());
+          LOG.warn("Could not find lock with HMSClient {}", HiveVersion.current());
           return;
         }
       } else {
@@ -832,7 +832,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             InetAddress.getLocalHost().getHostName());
 
     // Only works in Hive 2 or later.
-    if (MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
+    if (HiveVersion.min(HiveVersion.HIVE_2)) {
       lockRequest.setAgentInfo(agentInfo);
     }
 
@@ -840,10 +840,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         .retry(Integer.MAX_VALUE - 100)
         .exponentialBackoff(
             lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
-        .shouldRetryTest(
-            e ->
-                e instanceof TException
-                    && MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2))
+        .shouldRetryTest(e -> e instanceof TException && HiveVersion.min(HiveVersion.HIVE_2))
         .throwFailureWhenFinished()
         .run(
             request -> {
@@ -856,7 +853,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 try {
                   // If we can not check for lock, or we do not find it, then rethrow the exception
                   // Otherwise we are happy as the findLock sets the lockId and the state correctly
-                  if (!MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2)) {
+                  if (!HiveVersion.min(HiveVersion.HIVE_2)) {
                     LockInfo lockFound = findLock(agentInfo);
                     if (lockFound != null) {
                       lockInfo.lockId = lockFound.lockId;
@@ -896,7 +893,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    */
   private LockInfo findLock(String agentInfo) throws TException, InterruptedException {
     Preconditions.checkArgument(
-        MetastoreClientVersion.min(MetastoreClientVersion.HIVE_2),
+        HiveVersion.min(HiveVersion.HIVE_2),
         "Minimally Hive 2 HMS client is needed to find the Lock using the showLocks API call");
     ShowLocksRequest showLocksRequest = new ShowLocksRequest();
     showLocksRequest.setDbname(database);

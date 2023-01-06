@@ -20,7 +20,7 @@ package org.apache.iceberg.hive;
 
 import org.apache.hive.common.util.HiveVersionInfo;
 
-public enum MetastoreClientVersion {
+public enum HiveVersion {
   HIVE_4(4),
   HIVE_3(3),
   HIVE_2(2),
@@ -28,21 +28,21 @@ public enum MetastoreClientVersion {
   NOT_SUPPORTED(0);
 
   private final int order;
-  private static final MetastoreClientVersion current = calculate();
+  private static final HiveVersion current = calculate();
 
-  MetastoreClientVersion(int order) {
+  HiveVersion(int order) {
     this.order = order;
   }
 
-  public static MetastoreClientVersion current() {
+  public static HiveVersion current() {
     return current;
   }
 
-  public static boolean min(MetastoreClientVersion other) {
+  public static boolean min(HiveVersion other) {
     return current.order >= other.order;
   }
 
-  private static MetastoreClientVersion calculate() {
+  private static HiveVersion calculate() {
     String version = HiveVersionInfo.getShortVersion();
     String[] versions = version.split("\\.");
     switch (versions[0]) {
