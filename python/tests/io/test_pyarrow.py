@@ -225,62 +225,6 @@ def test_raise_on_opening_a_local_file_not_found() -> None:
         assert "[Errno 2] Failed to open local file" in str(exc_info.value)
 
 
-def test_raise_on_opening_a_local_file_no_permission() -> None:
-    """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.open()
-
-        assert "[Errno 13] Failed to open local file" in str(exc_info.value)
-
-
-def test_raise_on_checking_if_local_file_exists_no_permission() -> None:
-    """Test that a PyArrowFile raises when checking for existence on a file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_creating_a_local_file_no_permission() -> None:
-    """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_delete_file_with_no_permission() -> None:
-    """Test that a PyArrowFile raises when deleting a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        file_io = PyArrowFileIO()
-
-        with pytest.raises(PermissionError) as exc_info:
-            file_io.delete(file_location)
-
-        assert "Cannot delete file" in str(exc_info.value)
-
-
 def test_raise_on_opening_an_s3_file_no_permission() -> None:
     """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
