@@ -50,4 +50,9 @@ class MapDataStatistics<K> implements DataStatistics<K> {
   Map<K, Long> dataStatistics() {
     return dataStatistics;
   }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this).add("dataStatistics", dataStatistics).toString();
+  }
 }

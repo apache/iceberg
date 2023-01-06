@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.sink.shuffle;
 /**
  * DataStatistics defines the interface to collect data statistics.
  *
- * <p>{@link ShuffleOperator} will store local data statistics and later distribute
- * the global statistics(received from ShuffleCoordiantor) to Partitioner.
+ * <p>{@link ShuffleOperator} will store local data statistics and later distribute the global
+ * statistics(received from ShuffleCoordiantor) to Partitioner.
  */
 interface DataStatistics<K> {
   long size();
