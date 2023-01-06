@@ -92,12 +92,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
       String deltaTableLocation,
       TableIdentifier newTableIdentifier,
       Configuration hadoopConfiguration) {
-    this.icebergCatalog = icebergCatalog;
-    this.deltaTableLocation = deltaTableLocation;
-    this.newTableIdentifier = newTableIdentifier;
-    this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
-    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
+    this(icebergCatalog, deltaTableLocation, newTableIdentifier, null, hadoopConfiguration);
   }
 
   public BaseMigrateDeltaLakeTableAction(
