@@ -30,14 +30,14 @@ class SnowflakeTableMetadata {
   public static final Pattern SNOWFLAKE_AZURE_PATTERN =
       Pattern.compile("azure://([^/]+)/([^/]+)/(.*)");
 
-  private String snowflakeMetadataLocation;
-  private String icebergMetadataLocation;
-  private String status;
+  private final String snowflakeMetadataLocation;
+  private final String icebergMetadataLocation;
+  private final String status;
 
   // Note: Since not all sources will necessarily come from a raw JSON representation, this raw
   // JSON should only be considered a convenient debugging field. Equality of two
   // SnowflakeTableMetadata instances should not depend on equality of this field.
-  private String rawJsonVal;
+  private final String rawJsonVal;
 
   SnowflakeTableMetadata(
       String snowflakeMetadataLocation,
@@ -88,8 +88,8 @@ class SnowflakeTableMetadata {
   @Override
   public String toString() {
     return String.format(
-        "snowflakeMetadataLocation: '%s', icebergMetadataLocation: '%s', status: '%s",
-        snowflakeMetadataLocation, icebergMetadataLocation, status);
+        "snowflakeMetadataLocation: '%s', icebergMetadataLocation: '%s', status: '%s', rawJsonVal: %s",
+        snowflakeMetadataLocation, icebergMetadataLocation, status, rawJsonVal);
   }
 
   /**

@@ -37,10 +37,10 @@ class SnowflakeIdentifier {
     TABLE
   }
 
-  private String databaseName;
-  private String schemaName;
-  private String tableName;
-  private Type type;
+  private final String databaseName;
+  private final String schemaName;
+  private final String tableName;
+  private final Type type;
 
   private SnowflakeIdentifier(String databaseName, String schemaName, String tableName, Type type) {
     this.databaseName = databaseName;
