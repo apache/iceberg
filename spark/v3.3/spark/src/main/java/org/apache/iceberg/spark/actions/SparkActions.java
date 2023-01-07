@@ -20,8 +20,6 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.delta.MigrateDeltaLakeTable;
-import org.apache.iceberg.delta.SupportMigrationFromDeltaLake;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -33,7 +31,7 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
  * <p>This class is the primary API for interacting with actions in Spark that users should use to
  * instantiate particular actions.
  */
-public class SparkActions implements ActionsProvider, SupportMigrationFromDeltaLake {
+public class SparkActions implements ActionsProvider {
 
   private final SparkSession spark;
 
@@ -67,35 +65,6 @@ public class SparkActions implements ActionsProvider, SupportMigrationFromDeltaL
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
     return new MigrateTableSparkAction(
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
-  }
-
-  @Override
-  public MigrateDeltaLakeTable migrateDeltaLakeTable(
-      String newTableIdentifier, String deltaTableLocation) {
-    String ctx = "delta lake migrate target";
-    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new MigrateDeltaLakeTableSparkAction(
-        spark,
-        deltaTableLocation,
-        catalogAndIdent.identifier().toString(),
-        catalogAndIdent.catalog().name());
-  }
-
-  @Override
-  public MigrateDeltaLakeTable migrateDeltaLakeTable(
-      String newTableIdentifier, String deltaTableLocation, String newTableLocation) {
-    String ctx = "delta lake migrate target";
-    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent =
-        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new MigrateDeltaLakeTableSparkAction(
-        spark,
-        deltaTableLocation,
-        catalogAndIdent.identifier().toString(),
-        catalogAndIdent.catalog().name(),
-        newTableLocation);
   }
 
   @Override

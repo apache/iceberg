@@ -59,7 +59,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-delta-lake')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
 
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -90,11 +89,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-
-    compileOnly "io.delta:delta-standalone_${scalaVersion}"
-
-    // Needed to write Delta Lake tables for testing
-    testImplementation "io.delta:delta-core_${scalaVersion}"
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'

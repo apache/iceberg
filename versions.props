@@ -45,4 +45,4 @@ org.mock-server:mockserver-netty = 5.13.2
 org.mock-server:mockserver-client-java = 5.13.2
 com.esotericsoftware:kryo = 4.0.2
 org.eclipse.jetty:* = 9.4.43.v20210629
-io.delta:delta-core_* = 2.1.0
+io.delta:delta-core_* = 2.2.0

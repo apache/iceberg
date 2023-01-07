@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
-
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+package org.apache.iceberg.delta;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,6 +47,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
+@SuppressWarnings("VisibilityModifier")
 public abstract class SparkDeltaLakeMigrationTestBase {
   protected static final Object ANY = new Object();
 
@@ -69,7 +68,9 @@ public abstract class SparkDeltaLakeMigrationTestBase {
         SparkSession.builder()
             .master("local[2]")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config(
+                "spark.hadoop." + HiveConf.ConfVars.METASTOREURIS.varname,
+                hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             // Needed for Delta Lake tests
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")

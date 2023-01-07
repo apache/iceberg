@@ -49,6 +49,8 @@ plugins {
 }
 
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
+List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
 try {
   // apply these plugins in a try-catch block so that we can handle cases without .git directory
@@ -441,6 +443,11 @@ project(':iceberg-aws') {
 }
 
 project(':iceberg-delta-lake') {
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -457,6 +464,44 @@ project(':iceberg-delta-lake') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
+    }
+
+    if (sparkVersions.contains("3.3")) {
+      integrationImplementation "io.delta:delta-core_${scalaVersion}"
+      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+      integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
+        exclude group: 'org.apache.avro', module: 'avro'
+        // to make sure netty libs only come from project(':iceberg-arrow')
+        exclude group: 'io.netty', module: 'netty-buffer'
+        exclude group: 'io.netty', module: 'netty-common'
+      }
+      integrationImplementation project(path: ':iceberg-hive-metastore')
+      integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
+        exclude group: 'org.apache.avro', module: 'avro'
+        exclude group: 'org.apache.arrow'
+        exclude group: 'org.apache.parquet'
+        // to make sure netty libs only come from project(':iceberg-arrow')
+        exclude group: 'io.netty', module: 'netty-buffer'
+        exclude group: 'io.netty', module: 'netty-common'
+        exclude group: 'org.roaringbitmap'
+      }
+    }
+  }
+
+  if (sparkVersions.contains("3.3")) {
+    sourceSets {
+      integration {
+        java.srcDir "$projectDir/src/integration/java"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+      }
+    }
+
+    task integrationTest(type: Test) {
+      testClassesDirs = sourceSets.integration.output.classesDirs
+      classpath = sourceSets.integration.runtimeClasspath
     }
   }
 }

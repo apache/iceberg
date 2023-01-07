@@ -16,23 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.delta;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.apache.iceberg.delta.MigrateDeltaLakeTable;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkDeltaLakeMigrationTestBase;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.After;
@@ -59,11 +60,14 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
         "delta",
         DeltaCatalog.class.getName(),
         ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default",
-            "parquet-enabled", "true",
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "parquet-enabled",
+            "true",
             "cache-enabled",
-                "false" // Spark will delete tables using v1, leaving the cache out of sync
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
             )
       }
     };
@@ -166,7 +170,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     catalogName = defaultSparkCatalog;
     String newTableIdentifier = destName("iceberg_table");
     MigrateDeltaLakeTable.Result result =
-        SparkActions.get().migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
+        migrateDeltaLakeTable(newTableIdentifier, partitionedLocation).execute();
 
     // Compare the results
     List<Row> oldResults = spark.sql("SELECT * FROM " + partitionedIdentifier).collectAsList();
@@ -187,9 +191,7 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
     catalogName = defaultSparkCatalog;
     String newTableIdentifier = destName("iceberg_table_unpartitioned");
     MigrateDeltaLakeTable.Result result =
-        SparkActions.get()
-            .migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation)
-            .execute();
+        migrateDeltaLakeTable(newTableIdentifier, unpartitionedLocation).execute();
 
     // Compare the results
     List<Row> oldResults = spark.sql("SELECT * FROM " + unpartitionedIdentifier).collectAsList();
@@ -205,6 +207,61 @@ public class TestMigrateDeltaLakeTable extends SparkDeltaLakeMigrationTestBase {
       return NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
     } else {
       return catalogName + "." + NAMESPACE + "." + catalogName + "_" + type + "_" + dest;
+    }
+  }
+
+  private MigrateDeltaLakeTable migrateDeltaLakeTable(
+      String newTableIdentifier, String deltaTableLocation) {
+    String ctx = "delta lake migrate target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+    return new MigrateDeltaLakeTableSparkAction(
+        spark,
+        deltaTableLocation,
+        catalogAndIdent.identifier().toString(),
+        catalogAndIdent.catalog().name());
+  }
+
+  public MigrateDeltaLakeTable migrateDeltaLakeTable(
+      String newTableIdentifier, String deltaTableLocation, String newTableLocation) {
+    String ctx = "delta lake migrate target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+    return new MigrateDeltaLakeTableSparkAction(
+        spark,
+        deltaTableLocation,
+        catalogAndIdent.identifier().toString(),
+        catalogAndIdent.catalog().name(),
+        newTableLocation);
+  }
+
+  private class MigrateDeltaLakeTableSparkAction extends BaseMigrateDeltaLakeTableAction {
+    MigrateDeltaLakeTableSparkAction(
+        SparkSession spark,
+        String deltaTableLocation,
+        String newTableIdentifier,
+        String catalogName) {
+      super(
+          Spark3Util.loadIcebergCatalog(spark, catalogName),
+          deltaTableLocation,
+          TableIdentifier.parse(newTableIdentifier),
+          spark.sessionState().newHadoopConf());
+    }
+
+    MigrateDeltaLakeTableSparkAction(
+        SparkSession spark,
+        String deltaTableLocation,
+        String newTableIdentifier,
+        String catalogName,
+        String newTableLocation) {
+      super(
+          Spark3Util.loadIcebergCatalog(spark, catalogName),
+          deltaTableLocation,
+          TableIdentifier.parse(newTableIdentifier),
+          newTableLocation,
+          spark.sessionState().newHadoopConf());
     }
   }
 }
