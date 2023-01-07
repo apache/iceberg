@@ -48,7 +48,7 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        data = b''
+        data = b""
 
         n_remaining = n
         while n_remaining > 0:
