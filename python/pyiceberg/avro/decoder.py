@@ -48,13 +48,18 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        read_bytes = self._input_stream.read(n)
-        read_len = len(read_bytes)
-        if read_len <= 0:
-            raise EOFError(f"Got negative length: {read_len}")
-        elif read_len != n:
-            raise ValueError(f"Read {read_len} bytes, expected {n} bytes")
-        return read_bytes
+        data = b''
+
+        n_remaining = n
+        while n_remaining > 0:
+            data_read = self._input_stream.read(n_remaining)
+            read_len = len(data_read)
+            if read_len <= 0:
+                raise EOFError(f"Got negative length: {read_len}")
+            data += data_read
+            n_remaining -= read_len
+
+        return data
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
