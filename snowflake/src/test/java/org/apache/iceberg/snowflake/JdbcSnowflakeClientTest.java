@@ -88,8 +88,7 @@ public class JdbcSnowflakeClientTest {
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
   }
 
   @Test
@@ -105,8 +104,7 @@ public class JdbcSnowflakeClientTest {
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE '_DB_1$_________' IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
   }
 
   @Test
@@ -144,8 +142,7 @@ public class JdbcSnowflakeClientTest {
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
     verify(mockQueryHarness)
         .query(
             eq(mockConnection),
@@ -173,8 +170,7 @@ public class JdbcSnowflakeClientTest {
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES LIKE 'DB_1' IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
     verify(mockQueryHarness)
         .query(
             eq(mockConnection),
@@ -229,8 +225,7 @@ public class JdbcSnowflakeClientTest {
         .query(
             eq(mockConnection),
             eq("SHOW DATABASES IN ACCOUNT"),
-            any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq(null));
+            any(JdbcSnowflakeClient.ResultSetParser.class));
 
     Assertions.assertThat(actualList)
         .containsExactly(

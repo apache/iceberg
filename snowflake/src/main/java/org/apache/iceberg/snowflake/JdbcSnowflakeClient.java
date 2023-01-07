@@ -178,9 +178,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     try {
       databases =
           connectionPool.run(
-              conn ->
-                  queryHarness.query(
-                      conn, finalQuery, DATABASE_RESULT_SET_HANDLER, (String[]) null));
+              conn -> queryHarness.query(conn, finalQuery, DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
     } catch (InterruptedException e) {
@@ -218,10 +216,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           connectionPool.run(
               conn ->
                   queryHarness.query(
-                      conn,
-                      finalQuery,
-                      SCHEMA_RESULT_SET_HANDLER,
-                      new String[] {schema.databaseName()}));
+                      conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, schema.databaseName()));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
     } catch (InterruptedException e) {
@@ -243,10 +238,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           connectionPool.run(
               conn ->
                   queryHarness.query(
-                      conn,
-                      "SHOW DATABASES IN ACCOUNT",
-                      DATABASE_RESULT_SET_HANDLER,
-                      (String[]) null));
+                      conn, "SHOW DATABASES IN ACCOUNT", DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to list databases");
     } catch (InterruptedException e) {
