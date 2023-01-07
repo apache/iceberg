@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from io import SEEK_SET, BufferedReader
 from types import TracebackType
 from typing import (
     Dict,
@@ -150,7 +149,7 @@ class AvroFile(Generic[F]):
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = BufferedReader(self.input_file.open())  # type: ignore
+        self.input_stream = self.input_file.open(seekable=False)
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
@@ -201,5 +200,4 @@ class AvroFile(Generic[F]):
         raise StopIteration
 
     def _read_header(self) -> AvroFileHeader:
-        self.input_stream.seek(0, SEEK_SET)
         return construct_reader(META_SCHEMA, {-1: AvroFileHeader}).read(self.decoder)

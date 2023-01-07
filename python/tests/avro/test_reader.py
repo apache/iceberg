@@ -64,7 +64,7 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
         MANIFEST_ENTRY_SCHEMA,
         {-1: ManifestEntry, 2: DataFile},
     ) as reader:
-        header = reader._read_header()
+        header = reader.header
 
     assert header.magic == b"Obj\x01"
     assert json.loads(header.meta["avro.schema"]) == {

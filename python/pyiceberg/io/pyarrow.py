@@ -110,6 +110,8 @@ from pyiceberg.utils.singleton import Singleton
 if TYPE_CHECKING:
     from pyiceberg.table import FileScanTask, Table
 
+ONE_MEGABYTE = 1024 * 1024
+BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
 
 
@@ -135,9 +137,14 @@ class PyArrowFile(InputFile, OutputFile):
         >>> # output_file.create().write(b'foobytes')
     """
 
-    def __init__(self, location: str, path: str, fs: FileSystem):
+    _fs: FileSystem
+    _path: str
+    _buffer_size: int
+
+    def __init__(self, location: str, path: str, fs: FileSystem, buffer_size: int = ONE_MEGABYTE):
         self._filesystem = fs
         self._path = path
+        self._buffer_size = buffer_size
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
@@ -171,8 +178,11 @@ class PyArrowFile(InputFile, OutputFile):
         except FileNotFoundError:
             return False
 
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the location
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
@@ -183,7 +193,10 @@ class PyArrowFile(InputFile, OutputFile):
                 an AWS error code 15
         """
         try:
-            input_file = self._filesystem.open_input_file(self._path)
+            if seekable:
+                input_file = self._filesystem.open_input_file(self._path)
+            else:
+                input_file = self._filesystem.open_input_stream(self._path, buffer_size=self._buffer_size)
         except FileNotFoundError:
             raise
         except PermissionError:
@@ -218,7 +231,7 @@ class PyArrowFile(InputFile, OutputFile):
         try:
             if not overwrite and self.exists() is True:
                 raise FileExistsError(f"Cannot create file, already exists: {self.location}")
-            output_file = self._filesystem.open_output_stream(self._path)
+            output_file = self._filesystem.open_output_stream(self._path, buffer_size=self._buffer_size)
         except PermissionError:
             raise
         except OSError as e:
@@ -273,7 +286,7 @@ class PyArrowFileIO(FileIO):
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location
@@ -286,7 +299,7 @@ class PyArrowFileIO(FileIO):
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
