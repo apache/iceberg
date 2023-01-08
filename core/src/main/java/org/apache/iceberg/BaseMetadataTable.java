@@ -79,7 +79,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Has
     return table;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0; do not use metadata table TableOperations
+   */
   @Override
+  @Deprecated
   public TableOperations operations() {
     return table.operations();
   }

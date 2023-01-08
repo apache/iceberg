@@ -106,5 +106,4 @@ abstract class BaseReadOnlyTable implements Table {
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a " + descriptor + " table");
   }
-
 }
