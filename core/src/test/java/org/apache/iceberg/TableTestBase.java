@@ -470,7 +470,6 @@ public class TableTestBase {
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
-
   void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DeleteFile file : expectedFiles) {
