@@ -49,7 +49,7 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        data: List[bytes] = list()
+        data: List[bytes] = []
 
         n_remaining = n
         while n_remaining > 0:
