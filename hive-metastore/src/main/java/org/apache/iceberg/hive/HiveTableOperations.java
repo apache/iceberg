@@ -286,7 +286,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     tableLevelMutex.lock();
     HiveLockHeartbeat hiveLockHeartbeat = null;
     try {
-      lockId = Optional.ofNullable(acquireLock(agentInfo));
+      lockId = Optional.of(acquireLock(agentInfo));
       hiveLockHeartbeat =
           new HiveLockHeartbeat(metaClients, lockId.get(), lockHeartbeatIntervalTime);
       hiveLockHeartbeat.schedule(exitingScheduledExecutorService);
