@@ -18,6 +18,7 @@ import decimal
 import struct
 from datetime import datetime, time
 from io import SEEK_CUR
+from typing import List
 from uuid import UUID
 
 from pyiceberg.io import InputStream
@@ -48,18 +49,22 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        data = b""
+        data: List[bytes] = list()
 
         n_remaining = n
         while n_remaining > 0:
             data_read = self._input_stream.read(n_remaining)
             read_len = len(data_read)
-            if read_len <= 0:
-                raise EOFError(f"Got negative length: {read_len}")
-            data += data_read
+            if read_len == n:
+                # If we read everything, we return directly
+                # otherwise we'll continue to fetch the rest
+                return data_read
+            elif read_len <= 0:
+                raise EOFError(f"EOF: read {read_len} bytes")
+            data.append(data_read)
             n_remaining -= read_len
 
-        return data
+        return b"".join(data)
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
