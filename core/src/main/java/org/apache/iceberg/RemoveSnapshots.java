@@ -91,7 +91,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     this.ops = ops;
     this.base = ops.current();
     ValidationException.check(
-        PropertyUtil.propertyAsBoolean(base.properties(), SNAPSHOT, SNAPSHOT_DEFAULT),
+        !PropertyUtil.propertyAsBoolean(base.properties(), SNAPSHOT, SNAPSHOT_DEFAULT),
         "Cannot expire snapshots: This is a snapshot table");
 
     ValidationException.check(
