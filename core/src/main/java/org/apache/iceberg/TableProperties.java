@@ -311,6 +311,9 @@ public class TableProperties {
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
 
+  public static final String SNAPSHOT = "snapshot";
+  public static final Boolean SNAPSHOT_DEFAULT = false;
+
   public static final String MAX_SNAPSHOT_AGE_MS = "history.expire.max-snapshot-age-ms";
   public static final long MAX_SNAPSHOT_AGE_MS_DEFAULT = 5 * 24 * 60 * 60 * 1000; // 5 days
 

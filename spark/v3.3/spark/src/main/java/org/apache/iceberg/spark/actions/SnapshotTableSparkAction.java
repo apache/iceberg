@@ -174,7 +174,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
 
     // make sure we mark this table as a snapshot table
     properties.put(TableProperties.GC_ENABLED, "false");
-    properties.put("snapshot", "true");
+    properties.put(TableProperties.SNAPSHOT, "true");
 
     // set the destination table location if provided
     if (destTableLocation != null) {
