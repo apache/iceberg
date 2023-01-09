@@ -575,11 +575,11 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   /**
-   * This check is from Statistics.java in parquet-mr whose toString method declares undefined
-   * min/max when these checks are true
+   * The internal logic of Parquet-MR says that if numNulls is set but hasNonNull value is false,
+   * then the min/max of the column are undefined.
    */
   static boolean minMaxUndefined(Statistics statistics) {
-    return (!statistics.isEmpty() && !statistics.hasNonNullValue()) || nullMinMax(statistics);
+    return (statistics.isNumNullsSet() && !statistics.hasNonNullValue()) || nullMinMax(statistics);
   }
 
   static boolean allNulls(Statistics statistics, long valueCount) {
