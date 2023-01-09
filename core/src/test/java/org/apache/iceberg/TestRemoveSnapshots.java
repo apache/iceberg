@@ -1246,7 +1246,7 @@ public class TestRemoveSnapshots extends TableTestBase {
   @Test
   public void testExpireWithStatisticsFiles() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
-    String statsFileLocation1 = statsFileLocation(table);
+    String statsFileLocation1 = statsFileLocation(table.location());
     StatisticsFile statisticsFile1 =
         writeStatsFileForCurrentSnapshot(
             table.currentSnapshot().snapshotId(),
@@ -1260,7 +1260,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         statisticsFile1.snapshotId());
 
     table.newAppend().appendFile(FILE_B).commit();
-    String statsFileLocation2 = statsFileLocation(table);
+    String statsFileLocation2 = statsFileLocation(table.location());
     StatisticsFile statisticsFile2 =
         writeStatsFileForCurrentSnapshot(
             table.currentSnapshot().snapshotId(),
@@ -1292,7 +1292,7 @@ public class TestRemoveSnapshots extends TableTestBase {
   @Test
   public void testExpireWithStatisticsFilesWithReuse() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
-    String statsFileLocation1 = statsFileLocation(table);
+    String statsFileLocation1 = statsFileLocation(table.location());
     StatisticsFile statisticsFile1 =
         writeStatsFileForCurrentSnapshot(
             table.currentSnapshot().snapshotId(),
@@ -1306,9 +1306,9 @@ public class TestRemoveSnapshots extends TableTestBase {
         statisticsFile1.snapshotId());
 
     table.newAppend().appendFile(FILE_B).commit();
-    // Note: In the real scenario, appendFile will always create a new statistics file.
-    // Only rewrite_data_files scenario can reuse the statistics file with new snapshot id.
-    // To avoid simulating rewrite, this test is reusing the stats for append operation itself.
+    // Note: RewriteDataFiles can reuse statistics files across operations.
+    // This test reuses stats for append just to mimic this scenario without having to run
+    // RewriteDataFiles.
     StatisticsFile statisticsFile2 =
         reuseStatsForCurrentSnapshot(table.currentSnapshot().snapshotId(), statisticsFile1);
     commitStats(table.newTransaction(), statisticsFile2);
@@ -1656,10 +1656,8 @@ public class TestRemoveSnapshots extends TableTestBase {
     transaction.commitTransaction();
   }
 
-  private String statsFileLocation(Table table) {
+  private String statsFileLocation(String tableLocation) {
     String statsFileName = "stats-file-" + UUID.randomUUID();
-    String metadataFileLocation =
-        ((HasTableOperations) table).operations().current().metadataFileLocation();
-    return metadataFileLocation + "/" + statsFileName;
+    return tableLocation + "/metadata/" + statsFileName;
   }
 }
