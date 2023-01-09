@@ -21,7 +21,6 @@ package org.apache.iceberg.catalog;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -70,12 +69,7 @@ public class TableIdentifierParser {
         json != null, "Cannot parse table identifier from invalid JSON: null");
     Preconditions.checkArgument(
         !json.isEmpty(), "Cannot parse table identifier from invalid JSON: ''");
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Cannot parse table identifier from invalid JSON: %s", json), e);
-    }
+    return JsonUtil.parse(json, TableIdentifierParser::fromJson);
   }
 
   public static TableIdentifier fromJson(JsonNode node) {

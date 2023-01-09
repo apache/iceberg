@@ -68,6 +68,7 @@ done
 
 # start Spark SQL client shell
 spark-sql --packages $DEPENDENCIES \
+    --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \

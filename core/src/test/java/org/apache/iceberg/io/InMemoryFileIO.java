@@ -25,40 +25,40 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class InMemoryFileIO implements FileIO {
 
-  private Map<String, byte[]> inMemoryFiles = Maps.newHashMap();
+  private Map<String, byte[]> inMemoryFiles = Maps.newConcurrentMap();
   private boolean closed = false;
 
-  public void addFile(String path, byte[] contents) {
+  public void addFile(String location, byte[] contents) {
     Preconditions.checkState(!closed, "Cannot call addFile after calling close()");
-    inMemoryFiles.put(path, contents);
+    inMemoryFiles.put(location, contents);
   }
 
-  public boolean fileExists(String path) {
-    return inMemoryFiles.containsKey(path);
+  public boolean fileExists(String location) {
+    return inMemoryFiles.containsKey(location);
   }
 
   @Override
-  public InputFile newInputFile(String path) {
+  public InputFile newInputFile(String location) {
     Preconditions.checkState(!closed, "Cannot call newInputFile after calling close()");
-    if (!inMemoryFiles.containsKey(path)) {
-      throw new NotFoundException("No in-memory file found for path: %s", path);
+    byte[] contents = inMemoryFiles.get(location);
+    if (null == contents) {
+      throw new NotFoundException("No in-memory file found for location: %s", location);
     }
-    return new InMemoryInputFile(path, inMemoryFiles.get(path));
+    return new InMemoryInputFile(location, contents);
   }
 
   @Override
-  public OutputFile newOutputFile(String path) {
+  public OutputFile newOutputFile(String location) {
     Preconditions.checkState(!closed, "Cannot call newOutputFile after calling close()");
-    return new InMemoryOutputFile(path, this);
+    return new InMemoryOutputFile(location, this);
   }
 
   @Override
-  public void deleteFile(String path) {
+  public void deleteFile(String location) {
     Preconditions.checkState(!closed, "Cannot call deleteFile after calling close()");
-    if (!inMemoryFiles.containsKey(path)) {
-      throw new NotFoundException("No in-memory file found for path: %s", path);
+    if (null == inMemoryFiles.remove(location)) {
+      throw new NotFoundException("No in-memory file found for location: %s", location);
     }
-    inMemoryFiles.remove(path);
   }
 
   public boolean isClosed() {

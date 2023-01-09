@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Any, List
-
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -37,27 +35,13 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import expression_evaluator
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import StructProtocol
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     DoubleType,
     LongType,
     NestedField,
     StringType,
 )
-
-
-class Record(StructProtocol):
-    data: List[Any]
-
-    def __init__(self, *values: Any) -> None:
-        self.data = list(values)
-
-    def get(self, pos: int) -> Any:
-        return self.data[pos]
-
-    def set(self, pos: int, value: Any) -> None:
-        self.data[pos] = value
-
 
 SIMPLE_SCHEMA = Schema(
     NestedField(id=1, name="id", field_type=LongType()), NestedField(id=2, name="data", field_type=StringType(), required=False)

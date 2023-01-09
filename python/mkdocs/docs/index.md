@@ -50,8 +50,9 @@ You can mix and match optional dependencies depending on your needs:
 | pyarrow | PyArrow as a FileIO implementation to interact with the object store |
 | duckdb  | Installs both PyArrow and DuckDB                                     |
 | s3fs    | S3FS as a FileIO implementation to interact with the object store    |
+| adlfs   | ADLFS as a FileIO implementation to interact with the object store   |
 | snappy  | Support for snappy Avro compression                                  |
 
-You either need to install `s3fs` or `pyarrow` for fetching files.
+You either need to install `s3fs`, `adlfs` or `pyarrow` for fetching files.
 
 There is both a [CLI](cli.md) and [Python API](api.md) available.

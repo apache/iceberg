@@ -16,16 +16,17 @@
 # under the License.
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from io import SEEK_SET
 from types import TracebackType
 from typing import Optional, Type
+from uuid import UUID
 
 import pytest
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.avro.resolver import promote
+from pyiceberg.avro.resolver import resolve
 from pyiceberg.io import InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
@@ -108,7 +109,7 @@ class OneByteAtATimeInputStream(InputStream):
 
     def read(self, size: int = 0) -> bytes:
         self.pos += 1
-        return int.to_bytes(1, self.pos, byteorder="little")
+        return self.pos.to_bytes(1, byteorder="little")
 
     def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         self.pos = offset
@@ -116,10 +117,6 @@ class OneByteAtATimeInputStream(InputStream):
 
     def tell(self) -> int:
         return self.pos
-
-    @property
-    def closed(self) -> bool:
-        return False
 
     def close(self) -> None:
         pass
@@ -135,11 +132,7 @@ class OneByteAtATimeInputStream(InputStream):
 
 def test_read_single_byte_at_the_time() -> None:
     decoder = BinaryDecoder(OneByteAtATimeInputStream())
-
-    with pytest.raises(ValueError) as exc_info:
-        decoder.read(2)
-
-    assert "Read 1 bytes, expected 2 bytes" in str(exc_info.value)
+    assert decoder.read(2) == b"\x01\x02"
 
 
 def test_read_float() -> None:
@@ -170,10 +163,10 @@ def test_skip_double() -> None:
     assert mis.tell() == 8
 
 
-def test_read_date() -> None:
-    mis = MemoryInputStream(b"\xBC\x7D")
+def test_read_uuid_from_fixed() -> None:
+    mis = MemoryInputStream(b"\x12\x34\x56\x78" * 4)
     decoder = BinaryDecoder(mis)
-    assert decoder.read_date_from_int() == date(1991, 12, 27)
+    assert decoder.read_uuid_from_fixed() == UUID("{12345678-1234-5678-1234-567812345678}")
 
 
 def test_read_time_millis() -> None:
@@ -224,6 +217,5 @@ def test_skip_utf8() -> None:
 def test_read_int_as_float() -> None:
     mis = MemoryInputStream(b"\x00\x00\x9A\x41")
     decoder = BinaryDecoder(mis)
-    reader = promote(FloatType(), DoubleType())
-
+    reader = resolve(FloatType(), DoubleType())
     assert reader.read(decoder) == 19.25

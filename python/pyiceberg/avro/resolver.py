@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from functools import singledispatch
+# pylint: disable=arguments-renamed,unused-argument
 from typing import (
+    Callable,
+    Dict,
     List,
     Optional,
     Tuple,
@@ -23,173 +25,221 @@ from typing import (
 )
 
 from pyiceberg.avro.reader import (
-    ConstructReader,
+    BinaryReader,
+    BooleanReader,
+    DateReader,
+    DecimalReader,
+    DoubleReader,
+    FixedReader,
+    FloatReader,
+    IntegerReader,
     ListReader,
     MapReader,
     NoneReader,
     OptionReader,
     Reader,
+    StringReader,
     StructReader,
-    primitive_reader,
+    TimeReader,
+    TimestampReader,
+    TimestamptzReader,
+    UUIDReader,
 )
-from pyiceberg.schema import Schema, visit
+from pyiceberg.exceptions import ResolveError
+from pyiceberg.schema import (
+    PartnerAccessor,
+    PrimitiveWithPartnerVisitor,
+    Schema,
+    promote,
+    visit_with_partner,
+)
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     BinaryType,
+    BooleanType,
+    DateType,
     DecimalType,
     DoubleType,
+    FixedType,
     FloatType,
     IcebergType,
     IntegerType,
     ListType,
     LongType,
     MapType,
+    NestedField,
     PrimitiveType,
     StringType,
     StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
 )
 
 
-class ResolveException(Exception):
-    pass
-
-
-@singledispatch
-def resolve(file_schema: Union[Schema, IcebergType], read_schema: Union[Schema, IcebergType]) -> Reader:
-    """This resolves the file and read schema
-
-    The function traverses the schema in post-order fashion
-
-     Args:
-         file_schema (Schema | IcebergType): The schema of the Avro file
-         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
-
-     Raises:
-         NotImplementedError: If attempting to resolve an unrecognized object type
-    """
-    raise NotImplementedError(f"Cannot resolve non-type: {file_schema}")
-
-
-@resolve.register(Schema)
-def _(file_schema: Schema, read_schema: Schema) -> Reader:
-    """Visit a Schema and starts resolving it by converting it to a struct"""
-    return resolve(file_schema.as_struct(), read_schema.as_struct())
-
-
-@resolve.register(StructType)
-def _(file_struct: StructType, read_struct: IcebergType) -> Reader:
-    """Iterates over the file schema, and checks if the field is in the read schema"""
-
-    if not isinstance(read_struct, StructType):
-        raise ResolveException(f"File/read schema are not aligned for {file_struct}, got {read_struct}")
-
-    results: List[Tuple[Optional[int], Reader]] = []
-    read_fields = {field.field_id: (pos, field) for pos, field in enumerate(read_struct.fields)}
-
-    for file_field in file_struct.fields:
-        if file_field.field_id in read_fields:
-            read_pos, read_field = read_fields[file_field.field_id]
-            result_reader = resolve(file_field.field_type, read_field.field_type)
-        else:
-            read_pos = None
-            result_reader = visit(file_field.field_type, ConstructReader())
-        result_reader = result_reader if file_field.required else OptionReader(result_reader)
-        results.append((read_pos, result_reader))
-
-    file_fields = {field.field_id: field for field in file_struct.fields}
-    for pos, read_field in enumerate(read_struct.fields):
-        if read_field.field_id not in file_fields:
-            if read_field.required:
-                raise ResolveException(f"{read_field} is non-optional, and not part of the file schema")
-            # Just set the new field to None
-            results.append((pos, NoneReader()))
-
-    return StructReader(tuple(results))
-
-
-@resolve.register(ListType)
-def _(file_list: ListType, read_list: IcebergType) -> Reader:
-    if not isinstance(read_list, ListType):
-        raise ResolveException(f"File/read schema are not aligned for {file_list}, got {read_list}")
-    element_reader = resolve(file_list.element_type, read_list.element_type)
-    return ListReader(element_reader)
-
-
-@resolve.register(MapType)
-def _(file_map: MapType, read_map: IcebergType) -> Reader:
-    if not isinstance(read_map, MapType):
-        raise ResolveException(f"File/read schema are not aligned for {file_map}, got {read_map}")
-    key_reader = resolve(file_map.key_type, read_map.key_type)
-    value_reader = resolve(file_map.value_type, read_map.value_type)
-
-    return MapReader(key_reader, value_reader)
-
-
-@resolve.register(PrimitiveType)
-def _(file_type: PrimitiveType, read_type: IcebergType) -> Reader:
-    """Converting the primitive type into an actual reader that will decode the physical data"""
-    if not isinstance(read_type, PrimitiveType):
-        raise ResolveException(f"Cannot promote {file_type} to {read_type}")
-
-    # In the case of a promotion, we want to check if it is valid
-    if file_type != read_type:
-        return promote(file_type, read_type)
-    return primitive_reader(read_type)
-
-
-@singledispatch
-def promote(file_type: IcebergType, read_type: IcebergType) -> Reader:
-    """Promotes reading a file type to a read type
+def construct_reader(file_schema: Union[Schema, IcebergType]) -> Reader:
+    """Constructs a reader from a file schema
 
     Args:
-        file_type (IcebergType): The type of the Avro file
-        read_type (IcebergType): The requested read type
+        file_schema (Schema | IcebergType): The schema of the Avro file
 
     Raises:
-        ResolveException: If attempting to resolve an unrecognized object type
+        NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    raise ResolveException(f"Cannot promote {file_type} to {read_type}")
+    return resolve(file_schema, file_schema)
 
 
-@promote.register(IntegerType)
-def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
-    if isinstance(read_type, LongType):
-        # Ints/Longs are binary compatible in Avro, so this is okay
-        return primitive_reader(read_type)
-    else:
-        raise ResolveException(f"Cannot promote an int to {read_type}")
+def resolve(
+    file_schema: Union[Schema, IcebergType],
+    read_schema: Union[Schema, IcebergType],
+    read_types: Dict[int, Callable[[Schema], StructProtocol]] = EMPTY_DICT,
+) -> Reader:
+    """Resolves the file and read schema to produce a reader
+
+    Args:
+        file_schema (Schema | IcebergType): The schema of the Avro file
+        read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
+        read_types (Dict[int, Callable[[Schema], StructProtocol]]): A dict of types to use for struct data
+
+    Raises:
+        NotImplementedError: If attempting to resolve an unrecognized object type
+    """
+    return visit_with_partner(file_schema, read_schema, SchemaResolver(read_types), SchemaPartnerAccessor())  # type: ignore
 
 
-@promote.register(FloatType)
-def _(file_type: FloatType, read_type: IcebergType) -> Reader:
-    if isinstance(read_type, DoubleType):
-        # We should just read the float, and return it, since it both returns a float
-        return primitive_reader(file_type)
-    else:
-        raise ResolveException(f"Cannot promote an float to {read_type}")
+class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
+    read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]
+
+    def __init__(self, read_types: Optional[Dict[int, Callable[[Schema], StructProtocol]]]):
+        self.read_types = read_types
+
+    def schema(self, schema: Schema, expected_schema: Optional[IcebergType], result: Reader) -> Reader:
+        return result
+
+    def struct(self, struct: StructType, expected_struct: Optional[IcebergType], field_readers: List[Reader]) -> Reader:
+        if not expected_struct:
+            return StructReader(tuple(enumerate(field_readers)))
+
+        if not isinstance(expected_struct, StructType):
+            raise ResolveError(f"File/read schema are not aligned for struct, got {expected_struct}")
+
+        results: List[Tuple[Optional[int], Reader]] = []
+        expected_positions: Dict[int, int] = {field.field_id: pos for pos, field in enumerate(expected_struct.fields)}
+
+        # first, add readers for the file fields that must be in order
+        for field, result_reader in zip(struct.fields, field_readers):
+            read_pos = expected_positions.get(field.field_id)
+            results.append((read_pos, result_reader))
+
+        file_fields = {field.field_id: field for field in struct.fields}
+        for pos, read_field in enumerate(expected_struct.fields):
+            if read_field.field_id not in file_fields:
+                if read_field.required:
+                    raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
+                # Just set the new field to None
+                results.append((pos, NoneReader()))
+
+        return StructReader(tuple(results))
+
+    def field(self, field: NestedField, expected_field: Optional[IcebergType], field_reader: Reader) -> Reader:
+        return field_reader if field.required else OptionReader(field_reader)
+
+    def list(self, list_type: ListType, expected_list: Optional[IcebergType], element_reader: Reader) -> Reader:
+        if expected_list and not isinstance(expected_list, ListType):
+            raise ResolveError(f"File/read schema are not aligned for list, got {expected_list}")
+
+        return ListReader(element_reader if list_type.element_required else OptionReader(element_reader))
+
+    def map(self, map_type: MapType, expected_map: Optional[IcebergType], key_reader: Reader, value_reader: Reader) -> Reader:
+        if expected_map and not isinstance(expected_map, MapType):
+            raise ResolveError(f"File/read schema are not aligned for map, got {expected_map}")
+
+        return MapReader(key_reader, value_reader if map_type.value_required else OptionReader(value_reader))
+
+    def primitive(self, primitive: PrimitiveType, expected_primitive: Optional[IcebergType]) -> Reader:
+        if expected_primitive is not None:
+            if not isinstance(expected_primitive, PrimitiveType):
+                raise ResolveError(f"File/read schema are not aligned for {primitive}, got {expected_primitive}")
+
+            # ensure that the type can be projected to the expected
+            if primitive != expected_primitive:
+                promote(primitive, expected_primitive)
+
+        return super().primitive(primitive, expected_primitive)
+
+    def visit_boolean(self, boolean_type: BooleanType, partner: Optional[IcebergType]) -> Reader:
+        return BooleanReader()
+
+    def visit_integer(self, integer_type: IntegerType, partner: Optional[IcebergType]) -> Reader:
+        return IntegerReader()
+
+    def visit_long(self, long_type: LongType, partner: Optional[IcebergType]) -> Reader:
+        return IntegerReader()
+
+    def visit_float(self, float_type: FloatType, partner: Optional[IcebergType]) -> Reader:
+        return FloatReader()
+
+    def visit_double(self, double_type: DoubleType, partner: Optional[IcebergType]) -> Reader:
+        return DoubleReader()
+
+    def visit_decimal(self, decimal_type: DecimalType, partner: Optional[IcebergType]) -> Reader:
+        return DecimalReader(decimal_type.precision, decimal_type.scale)
+
+    def visit_date(self, date_type: DateType, partner: Optional[IcebergType]) -> Reader:
+        return DateReader()
+
+    def visit_time(self, time_type: TimeType, partner: Optional[IcebergType]) -> Reader:
+        return TimeReader()
+
+    def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[IcebergType]) -> Reader:
+        return TimestampReader()
+
+    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
+        return TimestamptzReader()
+
+    def visit_string(self, string_type: StringType, partner: Optional[IcebergType]) -> Reader:
+        return StringReader()
+
+    def visit_uuid(self, uuid_type: UUIDType, partner: Optional[IcebergType]) -> Reader:
+        return UUIDReader()
+
+    def visit_fixed(self, fixed_type: FixedType, partner: Optional[IcebergType]) -> Reader:
+        return FixedReader(len(fixed_type))
+
+    def visit_binary(self, binary_type: BinaryType, partner: Optional[IcebergType]) -> Reader:
+        return BinaryReader()
 
 
-@promote.register(StringType)
-def _(file_type: StringType, read_type: IcebergType) -> Reader:
-    if isinstance(read_type, BinaryType):
-        return primitive_reader(read_type)
-    else:
-        raise ResolveException(f"Cannot promote an string to {read_type}")
+class SchemaPartnerAccessor(PartnerAccessor[IcebergType]):
+    def schema_partner(self, partner: Optional[IcebergType]) -> Optional[IcebergType]:
+        if isinstance(partner, Schema):
+            return partner.as_struct()
 
+        raise ResolveError(f"File/read schema are not aligned for schema, got {partner}")
 
-@promote.register(BinaryType)
-def _(file_type: BinaryType, read_type: IcebergType) -> Reader:
-    if isinstance(read_type, StringType):
-        return primitive_reader(read_type)
-    else:
-        raise ResolveException(f"Cannot promote an binary to {read_type}")
-
-
-@promote.register(DecimalType)
-def _(file_type: DecimalType, read_type: IcebergType) -> Reader:
-    if isinstance(read_type, DecimalType):
-        if file_type.precision <= read_type.precision and file_type.scale == file_type.scale:
-            return primitive_reader(read_type)
+    def field_partner(self, partner: Optional[IcebergType], field_id: int, field_name: str) -> Optional[IcebergType]:
+        if isinstance(partner, StructType):
+            field = partner.field(field_id)
         else:
-            raise ResolveException(f"Cannot reduce precision from {file_type} to {read_type}")
-    else:
-        raise ResolveException(f"Cannot promote an decimal to {read_type}")
+            raise ResolveError(f"File/read schema are not aligned for struct, got {partner}")
+
+        return field.field_type if field else None
+
+    def list_element_partner(self, partner_list: Optional[IcebergType]) -> Optional[IcebergType]:
+        if isinstance(partner_list, ListType):
+            return partner_list.element_type
+
+        raise ResolveError(f"File/read schema are not aligned for list, got {partner_list}")
+
+    def map_key_partner(self, partner_map: Optional[IcebergType]) -> Optional[IcebergType]:
+        if isinstance(partner_map, MapType):
+            return partner_map.key_type
+
+        raise ResolveError(f"File/read schema are not aligned for map, got {partner_map}")
+
+    def map_value_partner(self, partner_map: Optional[IcebergType]) -> Optional[IcebergType]:
+        if isinstance(partner_map, MapType):
+            return partner_map.value_type
+
+        raise ResolveError(f"File/read schema are not aligned for map, got {partner_map}")

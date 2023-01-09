@@ -28,9 +28,10 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.12.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.12.1'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
+    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'

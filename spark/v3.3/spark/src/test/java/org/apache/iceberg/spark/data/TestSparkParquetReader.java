@@ -43,7 +43,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.parquet.ParquetWriteAdapter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -144,16 +143,16 @@ public class TestSparkParquetReader extends AvroDataTest {
             });
     List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
 
-    try (FileAppender<InternalRow> writer =
-        new ParquetWriteAdapter<>(
-            new NativeSparkWriterBuilder(outputFile)
-                .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-                .set("spark.sql.parquet.writeLegacyFormat", "false")
-                .set("spark.sql.parquet.outputTimestampType", "INT96")
-                .set("spark.sql.parquet.fieldId.write.enabled", "true")
-                .build(),
-            MetricsConfig.getDefault())) {
-      writer.addAll(rows);
+    try (ParquetWriter<InternalRow> writer =
+        new NativeSparkWriterBuilder(outputFile)
+            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
+            .set("spark.sql.parquet.writeLegacyFormat", "false")
+            .set("spark.sql.parquet.outputTimestampType", "INT96")
+            .set("spark.sql.parquet.fieldId.write.enabled", "true")
+            .build()) {
+      for (InternalRow row : rows) {
+        writer.write(row);
+      }
     }
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);

@@ -906,9 +906,6 @@ public class TestRowDelta extends V2TableTestBase {
 
     Assert.assertTrue(
         "Partition metrics must be correct",
-        summary.get(CHANGED_PARTITION_PREFIX).contains(ADDED_DELETE_FILES_PROP + "=1"));
-    Assert.assertTrue(
-        "Partition metrics must be correct",
         summary
             .get(CHANGED_PARTITION_PREFIX + "data_bucket=0")
             .contains(ADDED_DELETE_FILES_PROP + "=1"));

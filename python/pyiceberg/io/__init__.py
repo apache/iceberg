@@ -139,8 +139,11 @@ class InputFile(ABC):
         """
 
     @abstractmethod
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """This method should return an object that matches the InputStream protocol
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             InputStream: An object that matches the InputStream protocol
@@ -257,6 +260,8 @@ SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
     "gcs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
+    "abfs": [FSSPEC_FILE_IO],
+    "abfss": [FSSPEC_FILE_IO],
 }
 
 

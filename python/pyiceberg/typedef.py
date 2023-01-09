@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from abc import abstractmethod
 from decimal import Decimal
 from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Protocol,
     Tuple,
     TypeVar,
@@ -51,12 +54,9 @@ class KeyDefaultDict(Dict[K, V]):
         self.default_factory = default_factory
 
     def __missing__(self, key: K) -> V:
-        if self.default_factory is None:
-            raise KeyError(key)
-        else:
-            val = self.default_factory(key)
-            self[key] = val
-            return val
+        val = self.default_factory(key)
+        self[key] = val
+        return val
 
 
 Identifier = Tuple[str, ...]
@@ -78,3 +78,28 @@ class StructProtocol(Protocol):  # pragma: no cover
     @abstractmethod
     def set(self, pos: int, value: Any) -> None:
         ...
+
+
+class Record(StructProtocol):
+    _data: List[Union[Any, StructProtocol]]
+
+    @staticmethod
+    def of(num_fields: int) -> Record:
+        return Record(*([None] * num_fields))
+
+    def __init__(self, *data: Union[Any, StructProtocol]) -> None:
+        self._data = list(data)
+
+    def set(self, pos: int, value: Any) -> None:
+        print(f"set({pos}, {repr(value)})")
+        self._data[pos] = value
+
+    def get(self, pos: int) -> Any:
+        return self._data[pos]
+
+    def __eq__(self, other: Any) -> bool:
+        # For testing
+        return True if isinstance(other, Record) and other._data == self._data else False
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}[" + ", ".join([repr(e) for e in self._data]) + "]"

@@ -427,22 +427,15 @@ public class TableTestBase {
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
             "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
-        V1Assert.assertEquals(
-            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
 
         V2Assert.assertEquals(
             "Data sequence number should match expected",
             sequenceNumber,
             entry.dataSequenceNumber());
-        if (entry.isLive()) {
-          V2Assert.assertEquals(
-              "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
-        } else {
-          V2Assert.assertEquals(
-              "Sequence number should match expected",
-              snap.sequenceNumber(),
-              entry.sequenceNumber().longValue());
-        }
+        V2Assert.assertEquals(
+            "Sequence number should match expected",
+            snap.sequenceNumber(),
+            entry.dataSequenceNumber().longValue());
       }
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
@@ -514,25 +507,16 @@ public class TableTestBase {
       if (dataSeqs != null) {
         V1Assert.assertEquals(
             "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
-        V1Assert.assertEquals(
-            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
 
         Long expectedSequenceNumber = dataSeqs.next();
         V2Assert.assertEquals(
             "Data sequence number should match expected",
             expectedSequenceNumber,
             entry.dataSequenceNumber());
-        if (entry.isLive()) {
-          V2Assert.assertEquals(
-              "Sequence number should match expected",
-              expectedSequenceNumber,
-              entry.sequenceNumber());
-        } else {
-          V2Assert.assertEquals(
-              "Sequence number should match expected",
-              manifest.sequenceNumber(),
-              entry.sequenceNumber().longValue());
-        }
+        V2Assert.assertEquals(
+            "Sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
       }
       if (fileSeqs != null) {
         V1Assert.assertEquals(
@@ -565,25 +549,16 @@ public class TableTestBase {
       if (dataSeqs != null) {
         V1Assert.assertEquals(
             "Data sequence number should default to 0", 0, entry.dataSequenceNumber().longValue());
-        V1Assert.assertEquals(
-            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
 
         Long expectedSequenceNumber = dataSeqs.next();
         V2Assert.assertEquals(
             "Data sequence number should match expected",
             expectedSequenceNumber,
             entry.dataSequenceNumber());
-        if (entry.isLive()) {
-          V2Assert.assertEquals(
-              "Sequence number should match expected",
-              expectedSequenceNumber,
-              entry.sequenceNumber());
-        } else {
-          V2Assert.assertEquals(
-              "Sequence number should match expected",
-              manifest.sequenceNumber(),
-              entry.sequenceNumber().longValue());
-        }
+        V2Assert.assertEquals(
+            "Sequence number should match expected",
+            expectedSequenceNumber,
+            entry.dataSequenceNumber());
       }
       if (fileSeqs != null) {
         V1Assert.assertEquals(
