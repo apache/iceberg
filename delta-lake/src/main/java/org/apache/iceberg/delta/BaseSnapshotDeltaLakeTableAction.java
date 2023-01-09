@@ -55,7 +55,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,15 +63,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Takes a Delta Lake table's location and attempts to transform it into an Iceberg table in an
+ * Takes a Delta Lake table's location and attempts to create an Iceberg table snapshot in an
  * optional user-specified location (default to the Delta Lake table's location) with a different
  * identifier.
  */
-public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
+public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateDeltaLakeTableAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotDeltaLakeTableAction.class);
 
-  private static final String MIGRATION_SOURCE_PROP = "migration_source";
+  private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String PARQUET_SUFFIX = ".parquet";
@@ -84,40 +83,49 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
   private final Catalog icebergCatalog;
   private final String deltaTableLocation;
   private final TableIdentifier newTableIdentifier;
-  private final String newTableLocation;
-  private final HadoopFileIO hadoopFileIO;
+  private String newTableLocation;
+  private final HadoopFileIO deltaLakeFileIO;
 
-  public BaseMigrateDeltaLakeTableAction(
+  /**
+   * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
+   * log through the table's path, create a new iceberg table using the given icebergCatalog and
+   * newTableIdentifier, and commit all changes in one iceberg transaction.
+   *
+   * <p>The new table will only be created if the snapshot is successful.
+   *
+   * @param icebergCatalog the iceberg catalog to create the iceberg table
+   * @param deltaTableLocation the delta lake table's path
+   * @param newTableIdentifier the identifier of the new iceberg table
+   * @param deltaLakeConfiguration the hadoop configuration to access the delta lake table
+   */
+  public BaseSnapshotDeltaLakeTableAction(
       Catalog icebergCatalog,
       String deltaTableLocation,
       TableIdentifier newTableIdentifier,
-      Configuration hadoopConfiguration) {
-    this(icebergCatalog, deltaTableLocation, newTableIdentifier, null, hadoopConfiguration);
-  }
-
-  public BaseMigrateDeltaLakeTableAction(
-      Catalog icebergCatalog,
-      String deltaTableLocation,
-      TableIdentifier newTableIdentifier,
-      String newTableLocation,
-      Configuration hadoopConfiguration) {
+      Configuration deltaLakeConfiguration) {
     this.icebergCatalog = icebergCatalog;
     this.deltaTableLocation = deltaTableLocation;
     this.newTableIdentifier = newTableIdentifier;
-    this.newTableLocation = newTableLocation == null ? deltaTableLocation : newTableLocation;
-    this.deltaLog = DeltaLog.forTable(hadoopConfiguration, deltaTableLocation);
-    this.hadoopFileIO = new HadoopFileIO(hadoopConfiguration);
+    this.newTableLocation = deltaTableLocation;
+    this.deltaLog = DeltaLog.forTable(deltaLakeConfiguration, deltaTableLocation);
+    this.deltaLakeFileIO = new HadoopFileIO(deltaLakeConfiguration);
   }
 
   @Override
-  public MigrateDeltaLakeTable tableProperties(Map<String, String> properties) {
+  public SnapshotDeltaLakeTable tableProperties(Map<String, String> properties) {
     additionalPropertiesBuilder.putAll(properties);
     return this;
   }
 
   @Override
-  public MigrateDeltaLakeTable tableProperty(String name, String value) {
+  public SnapshotDeltaLakeTable tableProperty(String name, String value) {
     additionalPropertiesBuilder.put(name, value);
+    return this;
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable tableLocation(String location) {
+    this.newTableLocation = location;
     return this;
   }
 
@@ -140,7 +148,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
         "Successfully loaded Iceberg metadata for {} files in {}",
         totalDataFiles,
         deltaTableLocation);
-    return new BaseMigrateDeltaLakeTableActionResult(totalDataFiles);
+    return new BaseSnapshotDeltaLakeTableActionResult(totalDataFiles);
   }
 
   private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
@@ -254,7 +262,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     }
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
-    InputFile file = hadoopFileIO.newInputFile(fullFilePath);
+    InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
@@ -308,7 +316,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
     additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
-            MIGRATION_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
+            SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
 
     return additionalPropertiesBuilder.build();
   }
@@ -321,8 +329,7 @@ public class BaseMigrateDeltaLakeTableAction implements MigrateDeltaLakeTable {
    *     (either absolute or relative)
    * @param tableRoot the root path of the delta table
    */
-  @VisibleForTesting
-  static String getFullFilePath(String path, String tableRoot) {
+  private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     if (dataFileUri.isAbsolute()) {
       return path;

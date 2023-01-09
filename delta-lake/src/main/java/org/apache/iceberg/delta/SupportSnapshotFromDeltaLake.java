@@ -18,16 +18,21 @@
  */
 package org.apache.iceberg.delta;
 
-public class BaseMigrateDeltaLakeTableActionResult implements MigrateDeltaLakeTable.Result {
+/**
+ * An API that should be implemented by query engine integrations that want to support snapshotting
+ * from Delta Lake table to Iceberg table.
+ */
+public interface SupportSnapshotFromDeltaLake {
 
-  private final long migratedDataFilesCount;
-
-  public BaseMigrateDeltaLakeTableActionResult(long migratedDataFilesCount) {
-    this.migratedDataFilesCount = migratedDataFilesCount;
+  /** Initiates an action to migrate an existing Delta Lake table to Iceberg. */
+  default SnapshotDeltaLakeTable migrateDeltaLakeTable(String tableIdent, String deltaS3Location) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement migrateDeltaLakeTable");
   }
 
-  @Override
-  public long migratedDataFilesCount() {
-    return migratedDataFilesCount;
+  default SnapshotDeltaLakeTable migrateDeltaLakeTable(
+      String tableIdent, String deltaS3Location, String newTableLocation) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement migrateDeltaLakeTable");
   }
 }

@@ -443,6 +443,8 @@ project(':iceberg-aws') {
 }
 
 project(':iceberg-delta-lake') {
+  // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
+  // and create some tests involving sql query.
   configurations {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
@@ -466,6 +468,8 @@ project(':iceberg-delta-lake') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
+    // not need to include older version of delta-core
     if (sparkVersions.contains("3.3")) {
       integrationImplementation "io.delta:delta-core_${scalaVersion}"
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
@@ -489,6 +493,8 @@ project(':iceberg-delta-lake') {
     }
   }
 
+  // The newest version of delta-core uses Spark 3.3.*. The integration test should only be built
+  // if iceberg-spark-3.3 is available
   if (sparkVersions.contains("3.3")) {
     sourceSets {
       integration {

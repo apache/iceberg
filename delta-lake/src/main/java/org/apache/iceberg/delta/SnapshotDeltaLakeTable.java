@@ -21,9 +21,9 @@ package org.apache.iceberg.delta;
 import java.util.Map;
 import org.apache.iceberg.actions.Action;
 
-/** Migrates an existing Delta Lake table to Iceberg in place. */
-public interface MigrateDeltaLakeTable
-    extends Action<MigrateDeltaLakeTable, MigrateDeltaLakeTable.Result> {
+/** Snapshot an existing Delta Lake table to Iceberg in place. */
+public interface SnapshotDeltaLakeTable
+    extends Action<SnapshotDeltaLakeTable, SnapshotDeltaLakeTable.Result> {
 
   /**
    * Sets table properties in the newly created Iceberg table. Any properties with the same key name
@@ -32,7 +32,7 @@ public interface MigrateDeltaLakeTable
    * @param properties a map of properties to set
    * @return this for method chaining
    */
-  MigrateDeltaLakeTable tableProperties(Map<String, String> properties);
+  SnapshotDeltaLakeTable tableProperties(Map<String, String> properties);
 
   /**
    * Sets a table property in the newly created Iceberg table. Any properties with the same key will
@@ -42,12 +42,21 @@ public interface MigrateDeltaLakeTable
    * @param value a table property value
    * @return this for method chaining
    */
-  MigrateDeltaLakeTable tableProperty(String name, String value);
+  SnapshotDeltaLakeTable tableProperty(String name, String value);
+
+  /**
+   * Sets the location of the newly created Iceberg table. Default location is the same as the Delta
+   * Lake table.
+   *
+   * @param location a path to the new table location
+   * @return this for method chaining
+   */
+  SnapshotDeltaLakeTable tableLocation(String location);
 
   /** The action result that contains a summary of the execution. */
   interface Result {
 
     /** Returns the number of migrated data files. */
-    long migratedDataFilesCount();
+    long snapshotDataFilesCount();
   }
 }

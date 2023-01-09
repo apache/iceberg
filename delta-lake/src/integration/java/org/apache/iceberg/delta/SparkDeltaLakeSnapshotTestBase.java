@@ -48,9 +48,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 @SuppressWarnings("VisibilityModifier")
-public abstract class SparkDeltaLakeMigrationTestBase {
-  protected static final Object ANY = new Object();
-
+public abstract class SparkDeltaLakeSnapshotTestBase {
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
@@ -60,11 +58,11 @@ public abstract class SparkDeltaLakeMigrationTestBase {
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
-    SparkDeltaLakeMigrationTestBase.metastore = new TestHiveMetastore();
+    SparkDeltaLakeSnapshotTestBase.metastore = new TestHiveMetastore();
     metastore.start();
-    SparkDeltaLakeMigrationTestBase.hiveConf = metastore.hiveConf();
+    SparkDeltaLakeSnapshotTestBase.hiveConf = metastore.hiveConf();
 
-    SparkDeltaLakeMigrationTestBase.spark =
+    SparkDeltaLakeSnapshotTestBase.spark =
         SparkSession.builder()
             .master("local[2]")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
@@ -77,7 +75,7 @@ public abstract class SparkDeltaLakeMigrationTestBase {
             .enableHiveSupport()
             .getOrCreate();
 
-    SparkDeltaLakeMigrationTestBase.catalog =
+    SparkDeltaLakeSnapshotTestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
@@ -91,16 +89,16 @@ public abstract class SparkDeltaLakeMigrationTestBase {
 
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
-    SparkDeltaLakeMigrationTestBase.catalog = null;
+    SparkDeltaLakeSnapshotTestBase.catalog = null;
     metastore.stop();
-    SparkDeltaLakeMigrationTestBase.metastore = null;
+    SparkDeltaLakeSnapshotTestBase.metastore = null;
     spark.stop();
-    SparkDeltaLakeMigrationTestBase.spark = null;
+    SparkDeltaLakeSnapshotTestBase.spark = null;
   }
 
   @BeforeClass
   public static void createWarehouse() throws IOException {
-    SparkDeltaLakeMigrationTestBase.warehouse = File.createTempFile("warehouse", null);
+    SparkDeltaLakeSnapshotTestBase.warehouse = File.createTempFile("warehouse", null);
     Assert.assertTrue(warehouse.delete());
   }
 
@@ -121,15 +119,15 @@ public abstract class SparkDeltaLakeMigrationTestBase {
   protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
   protected final String tableName;
 
-  public SparkDeltaLakeMigrationTestBase() {
+  public SparkDeltaLakeSnapshotTestBase() {
     this(SparkCatalogConfig.HADOOP);
   }
 
-  public SparkDeltaLakeMigrationTestBase(SparkCatalogConfig config) {
+  public SparkDeltaLakeSnapshotTestBase(SparkCatalogConfig config) {
     this(config.catalogName(), config.implementation(), config.properties());
   }
 
-  public SparkDeltaLakeMigrationTestBase(
+  public SparkDeltaLakeSnapshotTestBase(
       String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
     this.validationCatalog =
