@@ -163,7 +163,7 @@ class DataFile(PydanticStruct):
     content: DataFileContent = Field(default=DataFileContent.DATA)
     file_path: str = Field()
     file_format: FileFormat = Field()
-    partition: Record = Field(default_factory=Record)
+    partition: Record = Field()
     record_count: int = Field()
     file_size_in_bytes: int = Field()
     column_sizes: Dict[int, int] = Field(default=EMPTY_DICT)
@@ -253,7 +253,7 @@ class ManifestFile(PydanticStruct):
 
 
 def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile, 102: Record}) as reader:
+    with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile}) as reader:
         yield from reader
 
 

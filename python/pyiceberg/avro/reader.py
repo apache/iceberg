@@ -43,6 +43,7 @@ from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import PydanticStruct, Record, StructProtocol
+from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -249,45 +250,53 @@ class OptionReader(Reader):
 
 
 class StructReader(Reader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...]
+    field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Type[StructProtocol]
+    fields: Optional[Tuple[NestedField, ...]]
 
-    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Type[StructProtocol] = Record):
-        self.fields = fields
+    def __init__(
+        self,
+        field_readers: Tuple[Tuple[Optional[int], Reader], ...],
+        create_struct: Optional[Type[StructProtocol]] = None,
+        fields: Optional[Tuple[NestedField, ...]] = None,
+    ):
+        self.field_readers = field_readers
         self.create_struct = create_struct or Record
+        self.fields = fields
 
     def read(self, decoder: BinaryDecoder) -> Any:
         if issubclass(self.create_struct, Record):
-            struct = Record.of(len(self.fields))
+            struct = self.create_struct(length=len(self.field_readers), fields=self.fields)
         elif issubclass(self.create_struct, PydanticStruct):
             struct = self.create_struct.construct()
         else:
             raise ValueError(f"Expected a subclass of PydanticStruct, got: {self.create_struct}")
 
-        for (pos, field) in self.fields:
+        for (pos, field) in self.field_readers:
             if pos is not None:
-                struct[pos] = field.read(decoder)
+                r = field.read(decoder)
+                struct[pos] = r
             else:
                 field.skip(decoder)
 
         return struct
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        for _, field in self.fields:
+        for _, field in self.field_readers:
             field.skip(decoder)
 
     def __eq__(self, other: Any) -> bool:
         return (
-            self.fields == other.fields and self.create_struct == other.create_struct
+            self.field_readers == other.field_readers and self.create_struct == other.create_struct
             if isinstance(other, StructReader)
             else False
         )
 
     def __repr__(self) -> str:
-        return f"StructReader(({','.join(repr(field) for field in self.fields)}), {repr(self.create_struct)})"
+        return f"StructReader(({','.join(repr(field) for field in self.field_readers)}), {repr(self.create_struct)})"
 
     def __hash__(self) -> int:
-        return hash(self.fields)
+        return hash(self.field_readers)
 
 
 @dataclass(frozen=True)

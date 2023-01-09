@@ -17,6 +17,7 @@
 import pytest
 
 from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
+from pyiceberg.types import IntegerType, NestedField, StringType
 
 
 def test_setitem_frozendict() -> None:
@@ -40,5 +41,15 @@ def test_keydefaultdict() -> None:
 
 
 def test_record_repr() -> None:
-    r = Record(1, "vo", True)
+    r = Record.of(1, "vo", True)
     assert repr(r) == "Record[1, 'vo', True]"
+
+
+def test_named_record() -> None:
+    r = Record(fields=(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
+
+    r[0] = 123
+    r[1] = "abc"
+
+    assert r[0] == 123
+    assert r[1] == "abc"

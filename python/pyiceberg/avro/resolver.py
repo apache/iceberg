@@ -131,7 +131,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
         struct_callable = self.read_types.get(read_struct_id, Record)
 
         if not expected_struct:
-            return StructReader(tuple(enumerate(field_readers)), struct_callable)
+            return StructReader(tuple(enumerate(field_readers)), struct_callable, struct.fields)
 
         if not isinstance(expected_struct, StructType):
             raise ResolveError(f"File/read schema are not aligned for struct, got {expected_struct}")
@@ -151,7 +151,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
                 # Just set the new field to None
                 results.append((pos, NoneReader()))
 
-        return StructReader(tuple(results), struct_callable)
+        return StructReader(tuple(results), struct_callable, struct.fields)
 
     def field(self, field: NestedField, expected_field: Optional[IcebergType], field_reader: Reader) -> Reader:
         return field_reader if field.required else OptionReader(field_reader)

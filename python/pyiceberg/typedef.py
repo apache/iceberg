@@ -20,6 +20,7 @@ from abc import abstractmethod
 from decimal import Decimal
 from functools import cached_property
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -34,7 +35,10 @@ from typing import (
 )
 from uuid import UUID
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Extra, PrivateAttr
+
+if TYPE_CHECKING:
+    from pyiceberg.types import NestedField
 
 
 class FrozenDict(Dict[Any, Any]):
@@ -46,7 +50,6 @@ class FrozenDict(Dict[Any, Any]):
 
 
 EMPTY_DICT = FrozenDict()
-
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -143,23 +146,63 @@ class PydanticStruct(IcebergBaseModel):
 
 
 class Record(PydanticStruct):
-    """A generic record"""
+    """A generic record with optional named attributes"""
 
     _data: List[Any] = PrivateAttr()
+    _keywords: List[str] = PrivateAttr()
+
+    class Config:
+        # To allow dynamic fields
+        extra = Extra.allow
 
     @staticmethod
-    def of(length: int) -> Record:
-        return Record(*([None] * length))
+    def of(*data: Any) -> Record:
+        r = Record(length=len(data))
+        for pos, d in enumerate(data):
+            r[pos] = d
+        return r
 
-    def __init__(self, *data: Any) -> None:
+    @property
+    def has_keywords(self) -> bool:
+        # If there are no public fields, it is position based
+        return len(self.__dict__) > 0
+
+    def __init__(self, length: int = 0, fields: Optional[Tuple[NestedField, ...]] = None) -> None:
         super().__init__()
-        self._data = list(data)
+        if fields is not None:
+            self._keywords = [field.name for field in fields]
+            for keyword in self._keywords:
+                setattr(self, keyword, None)
+        else:
+            self._data = [None] * length
 
     def __setitem__(self, pos: int, value: Any) -> None:
-        self._data[pos] = value
+        if self.has_keywords:
+            setattr(self, self._keywords[pos], value)
+        else:
+            self._data[pos] = value
 
     def __getitem__(self, pos: int) -> Any:
-        return self._data[pos]
+        if self.has_keywords:
+            return getattr(self, self._keywords[pos])
+        else:
+            return self._data[pos]
 
     def __repr__(self) -> str:
-        return f"Record[{', '.join(repr(v) for v in self._data)}]"
+        if self.has_keywords:
+            values = (f"{field_name}={field_value}" for field_name, field_value in self.__dict__.items())
+            return f"Record[{', '.join(values)}]"
+        else:
+            return f"Record[{', '.join(repr(v) for v in self._data)}]"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Record):
+            return False
+
+        if self.has_keywords != other.has_keywords:
+            return False
+
+        if self.has_keywords:
+            return self.__dict__ == other.__dict__
+        else:
+            return self._data == other._data
