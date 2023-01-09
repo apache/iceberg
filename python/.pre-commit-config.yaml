@@ -57,6 +57,7 @@ repos:
     hooks:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
+        additional_dependencies: [ typing-extensions==4.4.0 ]
   - repo: https://github.com/pycqa/flake8
     rev: '6.0.0'
     hooks:

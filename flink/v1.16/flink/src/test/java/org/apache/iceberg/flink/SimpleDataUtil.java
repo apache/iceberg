@@ -226,7 +226,7 @@ public class SimpleDataUtil {
     return records;
   }
 
-  private static boolean equalsRecords(List<Record> expected, List<Record> actual, Schema schema) {
+  public static boolean equalsRecords(List<Record> expected, List<Record> actual, Schema schema) {
     if (expected.size() != actual.size()) {
       return false;
     }
@@ -238,8 +238,7 @@ public class SimpleDataUtil {
     return expectedSet.equals(actualSet);
   }
 
-  private static void assertRecordsEqual(
-      List<Record> expected, List<Record> actual, Schema schema) {
+  public static void assertRecordsEqual(List<Record> expected, List<Record> actual, Schema schema) {
     Assert.assertEquals(expected.size(), actual.size());
     Types.StructType type = schema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
