@@ -42,8 +42,7 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.typedef import StructProtocol
-from pyiceberg.utils.iceberg_base_model import PydanticStruct, Record
+from pyiceberg.typedef import PydanticStruct, Record, StructProtocol
 from pyiceberg.utils.singleton import Singleton
 
 

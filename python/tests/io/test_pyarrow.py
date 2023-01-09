@@ -64,6 +64,7 @@ from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -83,7 +84,6 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
-from pyiceberg.utils.iceberg_base_model import Record
 
 
 def test_pyarrow_input_file() -> None:

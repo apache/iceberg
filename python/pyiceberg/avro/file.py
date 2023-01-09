@@ -40,7 +40,7 @@ from pyiceberg.avro.resolver import construct_reader, resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import EMPTY_DICT, StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, PydanticStruct, StructProtocol
 from pyiceberg.types import (
     FixedType,
     MapType,
@@ -48,7 +48,6 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from pyiceberg.utils.iceberg_base_model import PydanticStruct
 from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 VERSION = 1
@@ -96,30 +95,30 @@ class AvroFileHeader(PydanticStruct):
             raise ValueError("No schema found in Avro file headers")
 
 
-F = TypeVar("F", bound=StructProtocol)
+D = TypeVar("D", bound=StructProtocol)
 
 
 @dataclass
-class Block(Generic[F]):
+class Block(Generic[D]):
     reader: Reader
     block_records: int
     block_decoder: BinaryDecoder
     position: int = 0
 
-    def __iter__(self) -> Block[F]:
+    def __iter__(self) -> Block[D]:
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
-    def __next__(self) -> F:
+    def __next__(self) -> D:
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
         raise StopIteration
 
 
-class AvroFile(Generic[F]):
+class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
     read_types: Dict[int, Type[StructProtocol]]
@@ -129,7 +128,7 @@ class AvroFile(Generic[F]):
     reader: Reader
 
     decoder: BinaryDecoder
-    block: Optional[Block[F]] = None
+    block: Optional[Block[D]] = None
 
     def __init__(
         self,
@@ -141,7 +140,7 @@ class AvroFile(Generic[F]):
         self.read_schema = read_schema
         self.read_types = read_types
 
-    def __enter__(self) -> AvroFile[F]:
+    def __enter__(self) -> AvroFile[D]:
         """
         Opens the file and reads the header and generates
         a reader tree to start reading the payload
@@ -165,7 +164,7 @@ class AvroFile(Generic[F]):
     ) -> None:
         self.input_stream.close()
 
-    def __iter__(self) -> AvroFile[F]:
+    def __iter__(self) -> AvroFile[D]:
         return self
 
     def _read_block(self) -> int:
@@ -186,7 +185,7 @@ class AvroFile(Generic[F]):
         )
         return block_records
 
-    def __next__(self) -> F:
+    def __next__(self) -> D:
         if self.block and self.block.has_next():
             return next(self.block)
 

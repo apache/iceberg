@@ -18,17 +18,23 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from decimal import Decimal
+from functools import cached_property
 from typing import (
     Any,
     Callable,
     Dict,
+    List,
+    Optional,
     Protocol,
+    Set,
     Tuple,
     TypeVar,
     Union,
     runtime_checkable,
 )
 from uuid import UUID
+
+from pydantic import BaseModel, PrivateAttr
 
 
 class FrozenDict(Dict[Any, Any]):
@@ -77,3 +83,83 @@ class StructProtocol(Protocol):  # pragma: no cover
     @abstractmethod
     def __setitem__(self, pos: int, value: Any) -> None:
         ...
+
+
+class IcebergBaseModel(BaseModel):
+    """
+    This class extends the Pydantic BaseModel to set default values by overriding them.
+
+    This is because we always want to set by_alias to True. In Python, the dash can't
+    be used in variable names, and this is used throughout the Iceberg spec.
+
+    The same goes for exclude_none, if a field is None we want to omit it from
+    serialization, for example, the doc attribute on the NestedField object.
+    Default non-null values will be serialized.
+
+    This is recommended by Pydantic:
+    https://pydantic-docs.helpmanual.io/usage/model_config/#change-behaviour-globally
+    """
+
+    class Config:
+        keep_untouched = (cached_property,)
+        allow_population_by_field_name = True
+        frozen = True
+
+    def _exclude_private_properties(self, exclude: Optional[Set[str]] = None) -> Set[str]:
+        # A small trick to exclude private properties. Properties are serialized by pydantic,
+        # regardless if they start with an underscore.
+        # This will look at the dict, and find the fields and exclude them
+        return set.union(
+            {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, exclude or set()
+        )
+
+    def dict(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, **kwargs: Any) -> Dict[str, Any]:
+        return super().dict(exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), **kwargs)
+
+    def json(self, exclude_none: bool = True, exclude: Optional[Set[str]] = None, by_alias: bool = True, **kwargs: Any) -> str:
+        return super().json(
+            exclude_none=exclude_none, exclude=self._exclude_private_properties(exclude), by_alias=by_alias, **kwargs
+        )
+
+
+class PydanticStruct(IcebergBaseModel):
+    class Config:
+        frozen = False
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        positions = list(self.__fields__.values())
+        field = positions[pos]
+        if value is None:
+            if field.default is not None:
+                value = field.default
+            elif field.default_factory is not None:
+                value = field.default_factory()
+
+        self.__setattr__(field.name, value)
+
+    def __getitem__(self, pos: int) -> Any:
+        positions = list(self.__fields__.values())
+        return self.__getattribute__(positions[pos].name)
+
+
+class Record(PydanticStruct):
+    """A generic record"""
+
+    _data: List[Any] = PrivateAttr()
+
+    @staticmethod
+    def of(length: int) -> Record:
+        return Record(*([None] * length))
+
+    def __init__(self, *data: Any) -> None:
+        super().__init__()
+        self._data = list(data)
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        self._data[pos] = value
+
+    def __getitem__(self, pos: int) -> Any:
+        return self._data[pos]
+
+    def __repr__(self) -> str:
+        return f"Record[{', '.join(repr(v) for v in self._data)}]"

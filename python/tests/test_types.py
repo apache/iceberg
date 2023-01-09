@@ -20,6 +20,7 @@ from typing import Type
 import pytest
 from pydantic import ValidationError
 
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -42,7 +43,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 non_parameterized_types = [
     (1, BooleanType),

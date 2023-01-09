@@ -36,7 +36,7 @@ from typing import (
 from pydantic import Field, PrivateAttr
 
 from pyiceberg.exceptions import ResolveError
-from pyiceberg.typedef import EMPTY_DICT, StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -59,7 +59,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 T = TypeVar("T")
 P = TypeVar("P")
@@ -93,6 +92,9 @@ class Schema(IcebergBaseModel):
 
     def __repr__(self) -> str:
         return f"Schema({', '.join(repr(column) for column in self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
+
+    def __len__(self) -> int:
+        return len(self.fields)
 
     def __eq__(self, other: Any) -> bool:
         if not other:

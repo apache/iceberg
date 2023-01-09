@@ -27,6 +27,7 @@ from pydantic import Field
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import EMPTY_DICT, PydanticStruct, Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -38,7 +39,6 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from pyiceberg.utils.iceberg_base_model import PydanticStruct, Record
 
 
 class DataFileContent(int, Enum):
@@ -76,7 +76,7 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-DATA_FILE = StructType(
+DATA_FILE_SCHEMA = StructType(
     NestedField(
         field_id=134,
         name="content",
@@ -163,19 +163,20 @@ class DataFile(PydanticStruct):
     content: DataFileContent = Field(default=DataFileContent.DATA)
     file_path: str = Field()
     file_format: FileFormat = Field()
-    partition: Record = Field()
+    partition: Record = Field(default_factory=Record)
     record_count: int = Field()
     file_size_in_bytes: int = Field()
-    column_sizes: Optional[Dict[int, int]] = Field()
-    value_counts: Optional[Dict[int, int]] = Field()
-    null_value_counts: Optional[Dict[int, int]] = Field()
-    nan_value_counts: Optional[Dict[int, int]] = Field()
-    lower_bounds: Optional[Dict[int, bytes]] = Field()
-    upper_bounds: Optional[Dict[int, bytes]] = Field()
+    column_sizes: Dict[int, int] = Field(default=EMPTY_DICT)
+    value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
+    null_value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
+    nan_value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
+    lower_bounds: Dict[int, bytes] = Field(default=EMPTY_DICT)
+    upper_bounds: Dict[int, bytes] = Field(default=EMPTY_DICT)
     key_metadata: Optional[bytes] = Field()
     split_offsets: Optional[List[int]] = Field()
     equality_ids: Optional[List[int]] = Field()
     sort_order_id: Optional[int] = Field()
+    spec_id: Optional[int] = Field()
 
 
 MANIFEST_ENTRY_SCHEMA = Schema(
@@ -183,7 +184,7 @@ MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(1, "snapshot_id", LongType(), required=False),
     NestedField(3, "sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE, required=False),
+    NestedField(2, "data_file", DATA_FILE_SCHEMA, required=False),
 )
 
 
@@ -243,7 +244,7 @@ class ManifestFile(PydanticStruct):
     added_rows_count: Optional[int] = Field()
     existing_rows_count: Optional[int] = Field()
     deleted_rows_count: Optional[int] = Field()
-    partitions: List[PartitionFieldSummary] = Field(default_factory=list)
+    partitions: Optional[List[PartitionFieldSummary]] = Field()
     key_metadata: Optional[bytes] = Field()
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
@@ -251,9 +252,9 @@ class ManifestFile(PydanticStruct):
         return list(read_manifest_entry(file))
 
 
-def read_manifest_entry(input_file: InputFile) -> List[ManifestEntry]:
+def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
     with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile, 102: Record}) as reader:
-        return list(reader)
+        yield from reader
 
 
 def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
@@ -264,6 +265,6 @@ def files(input_file: InputFile) -> Iterator[DataFile]:
     return (entry.data_file for entry in live_entries(input_file))
 
 
-def read_manifest_list(input_file: InputFile) -> List[ManifestFile]:
+def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
     with AvroFile[ManifestFile](input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
-        return list(reader)
+        yield from reader

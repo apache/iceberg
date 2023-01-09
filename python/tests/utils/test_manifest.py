@@ -18,18 +18,23 @@
 from pyiceberg.io import load_file_io
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import (
+    DATA_FILE_SCHEMA,
+    MANIFEST_ENTRY_SCHEMA,
+    MANIFEST_FILE_SCHEMA,
     DataFile,
     DataFileContent,
     FileFormat,
     ManifestContent,
+    ManifestEntry,
     ManifestEntryStatus,
+    ManifestFile,
     PartitionFieldSummary,
     read_manifest_entry,
     read_manifest_list,
 )
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
-from pyiceberg.utils.iceberg_base_model import Record
+from pyiceberg.typedef import Record
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
@@ -216,3 +221,40 @@ def test_read_manifest(generated_manifest_file_file: str) -> None:
     assert partition.contains_nan is False
     assert partition.lower_bound == b"\x01\x00\x00\x00"
     assert partition.upper_bound == b"\x02\x00\x00\x00"
+
+
+def test_data_file_length() -> None:
+    assert len(DataFile.__fields__) == len(DATA_FILE_SCHEMA)
+
+
+def test_data_file_defaults() -> None:
+    df = DataFile.construct()
+
+    for idx in range(len(df.__fields__)):
+        df[idx] = None
+
+    assert df.content == DataFileContent.DATA
+    assert df.column_sizes == {}
+    assert df.value_counts == {}
+    assert df.null_value_counts == {}
+    assert df.nan_value_counts == {}
+    assert df.lower_bounds == {}
+    assert df.upper_bounds == {}
+    assert df.key_metadata is None
+    assert df.split_offsets is None
+    assert df.equality_ids is None
+    assert df.sort_order_id is None
+    assert df.spec_id is None
+    assert df.file_path is None
+    assert df.file_format is None
+    assert df.partition == Record()
+    assert df.record_count is None
+    assert df.file_size_in_bytes is None
+
+
+def test_manifest_entry_length() -> None:
+    assert len(ManifestEntry.__fields__) == len(MANIFEST_ENTRY_SCHEMA)
+
+
+def test_manifest_file_length() -> None:
+    assert len(ManifestFile.__fields__) == len(MANIFEST_FILE_SCHEMA)

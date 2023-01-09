@@ -35,6 +35,7 @@ from pyiceberg.avro.reader import (
     IntegerReader,
     ListReader,
     MapReader,
+    NoneReader,
     OptionReader,
     Reader,
     StringReader,
@@ -52,7 +53,7 @@ from pyiceberg.schema import (
     promote,
     visit_with_partner,
 )
-from pyiceberg.typedef import EMPTY_DICT, StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -75,7 +76,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.iceberg_base_model import Record
 
 
 def construct_reader(file_schema: Union[Schema, IcebergType], read_types: Dict[int, Type[StructProtocol]] = EMPTY_DICT) -> Reader:
@@ -144,9 +144,12 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
         ]
 
         file_fields = {field.field_id: field for field in struct.fields}
-        for read_field in expected_struct.fields:
-            if read_field.field_id not in file_fields and read_field.required:
-                raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
+        for pos, read_field in enumerate(expected_struct.fields):
+            if read_field.field_id not in file_fields:
+                if read_field.required:
+                    raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
+                # Just set the new field to None
+                results.append((pos, NoneReader()))
 
         return StructReader(tuple(results), struct_callable)
 

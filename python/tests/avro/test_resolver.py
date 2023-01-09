@@ -14,8 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 
+from tempfile import TemporaryDirectory
+from typing import Optional
+
+import pytest
+from pydantic import Field
+
+from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     DecimalReader,
     DoubleReader,
@@ -26,7 +32,9 @@ from pyiceberg.avro.reader import (
     StructReader,
 )
 from pyiceberg.avro.resolver import ResolveError, resolve
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import PydanticStruct
 from pyiceberg.types import (
     BinaryType,
     DecimalType,
@@ -223,3 +231,46 @@ def test_resolve_decimal_to_decimal_reduce_precision() -> None:
         _ = resolve(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
 
     assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)
+
+
+def test_column_assignment() -> None:
+    int_schema = {
+        "type": "record",
+        "name": "ints",
+        "fields": [
+            {"name": "a", "type": "int", "field-id": 1},
+            {"name": "b", "type": "int", "field-id": 2},
+            {"name": "c", "type": "int", "field-id": 3},
+        ],
+    }
+
+    from fastavro import parse_schema, writer
+
+    parsed_schema = parse_schema(int_schema)
+
+    int_records = [
+        {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+        }
+    ]
+
+    with TemporaryDirectory() as tmpdir:
+        tmp_avro_file = tmpdir + "/manifest.avro"
+        with open(tmp_avro_file, "wb") as out:
+            writer(out, parsed_schema, int_records)
+
+        class Ints(PydanticStruct):
+            c: int = Field()
+            d: Optional[int] = Field()
+
+        MANIFEST_ENTRY_SCHEMA = Schema(
+            NestedField(3, "c", IntegerType(), required=True),
+            NestedField(4, "d", IntegerType(), required=False),
+        )
+
+        with AvroFile[Ints](PyArrowFileIO().new_input(tmp_avro_file), MANIFEST_ENTRY_SCHEMA, {-1: Ints}) as reader:
+            records = list(reader)
+
+    assert records == [Ints(c=3, d=None)]

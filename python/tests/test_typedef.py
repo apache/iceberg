@@ -16,8 +16,7 @@
 # under the License.
 import pytest
 
-from pyiceberg.typedef import FrozenDict, KeyDefaultDict
-from pyiceberg.utils.iceberg_base_model import Record
+from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
 
 
 def test_setitem_frozendict() -> None:

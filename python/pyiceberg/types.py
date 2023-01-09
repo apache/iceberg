@@ -45,7 +45,7 @@ from typing import (
 from pydantic import Field, PrivateAttr
 from pydantic.typing import AnyCallable
 
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
