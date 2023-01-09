@@ -66,11 +66,9 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -909,7 +907,7 @@ public class ArrowReaderTest {
     }
 
     PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
-    partitionKey.partition(new LocalDateTimeToLongMicros(records.get(0)));
+    partitionKey.partition(records.get(0));
 
     return DataFiles.builder(table.spec())
         .withPartition(partitionKey)
@@ -1209,43 +1207,6 @@ public class ArrowReaderTest {
         // is relevant for byte[]
         Assertions.assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
       }
-    }
-  }
-
-  private static final class LocalDateTimeToLongMicros implements StructLike {
-
-    private final Record row;
-
-    LocalDateTimeToLongMicros(Record row) {
-      this.row = row;
-    }
-
-    @Override
-    public int size() {
-      return row.size();
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      Object value = row.get(pos);
-      if (value instanceof LocalDateTime) {
-        @SuppressWarnings("unchecked")
-        T result = (T) (Long) timestampToMicros((LocalDateTime) value);
-        return result;
-      } else if (value instanceof OffsetDateTime) {
-        @SuppressWarnings("unchecked")
-        T result = (T) (Long) timestampToMicros(((OffsetDateTime) value).toLocalDateTime());
-        return result;
-      } else if (value != null) {
-        throw new IllegalArgumentException("Unsupported value type: " + value.getClass());
-      } else {
-        throw new IllegalArgumentException("Don't know how to handle null value");
-      }
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      row.set(pos, value);
     }
   }
 }

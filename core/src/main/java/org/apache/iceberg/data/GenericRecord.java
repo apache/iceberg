@@ -20,6 +20,11 @@ package org.apache.iceberg.data;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -115,13 +120,25 @@ public class GenericRecord implements Record, StructLike {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public <T> T get(int pos, Class<T> javaClass) {
     Object value = get(pos);
     if (value == null || javaClass.isInstance(value)) {
       return javaClass.cast(value);
+    }
+
+    if (value instanceof LocalDateTime) {
+      return (T) (Long) timestampToMicros((LocalDateTime) value);
+    } else if (value instanceof OffsetDateTime) {
+      return (T) (Long) timestampToMicros(((OffsetDateTime) value).toLocalDateTime());
     } else {
       throw new IllegalStateException("Not an instance of " + javaClass.getName() + ": " + value);
     }
+  }
+
+  private long timestampToMicros(LocalDateTime value) {
+    Instant instant = value.toInstant(ZoneOffset.UTC);
+    return ChronoUnit.MICROS.between(Instant.EPOCH, instant);
   }
 
   @Override
