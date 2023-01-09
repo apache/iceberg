@@ -41,6 +41,14 @@ public class ThreadPools {
 
   private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool");
 
+  public static final int DELETE_WORKER_THREAD_POOL_SIZE =
+      getPoolSize(
+          SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE,
+          Math.max(2, Runtime.getRuntime().availableProcessors()));
+
+  private static final ExecutorService DELETE_WORKER_POOL =
+      newWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
+
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
    *
@@ -57,19 +65,15 @@ public class ThreadPools {
   }
 
   /**
-   * Returns delete worker pool for Positional Deletes.
+   * Return an {@link ExecutorService} that uses "delete worker" thread-pool.
    *
-   * <p>Size of this thread-pool is controlled by System Property {@code
-   * iceberg.delete.pos.read-worker-pool}.
+   * <p>The size of this thread-pool is controlled by the Java system property {@code
+   * iceberg.delete-pos.worker.num-threads}.
    *
-   * @return {@link ExecutorService} that is delete worker pool
+   * @return an {@link ExecutorService} that uses delete worker pool
    */
-  public static ExecutorService newDeleteWorkerPool() {
-    int poolSize =
-        getPoolSize(
-            SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE,
-            Math.max(2, Runtime.getRuntime().availableProcessors()));
-    return newWorkerPool("iceberg-delete-files-worker-pool", poolSize);
+  public static ExecutorService getDeleteWorkerPool() {
+    return DELETE_WORKER_POOL;
   }
 
   public static ExecutorService newWorkerPool(String namePrefix) {

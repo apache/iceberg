@@ -53,7 +53,7 @@ public class Deletes {
   private static final Accessor<StructLike> POSITION_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
-  private static ExecutorService deletePosThreadPool = ThreadPools.newDeleteWorkerPool();
+  private static ExecutorService deletePosThreadPool = ThreadPools.getDeleteWorkerPool();
 
   private Deletes() {}
 
@@ -142,8 +142,8 @@ public class Deletes {
   }
 
   @VisibleForTesting
-  static void resetDeletePosThreadPool() {
-    deletePosThreadPool = ThreadPools.newDeleteWorkerPool();
+  static void setDeletePosThreadPool(ExecutorService threadPool) {
+    deletePosThreadPool = threadPool;
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(

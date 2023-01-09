@@ -19,15 +19,18 @@
 package org.apache.iceberg.deletes;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Predicate;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -282,17 +285,21 @@ public class TestPositionFilter {
 
   @Test
   public void testCombinedPositionSetRowFilter() {
-    testCombinedPositionSetRowFilter("1");
-    testCombinedPositionSetRowFilter("");
+    testCombinedPositionSetRowFilter(0);
   }
 
   @Test
   public void testCombinedPositionSetRowFilterInParallel() {
-    testCombinedPositionSetRowFilter("4");
+    testCombinedPositionSetRowFilter(4);
   }
 
-  void testCombinedPositionSetRowFilter(String threadPoolSize) {
-    System.setProperty(SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE, threadPoolSize);
+  void testCombinedPositionSetRowFilter(int threadPoolSize) {
+    ExecutorService executorService =
+        (threadPoolSize == 0)
+            ? null
+            : MoreExecutors.getExitingExecutorService(
+                (ThreadPoolExecutor) Executors.newFixedThreadPool(threadPoolSize));
+    Deletes.setDeletePosThreadPool(executorService);
     CloseableIterable<StructLike> positionDeletes1 =
         CloseableIterable.withNoopClose(
             Lists.newArrayList(
@@ -336,8 +343,5 @@ public class TestPositionFilter {
         "Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
-
-    // Reset back to default
-    Deletes.resetDeletePosThreadPool();
   }
 }
