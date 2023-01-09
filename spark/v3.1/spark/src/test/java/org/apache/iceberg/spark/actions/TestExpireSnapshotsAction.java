@@ -430,10 +430,10 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     AssertHelpers.assertThrows(
-            "Should complain about expiring snapshots",
-            ValidationException.class,
-            "Cannot expire snapshots: This is a snapshot table",
-            () -> SparkActions.get().expireSnapshots(table));
+        "Should complain about expiring snapshots",
+        ValidationException.class,
+        "Cannot expire snapshots: This is a snapshot table",
+        () -> SparkActions.get().expireSnapshots(table));
   }
 
   @Test
