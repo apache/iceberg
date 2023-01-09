@@ -45,7 +45,6 @@ import botocore.awsrequest
 import botocore.model
 import pytest
 from moto import mock_glue, mock_s3
-from tests.catalog.test_base import InMemoryCatalog
 
 from pyiceberg import schema
 from pyiceberg.io import OutputFile, OutputStream, fsspec
@@ -66,6 +65,7 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
+from tests.catalog.test_base import InMemoryCatalog
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
