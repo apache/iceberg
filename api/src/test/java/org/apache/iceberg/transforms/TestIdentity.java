@@ -70,6 +70,18 @@ public class TestIdentity {
   }
 
   @Test
+  public void testDateHumanStringDeprecated() {
+    Types.DateType date = Types.DateType.get();
+    Transform<Integer, Integer> identity = Transforms.identity(date);
+
+    String dateString = "2017-12-01";
+    Literal<Integer> dateLit = Literal.of(dateString).to(date);
+
+    Assert.assertEquals(
+        "Should produce identical date", dateString, identity.toHumanString(dateLit.value()));
+  }
+
+  @Test
   public void testTimeHumanString() {
     Types.TimeType time = Types.TimeType.get();
     Transform<Long, Long> identity = Transforms.identity();

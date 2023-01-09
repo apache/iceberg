@@ -31,6 +31,8 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,15 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -160,7 +170,11 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createAndInitTable(String schema, String jsonData) {
-    sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
+    createAndInitTable(schema, "", jsonData);
+  }
+
+  protected void createAndInitTable(String schema, String partitioning, String jsonData) {
+    sql("CREATE TABLE %s (%s) USING iceberg %s", tableName, schema, partitioning);
     initTable();
 
     if (jsonData != null) {
@@ -273,6 +287,32 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       Thread.sleep(millis);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  protected DataFile writeDataFile(Table table, List<GenericRecord> records) {
+    try {
+      OutputFile file = Files.localOutput(temp.newFile());
+
+      DataWriter<GenericRecord> dataWriter =
+          Parquet.writeData(file)
+              .forTable(table)
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .overwrite()
+              .build();
+
+      try {
+        for (GenericRecord record : records) {
+          dataWriter.write(record);
+        }
+      } finally {
+        dataWriter.close();
+      }
+
+      return dataWriter.toDataFile();
+
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
@@ -36,6 +37,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
   @Override
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
+    return ImmutableMap.of(
+        TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 }

@@ -94,10 +94,6 @@ public class SparkValueReaders {
 
       Utf8 string = decoder.readString(utf8);
       return UTF8String.fromBytes(string.getBytes(), 0, string.getByteLength());
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
-      //      return UTF8String.fromBytes(bytes);
     }
   }
 

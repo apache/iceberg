@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -46,6 +47,7 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -61,7 +63,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.hamcrest.CoreMatchers;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -439,11 +441,14 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, UPDATE_ISOLATION_LEVEL, "serializable");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // update thread
     Future<?> updateFuture =
@@ -453,7 +458,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -462,27 +469,42 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
 
     try {
-      updateFuture.get();
-      Assert.fail("Expected a validation exception");
-    } catch (ExecutionException e) {
-      Throwable sparkException = e.getCause();
-      Assert.assertThat(sparkException, CoreMatchers.instanceOf(SparkException.class));
-      Throwable validationException = sparkException.getCause();
-      Assert.assertThat(validationException, CoreMatchers.instanceOf(ValidationException.class));
-      String errMsg = validationException.getMessage();
-      Assert.assertThat(
-          errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
+      Assertions.assertThatThrownBy(updateFuture::get)
+          .isInstanceOf(ExecutionException.class)
+          .cause()
+          .isInstanceOf(SparkException.class)
+          .cause()
+          .isInstanceOf(ValidationException.class)
+          .hasMessageContaining("Found conflicting files that can contain");
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 
@@ -502,11 +524,14 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, UPDATE_ISOLATION_LEVEL, "snapshot");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // update thread
     Future<?> updateFuture =
@@ -516,7 +541,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -525,11 +552,28 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
@@ -537,6 +581,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     try {
       updateFuture.get();
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 

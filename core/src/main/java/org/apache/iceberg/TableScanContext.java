@@ -59,7 +59,7 @@ final class TableScanContext {
     this.toSnapshotId = null;
     this.planExecutor = null;
     this.fromSnapshotInclusive = false;
-    this.metricsReporter = new LoggingMetricsReporter();
+    this.metricsReporter = LoggingMetricsReporter.instance();
   }
 
   private TableScanContext(

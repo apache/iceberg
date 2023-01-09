@@ -49,7 +49,7 @@ jobs:
     - working-directory: ./python_legacy
       run: |
         pip install -e .[dev]
-        pip install -U tox-gh-actions
+        pip install -U "tox-gh-actions==2.12.0"
     - working-directory: ./python_legacy
       run: tox
 

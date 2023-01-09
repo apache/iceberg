@@ -65,10 +65,17 @@ public class TestBucketing {
     Assert.assertEquals("Spec example: hash(true) = 1392991556", 1392991556, BucketUtil.hash(1));
     Assert.assertEquals("Spec example: hash(34) = 2017239379", 2017239379, BucketUtil.hash(34));
     Assert.assertEquals("Spec example: hash(34L) = 2017239379", 2017239379, BucketUtil.hash(34L));
+
     Assert.assertEquals(
         "Spec example: hash(17.11F) = -142385009", -142385009, BucketUtil.hash(1.0F));
     Assert.assertEquals(
         "Spec example: hash(17.11D) = -142385009", -142385009, BucketUtil.hash(1.0D));
+    Assert.assertEquals("Spec example: hash(0.0F) = 1669671676", 1669671676, BucketUtil.hash(0.0F));
+    Assert.assertEquals(
+        "Spec example: hash(-0.0F) = 1669671676", 1669671676, BucketUtil.hash(-0.0F));
+    Assert.assertEquals("Spec example: hash(0.0) = 1669671676", 1669671676, BucketUtil.hash(0.0));
+    Assert.assertEquals("Spec example: hash(-0.0) = 1669671676", 1669671676, BucketUtil.hash(-0.0));
+
     Assert.assertEquals(
         "Spec example: hash(decimal2(14.20)) = -500754589",
         -500754589,
@@ -167,6 +174,76 @@ public class TestBucketing {
         "Float and Double bucket results should match",
         BucketUtil.hash(randomFloat),
         BucketUtil.hash((double) randomFloat));
+  }
+
+  @Test
+  public void testFloatNegativeZero() {
+    Assert.assertEquals(
+        "Positive and negative 0.0f should have the same hash",
+        BucketUtil.hash(-0.0f),
+        BucketUtil.hash(0.0f));
+  }
+
+  @Test
+  public void testDoubleNegativeZero() {
+    Assert.assertEquals(
+        "Positive and negative 0.0 should have the same hash",
+        BucketUtil.hash(-0.0),
+        BucketUtil.hash(0.0));
+  }
+
+  @Test
+  public void testFloatNaN() {
+    double canonicalNaN = Double.longBitsToDouble(0x7ff8000000000000L);
+
+    // All bit patterns in the range 0x7f800001 to 0x7fffffff
+    // and 0xff800001 to 0xffffffff are considered NaNs.
+    float[] testNaNs = {
+      Float.NaN,
+      Float.intBitsToFloat(0x7f800001),
+      Float.intBitsToFloat(0x7f9abcde),
+      Float.intBitsToFloat(0x7fedcba9),
+      Float.intBitsToFloat(0x7fffffff),
+      Float.intBitsToFloat(0xff800001),
+      Float.intBitsToFloat(0xff9abcde),
+      Float.intBitsToFloat(0xffedcba9),
+      Float.intBitsToFloat(0xffffffff),
+    };
+
+    for (float value : testNaNs) {
+      Assert.assertTrue("Bit pattern is expected to be NaN.", Float.isNaN(value));
+      Assert.assertEquals(
+          "All NaN representations should result in the same hash",
+          BucketUtil.hash(value),
+          BucketUtil.hash(canonicalNaN));
+    }
+  }
+
+  @Test
+  public void testDoubleNaN() {
+    double canonicalNaN = Double.longBitsToDouble(0x7ff8000000000000L);
+
+    // All bit patterns in the range 0x7ff0000000000001L to 0x7fffffffffffffffL
+    // and 0xfff0000000000001L to 0xffffffffffffffffL are considered NaNs.
+    double[] testNaNs = {
+      Double.NaN,
+      Double.longBitsToDouble(0x7ff0000000000001L),
+      Double.longBitsToDouble(0x7ff123456789abcdL),
+      Double.longBitsToDouble(0x7ffdcba987654321L),
+      Double.longBitsToDouble(0x7fffffffffffffffL),
+      Double.longBitsToDouble(0xfff0000000000001L),
+      Double.longBitsToDouble(0xfff123456789abcdL),
+      Double.longBitsToDouble(0xfffdcba987654321L),
+      Double.longBitsToDouble(0xffffffffffffffffL),
+    };
+
+    for (double value : testNaNs) {
+      Assert.assertTrue("Bit pattern is expected to be NaN.", Double.isNaN(value));
+      Assert.assertEquals(
+          "All NaN representations should result in the same hash",
+          BucketUtil.hash(value),
+          BucketUtil.hash(canonicalNaN));
+    }
   }
 
   @Test

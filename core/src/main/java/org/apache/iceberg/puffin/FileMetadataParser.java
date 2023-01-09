@@ -21,7 +21,6 @@ package org.apache.iceberg.puffin;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,11 +48,7 @@ public final class FileMetadataParser {
   }
 
   public static FileMetadata fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.parse(json, FileMetadataParser::fromJson);
   }
 
   static FileMetadata fromJson(JsonNode json) {
@@ -70,11 +65,7 @@ public final class FileMetadataParser {
     generator.writeEndArray();
 
     if (!fileMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : fileMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, fileMetadata.properties(), generator);
     }
 
     generator.writeEndObject();
@@ -104,11 +95,7 @@ public final class FileMetadataParser {
 
     generator.writeStringField(TYPE, blobMetadata.type());
 
-    generator.writeArrayFieldStart(FIELDS);
-    for (int field : blobMetadata.inputFields()) {
-      generator.writeNumber(field);
-    }
-    generator.writeEndArray();
+    JsonUtil.writeIntegerArray(FIELDS, blobMetadata.inputFields(), generator);
     generator.writeNumberField(SNAPSHOT_ID, blobMetadata.snapshotId());
     generator.writeNumberField(SEQUENCE_NUMBER, blobMetadata.sequenceNumber());
 
@@ -120,11 +107,7 @@ public final class FileMetadataParser {
     }
 
     if (!blobMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : blobMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, blobMetadata.properties(), generator);
     }
 
     generator.writeEndObject();

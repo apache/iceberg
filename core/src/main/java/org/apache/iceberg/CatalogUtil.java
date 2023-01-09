@@ -35,6 +35,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -399,5 +400,43 @@ public class CatalogUtil {
     }
 
     setConf.invoke(conf);
+  }
+
+  /**
+   * Load a custom {@link MetricsReporter} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor.
+   *
+   * @param impl full class name of a custom {@link MetricsReporter} implementation
+   * @return An initialized {@link MetricsReporter}.
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  public static MetricsReporter loadMetricsReporter(String impl) {
+    LOG.info("Loading custom MetricsReporter implementation: {}", impl);
+    DynConstructors.Ctor<MetricsReporter> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(MetricsReporter.class)
+              .loader(CatalogUtil.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl),
+          e);
+    }
+
+    MetricsReporter reporter;
+    try {
+      reporter = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
+          e);
+    }
+
+    return reporter;
   }
 }

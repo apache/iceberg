@@ -27,7 +27,7 @@ menu:
 
 # Spark Procedures
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Stored procedures are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.x.
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Stored procedures are only available when using [Iceberg SQL extensions](../spark-configuration#sql-extensions) in Spark 3.
 
 ## Usage
 
@@ -271,7 +271,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | If Zorder, then comma separated column names within zorder() text. Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
+| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). (Supported in Spark 3.2 and Above) Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -421,12 +421,15 @@ Existing data files are added to the Iceberg table's metadata and can be read us
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.
 
+By default, the original table is retained with the name `table_BACKUP_`.
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to migrate |
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
+| `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 
 #### Output
 
@@ -490,7 +493,41 @@ CALL spark_catalog.system.add_files(
 )
 ```
 
-## `Metadata information`
+### `register_table`
+
+Creates a catalog entry for a metadata.json file which already exists but does not have a corresponding catalog identifier.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which is to be registered |
+| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+
+{{< hint warning >}}
+Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
+Only use this procedure when the table is no longer registered in an existing catalog, or you are moving a table between catalogs.
+{{< /hint >}}
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `current_snapshot_id` | long | The current snapshot ID of the newly registered Iceberg table |
+| `total_records_count` | long | Total records count of the newly registered Iceberg table |
+| `total_data_files_count` | long | Total data files count of the newly registered Iceberg table |
+
+#### Examples
+
+Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json file `path/to/metadata/file.json`.
+```sql
+CALL spark_catalog.system.register_table(
+  table => 'db.tbl',
+  metadata_file => 'path/to/metadata/file.json'
+)
+```
+
+## Metadata information
 
 ### `ancestors_of`
 

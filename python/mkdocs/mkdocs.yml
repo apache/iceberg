@@ -16,3 +16,19 @@
 # under the License.
 ---
 site_name: PyIceberg
+site_url: https://py.iceberg.apache.org/
+nav:
+    - Home: index.md
+    - Configuration: configuration.md
+    - CLI: cli.md
+    - API: api.md
+    - Contributing:
+        - Contributing: contributing.md
+    - Feature support: feature-support.md
+    - Releases:
+        - Verify a release: verify-release.md
+        - How to release: how-to-release.md
+theme:
+    name: readthedocs
+markdown_extensions:
+    - admonition

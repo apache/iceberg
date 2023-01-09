@@ -31,16 +31,23 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -144,7 +151,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    this.restCatalog = new RESTCatalog(context, (config) -> new HTTPClientFactory().apply(config));
+    this.restCatalog =
+        new RESTCatalog(
+            context,
+            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
     restCatalog.setConf(conf);
     restCatalog.initialize(
         "prod",
@@ -224,7 +234,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   responseType,
                   ConfigResponse.builder()
                       .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
-                      .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
+                      .withOverrides(
+                          ImmutableMap.of(
+                              CatalogProperties.CACHE_ENABLED,
+                              "false",
+                              CatalogProperties.WAREHOUSE_LOCATION,
+                              queryParams.get(CatalogProperties.WAREHOUSE_LOCATION) + "warehouse"))
                       .build());
             }
             return super.get(path, queryParams, responseType, headers, errorHandler);
@@ -235,7 +250,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Map<String, String> initialConfig =
         ImmutableMap.of(
             CatalogProperties.URI, "http://localhost:8080",
-            CatalogProperties.CACHE_ENABLED, "true");
+            CatalogProperties.CACHE_ENABLED, "true",
+            CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/");
 
     restCat.setConf(new Configuration());
     restCat.initialize("prod", initialConfig);
@@ -249,6 +265,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "Catalog after initialize should use the server's default properties if not specified",
         "1",
         restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE));
+
+    Assert.assertEquals(
+        "Catalog should return final warehouse location",
+        "s3://bucket/warehouse",
+        restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION));
+
     restCat.close();
   }
 
@@ -263,8 +285,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     AssertHelpers.assertThrows(
         "Configuration passed to initialize must have uri",
-        IllegalArgumentException.class,
-        "REST Catalog server URI is required",
+        NullPointerException.class,
+        "Invalid uri for http client: null",
         () -> restCat.initialize("prod", ImmutableMap.of()));
 
     restCat.close();
@@ -1059,5 +1081,56 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(LoadTableResponse.class),
             eq(refreshedCatalogHeader),
             any());
+  }
+
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    this.restCatalog =
+        new RESTCatalog(
+            new SessionCatalog.SessionContext(
+                UUID.randomUUID().toString(),
+                "user",
+                ImmutableMap.of("credential", "user:12345"),
+                ImmutableMap.of()),
+            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+    restCatalog.setConf(new Configuration());
+    restCatalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "http://localhost:8181/",
+            "credential",
+            "catalog:12345",
+            CatalogProperties.METRICS_REPORTER_IMPL,
+            CustomMetricsReporter.class.getName()));
+
+    restCatalog.buildTable(TABLE, SCHEMA).create();
+    Table table = restCatalog.loadTable(TABLE);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks.iterator()).hasNext();
+    }
+
+    // counter of custom metrics reporter should have been increased
+    // 1x for commit metrics / 1x for scan metrics
+    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
+  }
+
+  public static class CustomMetricsReporter implements MetricsReporter {
+    static final AtomicInteger COUNTER = new AtomicInteger(0);
+
+    @Override
+    public void report(MetricsReport report) {
+      COUNTER.incrementAndGet();
+    }
   }
 }

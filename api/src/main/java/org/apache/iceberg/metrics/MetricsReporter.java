@@ -23,7 +23,7 @@ package org.apache.iceberg.metrics;
 public interface MetricsReporter {
 
   /**
-   * Indicates that a operation is done by reporting a {@link MetricsReport}. A {@link
+   * Indicates that an operation is done by reporting a {@link MetricsReport}. A {@link
    * MetricsReport} is usually directly derived from a {@link MetricsReport} instance.
    *
    * @param report The {@link MetricsReport} to report.

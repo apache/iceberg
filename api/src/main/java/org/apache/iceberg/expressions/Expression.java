@@ -43,7 +43,11 @@ public interface Expression extends Serializable {
     AND,
     OR,
     STARTS_WITH,
-    NOT_STARTS_WITH;
+    NOT_STARTS_WITH,
+    COUNT,
+    COUNT_STAR,
+    MAX,
+    MIN;
 
     public static Operation fromString(String operationType) {
       Preconditions.checkArgument(null != operationType, "Invalid operation type: null");

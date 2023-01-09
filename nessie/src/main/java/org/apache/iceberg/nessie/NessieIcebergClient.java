@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -52,6 +54,8 @@ import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.EntriesResponse;
 import org.projectnessie.model.GetNamespacesResponse;
 import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableCommitMeta;
+import org.projectnessie.model.ImmutableIcebergTable;
 import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
@@ -414,6 +418,91 @@ public class NessieIcebergClient implements AutoCloseable {
       LOG.error("Cannot drop table: unknown error", e);
     }
     return !threw;
+  }
+
+  public void commitTable(
+      TableMetadata base,
+      TableMetadata metadata,
+      String newMetadataLocation,
+      IcebergTable expectedContent,
+      ContentKey key)
+      throws NessieConflictException, NessieNotFoundException {
+    UpdateableReference updateableReference = getRef();
+
+    updateableReference.checkMutable();
+
+    Branch current = updateableReference.getAsBranch();
+    Branch expectedHead = current;
+    if (base != null) {
+      String metadataCommitId =
+          base.property(NessieTableOperations.NESSIE_COMMIT_ID_PROPERTY, expectedHead.getHash());
+      if (metadataCommitId != null) {
+        expectedHead = Branch.of(expectedHead.getName(), metadataCommitId);
+      }
+    }
+
+    ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
+    if (expectedContent != null) {
+      newTableBuilder.id(expectedContent.getId());
+    }
+    Snapshot snapshot = metadata.currentSnapshot();
+    long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
+
+    IcebergTable newTable =
+        newTableBuilder
+            .snapshotId(snapshotId)
+            .schemaId(metadata.currentSchemaId())
+            .specId(metadata.defaultSpecId())
+            .sortOrderId(metadata.defaultSortOrderId())
+            .metadataLocation(newMetadataLocation)
+            .build();
+
+    LOG.debug(
+        "Committing '{}' against '{}', current is '{}': {}",
+        key,
+        expectedHead,
+        current.getHash(),
+        newTable);
+    ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
+    builder.message(buildCommitMsg(base, metadata, key.toString()));
+    if (isSnapshotOperation(base, metadata)) {
+      builder.putProperties("iceberg.operation", snapshot.operation());
+    }
+    Branch branch =
+        getApi()
+            .commitMultipleOperations()
+            .operation(Operation.Put.of(key, newTable, expectedContent))
+            .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
+            .branch(expectedHead)
+            .commit();
+    LOG.info(
+        "Committed '{}' against '{}', expected commit-id was '{}'",
+        key,
+        branch,
+        expectedHead.getHash());
+    updateableReference.updateReference(branch);
+  }
+
+  private boolean isSnapshotOperation(TableMetadata base, TableMetadata metadata) {
+    Snapshot snapshot = metadata.currentSnapshot();
+    return snapshot != null
+        && (base == null
+            || base.currentSnapshot() == null
+            || snapshot.snapshotId() != base.currentSnapshot().snapshotId());
+  }
+
+  private String buildCommitMsg(TableMetadata base, TableMetadata metadata, String tableName) {
+    if (isSnapshotOperation(base, metadata)) {
+      return String.format(
+          "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
+    } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
+      return String.format("Iceberg schema change against %s", tableName);
+    }
+    return String.format("Iceberg commit against %s", tableName);
+  }
+
+  public String refName() {
+    return getRef().getName();
   }
 
   @Override

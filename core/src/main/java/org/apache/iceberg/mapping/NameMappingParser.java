@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -72,11 +71,7 @@ public class NameMappingParser {
 
     generator.writeNumberField(FIELD_ID, field.id());
 
-    generator.writeArrayFieldStart(NAMES);
-    for (String name : field.names()) {
-      generator.writeString(name);
-    }
-    generator.writeEndArray();
+    JsonUtil.writeStringArray(NAMES, field.names(), generator);
 
     MappedFields nested = field.nestedMapping();
     if (nested != null) {
@@ -88,11 +83,7 @@ public class NameMappingParser {
   }
 
   public static NameMapping fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to convert version from json: %s", json);
-    }
+    return JsonUtil.parse(json, NameMappingParser::fromJson);
   }
 
   static NameMapping fromJson(JsonNode node) {

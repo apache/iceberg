@@ -197,12 +197,16 @@ public class BaseRewriteManifestsSparkAction
         loadMetadataTable(table, ENTRIES)
             .filter("status < 2") // select only live entries
             .selectExpr(
-                "input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
+                "input_file_name() as manifest",
+                "snapshot_id",
+                "sequence_number",
+                "file_sequence_number",
+                "data_file");
 
     Column joinCond = manifestDF.col("manifest").equalTo(manifestEntryDF.col("manifest"));
     return manifestEntryDF
         .join(manifestDF, joinCond, "left_semi")
-        .select("snapshot_id", "sequence_number", "data_file");
+        .select("snapshot_id", "sequence_number", "file_sequence_number", "data_file");
   }
 
   private List<ManifestFile> writeManifestsForUnpartitionedTable(
@@ -355,8 +359,9 @@ public class BaseRewriteManifestsSparkAction
         Row row = rows.get(index);
         long snapshotId = row.getLong(0);
         long sequenceNumber = row.getLong(1);
-        Row file = row.getStruct(2);
-        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber);
+        Long fileSequenceNumber = row.isNullAt(2) ? null : row.getLong(2);
+        Row file = row.getStruct(3);
+        writer.existing(wrapper.wrap(file), snapshotId, sequenceNumber, fileSequenceNumber);
       }
     } finally {
       writer.close();

@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.requests;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -79,7 +78,7 @@ public class UpdateRequirementParser {
               ASSERT_LAST_ASSIGNED_PARTITION_ID)
           .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
           .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
-          .build();
+          .buildOrThrow();
 
   public static String toJson(UpdateRequirement updateRequirement) {
     return toJson(updateRequirement, false);
@@ -144,11 +143,7 @@ public class UpdateRequirementParser {
    * @return a MetadataUpdate object
    */
   public static UpdateRequirement fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, UpdateRequirementParser::fromJson);
   }
 
   public static UpdateRequirement fromJson(JsonNode jsonNode) {

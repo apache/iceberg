@@ -23,11 +23,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A default {@link MetricsReporter} implementation that logs the {@link ScanReport} to the log
+ * A default {@link MetricsReporter} implementation that logs the {@link MetricsReport} to the log
  * file.
  */
 public class LoggingMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
+  private static final LoggingMetricsReporter INSTANCE = new LoggingMetricsReporter();
+
+  public static LoggingMetricsReporter instance() {
+    return INSTANCE;
+  }
 
   @Override
   public void report(MetricsReport report) {

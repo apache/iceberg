@@ -27,7 +27,7 @@ import org.apache.spark.sql.SparkSession;
  *
  * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
  *     backward compatibility. This implementation is no longer maintained, the new implementation
- *     is available with Spark 3.x
+ *     is available with Spark 3
  */
 @Deprecated
 public class Actions {
@@ -68,7 +68,7 @@ public class Actions {
   /**
    * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
    *     backward compatibility. This implementation is no longer maintained, the new implementation
-   *     is available with Spark 3.x
+   *     is available with Spark 3
    */
   @Deprecated
   public static Actions forTable(SparkSession spark, Table table) {
@@ -78,7 +78,7 @@ public class Actions {
   /**
    * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
    *     backward compatibility. This implementation is no longer maintained, the new implementation
-   *     is available with Spark 3.x
+   *     is available with Spark 3
    */
   @Deprecated
   public static Actions forTable(Table table) {
@@ -88,7 +88,7 @@ public class Actions {
   /**
    * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
    *     backward compatibility. This implementation is no longer maintained, the new implementation
-   *     is available with Spark 3.x
+   *     is available with Spark 3
    */
   @Deprecated
   public RewriteDataFilesAction rewriteDataFiles() {

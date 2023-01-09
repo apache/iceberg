@@ -37,7 +37,7 @@ from pyiceberg.types import (
 from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 
-def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]):
+def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]) -> None:
     iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema_manifest_file)
     expected_iceberg_schema = Schema(
         NestedField(
@@ -110,7 +110,7 @@ def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]):
     assert iceberg_schema == expected_iceberg_schema
 
 
-def test_avro_list_required_primitive():
+def test_avro_list_required_primitive() -> None:
     avro_schema = {
         "type": "record",
         "name": "avro_schema",
@@ -143,7 +143,7 @@ def test_avro_list_required_primitive():
     assert expected_iceberg_schema == iceberg_schema
 
 
-def test_avro_list_wrapped_primitive():
+def test_avro_list_wrapped_primitive() -> None:
     avro_schema = {
         "type": "record",
         "name": "avro_schema",
@@ -176,7 +176,7 @@ def test_avro_list_wrapped_primitive():
     assert expected_iceberg_schema == iceberg_schema
 
 
-def test_avro_list_required_record():
+def test_avro_list_required_record() -> None:
     avro_schema = {
         "type": "record",
         "name": "avro_schema",
@@ -215,10 +215,8 @@ def test_avro_list_required_record():
             field_type=ListType(
                 element_id=101,
                 element_type=StructType(
-                    fields=(
-                        NestedField(field_id=102, name="contains_null", field_type=BooleanType(), required=True),
-                        NestedField(field_id=103, name="contains_nan", field_type=BooleanType(), required=False),
-                    )
+                    NestedField(field_id=102, name="contains_null", field_type=BooleanType(), required=True),
+                    NestedField(field_id=103, name="contains_nan", field_type=BooleanType(), required=False),
                 ),
                 element_required=True,
             ),
@@ -233,19 +231,19 @@ def test_avro_list_required_record():
     assert expected_iceberg_schema == iceberg_schema
 
 
-def test_resolve_union():
+def test_resolve_union() -> None:
     with pytest.raises(TypeError) as exc_info:
         AvroSchemaConversion()._resolve_union(["null", "string", "long"])
 
     assert "Non-optional types aren't part of the Iceberg specification" in str(exc_info.value)
 
 
-def test_nested_type():
+def test_nested_type() -> None:
     # In the case a primitive field is nested
     assert AvroSchemaConversion()._convert_schema({"type": {"type": "string"}}) == StringType()
 
 
-def test_map_type():
+def test_map_type() -> None:
     avro_type = {
         "type": "map",
         "values": ["null", "long"],
@@ -257,21 +255,21 @@ def test_map_type():
     assert actual == expected
 
 
-def test_fixed_type():
+def test_fixed_type() -> None:
     avro_type = {"type": "fixed", "size": 22}
     actual = AvroSchemaConversion()._convert_schema(avro_type)
     expected = FixedType(22)
     assert actual == expected
 
 
-def test_unknown_primitive():
+def test_unknown_primitive() -> None:
     with pytest.raises(TypeError) as exc_info:
         avro_type = "UnknownType"
         AvroSchemaConversion()._convert_schema(avro_type)
     assert "Unknown type: UnknownType" in str(exc_info.value)
 
 
-def test_unknown_complex_type():
+def test_unknown_complex_type() -> None:
     with pytest.raises(TypeError) as exc_info:
         avro_type = {
             "type": "UnknownType",
@@ -280,7 +278,7 @@ def test_unknown_complex_type():
     assert "Unknown type: {'type': 'UnknownType'}" in str(exc_info.value)
 
 
-def test_convert_field_without_field_id():
+def test_convert_field_without_field_id() -> None:
     with pytest.raises(ValueError) as exc_info:
         avro_field = {
             "name": "contains_null",
@@ -290,14 +288,14 @@ def test_convert_field_without_field_id():
     assert "Cannot convert field, missing field-id" in str(exc_info.value)
 
 
-def test_convert_record_type_without_record():
+def test_convert_record_type_without_record() -> None:
     with pytest.raises(ValueError) as exc_info:
         avro_field = {"type": "non-record", "name": "avro_schema", "fields": []}
         AvroSchemaConversion()._convert_record_type(avro_field)
     assert "Expected record type, got" in str(exc_info.value)
 
 
-def test_avro_list_missing_element_id():
+def test_avro_list_missing_element_id() -> None:
     avro_type = {
         "name": "array_with_string",
         "type": {
@@ -315,20 +313,20 @@ def test_avro_list_missing_element_id():
     assert "Cannot convert array-type, missing element-id:" in str(exc_info.value)
 
 
-def test_convert_decimal_type():
+def test_convert_decimal_type() -> None:
     avro_decimal_type = {"type": "bytes", "logicalType": "decimal", "precision": 19, "scale": 25}
     actual = AvroSchemaConversion()._convert_logical_type(avro_decimal_type)
     expected = DecimalType(precision=19, scale=25)
     assert actual == expected
 
 
-def test_convert_date_type():
+def test_convert_date_type() -> None:
     avro_logical_type = {"type": "int", "logicalType": "date"}
     actual = AvroSchemaConversion()._convert_logical_type(avro_logical_type)
     assert actual == DateType()
 
 
-def test_unknown_logical_type():
+def test_unknown_logical_type() -> None:
     """Test raising a ValueError when converting an unknown logical type as part of an Avro schema conversion"""
     avro_logical_type = {"type": "bytes", "logicalType": "date"}
     with pytest.raises(ValueError) as exc_info:
@@ -337,7 +335,7 @@ def test_unknown_logical_type():
     assert "Unknown logical/physical type combination:" in str(exc_info.value)
 
 
-def test_logical_map_with_invalid_fields():
+def test_logical_map_with_invalid_fields() -> None:
     avro_type = {
         "type": "array",
         "logicalType": "map",

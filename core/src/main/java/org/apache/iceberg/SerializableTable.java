@@ -82,7 +82,7 @@ public class SerializableTable implements Table, Serializable {
     this.io = fileIO(table);
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
-    this.refs = table.refs();
+    this.refs = SerializableMap.copyOf(table.refs());
   }
 
   /**

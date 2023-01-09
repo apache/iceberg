@@ -29,7 +29,7 @@ menu:
 
 ## Catalogs
 
-Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting Spark properties under `spark.sql.catalog`.
+Spark adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting Spark properties under `spark.sql.catalog`.
 
 This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive metastore:
 
@@ -128,7 +128,7 @@ spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 
 When using Iceberg 0.11.0 and later, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
 
-Catalogs in 2.4 are configured just like catalogs in 3.0, but only Iceberg catalogs are supported.
+Catalogs in 2.4 are configured just like catalogs in 3.x, but only Iceberg catalogs are supported.
 
 
 ## SQL Extensions

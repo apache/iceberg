@@ -96,11 +96,7 @@ public class StatisticsFileParser {
     generator.writeEndArray();
 
     if (!blobMetadata.properties().isEmpty()) {
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> entry : blobMetadata.properties().entrySet()) {
-        generator.writeStringField(entry.getKey(), entry.getValue());
-      }
-      generator.writeEndObject();
+      JsonUtil.writeStringMap(PROPERTIES, blobMetadata.properties(), generator);
     }
     generator.writeEndObject();
   }

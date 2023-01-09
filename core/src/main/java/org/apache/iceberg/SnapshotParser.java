@@ -23,13 +23,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
@@ -82,11 +82,10 @@ public class SnapshotParser {
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
       // embed the manifest list in the JSON, v1 only
-      generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.allManifests(DUMMY_FILE_IO)) {
-        generator.writeString(file.path());
-      }
-      generator.writeEndArray();
+      JsonUtil.writeStringArray(
+          MANIFESTS,
+          Iterables.transform(snapshot.allManifests(DUMMY_FILE_IO), ManifestFile::path),
+          generator);
     }
 
     // schema ID might be null for snapshots written by old writers
@@ -174,11 +173,7 @@ public class SnapshotParser {
   }
 
   public static Snapshot fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
-    }
+    return JsonUtil.parse(json, SnapshotParser::fromJson);
   }
 
   /**

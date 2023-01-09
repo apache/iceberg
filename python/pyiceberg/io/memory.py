@@ -14,8 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 from io import SEEK_CUR, SEEK_END, SEEK_SET
+from types import TracebackType
+from typing import Optional, Type
 
 from pyiceberg.io import InputStream
 
@@ -71,8 +74,10 @@ class MemoryInputStream(InputStream):
         del self.buffer
         self.pos = 0
 
-    def __enter__(self):
-        pass
+    def __enter__(self) -> MemoryInputStream:
+        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         self.close()

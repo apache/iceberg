@@ -61,7 +61,6 @@ DATA:
   - data/**/*
 SPARK:
   - spark-runtime/**/*
-  - spark3-runtime/**/*
   - spark/**/*
   - spark2/**/*
   - spark3/**/*

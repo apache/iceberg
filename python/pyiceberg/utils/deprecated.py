@@ -16,10 +16,10 @@
 #  under the License.
 import functools
 import warnings
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 
-def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] = None):
+def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] = None) -> Callable:  # type: ignore
     """This is a decorator which can be used to mark functions
     as deprecated. It will result in a warning being emitted
     when the function is used."""
@@ -27,9 +27,9 @@ def deprecated(deprecated_in: str, removed_in: str, help_message: Optional[str] 
     if help_message is not None:
         help_message = f" {help_message}."
 
-    def decorator(func: Callable):
+    def decorator(func: Callable):  # type: ignore
         @functools.wraps(func)
-        def new_func(*args, **kwargs):
+        def new_func(*args: Any, **kwargs: Any) -> Any:
             warnings.simplefilter("always", DeprecationWarning)  # turn off filter
 
             warnings.warn(

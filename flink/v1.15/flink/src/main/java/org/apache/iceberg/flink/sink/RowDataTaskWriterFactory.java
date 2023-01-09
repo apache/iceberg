@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -57,6 +58,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       RowType flinkSchema,
       long targetFileSizeBytes,
       FileFormat format,
+      Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
       boolean upsert) {
     this.table = table;
@@ -71,7 +73,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory =
-          new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
+          new FlinkAppenderFactory(
+              table, schema, flinkSchema, writeProperties, spec, null, null, null);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of
       // the inserted row
@@ -80,9 +83,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
       this.appenderFactory =
           new FlinkAppenderFactory(
+              table,
               schema,
               flinkSchema,
-              table.properties(),
+              writeProperties,
               spec,
               ArrayUtil.toIntArray(equalityFieldIds),
               TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)),
@@ -90,9 +94,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     } else {
       this.appenderFactory =
           new FlinkAppenderFactory(
+              table,
               schema,
               flinkSchema,
-              table.properties(),
+              writeProperties,
               spec,
               ArrayUtil.toIntArray(equalityFieldIds),
               schema,

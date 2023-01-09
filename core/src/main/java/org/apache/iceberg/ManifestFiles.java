@@ -54,7 +54,7 @@ public class ManifestFiles {
               GenericPartitionFieldSummary.class.getName()));
 
   @VisibleForTesting
-  static Cache<FileIO, ContentCache> newManifestCache() {
+  static Caffeine<Object, Object> newManifestCacheBuilder() {
     return Caffeine.newBuilder()
         .weakKeys()
         .softValues()
@@ -62,11 +62,11 @@ public class ManifestFiles {
         .removalListener(
             (io, contentCache, cause) ->
                 LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
-        .recordStats()
-        .build();
+        .recordStats();
   }
 
-  private static final Cache<FileIO, ContentCache> CONTENT_CACHES = newManifestCache();
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
+      newManifestCacheBuilder().build();
 
   @VisibleForTesting
   static ContentCache contentCache(FileIO io) {
@@ -127,7 +127,8 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
-    return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
+    return new ManifestReader<>(
+        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
   }
 
   /**
@@ -181,7 +182,8 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
-    return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
+    return new ManifestReader<>(
+        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
 
   /**
@@ -248,6 +250,7 @@ public class ManifestFiles {
 
   static ManifestFile copyAppendManifest(
       int formatVersion,
+      int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       OutputFile outputFile,
@@ -256,7 +259,7 @@ public class ManifestFiles {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           reader,
@@ -271,6 +274,7 @@ public class ManifestFiles {
 
   static ManifestFile copyRewriteManifest(
       int formatVersion,
+      int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
       OutputFile outputFile,
@@ -280,7 +284,7 @@ public class ManifestFiles {
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           reader,
@@ -341,7 +345,7 @@ public class ManifestFiles {
   }
 
   private static InputFile newInputFile(FileIO io, String path, long length) {
-    boolean enabled = false;
+    boolean enabled;
 
     try {
       enabled = cachingEnabled(io);

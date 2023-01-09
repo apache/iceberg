@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -66,7 +65,7 @@ public class TestSplitScan {
   private final FileFormat format;
 
   public TestSplitScan(String format) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
   }
 
   @Before

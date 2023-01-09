@@ -46,7 +46,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Map<String, String> options = Maps.newHashMap();
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
-    SparkTable table = cat.loadTable(id);
+    SparkTable table = (SparkTable) cat.loadTable(id);
 
     spark.sql("INSERT INTO mycat.default.table VALUES (1,1,1)");
 
@@ -76,7 +76,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Map<String, String> options = Maps.newHashMap();
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
-    SparkTable table = cat.loadTable(id);
+    SparkTable table = (SparkTable) cat.loadTable(id);
 
     spark.sql("INSERT INTO hadoop.default.table VALUES (1,1,1)");
 
@@ -106,7 +106,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Map<String, String> options = Maps.newHashMap();
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
-    SparkTable table = cat.loadTable(id);
+    SparkTable table = (SparkTable) cat.loadTable(id);
 
     spark.sql("INSERT INTO hive.default.table VALUES (1,1,1)");
 

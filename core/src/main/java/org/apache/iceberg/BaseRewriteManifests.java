@@ -164,7 +164,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     InputFile toCopy = ops.io().newInputFile(manifest.path());
     OutputFile newFile = newManifestOutput();
     return ManifestFiles.copyRewriteManifest(
-        current.formatVersion(), toCopy, specsById, newFile, snapshotId(), summaryBuilder);
+        current.formatVersion(),
+        manifest.partitionSpecId(),
+        toCopy,
+        specsById,
+        newFile,
+        snapshotId(),
+        summaryBuilder);
   }
 
   @Override

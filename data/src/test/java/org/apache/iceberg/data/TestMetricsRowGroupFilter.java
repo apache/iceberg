@@ -43,7 +43,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -98,7 +97,7 @@ public class TestMetricsRowGroupFilter {
   private final FileFormat format;
 
   public TestMetricsRowGroupFilter(String format) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(format);
   }
 
   private static final Types.StructType structFieldType =

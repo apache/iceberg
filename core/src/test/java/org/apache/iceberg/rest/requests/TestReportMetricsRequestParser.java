@@ -19,14 +19,17 @@
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.CommitMetrics;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.ImmutableScanReport;
 import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -80,14 +83,14 @@ public class TestReportMetricsRequestParser {
   }
 
   @Test
-  public void roundTripSerde() {
+  public void roundTripSerdeWithScanReport() {
     String tableName = "roundTripTableName";
-    Schema projection =
-        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName(tableName)
-            .projection(projection)
+            .schemaId(4)
+            .addProjectedFieldIds(1, 2, 3)
+            .addProjectedFieldNames("c1", "c2", "c3")
             .snapshotId(23L)
             .filter(Expressions.alwaysTrue())
             .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
@@ -99,17 +102,9 @@ public class TestReportMetricsRequestParser {
             + "  \"table-name\" : \"roundTripTableName\",\n"
             + "  \"snapshot-id\" : 23,\n"
             + "  \"filter\" : true,\n"
-            + "  \"projection\" : {\n"
-            + "    \"type\" : \"struct\",\n"
-            + "    \"schema-id\" : 0,\n"
-            + "    \"fields\" : [ {\n"
-            + "      \"id\" : 1,\n"
-            + "      \"name\" : \"c1\",\n"
-            + "      \"required\" : true,\n"
-            + "      \"type\" : \"string\",\n"
-            + "      \"doc\" : \"c1\"\n"
-            + "    } ]\n"
-            + "  },\n"
+            + "  \"schema-id\" : 4,\n"
+            + "  \"projected-field-ids\" : [ 1, 2, 3 ],\n"
+            + "  \"projected-field-names\" : [ \"c1\", \"c2\", \"c3\" ],\n"
             + "  \"metrics\" : { }\n"
             + "}";
 
@@ -119,8 +114,37 @@ public class TestReportMetricsRequestParser {
     Assertions.assertThat(json).isEqualTo(expectedJson);
 
     Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
-        .usingRecursiveComparison()
-        .ignoringFields("projection")
+        .isEqualTo(metricsRequest.report());
+  }
+
+  @Test
+  public void roundTripSerdeWithCommitReport() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .sequenceNumber(4L)
+            .operation("DELETE")
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"report-type\" : \"commit-report\",\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"sequence-number\" : 4,\n"
+            + "  \"operation\" : \"DELETE\",\n"
+            + "  \"metrics\" : { }\n"
+            + "}";
+
+    ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(commitReport);
+
+    String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+
+    Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
         .isEqualTo(metricsRequest.report());
   }
 }

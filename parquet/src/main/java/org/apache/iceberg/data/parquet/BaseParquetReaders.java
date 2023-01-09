@@ -129,6 +129,7 @@ public abstract class BaseParquetReaders<T> {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
+      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         ParquetValueReader<?> fieldReader = fieldReaders.get(i);
@@ -138,6 +139,9 @@ public abstract class BaseParquetReaders<T> {
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReader));
           typesById.put(id, fieldType);
+          if (idToConstant.containsKey(id)) {
+            maxDefinitionLevelsById.put(id, fieldD);
+          }
         }
       }
 
@@ -146,11 +150,16 @@ public abstract class BaseParquetReaders<T> {
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
+      // Defaulting to parent max definition level
+      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
-          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
+          int fieldMaxDefinitionLevel =
+              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
+          reorderedFields.add(
+              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
           types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());

@@ -64,6 +64,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.orc.block-size-bytes         | 268435456 (256 MB) | Define the default file system block size for ORC files |
 | write.orc.compression-codec        | zlib               | ORC compression codec: zstd, lz4, lzo, zlib, snappy, none |
 | write.orc.compression-strategy     | speed              | ORC compression strategy: speed, compression |
+| write.orc.bloom.filter.columns     | (not set)          | Comma separated list of column names for which a Bloom filter must be created |
+| write.orc.bloom.filter.fpp         | 0.05               | False positive probability for Bloom filter (must > 0.0 and < 1.0) |
 | write.location-provider.impl       | null               | Optional custom implementation for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
@@ -74,7 +76,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.delete.distribution-mode     | hash               | Defines distribution of write delete data          |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
-| write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
+| write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest **tracked** version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 | write.spark.fanout.enabled         | false              | Enables the fanout writer in Spark that does not require data to be clustered; uses more memory |
 | write.object-storage.enabled       | false              | Enables the object storage location provider that adds a hash component to file paths |
@@ -102,8 +104,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.manifest.target-size-bytes  | 8388608 (8 MB)   | Target size when merging manifest files                       |
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
-| history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep while expiring snapshots    |
-| history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep while expiring snapshots |
+| history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep on the table and all of its branches while expiring snapshots |
+| history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
 ### Reserved table properties

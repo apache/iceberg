@@ -20,7 +20,6 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.apache.iceberg.metrics.ScanReport.CounterResult;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 

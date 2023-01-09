@@ -21,6 +21,7 @@ package org.apache.iceberg.aliyun.oss.mock;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.ServiceException;
 import com.aliyun.oss.model.GetObjectRequest;
 import com.aliyun.oss.model.PutObjectResult;
 import java.io.ByteArrayInputStream;
@@ -32,6 +33,8 @@ import java.util.UUID;
 import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -48,12 +51,11 @@ public class TestLocalAliyunOSS {
   private final Random random = new Random(1);
 
   private static void assertThrows(Runnable runnable, String expectedErrorCode) {
-    try {
-      runnable.run();
-      Assert.fail("No exception was thrown, expected errorCode: " + expectedErrorCode);
-    } catch (OSSException e) {
-      Assert.assertEquals(expectedErrorCode, e.getErrorCode());
-    }
+    Assertions.assertThatThrownBy(runnable::run)
+        .isInstanceOf(OSSException.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(OSSException.class))
+        .extracting(ServiceException::getErrorCode)
+        .isEqualTo(expectedErrorCode);
   }
 
   @Before

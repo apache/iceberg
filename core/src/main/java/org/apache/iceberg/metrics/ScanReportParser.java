@@ -21,11 +21,9 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
+import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -33,8 +31,11 @@ public class ScanReportParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String FILTER = "filter";
-  private static final String PROJECTION = "projection";
+  private static final String SCHEMA_ID = "schema-id";
+  private static final String PROJECTED_FIELD_IDS = "projected-field-ids";
+  private static final String PROJECTED_FIELD_NAMES = "projected-field-names";
   private static final String METRICS = "metrics";
+  private static final String METADATA = "metadata";
 
   private ScanReportParser() {}
 
@@ -72,11 +73,17 @@ public class ScanReportParser {
     gen.writeFieldName(FILTER);
     ExpressionParser.toJson(scanReport.filter(), gen);
 
-    gen.writeFieldName(PROJECTION);
-    SchemaParser.toJson(scanReport.projection(), gen);
+    gen.writeNumberField(SCHEMA_ID, scanReport.schemaId());
+
+    JsonUtil.writeIntegerArray(PROJECTED_FIELD_IDS, scanReport.projectedFieldIds(), gen);
+    JsonUtil.writeStringArray(PROJECTED_FIELD_NAMES, scanReport.projectedFieldNames(), gen);
 
     gen.writeFieldName(METRICS);
     ScanMetricsResultParser.toJson(scanReport.scanMetrics(), gen);
+
+    if (!scanReport.metadata().isEmpty()) {
+      JsonUtil.writeStringMap(METADATA, scanReport.metadata(), gen);
+    }
   }
 
   public static ScanReport fromJson(String json) {
@@ -91,15 +98,25 @@ public class ScanReportParser {
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
     Expression filter = ExpressionParser.fromJson(JsonUtil.get(FILTER, json));
-    Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, json));
+    int schemaId = JsonUtil.getInt(SCHEMA_ID, json);
+    List<Integer> projectedFieldIds = JsonUtil.getIntegerList(PROJECTED_FIELD_IDS, json);
+    List<String> projectedFieldNames = JsonUtil.getStringList(PROJECTED_FIELD_NAMES, json);
     ScanMetricsResult scanMetricsResult =
         ScanMetricsResultParser.fromJson(JsonUtil.get(METRICS, json));
-    return ImmutableScanReport.builder()
-        .tableName(tableName)
-        .snapshotId(snapshotId)
-        .projection(projection)
-        .filter(filter)
-        .scanMetrics(scanMetricsResult)
-        .build();
+    ImmutableScanReport.Builder builder =
+        ImmutableScanReport.builder()
+            .tableName(tableName)
+            .snapshotId(snapshotId)
+            .schemaId(schemaId)
+            .projectedFieldIds(projectedFieldIds)
+            .projectedFieldNames(projectedFieldNames)
+            .filter(filter)
+            .scanMetrics(scanMetricsResult);
+
+    if (json.has(METADATA)) {
+      builder.metadata(JsonUtil.getStringMap(METADATA, json));
+    }
+
+    return builder.build();
   }
 }

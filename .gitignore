@@ -29,7 +29,6 @@ site/site
 
 # benchmark output
 spark/v2.4/spark/benchmark/*
-spark/v3.0/spark/benchmark/*
 spark/v3.1/spark/benchmark/*
 spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*

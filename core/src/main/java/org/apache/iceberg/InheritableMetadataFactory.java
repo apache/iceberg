@@ -71,8 +71,11 @@ class InheritableMetadataFactory {
         manifestEntry.setDataSequenceNumber(sequenceNumber);
       }
 
-      if (manifestEntry.sequenceNumber() == null) {
-        manifestEntry.setSequenceNumber(sequenceNumber);
+      // in v1 tables, the file sequence number is not persisted and can be safely defaulted to 0
+      // in v2 tables, the file sequence number should be inherited iff the entry status is ADDED
+      if (manifestEntry.fileSequenceNumber() == null
+          && (sequenceNumber == 0 || manifestEntry.status() == ManifestEntry.Status.ADDED)) {
+        manifestEntry.setFileSequenceNumber(sequenceNumber);
       }
 
       return manifestEntry;

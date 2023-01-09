@@ -271,5 +271,5 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
           .put(TypeID.STRING, StringType.class)
           .put(TypeID.FIXED, BinaryType.class)
           .put(TypeID.BINARY, BinaryType.class)
-          .build();
+          .buildOrThrow();
 }

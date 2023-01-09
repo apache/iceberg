@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.MERGE_MODE;
+import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
@@ -34,12 +37,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -51,8 +58,9 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.hamcrest.CoreMatchers;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -80,6 +88,55 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
+  }
+
+  @Test
+  public void testMergeConditionSplitIntoTargetPredicateAndJoinCondition() {
+    createAndInitTable(
+        "id INT, salary INT, dep STRING, sub_dep STRING",
+        "PARTITIONED BY (dep, sub_dep)",
+        "{ \"id\": 1, \"salary\": 100, \"dep\": \"d1\", \"sub_dep\": \"sd1\" }\n"
+            + "{ \"id\": 6, \"salary\": 600, \"dep\": \"d6\", \"sub_dep\": \"sd6\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, salary INT, dep STRING, sub_dep STRING",
+        "{ \"id\": 1, \"salary\": 101, \"dep\": \"d1\", \"sub_dep\": \"sd1\" }\n"
+            + "{ \"id\": 2, \"salary\": 200, \"dep\": \"d2\", \"sub_dep\": \"sd2\" }\n"
+            + "{ \"id\": 3, \"salary\": 300, \"dep\": \"d3\", \"sub_dep\": \"sd3\"  }");
+
+    String query =
+        String.format(
+            "MERGE INTO %s AS t USING source AS s "
+                + "ON t.id == s.id AND ((t.dep = 'd1' AND t.sub_dep IN ('sd1', 'sd3')) OR (t.dep = 'd6' AND t.sub_dep IN ('sd2', 'sd6'))) "
+                + "WHEN MATCHED THEN "
+                + "  UPDATE SET salary = s.salary "
+                + "WHEN NOT MATCHED THEN "
+                + "  INSERT *",
+            tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    if (mode(table) == COPY_ON_WRITE) {
+      checkJoinAndFilterConditions(
+          query,
+          "Join [id], [id], FullOuter",
+          "((dep = 'd1' AND sub_dep IN ('sd1', 'sd3')) OR (dep = 'd6' AND sub_dep IN ('sd2', 'sd6')))");
+    } else {
+      checkJoinAndFilterConditions(
+          query,
+          "Join [id], [id], RightOuter",
+          "((dep = 'd1' AND sub_dep IN ('sd1', 'sd3')) OR (dep = 'd6' AND sub_dep IN ('sd2', 'sd6')))");
+    }
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, 101, "d1", "sd1"), // updated
+            row(2, 200, "d2", "sd2"), // new
+            row(3, 300, "d3", "sd3"), // new
+            row(6, 600, "d6", "sd6")), // existing
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -989,11 +1046,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, MERGE_ISOLATION_LEVEL, "serializable");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // merge thread
     Future<?> mergeFuture =
@@ -1003,12 +1063,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql(
                     "MERGE INTO %s t USING source s "
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
                     tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -1017,27 +1079,42 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
 
     try {
-      mergeFuture.get();
-      Assert.fail("Expected a validation exception");
-    } catch (ExecutionException e) {
-      Throwable sparkException = e.getCause();
-      Assert.assertThat(sparkException, CoreMatchers.instanceOf(SparkException.class));
-      Throwable validationException = sparkException.getCause();
-      Assert.assertThat(validationException, CoreMatchers.instanceOf(ValidationException.class));
-      String errMsg = validationException.getMessage();
-      Assert.assertThat(
-          errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
+      Assertions.assertThatThrownBy(mergeFuture::get)
+          .isInstanceOf(ExecutionException.class)
+          .cause()
+          .isInstanceOf(SparkException.class)
+          .cause()
+          .isInstanceOf(ValidationException.class)
+          .hasMessageContaining("Found conflicting files that can contain");
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 
@@ -1058,11 +1135,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
+    AtomicBoolean shouldAppend = new AtomicBoolean(true);
 
     // merge thread
     Future<?> mergeFuture =
@@ -1072,12 +1152,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 while (barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
+
                 sql(
                     "MERGE INTO %s t USING source s "
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
                     tableName);
+
                 barrier.incrementAndGet();
               }
             });
@@ -1086,11 +1168,28 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Future<?> appendFuture =
         executorService.submit(
             () -> {
+              // load the table via the validation catalog to use another table instance for inserts
+              Table table = validationCatalog.loadTable(tableIdent);
+
+              GenericRecord record = GenericRecord.create(table.schema());
+              record.set(0, 1); // id
+              record.set(1, "hr"); // dep
+
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
+                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
                   sleep(10);
                 }
-                sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+                if (!shouldAppend.get()) {
+                  return;
+                }
+
+                for (int numAppends = 0; numAppends < 5; numAppends++) {
+                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
+                  table.newFastAppend().appendFile(dataFile).commit();
+                  sleep(10);
+                }
+
                 barrier.incrementAndGet();
               }
             });
@@ -1098,6 +1197,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     try {
       mergeFuture.get();
     } finally {
+      shouldAppend.set(false);
       appendFuture.cancel(true);
     }
 
@@ -2227,5 +2327,26 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
+  }
+
+  private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
+    // disable runtime filtering for easier validation
+    withSQLConf(
+        ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"),
+        () -> {
+          SparkPlan sparkPlan = executeAndKeepPlan(() -> sql(query));
+          String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
+
+          Assertions.assertThat(planAsString).as("Join should match").contains(join + "\n");
+
+          Assertions.assertThat(planAsString)
+              .as("Pushed filters must match")
+              .contains("[filters=" + icebergFilters + ",");
+        });
+  }
+
+  private RowLevelOperationMode mode(Table table) {
+    String modeName = table.properties().getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
+    return RowLevelOperationMode.fromName(modeName);
   }
 }

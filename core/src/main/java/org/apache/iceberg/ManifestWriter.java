@@ -100,7 +100,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an added entry for a file.
    *
-   * <p>The entry's snapshot ID will be this manifest's snapshot ID.
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. The data and file sequence
+   * numbers will be assigned at commit.
    *
    * @param addedFile a data file
    */
@@ -112,8 +113,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an added entry for a file with a specific sequence number.
    *
-   * <p>The entry's snapshot ID will be this manifest's snapshot ID. The entry's sequence number
-   * will be the provided sequence number.
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. The entry's data sequence
+   * number will be the provided data sequence number. The entry's file sequence number will be
+   * assigned at commit.
    *
    * @param addedFile a data file
    * @param dataSequenceNumber a data sequence number for the file
@@ -133,53 +135,42 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   /**
    * Add an existing entry for a file.
    *
-   * <p>The original data sequence number and snapshot ID, which were assigned at commit, must be
-   * preserved when adding an existing entry.
+   * <p>The original data and file sequence numbers, snapshot ID, which were assigned at commit,
+   * must be preserved when adding an existing entry.
    *
    * @param existingFile a file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
    * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
+   * @param fileSequenceNumber a file sequence number (assigned when the file was added)
    */
-  public void existing(F existingFile, long fileSnapshotId, long dataSequenceNumber) {
-    addEntry(reused.wrapExisting(fileSnapshotId, dataSequenceNumber, existingFile));
+  public void existing(
+      F existingFile, long fileSnapshotId, long dataSequenceNumber, Long fileSequenceNumber) {
+    reused.wrapExisting(fileSnapshotId, dataSequenceNumber, fileSequenceNumber, existingFile);
+    addEntry(reused);
   }
 
   void existing(ManifestEntry<F> entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.dataSequenceNumber(), entry.file()));
+    addEntry(reused.wrapExisting(entry));
   }
 
   /**
    * Add a delete entry for a file.
    *
-   * <p>This method must not be used as the original data sequence number of the file must be
-   * preserved when the file is marked as deleted.
-   *
-   * @param deletedFile a file
-   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #delete(ContentFile, long)}.
-   */
-  @Deprecated
-  public void delete(F deletedFile) {
-    throw new UnsupportedOperationException(
-        "Can't add a delete entry without a data sequence number");
-  }
-
-  /**
-   * Add a delete entry for a file.
-   *
-   * <p>The entry's snapshot ID will be this manifest's snapshot ID. However, the original data
-   * sequence number of the file must be preserved when the file is marked as deleted.
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. However, the original data and
+   * file sequence numbers of the file must be preserved when the file is marked as deleted.
    *
    * @param deletedFile a file
    * @param dataSequenceNumber a data sequence number of the file (assigned when the file was added)
+   * @param fileSequenceNumber a file sequence number (assigned when the file was added)
    */
-  public void delete(F deletedFile, long dataSequenceNumber) {
-    addEntry(reused.wrapDelete(snapshotId, dataSequenceNumber, deletedFile));
+  public void delete(F deletedFile, long dataSequenceNumber, Long fileSequenceNumber) {
+    addEntry(reused.wrapDelete(snapshotId, dataSequenceNumber, fileSequenceNumber, deletedFile));
   }
 
   void delete(ManifestEntry<F> entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.dataSequenceNumber(), entry.file()));
+    addEntry(reused.wrapDelete(snapshotId, entry));
   }
 
   @Override

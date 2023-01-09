@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
@@ -30,6 +28,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
 enum Dates implements Transform<Integer, Integer> {
@@ -37,6 +36,7 @@ enum Dates implements Transform<Integer, Integer> {
   MONTH(ChronoUnit.MONTHS, "month"),
   DAY(ChronoUnit.DAYS, "day");
 
+  @Immutable
   static class Apply implements SerializableFunction<Integer, Integer> {
     private final ChronoUnit granularity;
 
@@ -50,24 +50,19 @@ enum Dates implements Transform<Integer, Integer> {
         return null;
       }
 
-      if (granularity == ChronoUnit.DAYS) {
-        return days;
-      }
-
-      if (days >= 0) {
-        LocalDate date = EPOCH.plusDays(days);
-        return (int) granularity.between(EPOCH, date);
-      } else {
-        // add 1 day to the value to account for the case where there is exactly 1 unit between the
-        // date and epoch because the result will always be decremented.
-        LocalDate date = EPOCH.plusDays(days + 1);
-        return (int) granularity.between(EPOCH, date) - 1;
+      switch (granularity) {
+        case YEARS:
+          return DateTimeUtil.daysToYears(days);
+        case MONTHS:
+          return DateTimeUtil.daysToMonths(days);
+        case DAYS:
+          return days;
+        default:
+          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
       }
     }
   }
 
-  private static final LocalDate EPOCH =
-      Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC).toLocalDate();
   private final ChronoUnit granularity;
   private final String name;
   private final Apply apply;

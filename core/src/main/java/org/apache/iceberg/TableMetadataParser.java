@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -212,11 +211,7 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     // write properties map
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
     generator.writeNumberField(
         CURRENT_SNAPSHOT_ID,
@@ -301,12 +296,7 @@ public class TableMetadataParser {
    * @return a TableMetadata object
    */
   public static TableMetadata fromJson(String metadataLocation, String json) {
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(metadataLocation, node);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
   static TableMetadata fromJson(InputFile file, JsonNode node) {

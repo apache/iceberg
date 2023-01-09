@@ -49,6 +49,17 @@ public interface Table {
   TableScan newScan();
 
   /**
+   * Create a new {@link BatchScan batch scan} for this table.
+   *
+   * <p>Once a batch scan is created, it can be refined to project columns and filter data.
+   *
+   * @return a batch scan for this table
+   */
+  default BatchScan newBatchScan() {
+    return new BatchScanAdapter(newScan());
+  }
+
+  /**
    * Create a new {@link IncrementalAppendScan scan} for this table.
    *
    * <p>Once a scan is created, it can be refined to project columns and filter data.

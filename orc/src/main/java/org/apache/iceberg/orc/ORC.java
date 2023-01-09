@@ -25,6 +25,10 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_COLUMNS_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP;
+import static org.apache.iceberg.TableProperties.ORC_BLOOM_FILTER_FPP_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
@@ -35,6 +39,7 @@ import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -81,6 +86,7 @@ import org.apache.orc.OrcFile.CompressionStrategy;
 import org.apache.orc.OrcFile.ReaderOptions;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
@@ -125,19 +131,6 @@ public class ORC {
     public WriteBuilder metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
-    }
-
-    /**
-     * Setting a specific configuration value for the writer.
-     *
-     * @param property The property to set
-     * @param value The value to set
-     * @return The resulting builder for chaining purposes
-     * @deprecated Please use #set(String, String) instead
-     */
-    @Deprecated
-    public WriteBuilder config(String property, String value) {
-      return set(property, value);
     }
 
     public WriteBuilder set(String property, String value) {
@@ -202,6 +195,8 @@ public class ORC {
       OrcConf.COMPRESS.setString(conf, context.compressionKind().name());
       OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().name());
       OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
+      OrcConf.BLOOM_FILTER_COLUMNS.setString(conf, context.bloomFilterColumns());
+      OrcConf.BLOOM_FILTER_FPP.setDouble(conf, context.bloomFilterFpp());
 
       return new OrcFileAppender<>(
           schema,
@@ -219,6 +214,8 @@ public class ORC {
       private final int vectorizedRowBatchSize;
       private final CompressionKind compressionKind;
       private final CompressionStrategy compressionStrategy;
+      private final String bloomFilterColumns;
+      private final double bloomFilterFpp;
 
       public long stripeSize() {
         return stripeSize;
@@ -240,17 +237,29 @@ public class ORC {
         return compressionStrategy;
       }
 
+      public String bloomFilterColumns() {
+        return bloomFilterColumns;
+      }
+
+      public double bloomFilterFpp() {
+        return bloomFilterFpp;
+      }
+
       private Context(
           long stripeSize,
           long blockSize,
           int vectorizedRowBatchSize,
           CompressionKind compressionKind,
-          CompressionStrategy compressionStrategy) {
+          CompressionStrategy compressionStrategy,
+          String bloomFilterColumns,
+          double bloomFilterFpp) {
         this.stripeSize = stripeSize;
         this.blockSize = blockSize;
         this.vectorizedRowBatchSize = vectorizedRowBatchSize;
         this.compressionKind = compressionKind;
         this.compressionStrategy = compressionStrategy;
+        this.bloomFilterColumns = bloomFilterColumns;
+        this.bloomFilterFpp = bloomFilterFpp;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -286,8 +295,31 @@ public class ORC {
             PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
         CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
 
+        String bloomFilterColumns =
+            PropertyUtil.propertyAsString(
+                config,
+                OrcConf.BLOOM_FILTER_COLUMNS.getAttribute(),
+                ORC_BLOOM_FILTER_COLUMNS_DEFAULT);
+        bloomFilterColumns =
+            PropertyUtil.propertyAsString(config, ORC_BLOOM_FILTER_COLUMNS, bloomFilterColumns);
+
+        double bloomFilterFpp =
+            PropertyUtil.propertyAsDouble(
+                config, OrcConf.BLOOM_FILTER_FPP.getAttribute(), ORC_BLOOM_FILTER_FPP_DEFAULT);
+        bloomFilterFpp =
+            PropertyUtil.propertyAsDouble(config, ORC_BLOOM_FILTER_FPP, bloomFilterFpp);
+        Preconditions.checkArgument(
+            bloomFilterFpp > 0.0 && bloomFilterFpp < 1.0,
+            "Bloom filter fpp must be > 0.0 and < 1.0");
+
         return new Context(
-            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+            stripeSize,
+            blockSize,
+            vectorizedRowBatchSize,
+            compressionKind,
+            compressionStrategy,
+            bloomFilterColumns,
+            bloomFilterFpp);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -318,7 +350,13 @@ public class ORC {
                 : dataContext.compressionStrategy();
 
         return new Context(
-            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+            stripeSize,
+            blockSize,
+            vectorizedRowBatchSize,
+            compressionKind,
+            compressionStrategy,
+            dataContext.bloomFilterColumns(),
+            dataContext.bloomFilterFpp());
       }
 
       private static CompressionKind toCompressionKind(String codecAsString) {
@@ -728,19 +766,41 @@ public class ORC {
     }
   }
 
-  static Reader newFileReader(String location, ReaderOptions readerOptions) {
-    try {
-      return OrcFile.createReader(new Path(location), readerOptions);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
-    }
-  }
-
   static Reader newFileReader(InputFile file, Configuration config) {
     ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
     if (file instanceof HadoopInputFile) {
       readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
+    } else {
+      // In case of any other InputFile we wrap the InputFile with InputFileSystem that only
+      // supports the creation of an InputStream. To prevent a file status call to determine the
+      // length we supply the length as input
+      readerOptions.filesystem(new FileIOFSUtil.InputFileSystem(file)).maxLength(file.getLength());
     }
-    return newFileReader(file.location(), readerOptions);
+    try {
+      return OrcFile.createReader(new Path(file.location()), readerOptions);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
+    }
+  }
+
+  static Writer newFileWriter(
+      OutputFile file, OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+    if (file instanceof HadoopOutputFile) {
+      options.fileSystem(((HadoopOutputFile) file).getFileSystem());
+    } else {
+      options.fileSystem(new FileIOFSUtil.OutputFileSystem(file));
+    }
+    final Path locPath = new Path(file.location());
+    final Writer writer;
+
+    try {
+      writer = OrcFile.createWriter(locPath, options);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
+    }
+
+    metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+
+    return writer;
   }
 }

@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
@@ -577,5 +581,29 @@ public class TestAwsProperties {
     Assert.assertFalse(
         "The configured use idle connection reaper enabled should be false",
         capturedUseIdleConnectionReaper);
+  }
+
+  @Test
+  public void testKryoSerialization() throws IOException {
+    AwsProperties awsProperties = new AwsProperties();
+    AwsProperties deSerializedAwsProperties =
+        TestHelpers.KryoHelpers.roundTripSerialize(awsProperties);
+    Assert.assertEquals(
+        awsProperties.s3BucketToAccessPointMapping(),
+        deSerializedAwsProperties.s3BucketToAccessPointMapping());
+
+    AwsProperties awsPropertiesWithProps = new AwsProperties(ImmutableMap.of("a", "b"));
+    AwsProperties deSerializedAwsPropertiesWithProps =
+        TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
+    Assert.assertEquals(
+        awsPropertiesWithProps.s3BucketToAccessPointMapping(),
+        deSerializedAwsPropertiesWithProps.s3BucketToAccessPointMapping());
+
+    AwsProperties awsPropertiesWithEmptyProps = new AwsProperties(Collections.emptyMap());
+    AwsProperties deSerializedAwsPropertiesWithEmptyProps =
+        TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
+    Assert.assertEquals(
+        awsPropertiesWithEmptyProps.s3BucketToAccessPointMapping(),
+        deSerializedAwsPropertiesWithEmptyProps.s3BucketToAccessPointMapping());
   }
 }

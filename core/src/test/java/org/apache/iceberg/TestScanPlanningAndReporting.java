@@ -25,11 +25,12 @@ import java.time.Duration;
 import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
@@ -245,10 +246,10 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
   }
 
-  private static class TestMetricsReporter implements MetricsReporter {
+  static class TestMetricsReporter implements MetricsReporter {
     private final List<MetricsReport> reports = Lists.newArrayList();
     // this is mainly so that we see scan reports being logged during tests
-    private final LoggingMetricsReporter delegate = new LoggingMetricsReporter();
+    private final LoggingMetricsReporter delegate = LoggingMetricsReporter.instance();
 
     @Override
     public void report(MetricsReport report) {
@@ -260,7 +261,16 @@ public class TestScanPlanningAndReporting extends TableTestBase {
       if (reports.isEmpty()) {
         return null;
       }
+
       return (ScanReport) reports.get(reports.size() - 1);
+    }
+
+    public CommitReport lastCommitReport() {
+      if (reports.isEmpty()) {
+        return null;
+      }
+
+      return (CommitReport) reports.get(reports.size() - 1);
     }
   }
 }
