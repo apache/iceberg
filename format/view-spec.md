@@ -58,6 +58,7 @@ The view version metadata file has the following fields:
 | Required/Optional | Field Name | Description |
 |-------------------|------------|-------------|
 | Required | format-version | An integer version number for the view format. Currently, this must be 1. Implementations must throw an exception if the view's version is higher than the supported version. |
+| Required | view-uuid | A UUID that identifies the view, generated when the view is created. Implementations must throw an exception if a view's UUID does not match the expected UUID after refreshing metadata. |
 | Required | location | The view's base location. This is used to determine where to store view metadata files. |
 | Required | current-version-id | Current version of the view. Set to ‘1’ when the view is first created. |
 | Optional | properties | A string to string map of view properties. This is used for metadata such as "comment" and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata. |
@@ -138,6 +139,7 @@ The metadata directory contains View Version Metadata files. The text after '=>'
 ```
 {
   "format-version" : 1, => JSON format. Will change as format evolves.
+  "view-uuid": "30ffd1f9-c8f6-4937-bc7a-1fbddfeb2f0c",
   "location" : "s3n://my_company/my/warehouse/anorwood.db/common_view",
   "current-version-id" : 1, => current / latest version of the view. ‘1’ here since this metadata was created when the view was created.
   "properties" : {  => shows properties of the view
@@ -189,6 +191,7 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
 ```
 {
   "format-version" : 1,
+  "view-uuid": "30ffd1f9-c8f6-4937-bc7a-1fbddfeb2f0c",
   "location" : "s3n://my_company/my/warehouse/anorwood.db/common_view",
   "current-version-id" : 2,
   "properties" : {  => shows properties of the view
