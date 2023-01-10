@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -332,7 +334,26 @@ public class SparkCatalog extends BaseCatalog {
         boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
 
         if (metadataFileExists) {
-          SparkActions.get().deleteReachableFiles(metadataFileLocation).io(table.io()).execute();
+          SparkSession spark = SparkSession.active();
+          int parallelism = Integer.parseInt(
+                  spark.conf().get(SparkSQLProperties.PURGE_PARALLELISM, SparkSQLProperties.PURGE_PARALLELISM_DEFAULT));
+
+          ExecutorService es = null;
+          try {
+            es = Executors.newFixedThreadPool(parallelism);
+            SparkActions.get()
+                    .deleteReachableFiles(metadataFileLocation)
+                    .executeDeleteWith(es)
+                    .io(table.io())
+                    .execute();
+          } finally {
+            if (es != null) {
+              List<Runnable> uncompletedTasks = es.shutdownNow();
+              // DeleteReachableFiles should complete all tasks before returning so this should be impossible
+              Preconditions.checkState(uncompletedTasks.isEmpty(),
+                      "Deletes did not complete before DeleteReachableFiles returned.");
+            }
+          }
         }
       }
 
