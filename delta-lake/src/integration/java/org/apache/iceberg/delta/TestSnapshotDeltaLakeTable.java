@@ -19,11 +19,18 @@
 package org.apache.iceberg.delta;
 
 import io.delta.standalone.DeltaLog;
+import io.delta.standalone.Operation;
+import io.delta.standalone.OptimisticTransaction;
+import io.delta.standalone.actions.AddFile;
+import io.delta.standalone.actions.RemoveFile;
+import io.delta.standalone.exceptions.DeltaConcurrentModificationException;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -53,6 +60,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "default";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
+  private String externalDataFilesIdentifier;
   private static final String defaultSparkCatalog = "spark_catalog";
   private static final String icebergCatalogName = "iceberg_hive";
 
@@ -79,13 +87,15 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @Rule public TemporaryFolder temp1 = new TemporaryFolder();
   @Rule public TemporaryFolder temp2 = new TemporaryFolder();
   @Rule public TemporaryFolder temp3 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp4 = new TemporaryFolder();
 
   private final String partitionedTableName = "partitioned_table";
   private final String unpartitionedTableName = "unpartitioned_table";
-
+  private final String externalDataFilesTableName = "external_data_files_table";
   private String partitionedLocation;
   private String unpartitionedLocation;
   private String newIcebergTableLocation;
+  private String externalDataFilesTableLocation;
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -99,18 +109,22 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       File partitionedFolder = temp1.newFolder();
       File unpartitionedFolder = temp2.newFolder();
       File newIcebergTableFolder = temp3.newFolder();
+      File externalDataFilesTableFolder = temp4.newFolder();
       partitionedLocation = partitionedFolder.toURI().toString();
       unpartitionedLocation = unpartitionedFolder.toURI().toString();
       newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
+      externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
 
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
+    externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
 
     spark.sql(String.format("DROP TABLE IF EXISTS %s", partitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
 
     // Create a partitioned and unpartitioned table, doing a few inserts on each
     IntStream.range(0, 3)
@@ -133,6 +147,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                   .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
                   .option("path", unpartitionedLocation)
                   .saveAsTable(unpartitionedIdentifier);
+
+              df.write()
+                  .format("delta")
+                  .mode(i == 0 ? SaveMode.Overwrite : SaveMode.Append)
+                  .option("path", externalDataFilesTableLocation)
+                  .saveAsTable(externalDataFilesIdentifier);
             });
 
     // Delete a record from the table
@@ -146,7 +166,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @After
   public void after() {
-    // Drop the hive table.
+    // Drop delta lake tables.
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s", destName(defaultSparkCatalog, partitionedTableName)));
@@ -195,12 +215,20 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithAdditionalProperties() {
+    // add some properties to the original delta table
+    spark.sql(
+        "ALTER TABLE "
+            + unpartitionedIdentifier
+            + " SET TBLPROPERTIES ('foo'='bar', 'test0'='test0')");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_additional_properties");
     SnapshotDeltaLakeTable.Result result =
         SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
             .tableProperty("test1", "test1")
-            .tableProperties(ImmutableMap.of("test2", "test2", "test3", "test3", "test4", "test4"))
+            .tableProperties(
+                ImmutableMap.of(
+                    "test2", "test2", "test3", "test3", "test4",
+                    "test4")) // add additional iceberg table properties
             .execute();
 
     checkSnapshotIntegrity(
@@ -208,8 +236,27 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
     checkIcebergTableProperties(
         newTableIdentifier,
-        ImmutableMap.of("test1", "test1", "test2", "test2", "test3", "test3", "test4", "test4"),
+        ImmutableMap.of(
+            "foo", "bar", "test0", "test0", "test1", "test1", "test2", "test2", "test3", "test3",
+            "test4", "test4"),
         unpartitionedLocation);
+  }
+
+  @Test
+  public void testSnapshotTableWithExternalDataFiles() {
+    // Add parquet files to default.external_data_files_table. The newly added parquet files
+    // are not at the same location as the table.
+    addExternalDatafiles(externalDataFilesTableLocation, unpartitionedLocation);
+
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_external_data_files");
+    SnapshotDeltaLakeTable.Result result =
+        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+                spark, newTableIdentifier, externalDataFilesTableLocation)
+            .execute();
+    checkSnapshotIntegrity(
+        externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
+    checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
+    checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
   }
 
   private void checkSnapshotIntegrity(
@@ -259,12 +306,33 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
     ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
     Assert.assertTrue(
-        "The snapshot iceberg table should have the expected properties, both default and user added ones",
+        "The snapshot iceberg table should have the expected properties, all in original delta lake table, added by the action and user added ones",
         icebergTable.properties().entrySet().containsAll(expectedProperties.entrySet()));
     Assert.assertTrue(
         "The snapshot iceberg table's property should contains the original location",
         icebergTable.properties().containsKey(ORIGINAL_LOCATION_PROP)
             && icebergTable.properties().get(ORIGINAL_LOCATION_PROP).equals(deltaTableLocation));
+  }
+
+  private void checkDataFilePathsIntegrity(
+      String icebergTableIdentifier, String deltaTableLocation) {
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+    // checkSnapshotIntegrity already checks the number of data files in the snapshot iceberg table
+    // equals that in the original delta lake table
+    List<String> deltaTableDataFilePaths =
+        deltaLog.update().getAllFiles().stream()
+            .map(f -> getFullFilePath(f.getPath(), deltaLog.getPath().toString()))
+            .collect(Collectors.toList());
+    icebergTable
+        .currentSnapshot()
+        .addedDataFiles(icebergTable.io())
+        .forEach(
+            dataFile -> {
+              Assert.assertTrue(
+                  "The data file path should be the same as the original delta table",
+                  deltaTableDataFilePaths.contains(dataFile.path().toString()));
+            });
   }
 
   private Table getIcebergTable(String icebergTableIdentifier) {
@@ -281,5 +349,50 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       return NAMESPACE + "." + catalogName + "_" + dest;
     }
     return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
+  }
+
+  /**
+   * Add parquet files manually to a delta lake table to mock the situation that some data files are
+   * not in the same location as the delta lake table. The case that {@link AddFile#getPath()} or
+   * {@link RemoveFile#getPath()} returns absolute path
+   *
+   * <p>The knowing <a href="https://github.com/delta-io/connectors/issues/380">issue</a> make it
+   * necessary to manually rebuild the AddFile to avoid deserialization error when committing the
+   * transaction.
+   */
+  private void addExternalDatafiles(
+      String targetDeltaTableLocation, String sourceDeltaTableLocation) {
+    DeltaLog targetLog =
+        DeltaLog.forTable(spark.sessionState().newHadoopConf(), targetDeltaTableLocation);
+    OptimisticTransaction transaction = targetLog.startTransaction();
+    DeltaLog sourceLog =
+        DeltaLog.forTable(spark.sessionState().newHadoopConf(), sourceDeltaTableLocation);
+    List<AddFile> newFiles =
+        sourceLog.update().getAllFiles().stream()
+            .map(
+                f ->
+                    AddFile.builder(
+                            getFullFilePath(f.getPath(), sourceLog.getPath().toString()),
+                            f.getPartitionValues(),
+                            f.getSize(),
+                            System.currentTimeMillis(),
+                            true)
+                        .build())
+            .collect(Collectors.toList());
+    try {
+      transaction.commit(newFiles, new Operation(Operation.Name.UPDATE), "Delta-Lake/2.2.0");
+    } catch (DeltaConcurrentModificationException e) {
+      // handle exception here
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static String getFullFilePath(String path, String tableRoot) {
+    URI dataFileUri = URI.create(path);
+    if (dataFileUri.isAbsolute()) {
+      return path;
+    } else {
+      return tableRoot + File.separator + path;
+    }
   }
 }

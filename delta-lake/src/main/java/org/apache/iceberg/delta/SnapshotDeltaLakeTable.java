@@ -19,7 +19,10 @@
 package org.apache.iceberg.delta;
 
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.actions.Action;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 /** Snapshot an existing Delta Lake table to Iceberg in place. */
 public interface SnapshotDeltaLakeTable
@@ -52,6 +55,30 @@ public interface SnapshotDeltaLakeTable
    * @return this for method chaining
    */
   SnapshotDeltaLakeTable tableLocation(String location);
+
+  /**
+   * Sets the identifier of the newly created Iceberg table. This is required to be set before
+   * execute the action.
+   *
+   * @param identifier a table identifier (namespace, name) @Returns this for method chaining
+   */
+  SnapshotDeltaLakeTable as(TableIdentifier identifier);
+
+  /**
+   * Sets the catalog of the newly created Iceberg table. This is required to be set before execute
+   * the action
+   *
+   * @param catalog a catalog @Returns this for method chaining
+   */
+  SnapshotDeltaLakeTable icebergCatalog(Catalog catalog);
+
+  /**
+   * Sets the Hadoop configuration used to access delta lake table's logs and datafiles. This is
+   * required to be set before execute the action.
+   *
+   * @param conf a Hadoop configuration @Returns this for method chaining
+   */
+  SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf);
 
   /** The action result that contains a summary of the execution. */
   interface Result {

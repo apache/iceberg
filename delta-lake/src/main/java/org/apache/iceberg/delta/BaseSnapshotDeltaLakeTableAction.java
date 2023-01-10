@@ -55,6 +55,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -79,12 +80,12 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
   private static final String ORC_SUFFIX = ".orc";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
-  private final DeltaLog deltaLog;
-  private final Catalog icebergCatalog;
+  private DeltaLog deltaLog;
+  private Catalog icebergCatalog;
   private final String deltaTableLocation;
-  private final TableIdentifier newTableIdentifier;
+  private TableIdentifier newTableIdentifier;
   private String newTableLocation;
-  private final HadoopFileIO deltaLakeFileIO;
+  private HadoopFileIO deltaLakeFileIO;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -93,22 +94,11 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
    *
    * <p>The new table will only be created if the snapshot is successful.
    *
-   * @param icebergCatalog the iceberg catalog to create the iceberg table
    * @param deltaTableLocation the delta lake table's path
-   * @param newTableIdentifier the identifier of the new iceberg table
-   * @param deltaLakeConfiguration the hadoop configuration to access the delta lake table
    */
-  public BaseSnapshotDeltaLakeTableAction(
-      Catalog icebergCatalog,
-      String deltaTableLocation,
-      TableIdentifier newTableIdentifier,
-      Configuration deltaLakeConfiguration) {
-    this.icebergCatalog = icebergCatalog;
+  public BaseSnapshotDeltaLakeTableAction(String deltaTableLocation) {
     this.deltaTableLocation = deltaTableLocation;
-    this.newTableIdentifier = newTableIdentifier;
     this.newTableLocation = deltaTableLocation;
-    this.deltaLog = DeltaLog.forTable(deltaLakeConfiguration, deltaTableLocation);
-    this.deltaLakeFileIO = new HadoopFileIO(deltaLakeConfiguration);
   }
 
   @Override
@@ -130,7 +120,32 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
   }
 
   @Override
+  public SnapshotDeltaLakeTable as(TableIdentifier identifier) {
+    this.newTableIdentifier = identifier;
+    return this;
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable icebergCatalog(Catalog catalog) {
+    this.icebergCatalog = catalog;
+    return this;
+  }
+
+  @Override
+  public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
+    this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
+    this.deltaLakeFileIO = new HadoopFileIO(conf);
+    return this;
+  }
+
+  @Override
   public Result execute() {
+    Preconditions.checkArgument(
+        icebergCatalog != null && newTableIdentifier != null,
+        "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
+    Preconditions.checkArgument(
+        deltaLog != null && deltaLakeFileIO != null,
+        "Make sure to configure the action with a valid deltaLakeConfiguration");
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
@@ -142,7 +157,22 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
             newTableLocation,
             destTableProperties(updatedSnapshot, deltaTableLocation));
 
-    long totalDataFiles = copyFromDeltaLakeToIceberg(icebergTransaction);
+    Iterator<VersionLog> versionLogIterator =
+        deltaLog.getChanges(
+            0, // retrieve actions starting from the initial version
+            false); // not throw exception when data loss detected
+    while (versionLogIterator.hasNext()) {
+      VersionLog versionLog = versionLogIterator.next();
+      commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
+    }
+    long totalDataFiles =
+        Long.parseLong(
+            icebergTransaction
+                .table()
+                .currentSnapshot()
+                .summary()
+                .get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+
     icebergTransaction.commitTransaction();
     LOG.info(
         "Successfully loaded Iceberg metadata for {} files in {}",
@@ -170,31 +200,25 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
     return builder.build();
   }
 
-  private long copyFromDeltaLakeToIceberg(Transaction transaction) {
-    Iterator<VersionLog> versionLogIterator =
-        deltaLog.getChanges(
-            0, // retrieve actions starting from the initial version
-            false); // not throw exception when data loss detected
-
-    while (versionLogIterator.hasNext()) {
-      VersionLog versionLog = versionLogIterator.next();
-      commitDeltaVersionLogToIcebergTransaction(versionLog, transaction);
-    }
-
-    return Long.parseLong(
-        transaction.table().currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-  }
-
+  /**
+   * Iterate through the {@code VersionLog} to determine the update type and commit the update to
+   * the given {@code Transaction}.
+   *
+   * <p>There are 3 cases:
+   *
+   * <p>1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
+   *
+   * <p>2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records of
+   * file(s) were removed)
+   *
+   * <p>3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
+   *
+   * @param versionLog the delta log version to commit to iceberg table transaction
+   * @param transaction the iceberg table transaction to commit to
+   */
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
     List<Action> actions = versionLog.getActions();
-
-    // We first need to iterate through to see what kind of transaction this was. There are 3
-    // cases:
-    // 1. AppendFiles - when there are only AddFile instances (an INSERT on the table)
-    // 2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records
-    // of file(s) were removed
-    // 3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
 
     // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
     Map<String, List<Action>> deltaLakeActionMap =
@@ -254,12 +278,10 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
     }
 
     String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
-
-    if (partitionValues == null) {
-      // For unpartitioned table, the partitionValues should be an empty map rather than null
-      throw new IllegalArgumentException(
-          String.format("File %s does not specify a partitionValues", fullFilePath));
-    }
+    // For unpartitioned table, the partitionValues should be an empty map rather than null
+    Preconditions.checkArgument(
+        partitionValues != null,
+        String.format("File %s does not specify a partitionValues", fullFilePath));
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);

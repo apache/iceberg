@@ -33,10 +33,9 @@ class SnapshotDeltaLakeSparkIntegration {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-    return new BaseSnapshotDeltaLakeTableAction(
-        Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()),
-        deltaTableLocation,
-        TableIdentifier.parse(catalogAndIdent.identifier().toString()),
-        spark.sessionState().newHadoopConf());
+    return new BaseSnapshotDeltaLakeTableAction(deltaTableLocation)
+        .as(TableIdentifier.parse(catalogAndIdent.identifier().toString()))
+        .deltaLakeConfiguration(spark.sessionState().newHadoopConf())
+        .icebergCatalog(Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()));
   }
 }
