@@ -102,6 +102,10 @@ public class BaseExpireSnapshotsSparkAction
     this.ops = ((HasTableOperations) table).operations();
 
     ValidationException.check(
+        !PropertyUtil.propertyAsBoolean(table.properties(), SNAPSHOT, SNAPSHOT_DEFAULT),
+        "Cannot expire snapshots: This is a snapshot table");
+
+    ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
   }

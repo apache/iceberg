@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_DEFAULT;
 
 import java.util.Iterator;
 import java.util.List;
@@ -93,6 +95,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
+
+    ValidationException.check(
+        !PropertyUtil.propertyAsBoolean(table.properties(), SNAPSHOT, SNAPSHOT_DEFAULT),
+        "Cannot expire snapshots: This is a snapshot table");
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
