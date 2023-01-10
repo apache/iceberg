@@ -25,21 +25,44 @@ import org.junit.Test;
 
 public class NamespaceHelpersTest {
   @Test
-  public void testToSnowflakeIdentifierRoot() {
-    Assertions.assertThat(NamespaceHelpers.toSnowflakeIdentifier(Namespace.empty()))
-        .isEqualTo(SnowflakeIdentifier.ofRoot());
+  public void testRoundTripRoot() {
+    Namespace icebergNamespace = Namespace.empty();
+    SnowflakeIdentifier snowflakeIdentifier =
+        NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
+    Assertions.assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofRoot());
+    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+        .isEqualTo(icebergNamespace);
   }
 
   @Test
-  public void testToSnowflakeIdentifierDatabase() {
-    Assertions.assertThat(NamespaceHelpers.toSnowflakeIdentifier(Namespace.of("DB1")))
-        .isEqualTo(SnowflakeIdentifier.ofDatabase("DB1"));
+  public void testRoundTripDatabase() {
+    Namespace icebergNamespace = Namespace.of("DB1");
+    SnowflakeIdentifier snowflakeIdentifier =
+        NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
+    Assertions.assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofDatabase("DB1"));
+    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+        .isEqualTo(icebergNamespace);
   }
 
   @Test
-  public void testToSnowflakeIdentifierSchema() {
-    Assertions.assertThat(NamespaceHelpers.toSnowflakeIdentifier(Namespace.of("DB1", "SCHEMA1")))
+  public void testRoundTripSchema() {
+    Namespace icebergNamespace = Namespace.of("DB1", "SCHEMA1");
+    SnowflakeIdentifier snowflakeIdentifier =
+        NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
+    Assertions.assertThat(snowflakeIdentifier)
         .isEqualTo(SnowflakeIdentifier.ofSchema("DB1", "SCHEMA1"));
+    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+        .isEqualTo(icebergNamespace);
+  }
+
+  @Test
+  public void testRoundTripTable() {
+    TableIdentifier icebergTable = TableIdentifier.of("DB1", "SCHEMA1", "TABLE1");
+    SnowflakeIdentifier snowflakeIdentifier = NamespaceHelpers.toSnowflakeIdentifier(icebergTable);
+    Assertions.assertThat(snowflakeIdentifier)
+        .isEqualTo(SnowflakeIdentifier.ofTable("DB1", "SCHEMA1", "TABLE1"));
+    Assertions.assertThat(NamespaceHelpers.toIcebergTableIdentifier(snowflakeIdentifier))
+        .isEqualTo(icebergTable);
   }
 
   @Test
@@ -53,13 +76,6 @@ public class NamespaceHelpersTest {
   }
 
   @Test
-  public void testToSnowflakeIdentifierTable() {
-    Assertions.assertThat(
-            NamespaceHelpers.toSnowflakeIdentifier(TableIdentifier.of("DB1", "SCHEMA1", "TABLE1")))
-        .isEqualTo(SnowflakeIdentifier.ofTable("DB1", "SCHEMA1", "TABLE1"));
-  }
-
-  @Test
   public void testToSnowflakeIdentifierTableBadNamespace() {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
@@ -67,26 +83,6 @@ public class NamespaceHelpersTest {
                 NamespaceHelpers.toSnowflakeIdentifier(
                     TableIdentifier.of(Namespace.of("DB1_WITHOUT_SCHEMA"), "TABLE1")))
         .withMessageContaining("must be at the SCHEMA level");
-  }
-
-  @Test
-  public void testToIcebergNamespaceRoot() {
-    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(SnowflakeIdentifier.ofRoot()))
-        .isEqualTo(Namespace.empty());
-  }
-
-  @Test
-  public void testToIcebergNamespaceDatabase() {
-    Assertions.assertThat(
-            NamespaceHelpers.toIcebergNamespace(SnowflakeIdentifier.ofDatabase("DB1")))
-        .isEqualTo(Namespace.of("DB1"));
-  }
-
-  @Test
-  public void testToIcebergNamespaceSchema() {
-    Assertions.assertThat(
-            NamespaceHelpers.toIcebergNamespace(SnowflakeIdentifier.ofSchema("DB1", "SCHEMA1")))
-        .isEqualTo(Namespace.of("DB1", "SCHEMA1"));
   }
 
   @Test

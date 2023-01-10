@@ -170,9 +170,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
                 scope, namespace));
     }
 
-    List<Namespace> namespaceList =
-        results.stream().map(NamespaceHelpers::toIcebergNamespace).collect(Collectors.toList());
-    return namespaceList;
+    return results.stream().map(NamespaceHelpers::toIcebergNamespace).collect(Collectors.toList());
   }
 
   @Override

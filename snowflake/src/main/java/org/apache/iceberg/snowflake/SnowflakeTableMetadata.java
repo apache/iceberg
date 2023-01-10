@@ -88,8 +88,12 @@ class SnowflakeTableMetadata {
   @Override
   public String toString() {
     return String.format(
-        "snowflakeMetadataLocation: '%s', icebergMetadataLocation: '%s', status: '%s', rawJsonVal: %s",
-        snowflakeMetadataLocation, icebergMetadataLocation, status, rawJsonVal);
+        "snowflakeMetadataLocation: '%s', icebergMetadataLocation: '%s', status: '%s'",
+        snowflakeMetadataLocation, icebergMetadataLocation, status);
+  }
+
+  public String toDebugString() {
+    return String.format("%s, rawJsonVal: %s", toString(), rawJsonVal);
   }
 
   /**
