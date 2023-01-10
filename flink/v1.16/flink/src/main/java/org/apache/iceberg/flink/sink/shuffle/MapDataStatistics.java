@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -33,20 +33,21 @@ class MapDataStatistics<K> implements DataStatistics<K> {
   }
 
   @Override
-  public void put(K key) {
+  public void add(K key) {
+    // increase frequency of occurrence by one in the dataStatistics map
     dataStatistics.put(key, dataStatistics.getOrDefault(key, 0L) + 1L);
   }
 
   @Override
-  public void merge(DataStatistics<K> other) {
+  public void merge(DataStatistics<K> otherStatistics) {
     Preconditions.checkArgument(
-        other instanceof MapDataStatistics, "Can not merge this type of statistics: " + other);
-    MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) other;
+        otherStatistics instanceof MapDataStatistics,
+        "Can not merge this type of statistics: " + otherStatistics);
+    MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
     mapDataStatistic.dataStatistics.forEach(
         (key, count) -> dataStatistics.put(key, dataStatistics.getOrDefault(key, 0L) + count));
   }
 
-  @VisibleForTesting
   Map<K, Long> dataStatistics() {
     return dataStatistics;
   }

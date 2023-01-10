@@ -23,26 +23,27 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * The wrapper class for record and data distribution weight
+ * The wrapper class for record and data statistics. It is the only way for shuffle operator to send
+ * global data statistics to custom partitioner to distribute data based on statistics
  *
- * <p>ShuffleRecordWrapper is sent from ShuffleOperator to partitioner. It may contain a record or
- * data distribution weight. Once partitioner receives the weight, it will use that to decide the
- * coming record should send to which writer subtask. After shuffling, a filter and mapper are
- * required to filter out the data distribution weight, unwrap the object and extract the original
- * record type T.
+ * <p>ShuffleRecordWrapper is sent from ShuffleOestperator to partitioner. It contain either a
+ * record or data statistics(globally aggregated). Once partitioner receives the weight, it will use
+ * that to decide the coming record should send to which writer subtask. After shuffling, a filter
+ * and mapper are required to filter out the data distribution weight, unwrap the object and extract
+ * the original record type T.
  */
 public class ShuffleRecordWrapper<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  private final DataStatistics<K> globalDataStatistics;
+  private final DataStatistics<K> statistics;
   private final T record;
 
-  private ShuffleRecordWrapper(T record, DataStatistics<K> globalDataStatistics) {
+  private ShuffleRecordWrapper(T record, DataStatistics<K> statistics) {
     Preconditions.checkArgument(
-        record != null ^ globalDataStatistics != null,
-        "A ShuffleRecordWrapper contain either record and stats, not neither or both");
-    this.globalDataStatistics = globalDataStatistics;
+        record != null ^ statistics != null,
+        "A ShuffleRecordWrapper contain either record or data statistics, not neither or both");
+    this.statistics = statistics;
     this.record = record;
   }
 
@@ -54,16 +55,16 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
     return new ShuffleRecordWrapper<>(null, globalDataStatistics);
   }
 
-  boolean hasGlobalDataDistributionWeight() {
-    return globalDataStatistics != null;
+  boolean hasDataStatistics() {
+    return statistics != null;
   }
 
   boolean hasRecord() {
     return record != null;
   }
 
-  DataStatistics<K> globalDataDistributionWeight() {
-    return globalDataStatistics;
+  DataStatistics<K> dataStatistics() {
+    return statistics;
   }
 
   T record() {
@@ -73,7 +74,7 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("globalDataStatistics", globalDataStatistics)
+        .add("statistics", statistics)
         .add("record", record)
         .toString();
   }

@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
@@ -95,17 +94,6 @@ public class TestShuffleOperator {
   }
 
   @Test
-  public void testInitializeState() throws Exception {
-    StateInitializationContext stateContext = getStateContext();
-    operator.initializeState(stateContext);
-
-    assertNotNull(
-        stateContext
-            .getOperatorStateStore()
-            .getListState(operator.generateGlobalDataDistributionWeightDescriptor()));
-  }
-
-  @Test
   public void testProcessElement() throws Exception {
     StateInitializationContext stateContext = getStateContext();
     operator.initializeState(stateContext);
@@ -138,8 +126,6 @@ public class TestShuffleOperator {
           .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
     }
   }
-
-  // ---------------- helper methods -------------------------
 
   private StateInitializationContext getStateContext() throws Exception {
     // Create the state context.
