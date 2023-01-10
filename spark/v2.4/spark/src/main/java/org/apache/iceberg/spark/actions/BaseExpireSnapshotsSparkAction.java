@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_DEFAULT;
 
 import java.util.Iterator;
 import java.util.List;
