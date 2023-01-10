@@ -1408,9 +1408,7 @@ def test_rewrite_bound() -> None:
 
 def test_to_dnf() -> None:
     expr = Or(Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), Not(Or(Not(EqualTo("R", "c")), EqualTo("S", "d")))))
-    assert rewrite_to_dnf(expr) == Or(
-        Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), Not(EqualTo("S", "d"))))
-    )
+    assert rewrite_to_dnf(expr) == Or(NotEqualTo("P", "a"), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), NotEqualTo("S", "d"))))
 
 
 def test_to_dnf_nested_or() -> None:
@@ -1434,3 +1432,13 @@ def test_to_dnf_double_distribution() -> None:
 def test_to_dnf_double_negation() -> None:
     expr = rewrite_to_dnf(Not(Not(Not(Not(Not(Not(EqualTo("P", "a"))))))))
     assert expr == EqualTo("P", "a")
+
+
+def test_to_dnf_and() -> None:
+    expr = And(Not(EqualTo("Q", "b")), EqualTo("R", "c"))
+    assert rewrite_to_dnf(expr) == And(NotEqualTo("Q", "b"), EqualTo("R", "c"))
+
+
+def test_to_dnf_not_and() -> None:
+    expr = Not(And(Not(EqualTo("Q", "b")), EqualTo("R", "c")))
+    assert rewrite_to_dnf(expr) == Or(EqualTo("Q", "b"), NotEqualTo("R", "c"))

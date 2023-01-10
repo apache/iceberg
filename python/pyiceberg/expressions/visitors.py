@@ -852,18 +852,7 @@ class _RewriteToDNF(BooleanExpressionVisitor[BooleanExpression]):
         return AlwaysFalse()
 
     def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
-        if isinstance(child_result, Not):
-            # Double negation cancels out
-            return child_result.child
-        elif isinstance(child_result, And):
-            # De Morgan's law: not (A and B) = (not A) or (not B)
-            return Or(Not(child_result.left), Not(child_result.right))
-        elif isinstance(child_result, Or):
-            # De Morgan's law: not (A or B) = (not A) and (not B)
-            return And(Not(child_result.left), Not(child_result.right))
-        else:
-            # Don't rewrite
-            return Not(child_result)
+        return ~child_result
 
     def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
         if isinstance(left_result, Or) and isinstance(right_result, Or):
@@ -897,4 +886,5 @@ class _RewriteToDNF(BooleanExpressionVisitor[BooleanExpression]):
 def rewrite_to_dnf(expr: BooleanExpression) -> BooleanExpression:
     # Rewrites an arbitrary boolean expression to disjunctive normal form (DNF):
     # (A AND NOT(B) AND C) OR (NOT(D) AND E AND F) OR (G)
-    return visit(expr, _RewriteToDNF())
+    expr_without_not = rewrite_not(expr)
+    return visit(expr_without_not, _RewriteToDNF())
