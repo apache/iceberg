@@ -65,6 +65,7 @@ from pyiceberg.expressions.visitors import (
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
     rewrite_not,
+    rewrite_to_dnf,
     visit,
     visit_bound_predicate,
 )
@@ -1403,3 +1404,33 @@ def test_rewrite_bound() -> None:
             accessor=Accessor(position=0, inner=None),
         )
     )
+
+
+def test_to_dnf() -> None:
+    expr = Or(Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), Not(Or(Not(EqualTo("R", "c")), EqualTo("S", "d")))))
+    assert rewrite_to_dnf(expr) == Or(
+        Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), Not(EqualTo("S", "d"))))
+    )
+
+
+def test_to_dnf_nested_or() -> None:
+    expr = Or(EqualTo("P", "a"), And(EqualTo("Q", "b"), Or(EqualTo("R", "c"), EqualTo("S", "d"))))
+    assert rewrite_to_dnf(expr) == Or(
+        EqualTo("P", "a"), Or(And(EqualTo("Q", "b"), EqualTo("R", "c")), And(EqualTo("Q", "b"), EqualTo("S", "d")))
+    )
+
+
+def test_to_dnf_double_distribution() -> None:
+    expr = And(Or(EqualTo("P", "a"), EqualTo("Q", "b")), Or(EqualTo("R", "c"), EqualTo("S", "d")))
+    assert rewrite_to_dnf(expr) == Or(
+        Or(
+            Or(And(EqualTo("P", "a"), EqualTo("R", "c")), And(EqualTo("P", "a"), EqualTo("S", "d"))),
+            And(EqualTo("Q", "b"), EqualTo("R", "c")),
+        ),
+        And(EqualTo("Q", "b"), EqualTo("S", "d")),
+    )
+
+
+def test_to_dnf_double_negation() -> None:
+    expr = rewrite_to_dnf(Not(Not(Not(Not(Not(Not(EqualTo("P", "a"))))))))
+    assert expr == EqualTo("P", "a")
