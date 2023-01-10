@@ -22,6 +22,7 @@ from typing import (
     Generic,
     List,
     Set,
+    Tuple,
     TypeVar,
 )
 
@@ -844,46 +845,38 @@ def extract_field_ids(expr: BooleanExpression) -> Set[int]:
     return visit(expr, _ExpressionFieldIDs())
 
 
-class _RewriteToDNF(BooleanExpressionVisitor[BooleanExpression]):
-    def visit_true(self) -> BooleanExpression:
-        return AlwaysTrue()
+class _RewriteToDNF(BooleanExpressionVisitor[Tuple[BooleanExpression, ...]]):
+    def visit_true(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysTrue(),)
 
-    def visit_false(self) -> BooleanExpression:
-        return AlwaysFalse()
+    def visit_false(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysFalse(),)
 
-    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
-        return ~child_result
+    def visit_not(self, child_result: Tuple[BooleanExpression, ...]) -> Tuple[BooleanExpression, ...]:
+        return tuple(~result for result in child_result)
 
-    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
-        if isinstance(left_result, Or) and isinstance(right_result, Or):
-            # Distributive law: ((P OR Q) AND (R OR S)) AND (((P AND R) OR (P AND S)) OR ((Q AND R) OR ((Q AND S)))
-            return Or(
-                And(left_result.left, right_result.left),
-                And(left_result.left, right_result.right),
-                And(left_result.right, right_result.left),
-                And(left_result.right, right_result.right),
-            )
-        if isinstance(right_result, Or):
-            # Distributive law: A AND (B OR C) = (A AND B) OR (A AND C)
-            return Or(And(left_result, right_result.left), And(left_result, right_result.right))
-        elif isinstance(left_result, Or):
-            # Distributive law: (A OR B) AND C = (A AND C) OR (B AND C)
-            return Or(And(left_result.left, right_result), And(left_result.right, right_result))
-        else:
-            # Don't rewrite
-            return And(left_result, right_result)
+    def visit_and(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        # Distributive law:
+        # ((P OR Q) AND (R OR S)) AND (((P AND R) OR (P AND S)) OR ((Q AND R) OR ((Q AND S)))
+        # A AND (B OR C) = (A AND B) OR (A AND C)
+        # (A OR B) AND C = (A AND C) OR (B AND C)
+        return tuple(And(le, re) for le in left_result for re in right_result)
 
-    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
-        return Or(left_result, right_result)
+    def visit_or(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        return left_result + right_result
 
-    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
-        return predicate
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
 
-    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
-        return predicate
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
 
 
-def rewrite_to_dnf(expr: BooleanExpression) -> BooleanExpression:
+def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
     # Rewrites an arbitrary boolean expression to disjunctive normal form (DNF):
     # (A AND NOT(B) AND C) OR (NOT(D) AND E AND F) OR (G)
     expr_without_not = rewrite_not(expr)

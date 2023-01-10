@@ -1408,37 +1408,50 @@ def test_rewrite_bound() -> None:
 
 def test_to_dnf() -> None:
     expr = Or(Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), Not(Or(Not(EqualTo("R", "c")), EqualTo("S", "d")))))
-    assert rewrite_to_dnf(expr) == Or(NotEqualTo("P", "a"), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), NotEqualTo("S", "d"))))
+    assert rewrite_to_dnf(expr) == (NotEqualTo("P", "a"), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), NotEqualTo("S", "d"))))
 
 
 def test_to_dnf_nested_or() -> None:
     expr = Or(EqualTo("P", "a"), And(EqualTo("Q", "b"), Or(EqualTo("R", "c"), EqualTo("S", "d"))))
-    assert rewrite_to_dnf(expr) == Or(
-        EqualTo("P", "a"), Or(And(EqualTo("Q", "b"), EqualTo("R", "c")), And(EqualTo("Q", "b"), EqualTo("S", "d")))
+    assert rewrite_to_dnf(expr) == (
+        EqualTo("P", "a"),
+        And(EqualTo("Q", "b"), EqualTo("R", "c")),
+        And(EqualTo("Q", "b"), EqualTo("S", "d")),
     )
 
 
 def test_to_dnf_double_distribution() -> None:
     expr = And(Or(EqualTo("P", "a"), EqualTo("Q", "b")), Or(EqualTo("R", "c"), EqualTo("S", "d")))
-    assert rewrite_to_dnf(expr) == Or(
-        Or(
-            Or(And(EqualTo("P", "a"), EqualTo("R", "c")), And(EqualTo("P", "a"), EqualTo("S", "d"))),
-            And(EqualTo("Q", "b"), EqualTo("R", "c")),
+    assert rewrite_to_dnf(expr) == (
+        And(
+            left=EqualTo(term=Reference(name="P"), literal=literal("a")),
+            right=EqualTo(term=Reference(name="R"), literal=literal("c")),
         ),
-        And(EqualTo("Q", "b"), EqualTo("S", "d")),
+        And(
+            left=EqualTo(term=Reference(name="P"), literal=literal("a")),
+            right=EqualTo(term=Reference(name="S"), literal=literal("d")),
+        ),
+        And(
+            left=EqualTo(term=Reference(name="Q"), literal=literal("b")),
+            right=EqualTo(term=Reference(name="R"), literal=literal("c")),
+        ),
+        And(
+            left=EqualTo(term=Reference(name="Q"), literal=literal("b")),
+            right=EqualTo(term=Reference(name="S"), literal=literal("d")),
+        ),
     )
 
 
 def test_to_dnf_double_negation() -> None:
     expr = rewrite_to_dnf(Not(Not(Not(Not(Not(Not(EqualTo("P", "a"))))))))
-    assert expr == EqualTo("P", "a")
+    assert expr == (EqualTo("P", "a"),)
 
 
 def test_to_dnf_and() -> None:
     expr = And(Not(EqualTo("Q", "b")), EqualTo("R", "c"))
-    assert rewrite_to_dnf(expr) == And(NotEqualTo("Q", "b"), EqualTo("R", "c"))
+    assert rewrite_to_dnf(expr) == (And(NotEqualTo("Q", "b"), EqualTo("R", "c")),)
 
 
 def test_to_dnf_not_and() -> None:
     expr = Not(And(Not(EqualTo("Q", "b")), EqualTo("R", "c")))
-    assert rewrite_to_dnf(expr) == Or(EqualTo("Q", "b"), NotEqualTo("R", "c"))
+    assert rewrite_to_dnf(expr) == (EqualTo("Q", "b"), NotEqualTo("R", "c"))
