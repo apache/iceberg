@@ -68,7 +68,7 @@ import org.slf4j.LoggerFactory;
  * optional user-specified location (default to the Delta Lake table's location) with a different
  * identifier.
  */
-public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
+class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotDeltaLakeTableAction.class);
 
@@ -96,7 +96,7 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
    *
    * @param deltaTableLocation the delta lake table's path
    */
-  public BaseSnapshotDeltaLakeTableAction(String deltaTableLocation) {
+  BaseSnapshotDeltaLakeTableAction(String deltaTableLocation) {
     this.deltaTableLocation = deltaTableLocation;
     this.newTableLocation = deltaTableLocation;
   }

@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.delta;
 
-public class BaseSnapshotDeltaLakeTableActionResult implements SnapshotDeltaLakeTable.Result {
+class BaseSnapshotDeltaLakeTableActionResult implements SnapshotDeltaLakeTable.Result {
 
   private final long snapshotDataFilesCount;
 
-  public BaseSnapshotDeltaLakeTableActionResult(long snapshotDataFilesCount) {
+  BaseSnapshotDeltaLakeTableActionResult(long snapshotDataFilesCount) {
     this.snapshotDataFilesCount = snapshotDataFilesCount;
   }
 
