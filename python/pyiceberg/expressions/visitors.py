@@ -853,7 +853,7 @@ class _RewriteToDNF(BooleanExpressionVisitor[Tuple[BooleanExpression, ...]]):
         return (AlwaysFalse(),)
 
     def visit_not(self, child_result: Tuple[BooleanExpression, ...]) -> Tuple[BooleanExpression, ...]:
-        return tuple(~result for result in child_result)
+        raise ValueError(f"Not expressions are not allowed: {child_result}")
 
     def visit_and(
         self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
