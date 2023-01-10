@@ -97,11 +97,15 @@ public abstract class SparkTestBase extends SparkTestHelperBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
-    metastore.stop();
-    SparkTestBase.metastore = null;
-    spark.stop();
-    SparkTestBase.spark = null;
-    SparkTestBase.sparkContext = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkTestBase.spark = null;
+      SparkTestBase.sparkContext = null;
+    }
   }
 
   protected long waitUntilAfter(long timestampMillis) {
