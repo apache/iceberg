@@ -681,6 +681,40 @@ env.execute("Test Iceberg DataStream");
 OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
 {{< /hint >}}
 
+### Write with Avro GenericRecord
+
+Flink Iceberg sink provides `AvroGenericRecordToRowDataMapper` that converts
+Avro `GenericRecord` to Flink `RowData`. You can use the mapper to write 
+Avro GenericRecord DataStream to Iceberg.
+
+Please make sure `flink-avro` jar is included in the classpath.
+Also `iceberg-flink-runtime` shaded bundle jar can't be used
+because the runtime jar shades the avro package.
+
+```java
+DataStream<org.apache.avro.generic.GenericRecord> dataStream = ...;
+
+Schema icebergSchema = table.schema();
+
+// if the Iceberg table schema contains time fields, we can't use
+// Avro schema converted from Iceberg schema via AvroSchemaUtil.
+// Instead, use the Avro schema defined directly.
+// See AvroGenericRecordToRowDataMapper Javadoc for more details.
+org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, table.name());
+
+GenericRecordAvroTypeInfo avroTypeInfo = new GenericRecordAvroTypeInfo(avroSchema);
+RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
+
+FlinkSink.builderFor(
+    dataStream,
+    AvroGenericRecordToRowDataMapper.forAvroSchema(avroSchema),
+    FlinkCompatibilityUtil.toTypeInfo(rowType))
+  .table(table)
+  .tableLoader(tableLoader)
+  .append();
+```
+
+
 ## Options
 ### Read options
 

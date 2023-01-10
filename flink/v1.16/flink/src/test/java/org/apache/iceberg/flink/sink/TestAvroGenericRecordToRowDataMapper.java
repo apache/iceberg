@@ -16,27 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.flink.AvroGenericRecordConverterBase;
+import org.apache.iceberg.flink.DataGenerator;
+import org.junit.Assert;
 
-/**
- * This interface defines test data generator. Different implementations for primitive and complex
- * nested fields are defined in {@link DataGenerators}.
- */
-public interface DataGenerator {
-  Schema icebergSchema();
-
-  RowType flinkRowType();
-
-  org.apache.avro.Schema avroSchema();
-
-  GenericRecord generateIcebergGenericRecord();
-
-  RowData generateFlinkRowData();
-
-  org.apache.avro.generic.GenericRecord generateAvroGenericRecord();
+public class TestAvroGenericRecordToRowDataMapper extends AvroGenericRecordConverterBase {
+  @Override
+  protected void testConverter(DataGenerator dataGenerator) throws Exception {
+    // Need to use avroSchema from DataGenerator because some primitive types have special Avro
+    // type handling. Hence the Avro schema converted from Iceberg schema won't work.
+    AvroGenericRecordToRowDataMapper mapper =
+        AvroGenericRecordToRowDataMapper.forAvroSchema(dataGenerator.avroSchema());
+    RowData expected = dataGenerator.generateFlinkRowData();
+    RowData actual = mapper.map(dataGenerator.generateAvroGenericRecord());
+    Assert.assertEquals(expected, actual);
+  }
 }

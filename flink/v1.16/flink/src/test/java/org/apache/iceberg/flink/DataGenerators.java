@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import com.fasterxml.jackson.databind.node.IntNode;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +30,13 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.SchemaBuilder;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.util.Utf8;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -39,6 +46,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -70,6 +78,12 @@ public class DataGenerators {
     private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
     private static final byte[] FIXED_BYTES = "012345689012345".getBytes(StandardCharsets.UTF_8);
 
+    private static org.apache.avro.Schema addAdjustToUtc(
+        org.apache.avro.Schema schema, boolean adjustToUTC) {
+      schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
+      return schema;
+    }
+
     private final Schema icebergSchema =
         new Schema(
             Types.NestedField.required(1, "partition_field", Types.StringType.get()),
@@ -92,6 +106,46 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    /**
+     * Fix up Avro Schema that is converted from Iceberg Schema.
+     *
+     * @param avroSchema Avro Schema converted from Iceberg schema via {@link
+     *     AvroSchemaUtil#convert(Schema, String)}
+     */
+    private org.apache.avro.Schema fixupAvroSchemaConvertedFromIcebergSchema(
+        org.apache.avro.Schema avroSchema) {
+      List<org.apache.avro.Schema.Field> fixedFields =
+          avroSchema.getFields().stream()
+              .map(
+                  field -> {
+                    if (field.name().equals("time_field")) {
+                      // Iceberg's AvroSchemaUtil uses timestamp-micros with Long value for time
+                      // field, while AvroToRowDataConverters#convertToTime() always looks for
+                      // Integer value assuming millis. The root problem is that
+                      // AvroToRowDataConverters#createConverter() uses LogicalTypeRoot to
+                      // determine converter and LogicalTypeRoot lost the timestamp precision
+                      // carried by LogicalType like Time(6).
+                      org.apache.avro.Schema fieldSchema =
+                          LogicalTypes.timeMillis()
+                              .addToSchema(
+                                  org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
+                      field = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                    }
+
+                    return new org.apache.avro.Schema.Field(field, field.schema());
+                  })
+              .collect(Collectors.toList());
+      return org.apache.avro.Schema.createRecord(
+          avroSchema.getName(),
+          avroSchema.getDoc(),
+          avroSchema.getNamespace(),
+          avroSchema.isError(),
+          fixedFields);
+    }
+
+    private final org.apache.avro.Schema avroSchema =
+        fixupAvroSchemaConvertedFromIcebergSchema(AvroSchemaUtil.convert(icebergSchema, "table"));
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -100,6 +154,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -167,6 +226,47 @@ public class DataGenerators {
           DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
           FIXED_BYTES);
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", new Utf8("partition_value"));
+      genericRecord.put("boolean_field", false);
+      genericRecord.put("int_field", Integer.MAX_VALUE);
+      genericRecord.put("long_field", Long.MAX_VALUE);
+      genericRecord.put("float_field", Float.MAX_VALUE);
+      genericRecord.put("double_field", Double.MAX_VALUE);
+      genericRecord.put("string_field", new Utf8("str"));
+
+      genericRecord.put("date_field", DAYS_BTW_EPOC_AND_20220110);
+      genericRecord.put("time_field", HOUR_8_IN_MILLI);
+      // Although Avro logical type for timestamp fields are in micro seconds,
+      // AvroToRowDataConverters only looks for long value in milliseconds.
+      genericRecord.put("ts_with_zone_field", JODA_DATETIME_20220110.getMillis());
+      genericRecord.put("ts_without_zone_field", JODA_DATETIME_20220110.getMillis());
+
+      byte[] uuidBytes = new byte[16];
+      for (int i = 0; i < 16; ++i) {
+        uuidBytes[i] = (byte) i;
+      }
+      org.apache.avro.Schema uuidFieldSchema = avroSchema.getField("uuid_field").schema();
+      genericRecord.put("uuid_field", ByteBuffer.wrap(uuidBytes));
+
+      byte[] binaryBytes = new byte[7];
+      for (int i = 0; i < 7; ++i) {
+        binaryBytes[i] = (byte) i;
+      }
+      genericRecord.put("binary_field", ByteBuffer.wrap(binaryBytes));
+
+      BigDecimal bigDecimal = new BigDecimal("-1.50");
+      // unscaledValue().toByteArray() is to match the behavior of RowDataToAvroConverters from
+      // Flink for decimal type
+      genericRecord.put("decimal_field", ByteBuffer.wrap(bigDecimal.unscaledValue().toByteArray()));
+
+      genericRecord.put("fixed_field", FIXED_BYTES);
+
+      return genericRecord;
+    }
   }
 
   public static class StructOfPrimitive implements DataGenerator {
@@ -182,6 +282,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -190,6 +293,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -211,6 +319,18 @@ public class DataGenerators {
           StringData.fromString("partition_value"),
           GenericRowData.of(1, StringData.fromString("Jane")));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_primitive").schema();
+      org.apache.avro.generic.GenericRecord struct = new GenericData.Record(structSchema);
+      struct.put("id", 1);
+      struct.put("name", "Jane");
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("struct_of_primitive", struct);
+      return genericRecord;
+    }
   }
 
   public static class StructOfArray implements DataGenerator {
@@ -227,6 +347,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -235,6 +358,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -257,6 +385,18 @@ public class DataGenerators {
           StringData.fromString("partition_value"),
           GenericRowData.of(1, new GenericArrayData(names)));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_array").schema();
+      org.apache.avro.generic.GenericRecord struct = new GenericData.Record(structSchema);
+      struct.put("id", 1);
+      struct.put("names", Arrays.asList("Jane", "Joe"));
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("struct_of_array", struct);
+      return genericRecord;
+    }
   }
 
   public static class StructOfMap implements DataGenerator {
@@ -276,6 +416,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -284,6 +427,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -312,6 +460,18 @@ public class DataGenerators {
                       StringData.fromString("Joe"),
                       StringData.fromString("male")))));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_map").schema();
+      org.apache.avro.generic.GenericRecord struct = new GenericData.Record(structSchema);
+      struct.put("id", 1);
+      struct.put("names", ImmutableMap.of("Jane", new Utf8("female"), "Joe", new Utf8("male")));
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("struct_of_map", struct);
+      return genericRecord;
+    }
   }
 
   public static class StructOfStruct implements DataGenerator {
@@ -332,6 +492,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -340,6 +503,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -369,6 +537,22 @@ public class DataGenerators {
               GenericRowData.of(
                   StringData.fromString("Jane"), StringData.fromString("Apple Park"))));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.Schema structSchema = avroSchema.getField("struct_of_struct").schema();
+      org.apache.avro.Schema personSchema = structSchema.getField("person_struct").schema();
+      org.apache.avro.generic.GenericRecord person = new GenericData.Record(personSchema);
+      person.put("name", "Jane");
+      person.put("address", "Apple Park");
+      org.apache.avro.generic.GenericRecord struct = new GenericData.Record(structSchema);
+      struct.put("id", 1);
+      struct.put("person_struct", person);
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("struct_of_struct", struct);
+      return genericRecord;
+    }
   }
 
   public static class ArrayOfPrimitive implements DataGenerator {
@@ -380,6 +564,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -388,6 +575,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -403,6 +595,14 @@ public class DataGenerators {
       Integer[] arr = {1, 2, 3};
       return GenericRowData.of(StringData.fromString("partition_value"), new GenericArrayData(arr));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("array_of_int", Arrays.asList(1, 2, 3));
+      return genericRecord;
+    }
   }
 
   public static class ArrayOfArray implements DataGenerator {
@@ -417,6 +617,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -425,6 +628,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -447,6 +655,15 @@ public class DataGenerators {
       return GenericRowData.of(
           StringData.fromString("partition_value"), new GenericArrayData(arrayOfArrays));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put(
+          "array_of_array", Arrays.asList(Arrays.asList(1, 2, 3), Arrays.asList(4, 5, 6)));
+      return genericRecord;
+    }
   }
 
   public static class ArrayOfMap implements DataGenerator {
@@ -463,6 +680,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -471,6 +691,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -495,6 +720,17 @@ public class DataGenerators {
       return GenericRowData.of(
           StringData.fromString("partition_value"), new GenericArrayData(array));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put(
+          "array_of_map",
+          Arrays.asList(
+              ImmutableMap.of("Jane", 1, "Joe", 2), ImmutableMap.of("Alice", 3, "Bob", 4)));
+      return genericRecord;
+    }
   }
 
   public static class ArrayOfStruct implements DataGenerator {
@@ -503,6 +739,8 @@ public class DataGenerators {
             required(201, "id", Types.IntegerType.get()),
             required(202, "name", Types.StringType.get()));
     private final Schema structIcebergSchema = new Schema(structType.fields());
+    private final org.apache.avro.Schema structAvroSchema =
+        AvroSchemaUtil.convert(structIcebergSchema, "struct");
 
     private final Schema icebergSchema =
         new Schema(
@@ -512,6 +750,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -520,6 +761,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -545,6 +791,20 @@ public class DataGenerators {
       return GenericRowData.of(
           StringData.fromString("partition_value"), new GenericArrayData(structArray));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord struct1 = new GenericData.Record(structAvroSchema);
+      struct1.put("id", 1);
+      struct1.put("name", "Jane");
+      org.apache.avro.generic.GenericRecord struct2 = new GenericData.Record(structAvroSchema);
+      struct2.put("id", 2);
+      struct2.put("name", "Joe");
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("array_of_struct", Arrays.asList(struct1, struct2));
+      return genericRecord;
+    }
   }
 
   public static class MapOfPrimitives implements DataGenerator {
@@ -559,6 +819,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -567,6 +830,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -583,6 +851,14 @@ public class DataGenerators {
           StringData.fromString("partition_value"),
           new GenericMapData(
               ImmutableMap.of(StringData.fromString("Jane"), 1, StringData.fromString("Joe"), 2)));
+    }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put("map_of_primitives", ImmutableMap.of("Jane", 1, "Joe", 2));
+      return genericRecord;
     }
   }
 
@@ -601,6 +877,9 @@ public class DataGenerators {
 
     private final RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -609,6 +888,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return rowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -636,6 +920,18 @@ public class DataGenerators {
                   StringData.fromString("Joe"),
                   new GenericArrayData(joeArray))));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put(
+          "map_of_array",
+          ImmutableMap.of(
+              "Jane", Arrays.asList(1, 2, 3),
+              "Joe", Arrays.asList(4, 5, 6)));
+      return genericRecord;
+    }
   }
 
   public static class MapOfMap implements DataGenerator {
@@ -654,6 +950,9 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    private final org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(icebergSchema, "table");
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -662,6 +961,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -691,16 +995,54 @@ public class DataGenerators {
                       ImmutableMap.of(
                           StringData.fromString("Joe"), 3, StringData.fromString("Bob"), 4)))));
     }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", "partition_value");
+      genericRecord.put(
+          "map_of_map",
+          ImmutableMap.of(
+              "female", ImmutableMap.of("Jane", 1, "Alice", 2),
+              "male", ImmutableMap.of("Joe", 3, "Bob", 4)));
+      return genericRecord;
+    }
   }
 
   public static class MapOfStruct implements DataGenerator {
+    private org.apache.avro.Schema createAvroSchemaIdField() {
+      org.apache.avro.Schema schema = SchemaBuilder.builder().intType();
+      // this is needed to match the converter generated schema props
+      schema.addProp("field-id", IntNode.valueOf(201));
+      return schema;
+    }
+
+    private org.apache.avro.Schema createAvroSchemaNameField() {
+      org.apache.avro.Schema schema = SchemaBuilder.builder().stringType();
+      // this is needed to match the converter generated schema props
+      schema.addProp("field-id", IntNode.valueOf(202));
+      return schema;
+    }
+
     private final Types.StructType structType =
         Types.StructType.of(
             required(201, "id", Types.IntegerType.get()),
             required(202, "name", Types.StringType.get()));
     private final Schema structIcebergSchema = new Schema(structType.fields());
 
-    Schema icebergSchema =
+    private final org.apache.avro.Schema structAvroSchema =
+        SchemaBuilder.builder()
+            .record("struct")
+            .fields()
+            .name("id")
+            .type(createAvroSchemaIdField())
+            .noDefault()
+            .name("name")
+            .type(createAvroSchemaNameField())
+            .noDefault()
+            .endRecord();
+
+    private final Schema icebergSchema =
         new Schema(
             Types.NestedField.required(1, "partition_field", Types.StringType.get()),
             Types.NestedField.required(
@@ -710,6 +1052,18 @@ public class DataGenerators {
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
+    // Can't use AvroSchemaUtil.convert otherwise the nested schema will have generated name like
+    // `r102` not the specified name like `struct`.
+    org.apache.avro.Schema avroSchema =
+        SchemaBuilder.builder()
+            .record("table")
+            .fields()
+            .requiredString("partition_field")
+            .name("map_of_struct")
+            .type(SchemaBuilder.builder().map().values(structAvroSchema))
+            .noDefault()
+            .endRecord();
+
     @Override
     public Schema icebergSchema() {
       return icebergSchema;
@@ -718,6 +1072,11 @@ public class DataGenerators {
     @Override
     public RowType flinkRowType() {
       return flinkRowType;
+    }
+
+    @Override
+    public org.apache.avro.Schema avroSchema() {
+      return avroSchema;
     }
 
     @Override
@@ -745,6 +1104,20 @@ public class DataGenerators {
                   GenericRowData.of(1, StringData.fromString("Jane")),
                   StringData.fromString("struct2"),
                   GenericRowData.of(2, StringData.fromString("Joe")))));
+    }
+
+    @Override
+    public org.apache.avro.generic.GenericRecord generateAvroGenericRecord() {
+      org.apache.avro.generic.GenericRecord struct1 = new GenericData.Record(structAvroSchema);
+      struct1.put("id", 1);
+      struct1.put("name", new Utf8("Jane"));
+      org.apache.avro.generic.GenericRecord struct2 = new GenericData.Record(structAvroSchema);
+      struct2.put("id", 2);
+      struct2.put("name", new Utf8("Joe"));
+      org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
+      genericRecord.put("partition_field", new Utf8("partition_value"));
+      genericRecord.put("map_of_struct", ImmutableMap.of("struct1", struct1, "struct2", struct2));
+      return genericRecord;
     }
   }
 }
