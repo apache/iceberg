@@ -40,7 +40,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private final int clientPoolSize;
   private final long evictionInterval;
 
-  CachedClientPool(Configuration conf, Map<String, String> properties) {
+  public CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
     this.metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     this.clientPoolSize =
