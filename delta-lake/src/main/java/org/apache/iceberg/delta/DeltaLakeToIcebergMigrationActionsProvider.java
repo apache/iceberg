@@ -28,4 +28,13 @@ public interface DeltaLakeToIcebergMigrationActionsProvider {
   default SnapshotDeltaLakeTable snapshotDeltaLakeTable(String sourceTableLocation) {
     return new BaseSnapshotDeltaLakeTableAction(sourceTableLocation);
   }
+
+  static DeltaLakeToIcebergMigrationActionsProvider getDefault() {
+    return new DefaultDeltaLakeToIcebergMigrationActions();
+  }
+
+  class DefaultDeltaLakeToIcebergMigrationActions
+      implements DeltaLakeToIcebergMigrationActionsProvider {
+    DefaultDeltaLakeToIcebergMigrationActions() {}
+  }
 }

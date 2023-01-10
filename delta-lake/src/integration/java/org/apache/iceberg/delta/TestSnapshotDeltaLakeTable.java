@@ -179,7 +179,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   public void testBasicSnapshotPartitioned() {
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table");
     SnapshotDeltaLakeTable.Result result =
-        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, partitionedLocation)
             .execute();
 
@@ -191,7 +191,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   public void testBasicSnapshotUnpartitioned() {
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_unpartitioned");
     SnapshotDeltaLakeTable.Result result =
-        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
             .execute();
 
@@ -204,7 +204,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   public void testSnapshotWithNewLocation() {
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_new_location");
     SnapshotDeltaLakeTable.Result result =
-        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, partitionedLocation)
             .tableLocation(newIcebergTableLocation)
             .execute();
@@ -222,7 +222,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             + " SET TBLPROPERTIES ('foo'='bar', 'test0'='test0')");
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_additional_properties");
     SnapshotDeltaLakeTable.Result result =
-        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
             .tableProperty("test1", "test1")
             .tableProperties(
@@ -250,7 +250,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_table_external_data_files");
     SnapshotDeltaLakeTable.Result result =
-        SnapshotDeltaLakeSparkIntegration.snapshotDeltaLakeTable(
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, externalDataFilesTableLocation)
             .execute();
     checkSnapshotIntegrity(
@@ -354,9 +354,9 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   /**
    * Add parquet files manually to a delta lake table to mock the situation that some data files are
    * not in the same location as the delta lake table. The case that {@link AddFile#getPath()} or
-   * {@link RemoveFile#getPath()} returns absolute path
+   * {@link RemoveFile#getPath()} returns absolute path.
    *
-   * <p>The knowing <a href="https://github.com/delta-io/connectors/issues/380">issue</a> make it
+   * <p>The known <a href="https://github.com/delta-io/connectors/issues/380">issue</a> make it
    * necessary to manually rebuild the AddFile to avoid deserialization error when committing the
    * transaction.
    */

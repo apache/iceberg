@@ -175,9 +175,10 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
 
     icebergTransaction.commitTransaction();
     LOG.info(
-        "Successfully loaded Iceberg metadata for {} files in {}",
-        totalDataFiles,
-        deltaTableLocation);
+        "Successfully created Iceberg table {} from delta lake table at {}, total data file count: {}",
+        newTableIdentifier,
+        deltaTableLocation,
+        totalDataFiles);
     return new BaseSnapshotDeltaLakeTableActionResult(totalDataFiles);
   }
 
@@ -314,7 +315,7 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
     } else if (path.endsWith(ORC_SUFFIX)) {
       return FileFormat.ORC;
     } else {
-      throw new ValidationException("The format of the file %s is unsupported", path);
+      throw new ValidationException("Cannot determine file format from path %s", path);
     }
   }
 
@@ -329,7 +330,7 @@ public class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable 
       case ORC:
         return OrcMetrics.fromInputFile(file, metricsSpec, mapping);
       default:
-        throw new ValidationException("Unsupported file format: %s", format);
+        throw new ValidationException("Cannot get metrics from file format: %s", format);
     }
   }
 
