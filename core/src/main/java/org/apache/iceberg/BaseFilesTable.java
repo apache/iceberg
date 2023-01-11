@@ -254,8 +254,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       } else {
         // columnCount = fileAsStruct column count + the readable metrics field.
         // When pos is greater than metricsPosition, the actual position of the field in
-        // fileAsStruct should be
-        // subtracted by 1.
+        // fileAsStruct should be subtracted by 1.
         return fileAsStruct.get(pos - 1, javaClass);
       }
     }

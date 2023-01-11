@@ -171,7 +171,7 @@ public class FlinkCatalog extends AbstractCatalog {
           appendLevel(appendLevel(baseNamespace, path.getDatabaseName()), tableName.get(0)),
           tableName.get(1));
     } else {
-      throw new IllegalArgumentException("Illegal table name");
+      throw new IllegalArgumentException("Illegal table name:" + objectName);
     }
   }
 
