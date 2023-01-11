@@ -134,8 +134,8 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       super(writers);
       this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
 
-      for (int i = 0; i < orcTypes.size(); i++) {
-        fieldGetters.add(createFieldGetter(orcTypes.get(i)));
+      for (TypeDescription orcType : orcTypes) {
+        fieldGetters.add(createFieldGetter(orcType));
       }
     }
 

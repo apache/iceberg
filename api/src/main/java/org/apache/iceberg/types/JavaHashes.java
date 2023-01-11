@@ -109,10 +109,9 @@ public class JavaHashes {
       }
 
       int result = 17;
-      int len = list.size();
-      result = 37 * result + len;
-      for (int i = 0; i < len; i += 1) {
-        result = 37 * result + elementHash.hash(list.get(i));
+      result = 37 * result + list.size();
+      for (Object o : list) {
+        result = 37 * result + elementHash.hash(o);
       }
       return result;
     }
