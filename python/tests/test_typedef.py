@@ -17,7 +17,12 @@
 import pytest
 
 from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
-from pyiceberg.types import IntegerType, NestedField, StringType
+from pyiceberg.types import (
+    IntegerType,
+    NestedField,
+    StringType,
+    StructType,
+)
 
 
 def test_setitem_frozendict() -> None:
@@ -46,7 +51,8 @@ def test_record_repr() -> None:
 
 
 def test_named_record() -> None:
-    r = Record(fields=(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
+    r = Record()
+    r.set_record_schema(StructType(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
 
     assert r.id is None
     assert r.name is None

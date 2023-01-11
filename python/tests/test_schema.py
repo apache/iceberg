@@ -386,6 +386,9 @@ def test_build_position_accessors(table_schema_nested: Schema) -> None:
 
 def test_build_position_accessors_with_struct(table_schema_nested: Schema) -> None:
     class TestStruct(StructProtocol):
+        def set_record_schema(self, record_schema: StructType) -> None:
+            pass
+
         def __init__(self, pos: Dict[int, Any] = EMPTY_DICT):
             self._pos: Dict[int, Any] = pos
 

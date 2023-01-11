@@ -35,7 +35,12 @@ from pyiceberg.manifest import (
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
 from pyiceberg.typedef import Record
-from pyiceberg.types import DateType, IntegerType, NestedField
+from pyiceberg.types import (
+    DateType,
+    IntegerType,
+    NestedField,
+    StructType,
+)
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
@@ -50,7 +55,10 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
 
     data_file = manifest_entry.data_file
 
-    partition = Record(2, (NestedField(0, "VendorID", IntegerType()), NestedField(1, "tpep_pickup_datetime", DateType())))
+    partition = Record(2)
+    partition.set_record_schema(
+        StructType(NestedField(0, "VendorID", IntegerType()), NestedField(1, "tpep_pickup_datetime", DateType()))
+    )
     partition.VendorID = 1
     partition.tpep_pickup_datetime = 1925
 
@@ -234,6 +242,7 @@ def test_data_file_length() -> None:
 
 def test_data_file_defaults() -> None:
     df = DataFile.construct()
+    df.set_record_schema(DATA_FILE_SCHEMA)
 
     for idx in range(len(df.__fields__)):
         df[idx] = None

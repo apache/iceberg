@@ -35,10 +35,15 @@ from typing import (
 )
 from uuid import UUID
 
-from pydantic import BaseModel, Extra, PrivateAttr
+from pydantic import (
+    BaseModel,
+    Extra,
+    Field,
+    PrivateAttr,
+)
 
 if TYPE_CHECKING:
-    from pyiceberg.types import NestedField
+    from pyiceberg.types import StructType
 
 
 class FrozenDict(Dict[Any, Any]):
@@ -78,6 +83,10 @@ L = TypeVar("L", str, bool, int, float, bytes, UUID, Decimal, covariant=True)
 @runtime_checkable
 class StructProtocol(Protocol):  # pragma: no cover
     """A generic protocol used by accessors to get and set at positions of an object"""
+
+    @abstractmethod
+    def set_record_schema(self, record_schema: StructType) -> None:
+        ...
 
     @abstractmethod
     def __getitem__(self, pos: int) -> Any:
@@ -126,30 +135,41 @@ class IcebergBaseModel(BaseModel):
 
 
 class PydanticStruct(IcebergBaseModel):
+    _position_to_field_name: Dict[int, str] = PrivateAttr()
+    _field_name_to_pydantic_field: Dict[str, Field] = PrivateAttr()
+
     class Config:
         frozen = False
 
-    def __setitem__(self, pos: int, value: Any) -> None:
-        positions = list(self.__fields__.values())
-        field = positions[pos]
-        if value is None:
-            if field.default is not None:
-                value = field.default
-            elif field.default_factory is not None:
-                value = field.default_factory()
+    @staticmethod
+    def _get_default_field_value(field: Field) -> Optional[Any]:
+        if field.default is not None:
+            return field.default
+        elif field.default_factory is not None:
+            return field.default_factory()
+        else:
+            return None
 
-        self.__setattr__(field.name, value)
+    def set_record_schema(self, record_schema: StructType) -> None:
+        self._field_name_to_pydantic_field = {field.name: field for field in self.__fields__.values()}
+        self._position_to_field_name = {idx: field.name for idx, field in enumerate(record_schema.fields)}
+        for name, field in self.__fields__.items():
+            setattr(self, name, PydanticStruct._get_default_field_value(field))
+
+    def __setitem__(self, pos: int, value: Any) -> None:
+        field_name = self._position_to_field_name[pos]
+        # Check if the field exists
+        if field := self._field_name_to_pydantic_field.get(field_name):
+            self.__setattr__(field.name, value if value is not None else PydanticStruct._get_default_field_value(field))
 
     def __getitem__(self, pos: int) -> Any:
-        positions = list(self.__fields__.values())
-        return self.__getattribute__(positions[pos].name)
+        return self.__getattribute__(self._position_to_field_name[pos])
 
 
 class Record(PydanticStruct):
     """A generic record with optional named attributes"""
 
     _data: List[Any] = PrivateAttr()
-    _keywords: List[str] = PrivateAttr()
 
     class Config:
         # To allow dynamic fields
@@ -162,29 +182,30 @@ class Record(PydanticStruct):
             r[pos] = d
         return r
 
+    def set_record_schema(self, record_schema: StructType) -> None:
+        super().set_record_schema(record_schema)
+        # Pre-allocate the attributes to get the same behavior as a pydantic field
+        for field in record_schema.fields:
+            setattr(self, field.name, None)
+
     @property
     def has_keywords(self) -> bool:
         # If there are no public fields, it is position based
         return len(self.__dict__) > 0
 
-    def __init__(self, length: int = 0, fields: Optional[Tuple[NestedField, ...]] = None) -> None:
+    def __init__(self, length: int = 0) -> None:
         super().__init__()
-        if fields is not None:
-            self._keywords = [field.name for field in fields]
-            for keyword in self._keywords:
-                setattr(self, keyword, None)
-        else:
-            self._data = [None] * length
+        self._data = [None] * length
 
     def __setitem__(self, pos: int, value: Any) -> None:
         if self.has_keywords:
-            setattr(self, self._keywords[pos], value)
+            setattr(self, self._position_to_field_name[pos], value)
         else:
             self._data[pos] = value
 
     def __getitem__(self, pos: int) -> Any:
         if self.has_keywords:
-            return getattr(self, self._keywords[pos])
+            return getattr(self, self._position_to_field_name[pos])
         else:
             return self._data[pos]
 

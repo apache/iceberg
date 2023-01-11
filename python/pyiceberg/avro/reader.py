@@ -43,7 +43,7 @@ from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.typedef import PydanticStruct, Record, StructProtocol
-from pyiceberg.types import NestedField
+from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -252,30 +252,33 @@ class OptionReader(Reader):
 class StructReader(Reader):
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
     create_struct: Type[StructProtocol]
-    fields: Optional[Tuple[NestedField, ...]]
+    struct: Optional[StructType]
 
     def __init__(
         self,
         field_readers: Tuple[Tuple[Optional[int], Reader], ...],
         create_struct: Optional[Type[StructProtocol]] = None,
-        fields: Optional[Tuple[NestedField, ...]] = None,
+        struct: Optional[StructType] = None,
     ):
         self.field_readers = field_readers
         self.create_struct = create_struct or Record
-        self.fields = fields
+        self.struct = struct
 
     def read(self, decoder: BinaryDecoder) -> Any:
-        if issubclass(self.create_struct, Record):
-            struct = self.create_struct(length=len(self.field_readers), fields=self.fields)
-        elif issubclass(self.create_struct, PydanticStruct):
+        if issubclass(self.create_struct, PydanticStruct):
             struct = self.create_struct.construct()
         else:
-            raise ValueError(f"Expected a subclass of PydanticStruct, got: {self.create_struct}")
+            struct = self.create_struct()
+
+        if not isinstance(struct, StructProtocol):
+            raise ValueError(f"Expected struct to implement StructProtocol: {struct}")
+
+        if self.struct:
+            struct.set_record_schema(self.struct)
 
         for (pos, field) in self.field_readers:
             if pos is not None:
-                r = field.read(decoder)
-                struct[pos] = r
+                struct[pos] = field.read(decoder)
             else:
                 field.skip(decoder)
 
