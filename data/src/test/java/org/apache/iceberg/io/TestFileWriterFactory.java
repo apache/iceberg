@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -136,7 +137,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
     // commit the written data file
-    table.newRowDelta().addRows(dataFile).commit();
+    table.newRowDelta().toBranch("testBranch").addRows(dataFile).commit();
 
     // write an equality delete file
     List<T> deletes = ImmutableList.of(toRow(1, "aaa"), toRow(3, "bbb"), toRow(5, "ccc"));
@@ -157,6 +158,48 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // verify the delete file is applied correctly
     List<T> expectedRows = ImmutableList.of(toRow(2, "aaa"), toRow(4, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testEqualityDeletesWithBranch() throws IOException {
+    List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
+    Schema equalityDeleteRowSchema = table.schema().select("id");
+    FileWriterFactory<T> writerFactory =
+        newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+
+    // write a data file
+    DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
+
+    // commit the written data file
+    table.newRowDelta().toBranch("testBranch").addRows(dataFile).commit();
+
+    // write an equality delete file
+    List<T> deletes = ImmutableList.of(toRow(1, "aaa"), toRow(3, "bbb"), toRow(5, "ccc"));
+    DeleteFile deleteFile = writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
+
+    // verify the written delete file
+    GenericRecord deleteRecord = GenericRecord.create(equalityDeleteRowSchema);
+    List<Record> expectedDeletes =
+        ImmutableList.of(
+            deleteRecord.copy("id", 1), deleteRecord.copy("id", 3), deleteRecord.copy("id", 5));
+    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
+    List<Record> actualDeletes = readFile(equalityDeleteRowSchema, inputDeleteFile);
+    Assert.assertEquals("Delete records must match", expectedDeletes, actualDeletes);
+
+    // commit the written delete file
+    table.newRowDelta().toBranch("testBranch").addDeletes(deleteFile).commit();
+
+    // verify the delete file is applied correctly
+    List<T> expectedRows = ImmutableList.of(toRow(2, "aaa"), toRow(4, "aaa"));
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    try (CloseableIterable<Record> reader =
+        IcebergGenerics.read(table)
+            .useSnapshot(table.snapshot("testBranch").snapshotId())
+            .select("*")
+            .build()) {
+      reader.forEach(set::add);
+    }
+    Assert.assertEquals("Records should match", toSet(expectedRows), set);
   }
 
   @Test

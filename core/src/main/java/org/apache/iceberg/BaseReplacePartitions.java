@@ -80,6 +80,12 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
   }
 
   @Override
+  public BaseReplacePartitions toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   public void validate(TableMetadata currentMetadata, Snapshot snapshot) {
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {

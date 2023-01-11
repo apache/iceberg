@@ -105,6 +105,12 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   }
 
   @Override
+  public BaseOverwriteFiles toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   protected void validate(TableMetadata base, Snapshot snapshot) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = dataSpec();

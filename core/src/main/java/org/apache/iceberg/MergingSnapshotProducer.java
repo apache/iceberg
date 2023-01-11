@@ -436,7 +436,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       boolean ignoreEqualityDeletes,
       Snapshot parent) {
     // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
+    if (parent == null || base.formatVersion() < 2) {
       return;
     }
 
