@@ -48,8 +48,14 @@ def test_record_repr() -> None:
 def test_named_record() -> None:
     r = Record(fields=(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
 
+    assert r.id is None
+    assert r.name is None
+
     r[0] = 123
     r[1] = "abc"
 
     assert r[0] == 123
     assert r[1] == "abc"
+
+    assert r.id == 123
+    assert r.name == "abc"
