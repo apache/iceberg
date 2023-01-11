@@ -28,5 +28,5 @@ public interface ParquetValueReader<T> {
 
   List<TripleIterator<?>> columns();
 
-  void setPageSource(PageReadStore pageStore, long rowPosition);
+  void setPageSource(PageReadStore pageStore);
 }

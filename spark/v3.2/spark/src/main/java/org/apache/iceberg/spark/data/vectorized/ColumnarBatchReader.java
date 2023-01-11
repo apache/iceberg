@@ -54,9 +54,9 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   @Override
   public void setRowGroupInfo(
-      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    super.setRowGroupInfo(pageStore, metaData, rowPosition);
-    this.rowStartPosInBatch = rowPosition;
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
+    super.setRowGroupInfo(pageStore, metaData);
+    this.rowStartPosInBatch = pageStore.getRowIndexOffset().orElse(0L);
   }
 
   public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {
