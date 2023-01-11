@@ -179,9 +179,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes("
-                + "remove_carried_over_row => false,"
-                + "table => '%s')",
+            "CALL %s.system.generate_changes(" + "remove_carryovers => false," + "table => '%s')",
             catalogName, tableName, "cdc_view");
 
     String viewName = (String) returns.get(0)[0];
@@ -342,7 +340,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(" + "compute_updated_row => false," + "table => '%s')",
+            "CALL %s.system.generate_changes(" + "compute_updates => false," + "table => '%s')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -378,8 +376,8 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.generate_changes("
-                + "compute_updated_row => false,"
-                + "remove_carried_over_row => false,"
+                + "compute_updates => false,"
+                + "remove_carryovers => false,"
                 + "table => '%s')",
             catalogName, tableName);
 

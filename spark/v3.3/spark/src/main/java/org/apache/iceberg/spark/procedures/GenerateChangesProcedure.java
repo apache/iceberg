@@ -85,8 +85,8 @@ public class GenerateChangesProcedure extends BaseProcedure {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("table_change_view", DataTypes.StringType),
         ProcedureParameter.optional("options", STRING_MAP),
-        ProcedureParameter.optional("compute_updated_row", DataTypes.BooleanType),
-        ProcedureParameter.optional("remove_carried_over_row", DataTypes.BooleanType),
+        ProcedureParameter.optional("compute_updates", DataTypes.BooleanType),
+        ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType),
         ProcedureParameter.optional("identifier_columns", DataTypes.StringType),
       };
 
