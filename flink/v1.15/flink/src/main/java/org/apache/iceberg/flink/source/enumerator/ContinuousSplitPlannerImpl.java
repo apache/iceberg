@@ -215,9 +215,6 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       case INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP:
         Snapshot matchedSnapshotByTimestamp =
             SnapshotUtil.oldestAncestorAfter(table, scanContext.startSnapshotTimestamp());
-        Preconditions.checkArgument(
-            matchedSnapshotByTimestamp != null,
-            "Cannot find a snapshot after: " + scanContext.startSnapshotTimestamp());
         return Optional.of(matchedSnapshotByTimestamp);
       default:
         throw new IllegalArgumentException(
