@@ -122,7 +122,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.generate_changes(table => '%s', "
-                + "options => map('%s', '%s','%s', '%s'))",
+                + "options => map('%s', TIMESTAMP '%s','%s', TIMESTAMP '%s'))",
             catalogName,
             tableName,
             SparkReadOptions.START_TIMESTAMP,
@@ -143,7 +143,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     returns =
         sql(
             "CALL %s.system.generate_changes(table => '%s', "
-                + "options => map('%s', '%s','%s', '%s'))",
+                + "options => map('%s', TIMESTAMP '%s', '%s', TIMESTAMP '%s'))",
             catalogName,
             tableName,
             SparkReadOptions.START_TIMESTAMP,

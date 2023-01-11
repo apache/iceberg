@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
@@ -48,13 +50,32 @@ import scala.runtime.BoxedUnit;
 /**
  * A procedure that creates a view for changed rows.
  *
- * <p>The procedure computes updated rows and removes the carry-over rows by default. You can
- * disable them through parameters to get better performance. A pair of carry-over rows exist due to
- * an unchanged row is rewritten by Iceberg. Their values are the same except one is marked as
- * deleted and the other is marked as inserted.
+ * <p>The procedure computes update-rows and removes the carry-over rows by default. You can disable
+ * them through parameters to get better performance.
  *
- * <p>Identifier columns are needed for updated rows computation. You can either set Identifier
- * Field IDs as the table properties or input them as the procedure parameters.
+ * <p>Carry-over rows are the result of a removal and insertion of the same row within an operation
+ * because of the copy-on-write mechanism. For example, given a file which contains row1 (id=1,
+ * data='a') and row2 (id=2, data='b'). A copy-on-write delete of row2 would require erasing this
+ * file and preserving row1 in a new file. The change-log table would report this as (id=1,
+ * data='a', op='DELETE') and (id=1, data='a', op='INSERT'), despite it not being an actual change
+ * to the table. The iterator finds the carry-over rows and removes them from the result.
+ *
+ * <p>An update-row is converted from a pair of delete row and insert row. Identifier columns are
+ * needed for identifying whether they refer to the same row. You can either set Identifier Field
+ * IDs as the table properties or input them as the procedure parameters. Here is an example of
+ * update-row with an identifier column(id). A pair of delete row and insert row with the same id:
+ *
+ * <ul>
+ *   <li>(id=1, data='a', op='DELETE')
+ *   <li>(id=1, data='b', op='INSERT')
+ * </ul>
+ *
+ * <p>will be marked as update-rows:
+ *
+ * <ul>
+ *   <li>(id=1, data='a', op='UPDATE_BEFORE')
+ *   <li>(id=1, data='b', op='UPDATE_AFTER')
+ * </ul>
  */
 public class GenerateChangesProcedure extends BaseProcedure {
   private static final Logger LOG = LoggerFactory.getLogger(GenerateChangesProcedure.class);
@@ -117,7 +138,7 @@ public class GenerateChangesProcedure extends BaseProcedure {
           df = transform(df, partitionSpec, false);
         }
       } else {
-        LOG.warn("Cannot compute the updated rows because identifier columns are not set");
+        LOG.warn("Cannot compute the update-rows because identifier columns are not set");
         if (removeCarryoverRow) {
           df = removeCarryoverRows(df);
         }
@@ -157,19 +178,27 @@ public class GenerateChangesProcedure extends BaseProcedure {
   private Map<String, String> readOptions(InternalRow args) {
     Map<String, String> options = Maps.newHashMap();
 
-    // todo: convert timestamp to milliseconds
     if (!args.isNullAt(2)) {
       args.getMap(2)
           .foreach(
               DataTypes.StringType,
               DataTypes.StringType,
               (k, v) -> {
-                options.put(k.toString(), v.toString());
+                if (k.toString().equals(SparkReadOptions.START_TIMESTAMP)
+                    || k.toString().equals(SparkReadOptions.END_TIMESTAMP)) {
+                  options.put(k.toString(), toMillis(v.toString()));
+                } else {
+                  options.put(k.toString(), v.toString());
+                }
                 return BoxedUnit.UNIT;
               });
     }
 
     return options;
+  }
+
+  private static String toMillis(String timestamp) {
+    return String.valueOf(Timestamp.valueOf(timestamp).getTime());
   }
 
   @NotNull
