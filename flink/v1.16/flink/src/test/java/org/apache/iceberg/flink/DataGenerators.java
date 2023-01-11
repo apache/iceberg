@@ -109,13 +109,13 @@ public class DataGenerators {
     /**
      * Fix up Avro Schema that is converted from Iceberg Schema.
      *
-     * @param avroSchema Avro Schema converted from Iceberg schema via {@link
+     * @param schemaConvertedFromIceberg Avro Schema converted from Iceberg schema via {@link
      *     AvroSchemaUtil#convert(Schema, String)}
      */
     private org.apache.avro.Schema fixupAvroSchemaConvertedFromIcebergSchema(
-        org.apache.avro.Schema avroSchema) {
+        org.apache.avro.Schema schemaConvertedFromIceberg) {
       List<org.apache.avro.Schema.Field> fixedFields =
-          avroSchema.getFields().stream()
+          schemaConvertedFromIceberg.getFields().stream()
               .map(
                   field -> {
                     if (field.name().equals("time_field")) {
@@ -136,10 +136,10 @@ public class DataGenerators {
                   })
               .collect(Collectors.toList());
       return org.apache.avro.Schema.createRecord(
-          avroSchema.getName(),
-          avroSchema.getDoc(),
-          avroSchema.getNamespace(),
-          avroSchema.isError(),
+          schemaConvertedFromIceberg.getName(),
+          schemaConvertedFromIceberg.getDoc(),
+          schemaConvertedFromIceberg.getNamespace(),
+          schemaConvertedFromIceberg.isError(),
           fixedFields);
     }
 
