@@ -19,18 +19,22 @@
 package org.apache.iceberg.hive;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HiveHadoopUtil {
 
+  private static final Logger LOG = LoggerFactory.getLogger(HiveHadoopUtil.class);
+
   private HiveHadoopUtil() {}
 
-  public static String getUserName() {
+  public static String currentUser() {
     try {
       return UserGroupInformation.getCurrentUser().getUserName();
     } catch (IOException e) {
-      throw new UncheckedIOException("Fail to obtain Hadoop UGI user", e);
+      LOG.warn("Fail to obtain Hadoop UGI user", e);
+      return System.getProperty("user.name");
     }
   }
 }

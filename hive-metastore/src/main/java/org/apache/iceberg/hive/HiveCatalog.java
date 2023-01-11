@@ -567,7 +567,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         });
 
     if (database.getOwnerName() == null) {
-      database.setOwnerName(HiveHadoopUtil.getUserName());
+      database.setOwnerName(HiveHadoopUtil.currentUser());
       database.setOwnerType(PrincipalType.USER);
     }
 
