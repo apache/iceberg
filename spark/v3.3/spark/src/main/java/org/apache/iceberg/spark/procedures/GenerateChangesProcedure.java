@@ -126,16 +126,17 @@ public class GenerateChangesProcedure extends BaseProcedure {
     // Read data from the table.changes
     Dataset<Row> df = changelogRecords(tableName, args);
 
-    boolean removeCarryoverRow = args.isNullAt(4) ? true : args.getBoolean(4);
+    // compute updated rows and remove carry-over rows by default
     boolean computeUpdatedRow = args.isNullAt(3) ? true : args.getBoolean(3);
+    boolean removeCarryoverRow = args.isNullAt(4) ? true : args.getBoolean(4);
 
     if (computeUpdatedRow) {
       if (hasIdentifierColumns(args)) {
         String[] identifierColumns = args.getString(5).split(",");
 
         if (identifierColumns.length > 0) {
-          Column[] partitionSpec = getPartitionSpec(df, identifierColumns);
-          df = transform(df, partitionSpec, false);
+          Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
+          df = transform(df, repartitionColumns);
         }
       } else {
         LOG.warn("Cannot compute the update-rows because identifier columns are not set");
@@ -156,12 +157,12 @@ public class GenerateChangesProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
-    Column[] partitionSpec =
+    Column[] repartitionColumns =
         Arrays.stream(df.columns())
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    return transform(df, partitionSpec, true);
+    return transform(df, repartitionColumns);
   }
 
   private boolean hasIdentifierColumns(InternalRow args) {
@@ -212,43 +213,44 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return viewName;
   }
 
-  private Dataset<Row> transform(
-      Dataset<Row> df, Column[] partitionSpec, boolean partitionedByAllColumns) {
-    Column[] sortSpec = sortSpec(df, partitionSpec);
+  private Dataset<Row> transform(Dataset<Row> df, Column[] repartitionColumns) {
+    Column[] sortSpec = sortSpec(df, repartitionColumns);
 
     int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
-    List<Integer> partitionIdx =
-        Arrays.stream(partitionSpec)
+
+    List<Integer> repartitionIdx =
+        Arrays.stream(repartitionColumns)
             .map(column -> df.schema().fieldIndex(column.toString()))
             .collect(Collectors.toList());
 
-    return df.repartition(partitionSpec)
+    return df.repartition(repartitionColumns)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.iterator(rowIterator, changeTypeIdx, partitionIdx),
+                rowIterator ->
+                    ChangelogIterator.iterator(rowIterator, changeTypeIdx, repartitionIdx),
             RowEncoder.apply(df.schema()));
   }
 
   @NotNull
-  private static Column[] getPartitionSpec(Dataset<Row> df, String[] identifiers) {
-    Column[] partitionSpec = new Column[identifiers.length + 1];
+  private static Column[] getRepartitionExpr(Dataset<Row> df, String[] identifiers) {
+    Column[] repartitionSpec = new Column[identifiers.length + 1];
     for (int i = 0; i < identifiers.length; i++) {
       try {
-        partitionSpec[i] = df.col(identifiers[i]);
+        repartitionSpec[i] = df.col(identifiers[i]);
       } catch (Exception e) {
         throw new IllegalArgumentException(
             String.format("Identifier column '%s' does not exist in the table", identifiers[i]), e);
       }
     }
-    partitionSpec[partitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-    return partitionSpec;
+    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
+    return repartitionSpec;
   }
 
   @NotNull
-  private static Column[] sortSpec(Dataset<Row> df, Column[] partitionSpec) {
-    Column[] sortSpec = new Column[partitionSpec.length + 1];
-    System.arraycopy(partitionSpec, 0, sortSpec, 0, partitionSpec.length);
+  private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec) {
+    Column[] sortSpec = new Column[repartitionSpec.length + 1];
+    System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);
     sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
     return sortSpec;
   }

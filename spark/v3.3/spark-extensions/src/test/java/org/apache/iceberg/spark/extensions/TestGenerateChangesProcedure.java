@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.ChangelogOperation.UPDATE_AFTER;
-import static org.apache.iceberg.ChangelogOperation.UPDATE_BEFORE;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -34,6 +32,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
+  private static final String DELETE = ChangelogOperation.DELETE.name();
+  private static final String INSERT = ChangelogOperation.INSERT.name();
+  private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
+  private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
+
   public TestGenerateChangesProcedure(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -94,10 +97,10 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap0.snapshotId()),
-            row(2, "b", "INSERT", 1, snap1.snapshotId()),
-            row(-2, "b", "INSERT", 2, snap2.snapshotId()),
-            row(2, "b", "DELETE", 2, snap2.snapshotId())),
+            row(1, "a", INSERT, 0, snap0.snapshotId()),
+            row(2, "b", INSERT, 1, snap1.snapshotId()),
+            row(-2, "b", INSERT, 2, snap2.snapshotId()),
+            row(2, "b", DELETE, 2, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", viewName));
   }
 
@@ -133,10 +136,10 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap0.snapshotId()),
-            row(2, "b", "INSERT", 1, snap1.snapshotId()),
-            row(-2, "b", "INSERT", 2, snap2.snapshotId()),
-            row(2, "b", "DELETE", 2, snap2.snapshotId())),
+            row(1, "a", INSERT, 0, snap0.snapshotId()),
+            row(2, "b", INSERT, 1, snap1.snapshotId()),
+            row(-2, "b", INSERT, 2, snap2.snapshotId()),
+            row(2, "b", DELETE, 2, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
 
     // query the timestamps starting from the second insert
@@ -154,9 +157,9 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(2, "b", "INSERT", 0, snap1.snapshotId()),
-            row(-2, "b", "INSERT", 1, snap2.snapshotId()),
-            row(2, "b", "DELETE", 1, snap2.snapshotId())),
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(-2, "b", INSERT, 1, snap2.snapshotId()),
+            row(2, "b", DELETE, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
@@ -185,12 +188,12 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap0.snapshotId()),
-            row(2, "b", "INSERT", 1, snap1.snapshotId()),
-            row(-2, "b", "INSERT", 2, snap2.snapshotId()),
-            row(2, "b", "DELETE", 2, snap2.snapshotId()),
-            row(2, "b", "INSERT", 2, snap2.snapshotId()),
-            row(2, "b", "INSERT", 2, snap2.snapshotId())),
+            row(1, "a", INSERT, 0, snap0.snapshotId()),
+            row(2, "b", INSERT, 1, snap1.snapshotId()),
+            row(-2, "b", INSERT, 2, snap2.snapshotId()),
+            row(2, "b", DELETE, 2, snap2.snapshotId()),
+            row(2, "b", INSERT, 2, snap2.snapshotId()),
+            row(2, "b", INSERT, 2, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, _change_type", viewName));
   }
 
@@ -216,11 +219,11 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER.name(), 1, snap2.snapshotId()),
-            row(3, "c", "INSERT", 1, snap2.snapshotId())),
+            row(1, "a", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(3, "c", INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -246,10 +249,10 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
-            row(2, "d", UPDATE_AFTER.name(), 1, snap2.snapshotId())),
+            row(1, "a", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId())),
         // the predicate on partition columns will filter out the insert of (3, 'c') at the planning
         // phase
         sql("select * from %s where id != 3 order by _change_ordinal, id, data", viewName));
@@ -279,12 +282,12 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_AFTER.name(), 1, snap2.snapshotId()),
-            row(2, "e", 12, "INSERT", 1, snap2.snapshotId()),
-            row(3, "c", 13, "INSERT", 1, snap2.snapshotId())),
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
+            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -314,12 +317,12 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, "INSERT", 0, snap1.snapshotId()),
-            row(2, "e", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, UPDATE_BEFORE.name(), 1, snap2.snapshotId()),
-            row(2, "d", 11, UPDATE_AFTER.name(), 1, snap2.snapshotId()),
-            row(3, "c", 13, "INSERT", 1, snap2.snapshotId())),
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", 11, UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
   }
 
@@ -339,24 +342,63 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
+            "CALL %s.system.generate_changes(" + "compute_updated_row => false," + "table => '%s')",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+
+    // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed, even
+    // though update-row is not computed
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
+            row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
+            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @Test
+  public void testNotRemoveCarryOvers() {
+    removeTables();
+    createTableWith3Columns();
+
+    sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // carry-over row (2, 'e', 12)
+    sql("INSERT OVERWRITE %s VALUES (3, 'c', 13), (2, 'd', 11), (2, 'e', 12)", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
             "CALL %s.system.generate_changes("
                 + "compute_updated_row => false,"
-                + "remove_carried_over_row => true,"
+                + "remove_carried_over_row => false,"
                 + "table => '%s')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
-    // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed
+
+    // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed, even
+    // though update-row is not computed
     assertEquals(
         "Rows should match",
         ImmutableList.of(
-            row(1, "a", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, "INSERT", 0, snap1.snapshotId()),
-            row(2, "e", 12, "INSERT", 0, snap1.snapshotId()),
-            row(2, "b", 11, "DELETE", 1, snap2.snapshotId()),
-            row(2, "d", 11, "INSERT", 1, snap2.snapshotId()),
-            row(3, "c", 13, "INSERT", 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, INSERT, 0, snap1.snapshotId()),
+            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+            row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
+            row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
+            row(2, "e", 12, DELETE, 1, snap2.snapshotId()),
+            row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
+            row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id, data, _change_type", viewName));
   }
 
   @Before
