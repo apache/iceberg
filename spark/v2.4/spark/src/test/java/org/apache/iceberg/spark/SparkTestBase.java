@@ -79,10 +79,14 @@ public abstract class SparkTestBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
-    metastore.stop();
-    SparkTestBase.metastore = null;
-    spark.stop();
-    SparkTestBase.spark = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkTestBase.spark = null;
+    }
   }
 
   protected long waitUntilAfter(long timestampMillis) {

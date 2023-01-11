@@ -40,7 +40,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.AbstractMapredIcebergRecordReader;
 import org.apache.iceberg.mr.mapred.Container;
@@ -63,7 +63,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
       HIVE_VECTORIZED_RECORDREADER_CTOR;
 
   static {
-    if (MetastoreUtil.hive3PresentOnClasspath()) {
+    if (HiveVersion.min(HiveVersion.HIVE_3)) {
       HIVE_VECTORIZED_RECORDREADER_CTOR =
           DynConstructors.builder(AbstractMapredIcebergRecordReader.class)
               .impl(
@@ -114,7 +114,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)
         && Utilities.getVectorizedRowBatchCtx(job) != null) {
       Preconditions.checkArgument(
-          MetastoreUtil.hive3PresentOnClasspath(), "Vectorization only supported for Hive 3+");
+          HiveVersion.min(HiveVersion.HIVE_3), "Vectorization only supported for Hive 3+");
 
       job.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.HIVE);
       job.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
