@@ -16,13 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.hadoop;
+package org.apache.iceberg.hive;
 
-public class ConfigProperties {
+public class NoLock implements HiveLock {
 
-  private ConfigProperties() {}
+  @Override
+  public void lock() throws LockException {
+    // no-op
+  }
 
-  public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
-  public static final String LOCK_HIVE_ENABLED = "iceberg.lock.hive.enabled";
-  public static final String KEEP_HIVE_STATS = "iceberg.hive.keep.stats";
+  @Override
+  public void ensureActive() throws LockException {
+    // no-op
+  }
+
+  @Override
+  public void unlock() {
+    // no-op
+  }
 }

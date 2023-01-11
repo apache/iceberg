@@ -303,6 +303,9 @@ public class TableProperties {
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 
+  public static final String HIVE_LOCK_ENABLED = "hive.lock.enabled";
+  public static final boolean HIVE_LOCK_ENABLED_DEFAULT = true;
+
   public static final String WRITE_DISTRIBUTION_MODE = "write.distribution-mode";
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";

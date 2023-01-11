@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
+import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -80,6 +81,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   // characters, see https://issues.apache.org/jira/browse/HIVE-12274
   // set to 0 to not expose Iceberg metadata in HMS Table properties.
   private static final String HIVE_TABLE_PROPERTY_MAX_SIZE = "iceberg.hive.table-property-max-size";
+  private static final String NO_LOCK_EXPECTED_KEY = "expected_parameter_key";
+  private static final String NO_LOCK_EXPECTED_VALUE = "expected_parameter_value";
   private static final long HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT = 32672;
   private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION =
@@ -187,7 +190,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveTable = false;
 
-    HiveLock lock = lockObject();
+    HiveLock lock = lockObject(metadata);
     try {
       lock.lock();
 
@@ -242,7 +245,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       lock.ensureActive();
 
       try {
-        persistTable(tbl, updateHiveTable);
+        persistTable(tbl, updateHiveTable, baseMetadataLocation);
         lock.ensureActive();
 
         commitStatus = CommitStatus.SUCCESS;
@@ -263,6 +266,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         throw e;
 
       } catch (Throwable e) {
+        if (e instanceof MetaException
+            && e.getMessage()
+                .contains(
+                    "The table has been modified. The parameter value for key '"
+                        + HiveTableOperations.NO_LOCK_EXPECTED_KEY
+                        + "' is")) {
+          throw new CommitFailedException(
+              e, "The table %s.%s has been modified concurrently", database, tableName);
+        }
+
         if (e.getMessage() != null
             && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
           throw new RuntimeException(
@@ -307,12 +320,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  void persistTable(Table hmsTable, boolean updateHiveTable)
+  void persistTable(Table hmsTable, boolean updateHiveTable, String expectedMetadataLocation)
       throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(
           client -> {
-            MetastoreUtil.alterTable(client, database, tableName, hmsTable);
+            MetastoreUtil.alterTable(
+                client,
+                database,
+                tableName,
+                hmsTable,
+                expectedMetadataLocation != null
+                    ? ImmutableMap.of(
+                        NO_LOCK_EXPECTED_KEY,
+                        METADATA_LOCATION_PROP,
+                        NO_LOCK_EXPECTED_VALUE,
+                        expectedMetadataLocation)
+                    : ImmutableMap.of());
             return null;
           });
     } else {
@@ -572,8 +596,39 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
   }
 
+  /**
+   * Returns if the hive locking should be enabled on the table, or not.
+   *
+   * <p>The decision is made like this:
+   *
+   * <ol>
+   *   <li>Table property value {@link TableProperties#HIVE_LOCK_ENABLED}
+   *   <li>If the table property is not set then check the hive-site.xml property value {@link
+   *       ConfigProperties#LOCK_HIVE_ENABLED}
+   *   <li>If none of the above is enabled then use the default value {@link
+   *       TableProperties#HIVE_LOCK_ENABLED_DEFAULT}
+   * </ol>
+   *
+   * @param metadata Table metadata to use
+   * @param conf The hive configuration to use
+   * @return if the hive engine related values should be enabled or not
+   */
+  private static boolean hiveLockEnabled(TableMetadata metadata, Configuration conf) {
+    if (metadata.properties().get(TableProperties.HIVE_LOCK_ENABLED) != null) {
+      // We know that the property is set, so default value will not be used,
+      return metadata.propertyAsBoolean(TableProperties.HIVE_LOCK_ENABLED, false);
+    }
+
+    return conf.getBoolean(
+        ConfigProperties.LOCK_HIVE_ENABLED, TableProperties.HIVE_LOCK_ENABLED_DEFAULT);
+  }
+
   @VisibleForTesting
-  HiveLock lockObject() {
-    return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
+  HiveLock lockObject(TableMetadata metadata) {
+    if (hiveLockEnabled(metadata, conf)) {
+      return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
+    } else {
+      return new NoLock();
+    }
   }
 }

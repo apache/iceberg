@@ -33,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
@@ -493,5 +495,32 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         CommitFailedException.class,
         "Failed to heartbeat for hive lock. Failed to heart beat.",
         () -> spyOps.doCommit(metadataV2, metadataV1));
+  }
+
+  @Test
+  public void testNoLockCallsWithNoLock() throws TException {
+    doReturn(new NoLock()).when(spyOps).lockObject(any());
+
+    ArgumentCaptor<EnvironmentContext> contextCaptor =
+        ArgumentCaptor.forClass(EnvironmentContext.class);
+
+    doNothing()
+        .when(spyClient)
+        .alter_table_with_environmentContext(any(), any(), any(), contextCaptor.capture());
+
+    spyOps.doCommit(metadataV2, metadataV1);
+
+    // Make sure that the locking is not used
+    verify(spyClient, never()).lock(any(LockRequest.class));
+    verify(spyClient, never()).checkLock(any(Long.class));
+    verify(spyClient, never()).heartbeat(any(Long.class), any(Long.class));
+    verify(spyClient, never()).unlock(any(Long.class));
+
+    // Make sure that the expected parameter context values are set
+    Map<String, String> context = contextCaptor.getValue().getProperties();
+    Assert.assertEquals(3, context.size());
+    Assert.assertEquals(
+        context.get("expected_parameter_key"), HiveTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals(context.get("expected_parameter_value"), metadataV2.metadataFileLocation());
   }
 }

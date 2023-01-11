@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Map;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class MetastoreUtil {
   private static final DynMethods.UnboundMethod ALTER_TABLE =
@@ -48,14 +50,28 @@ public class MetastoreUtil {
   private MetastoreUtil() {}
 
   /**
-   * Calls alter_table method using the metastore client. If possible, an environmental context will
-   * be used that turns off stats updates to avoid recursive listing.
+   * Calls alter_table method using the metastore client. If the HMS supports then, environmental
+   * context with will be set in a way that turns off stats updates to avoid recursive file listing.
    */
   public static void alterTable(
       IMetaStoreClient client, String databaseName, String tblName, Table table) {
-    EnvironmentContext envContext =
-        new EnvironmentContext(
-            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE));
-    ALTER_TABLE.invoke(client, databaseName, tblName, table, envContext);
+    alterTable(client, databaseName, tblName, table, ImmutableMap.of());
+  }
+
+  /**
+   * Calls alter_table method using the metastore client. If the HMS supports then, environmental
+   * context with will be set in a way that turns off stats updates to avoid recursive file listing.
+   */
+  public static void alterTable(
+      IMetaStoreClient client,
+      String databaseName,
+      String tblName,
+      Table table,
+      Map<String, String> extraEnv) {
+    Map<String, String> env = Maps.newHashMapWithExpectedSize(extraEnv.size() + 1);
+    env.putAll(extraEnv);
+    env.put(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE);
+
+    ALTER_TABLE.invoke(client, databaseName, tblName, table, new EnvironmentContext(env));
   }
 }
