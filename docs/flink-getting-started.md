@@ -690,6 +690,7 @@ Avro GenericRecord DataStream to Iceberg.
 Please make sure `flink-avro` jar is included in the classpath.
 Also `iceberg-flink-runtime` shaded bundle jar can't be used
 because the runtime jar shades the avro package.
+Please use non-shaded `iceberg-flink` jar instead.
 
 ```java
 DataStream<org.apache.avro.generic.GenericRecord> dataStream = ...;
