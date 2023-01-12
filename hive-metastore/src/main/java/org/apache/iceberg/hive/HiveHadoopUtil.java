@@ -33,7 +33,7 @@ public class HiveHadoopUtil {
     try {
       return UserGroupInformation.getCurrentUser().getUserName();
     } catch (IOException e) {
-      LOG.warn("Fail to obtain Hadoop UGI user", e);
+      LOG.warn("Failed to get Hadoop user", e);
       return System.getProperty("user.name");
     }
   }
