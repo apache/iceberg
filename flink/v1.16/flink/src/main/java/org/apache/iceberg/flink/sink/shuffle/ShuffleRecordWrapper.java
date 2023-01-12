@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
+import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -26,11 +27,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * The wrapper class for record and data statistics. It is the only way for shuffle operator to send
  * global data statistics to custom partitioner to distribute data based on statistics
  *
- * <p>ShuffleRecordWrapper is sent from ShuffleOestperator to partitioner. It contain either a
- * record or data statistics(globally aggregated). Once partitioner receives the weight, it will use
- * that to decide the coming record should send to which writer subtask. After shuffling, a filter
- * and mapper are required to filter out the data distribution weight, unwrap the object and extract
- * the original record type T.
+ * <p>ShuffleRecordWrapper is sent from ShuffleOperator to partitioner. It contain either a record
+ * or data statistics(globally aggregated). Once partitioner receives the weight, it will use that
+ * to decide the coming record should send to which writer subtask. After shuffling, a filter and
+ * mapper are required to filter out the data distribution weight, unwrap the object and extract the
+ * original record type T.
  */
 public class ShuffleRecordWrapper<T, K> implements Serializable {
 
@@ -42,7 +43,7 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
   private ShuffleRecordWrapper(T record, DataStatistics<K> statistics) {
     Preconditions.checkArgument(
         record != null ^ statistics != null,
-        "A ShuffleRecordWrapper contain either record or data statistics, not neither or both");
+        "A ShuffleRecordWrapper contain either record or statistics, not neither or both");
     this.statistics = statistics;
     this.record = record;
   }
@@ -51,8 +52,8 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
     return new ShuffleRecordWrapper<>(record, null);
   }
 
-  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(DataStatistics<K> globalDataStatistics) {
-    return new ShuffleRecordWrapper<>(null, globalDataStatistics);
+  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(DataStatistics<K> statistics) {
+    return new ShuffleRecordWrapper<>(null, statistics);
   }
 
   boolean hasDataStatistics() {

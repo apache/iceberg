@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
+package org.apache.iceberg.flink.sink.shuffle.statistics;
+
+import org.apache.flink.annotation.Internal;
 
 /**
- * DataStatistics defines the interface to collect data statistics.
+ * DataStatisticsFactory defines the interface to create DataStatistics.
  *
- * <p>Data statistics tracks traffic volume distribution across data keys. For low-cardinality key,
- * a simple map of (key, count) can be used. For high-cardinality key, probabilistic data structures
- * (sketching) can be used.
+ * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
+ * MapDataStatistics.
  */
-interface DataStatistics<K> {
-  long size();
+@Internal
+public interface DataStatisticsFactory<K> {
 
-  void add(K key);
-
-  void merge(DataStatistics<K> other);
+  DataStatistics<K> createDataStatistics();
 }

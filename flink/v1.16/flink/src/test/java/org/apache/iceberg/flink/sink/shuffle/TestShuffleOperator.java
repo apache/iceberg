@@ -46,6 +46,9 @@ import org.apache.flink.streaming.runtime.tasks.StreamMockEnvironment;
 import org.apache.flink.streaming.util.MockOutput;
 import org.apache.flink.streaming.util.MockStreamConfig;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
+import org.apache.iceberg.flink.sink.shuffle.statistics.MapDataStatistics;
+import org.apache.iceberg.flink.sink.shuffle.statistics.MapDataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
@@ -78,7 +81,7 @@ public class TestShuffleOperator {
             return value;
           }
         };
-    DataStatisticsFactory<String> dataStatisticsFactory = new DataStatisticsFactory<>();
+    DataStatisticsFactory<String> dataStatisticsFactory = new MapDataStatisticsFactory<>();
 
     this.operator = new ShuffleOperator<>(keySelector, mockGateway, dataStatisticsFactory);
     Environment env = getTestingEnvironment();

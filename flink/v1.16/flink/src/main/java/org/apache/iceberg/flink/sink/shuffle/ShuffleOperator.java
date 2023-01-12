@@ -31,6 +31,8 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
+import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 /**
@@ -43,16 +45,15 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
  */
 class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<T, K>>
     implements OneInputStreamOperator<T, ShuffleRecordWrapper<T, K>>, OperatorEventHandler {
-
   private static final long serialVersionUID = 1L;
 
   // keySelector will be used to generate key from data for collecting data statistics
   private final KeySelector<T, K> keySelector;
   private final OperatorEventGateway operatorEventGateway;
+  private final transient DataStatisticsFactory<K> statisticsFactory;
   private transient DataStatistics<K> localStatistics;
   private transient DataStatistics<K> globalStatistics;
   private transient ListState<DataStatistics<K>> globalStatisticsState;
-  private transient DataStatisticsFactory<K> statisticsFactory;
 
   public ShuffleOperator(
       KeySelector<T, K> keySelector,
@@ -71,13 +72,19 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
             .getOperatorStateStore()
             .getListState(
                 new ListStateDescriptor<>(
-                    "globalDataStatisticsState",
+                    "globalStatisticsState",
                     TypeInformation.of(new TypeHint<DataStatistics<K>>() {})));
 
-    if (context.isRestored()
-        && globalStatisticsState.get() != null
-        && globalStatisticsState.get().iterator().hasNext()) {
-      globalStatistics = globalStatisticsState.get().iterator().next();
+    if (context.isRestored()) {
+      int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+      if (globalStatisticsState.get() == null
+          || !globalStatisticsState.get().iterator().hasNext()) {
+        LOG.warn("Subtask {} doesn't have global statistics state to restore", subtaskIndex);
+        globalStatistics = statisticsFactory.createDataStatistics();
+      } else {
+        LOG.info("Restoring global statistics state for subtask {}", subtaskIndex);
+        globalStatistics = globalStatisticsState.get().iterator().next();
+      }
     } else {
       globalStatistics = statisticsFactory.createDataStatistics();
     }
@@ -85,16 +92,14 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
 
   @Override
   public void open() throws Exception {
-    // TODO: handle scaling up
-    if (globalStatistics != null && globalStatistics.size() > 0) {
+    if (!globalStatistics.isEmpty()) {
       output.collect(new StreamRecord<>(ShuffleRecordWrapper.fromStatistics(globalStatistics)));
     }
   }
 
   @Override
   public void handleOperatorEvent(OperatorEvent evt) {
-    // TODO: receive event with globalDataDistributionWeight from coordinator and update
-    // globalDataStatistics
+    // TODO: receive event with aggregated statistics from coordinator and update globalStatistics
   }
 
   @Override
@@ -109,16 +114,16 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
     long checkpointId = context.getCheckpointId();
     LOG.debug("Taking shuffle operator snapshot for checkpoint {}", checkpointId);
 
-    // Set the globalDataDistributionWeightState state to the latest global value.
-    if (globalStatistics != null && globalStatistics.size() > 0) {
+    // Update globalStatisticsState with latest global statistics
+    if (!globalStatistics.isEmpty()) {
       globalStatisticsState.clear();
       globalStatisticsState.add(globalStatistics);
     }
 
     // TODO: send to coordinator
-    // For now we make it simple to send globalDataStatisticsState at checkpoint
+    // For now we make it simple to send globalStatisticsState at checkpoint
 
-    // Reset the local statistics
+    // Recreate the local statistics
     localStatistics = statisticsFactory.createDataStatistics();
   }
 

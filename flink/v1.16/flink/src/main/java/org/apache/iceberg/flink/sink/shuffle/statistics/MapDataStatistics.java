@@ -16,26 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
+package org.apache.iceberg.flink.sink.shuffle.statistics;
 
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
-class MapDataStatistics<K> implements DataStatistics<K> {
-  private final Map<K, Long> dataStatistics = Maps.newHashMap();
+@Internal
+public class MapDataStatistics<K> implements DataStatistics<K> {
+  private final Map<K, Long> statistics = Maps.newHashMap();
 
   @Override
-  public long size() {
-    return dataStatistics.size();
+  public boolean isEmpty() {
+    return statistics.size() == 0;
   }
 
   @Override
   public void add(K key) {
-    // increase frequency of occurrence by one in the dataStatistics map
-    dataStatistics.put(key, dataStatistics.getOrDefault(key, 0L) + 1L);
+    // increase count of occurrence by one in the dataStatistics map
+    statistics.put(key, statistics.getOrDefault(key, 0L) + 1L);
   }
 
   @Override
@@ -44,16 +46,16 @@ class MapDataStatistics<K> implements DataStatistics<K> {
         otherStatistics instanceof MapDataStatistics,
         "Can not merge this type of statistics: " + otherStatistics);
     MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
-    mapDataStatistic.dataStatistics.forEach(
-        (key, count) -> dataStatistics.put(key, dataStatistics.getOrDefault(key, 0L) + count));
+    mapDataStatistic.statistics.forEach(
+        (key, count) -> statistics.put(key, statistics.getOrDefault(key, 0L) + count));
   }
 
-  Map<K, Long> dataStatistics() {
-    return dataStatistics;
+  public Map<K, Long> dataStatistics() {
+    return statistics;
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("dataStatistics", dataStatistics).toString();
+    return MoreObjects.toStringHelper(this).add("statistics", statistics).toString();
   }
 }

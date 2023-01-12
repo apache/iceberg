@@ -16,16 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
+package org.apache.iceberg.flink.sink.shuffle.statistics;
+
+import org.apache.flink.annotation.Internal;
 
 /**
- * DataStatisticsFactory provides the DataStatistics definition for different mode like HASH, RANGE
+ * MapDataStatisticsFactory creates MapDataStatistics to track traffic volume for low-cardinality
+ * key in hash mode
  */
-class DataStatisticsFactory<K> {
+@Internal
+public class MapDataStatisticsFactory<K> implements DataStatisticsFactory<K> {
 
-  DataStatistics<K> createDataStatistics() {
-    // Only support MapDataStatistics for now. New DataStatistics type will be added for high
-    // cardinality case.
+  @Override
+  public DataStatistics<K> createDataStatistics() {
     return new MapDataStatistics<>();
   }
 }
