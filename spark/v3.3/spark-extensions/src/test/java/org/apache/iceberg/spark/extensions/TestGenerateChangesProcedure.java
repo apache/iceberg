@@ -164,7 +164,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testWithCarryOvers() {
+  public void testWithCarryovers() {
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
