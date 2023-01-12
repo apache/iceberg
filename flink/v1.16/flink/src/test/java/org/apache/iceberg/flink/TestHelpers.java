@@ -343,22 +343,23 @@ public class TestHelpers {
 
     switch (type.typeId()) {
       case BOOLEAN:
-        Assert.assertEquals("boolean value should be equal", expected, actual);
-        break;
       case INTEGER:
-        Assert.assertEquals("int value should be equal", expected, actual);
-        break;
       case LONG:
-        Assert.assertEquals("long value should be equal", expected, actual);
-        break;
       case FLOAT:
-        Assert.assertEquals("float value should be equal", expected, actual);
-        break;
       case DOUBLE:
-        Assert.assertEquals("double value should be equal", expected, actual);
+        Assertions.assertThat(expected)
+            .as("Should expect a " + type.typeId().javaClass())
+            .isInstanceOf(type.typeId().javaClass());
+        Assertions.assertThat(actual)
+            .as("Should expect a " + type.typeId().javaClass())
+            .isInstanceOf(type.typeId().javaClass());
+        Assert.assertEquals(type.typeId() + " value should be equal", expected, actual);
         break;
       case STRING:
         Assertions.assertThat(expected)
+            .as("Should expect a CharSequence")
+            .isInstanceOf(CharSequence.class);
+        Assertions.assertThat(actual)
             .as("Should expect a CharSequence")
             .isInstanceOf(CharSequence.class);
         Assert.assertEquals("string should be equal", expected.toString(), actual.toString());
