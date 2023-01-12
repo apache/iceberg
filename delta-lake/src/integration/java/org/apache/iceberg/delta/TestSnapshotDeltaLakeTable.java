@@ -172,19 +172,15 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
    * </pre>
    */
   @Before
-  public void before() {
-    try {
-      File partitionedFolder = temp1.newFolder();
-      File unpartitionedFolder = temp2.newFolder();
-      File newIcebergTableFolder = temp3.newFolder();
-      File externalDataFilesTableFolder = temp4.newFolder();
-      partitionedLocation = partitionedFolder.toURI().toString();
-      unpartitionedLocation = unpartitionedFolder.toURI().toString();
-      newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
-      externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+  public void before() throws IOException {
+    File partitionedFolder = temp1.newFolder();
+    File unpartitionedFolder = temp2.newFolder();
+    File newIcebergTableFolder = temp3.newFolder();
+    File externalDataFilesTableFolder = temp4.newFolder();
+    partitionedLocation = partitionedFolder.toURI().toString();
+    unpartitionedLocation = unpartitionedFolder.toURI().toString();
+    newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
+    externalDataFilesTableLocation = externalDataFilesTableFolder.toURI().toString();
 
     partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);

@@ -90,10 +90,14 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkDeltaLakeSnapshotTestBase.catalog = null;
-    metastore.stop();
-    SparkDeltaLakeSnapshotTestBase.metastore = null;
-    spark.stop();
-    SparkDeltaLakeSnapshotTestBase.spark = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkDeltaLakeSnapshotTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkDeltaLakeSnapshotTestBase.spark = null;
+    }
   }
 
   @BeforeClass

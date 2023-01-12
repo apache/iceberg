@@ -78,7 +78,6 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
         id = getNextId();
       }
 
-      // TODO: refactor const string
       String doc =
           field.getMetadata().contains("comment")
               ? field.getMetadata().get("comment").toString()
