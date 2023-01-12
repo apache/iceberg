@@ -147,6 +147,53 @@ t.newAppend().appendFile(data).commit();
 t.commitTransaction();
 ```
 
+### WriteData
+
+The java api can write data into iceberg table.
+
+First write data to the data file, then submit the data file, the data you write will take effect in the table.
+
+For example, add 1000 pieces of data to the table.
+
+```java
+GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema());
+
+int partitionId = 1, taskId = 1;
+OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(FileFormat.PARQUET).build();
+final PartitionKey partitionKey = new PartitionKey(table.spec(), table.spec().schema());
+final InternalRecordWrapper recordWrapper = new InternalRecordWrapper(table.schema().asStruct());
+
+// partitionedFanoutWriter will auto partitioned record and create the partitioned writer
+PartitionedFanoutWriter<Record> partitionedFanoutWriter = new PartitionedFanoutWriter<Record>(table.spec(), FileFormat.PARQUET, appenderFactory, outputFileFactory, table.io(), TARGET_FILE_SIZE_IN_BYTES) {
+    @Override
+    protected PartitionKey partition(Record record) {
+        partitionKey.partition(recordWrapper.wrap(record));
+        return partitionKey;
+    }
+};
+
+GenericRecord genericRecord = GenericRecord.create(table.schema());
+
+// assume write 1000 records
+for (int i = 0; i < 1000; i++) {
+    GenericRecord record = genericRecord.copy();
+    record.setField("level",  i % 6 == 0 ? "error" : "info");
+    record.setField("event_time", OffsetDateTime.now());
+    record.setField("message", "Iceberg is a great table format");
+    record.setField("call_stack", Collections.singletonList("NullPointerException"));
+    partitionedFanoutWriter.write(record);
+}
+// after the data file is written above, 
+// the written data file is submitted to the metadata of the table through Table's Api.
+AppendFiles appendFiles = table.newAppend();
+for (DataFile dataFile : partitionedFanoutWriter.dataFiles()) {
+    appendFiles.appendFile(dataFile);
+}
+// the submitted file generates a snapshot and submit it.
+Snapshot res = appendFiles.apply();
+appendFiles.commit();
+```
+
 ## Types
 
 Iceberg data types are located in the [`org.apache.iceberg.types` package](../../../javadoc/{{% icebergVersion %}}/index.html?org/apache/iceberg/types/package-summary.html).
