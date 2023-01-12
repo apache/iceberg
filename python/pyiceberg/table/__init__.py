@@ -43,7 +43,12 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import project_table
-from pyiceberg.manifest import DataFile, ManifestFile, files
+from pyiceberg.manifest import (
+    DataFile,
+    ManifestContent,
+    ManifestFile,
+    files,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -341,7 +346,18 @@ class DataScan(TableScan["DataScan"]):
             all_files = files(io.new_input(manifest.manifest_path))
             matching_partition_files = filter(partition_filter, all_files)
 
-            yield from (FileScanTask(file) for file in matching_partition_files)
+            def _check_content(file: ManifestFile) -> ManifestFile:
+                try:
+                    if file.content == ManifestContent.DELETES:
+                        raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
+                    return file
+                except AttributeError:
+                    # If the attribute is not there, it is a V1 record
+                    return file
+
+            matching_partition_data_files = map(_check_content, matching_partition_files)
+
+            yield from (FileScanTask(file) for file in matching_partition_data_files)
 
     def to_arrow(self) -> pa.Table:
         return project_table(
