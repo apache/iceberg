@@ -29,7 +29,7 @@ import io.delta.standalone.types.StructType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -67,18 +67,13 @@ public class TestDeltaLakeTypeToType {
         DeltaLakeDataTypeVisitor.visit(
             deltaAtomicSchema, new DeltaLakeTypeToType(deltaAtomicSchema));
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
-    Assert.assertTrue(
-        "The BooleanType should be converted to BooleanType",
-        convertedSchema.findType(optionalBooleanType) instanceof Types.BooleanType);
-    Assert.assertTrue(
-        "The converted BooleanType field is optional",
-        convertedSchema.findField(optionalBooleanType).isOptional());
-    Assert.assertTrue(
-        "The BinaryType is converted to BinaryType",
-        convertedSchema.findType(requiredBinaryType) instanceof Types.BinaryType);
-    Assert.assertTrue(
-        "The converted BinaryType field is required",
-        convertedSchema.findField(requiredBinaryType).isRequired());
+
+    Assertions.assertThat(convertedSchema.findType(optionalBooleanType))
+        .isInstanceOf(Types.BooleanType.class);
+    Assertions.assertThat(convertedSchema.findField(optionalBooleanType).isOptional()).isTrue();
+    Assertions.assertThat(convertedSchema.findType(requiredBinaryType))
+        .isInstanceOf(Types.BinaryType.class);
+    Assertions.assertThat(convertedSchema.findField(requiredBinaryType).isRequired()).isTrue();
   }
 
   @Test
@@ -87,38 +82,40 @@ public class TestDeltaLakeTypeToType {
         DeltaLakeDataTypeVisitor.visit(
             deltaNestedSchema, new DeltaLakeTypeToType(deltaNestedSchema));
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
-    Assert.assertTrue(
-        "The StructType is converted to StructType",
-        convertedSchema.findType(innerAtomicSchema) instanceof Types.StructType);
-    Assert.assertTrue(
-        "The converted StructType contains subfield BooleanType",
-        convertedSchema.findType(innerAtomicSchema).asStructType().fieldType(optionalBooleanType)
-            instanceof Types.BooleanType);
-    Assert.assertTrue(
-        "The converted StructType contains subfield BinaryType",
-        convertedSchema.findType(innerAtomicSchema).asStructType().fieldType(requiredBinaryType)
-            instanceof Types.BinaryType);
 
-    Assert.assertTrue(
-        "The MapType is converted to MapType",
-        convertedSchema.findType(stringLongMapType) instanceof Types.MapType);
-    Assert.assertTrue(
-        "The converted MapType has key as StringType",
-        convertedSchema.findType(stringLongMapType).asMapType().keyType()
-            instanceof Types.StringType);
-    Assert.assertTrue(
-        "The converted MapType has value as LongType",
-        convertedSchema.findType(stringLongMapType).asMapType().valueType()
-            instanceof Types.LongType);
-
-    Assert.assertTrue(
-        "The ArrayType is converted to ListType",
-        convertedSchema.findType(doubleArrayType) instanceof Types.ListType);
-    Assert.assertTrue(
-        "The converted ListType field is required",
-        convertedSchema.findField(doubleArrayType).isRequired());
-    Assert.assertTrue(
-        "The converted ListType field contains optional doubleType element",
-        convertedSchema.findType(doubleArrayType).asListType().isElementOptional());
+    Assertions.assertThat(convertedSchema.findType(innerAtomicSchema))
+        .isInstanceOf(Types.StructType.class);
+    Assertions.assertThat(convertedSchema.findField(innerAtomicSchema).isOptional()).isTrue();
+    Assertions.assertThat(
+            convertedSchema
+                .findType(innerAtomicSchema)
+                .asStructType()
+                .fieldType(optionalBooleanType))
+        .isInstanceOf(Types.BooleanType.class);
+    Assertions.assertThat(
+            convertedSchema
+                .findType(innerAtomicSchema)
+                .asStructType()
+                .fieldType(requiredBinaryType))
+        .isInstanceOf(Types.BinaryType.class);
+    Assertions.assertThat(
+            convertedSchema
+                .findType(innerAtomicSchema)
+                .asStructType()
+                .field(requiredBinaryType)
+                .isRequired())
+        .isTrue();
+    Assertions.assertThat(convertedSchema.findType(stringLongMapType))
+        .isInstanceOf(Types.MapType.class);
+    Assertions.assertThat(convertedSchema.findType(stringLongMapType).asMapType().keyType())
+        .isInstanceOf(Types.StringType.class);
+    Assertions.assertThat(convertedSchema.findType(stringLongMapType).asMapType().valueType())
+        .isInstanceOf(Types.LongType.class);
+    Assertions.assertThat(convertedSchema.findType(doubleArrayType))
+        .isInstanceOf(Types.ListType.class);
+    Assertions.assertThat(convertedSchema.findField(doubleArrayType).isRequired()).isTrue();
+    Assertions.assertThat(
+            convertedSchema.findType(doubleArrayType).asListType().isElementOptional())
+        .isTrue();
   }
 }
