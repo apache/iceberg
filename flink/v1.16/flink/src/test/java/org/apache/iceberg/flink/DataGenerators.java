@@ -78,12 +78,6 @@ public class DataGenerators {
     private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
     private static final byte[] FIXED_BYTES = "012345689012345".getBytes(StandardCharsets.UTF_8);
 
-    private static org.apache.avro.Schema addAdjustToUtc(
-        org.apache.avro.Schema schema, boolean adjustToUTC) {
-      schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
-      return schema;
-    }
-
     private final Schema icebergSchema =
         new Schema(
             Types.NestedField.required(1, "partition_field", Types.StringType.get()),
