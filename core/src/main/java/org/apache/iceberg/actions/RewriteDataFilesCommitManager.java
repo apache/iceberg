@@ -186,8 +186,8 @@ public class RewriteDataFilesCommitManager {
     }
 
     /**
-     * Places a file group in the queue and commits a batch of file groups
-     * if {@link #rewritesPerCommit} number of file groups are present in the queue.
+     * Places a file group in the queue and commits a batch of file groups if {@link
+     * #rewritesPerCommit} number of file groups are present in the queue.
      *
      * @param group file group to eventually be committed
      */
@@ -255,25 +255,28 @@ public class RewriteDataFilesCommitManager {
     }
 
     private void commitReadyCommitGroups() {
+      Set<RewriteFileGroup> batch = null;
       if (canCreateCommitGroup()) {
         synchronized (completedRewrites) {
           if (canCreateCommitGroup()) {
-            String inProgressCommitToken = UUID.randomUUID().toString();
-            Set<RewriteFileGroup> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
+            batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
             for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
               batch.add(completedRewrites.poll());
             }
-            inProgressCommits.add(inProgressCommitToken);
-            try {
-              commitOrClean(batch);
-              committedRewrites.addAll(batch);
-            } catch (Exception e) {
-              LOG.error(
-                  "Failure during rewrite commit process, partial progress enabled. Ignoring", e);
-            }
-            inProgressCommits.remove(inProgressCommitToken);
           }
         }
+      }
+
+      if (batch != null) {
+        String inProgressCommitToken = UUID.randomUUID().toString();
+        inProgressCommits.add(inProgressCommitToken);
+        try {
+          commitOrClean(batch);
+          committedRewrites.addAll(batch);
+        } catch (Exception e) {
+          LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+        }
+        inProgressCommits.remove(inProgressCommitToken);
       }
     }
 
