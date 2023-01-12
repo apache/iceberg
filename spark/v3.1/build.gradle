@@ -258,6 +258,8 @@ project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
+    mergeServiceFiles()
+
     classifier null
   }
 
