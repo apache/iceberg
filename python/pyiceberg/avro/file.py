@@ -29,6 +29,7 @@ from typing import (
     Optional,
     Type,
     TypeVar,
+    Callable,
 )
 
 from pydantic import Field
@@ -121,7 +122,7 @@ class Block(Generic[D]):
 class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
-    read_types: Dict[int, Type[StructProtocol]]
+    read_types: Dict[int, Callable[[StructType], StructProtocol]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -134,7 +135,7 @@ class AvroFile(Generic[D]):
         self,
         input_file: InputFile,
         read_schema: Optional[Schema] = None,
-        read_types: Dict[int, Type[StructProtocol]] = EMPTY_DICT,
+        read_types: Dict[int, Callable[[StructType], StructProtocol]] = EMPTY_DICT,
     ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
