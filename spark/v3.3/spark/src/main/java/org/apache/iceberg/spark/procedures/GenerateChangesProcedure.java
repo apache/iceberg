@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -35,6 +36,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -131,13 +133,11 @@ public class GenerateChangesProcedure extends BaseProcedure {
     boolean removeCarryoverRow = args.isNullAt(4) ? true : args.getBoolean(4);
 
     if (computeUpdatedRow) {
-      if (hasIdentifierColumns(args)) {
-        String[] identifierColumns = args.getString(5).split(",");
+      String[] identifierColumns = identifierColumns(args, tableName);
 
-        if (identifierColumns.length > 0) {
-          Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
-          df = transform(df, repartitionColumns);
-        }
+      if (identifierColumns.length > 0) {
+        Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
+        df = transform(df, repartitionColumns);
       } else {
         LOG.warn("Cannot compute the update-rows because identifier columns are not set");
         if (removeCarryoverRow) {
@@ -165,8 +165,19 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return transform(df, repartitionColumns);
   }
 
-  private boolean hasIdentifierColumns(InternalRow args) {
-    return !args.isNullAt(5) && !args.getString(5).isEmpty();
+  private String[] identifierColumns(InternalRow args, String tableName) {
+    String[] identifierColumns = new String[0];
+    if (!args.isNullAt(5) && !args.getString(5).isEmpty()) {
+      identifierColumns = args.getString(5).split(",");
+    }
+
+    if (identifierColumns.length == 0) {
+      Identifier tableIdent = toIdentifier(tableName, PARAMETERS[0].name());
+      Table table = loadSparkTable(tableIdent).table();
+      identifierColumns = table.schema().identifierFieldNames().toArray(new String[0]);
+    }
+
+    return identifierColumns;
   }
 
   private Dataset<Row> changelogRecords(String tableName, InternalRow args) {

@@ -226,6 +226,33 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testUpdateWithIdentifierField() {
+    removeTables();
+    createTableWithIdentifierField();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (3, 'c'), (2, 'd')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql("CALL %s.system.generate_changes(table => '%s')", catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(3, "c", INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @Test
   public void testUpdateWithFilter() {
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
@@ -415,5 +442,11 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
     sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+  }
+
+  private void createTableWithIdentifierField() {
+    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 }
