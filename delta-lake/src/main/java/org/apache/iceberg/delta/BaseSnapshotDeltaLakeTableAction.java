@@ -51,6 +51,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -156,7 +157,13 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             partitionSpec,
             newTableLocation,
             destTableProperties(updatedSnapshot, deltaTableLocation));
-
+    icebergTransaction
+        .table()
+        .updateProperties()
+        .set(
+            TableProperties.DEFAULT_NAME_MAPPING,
+            NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
+        .commit();
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             0, // retrieve actions starting from the initial version
