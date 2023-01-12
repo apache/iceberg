@@ -27,7 +27,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -60,10 +60,10 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .icebergCatalog(testCatalog)
             .deltaLakeConfiguration(testHadoopConf)
             .tableLocation(newTableLocation);
-    Assert.assertThrows(
-        "Should throw IllegalArgumentException if table identifier is not set",
-        IllegalArgumentException.class,
-        testAction::execute);
+    Assertions.assertThatThrownBy(testAction::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
   }
 
   @Test
@@ -73,11 +73,10 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .as(TableIdentifier.of("test", "test"))
             .deltaLakeConfiguration(testHadoopConf)
             .tableLocation(newTableLocation);
-
-    Assert.assertThrows(
-        "Should throw IllegalArgumentException if iceberg catalog is not set",
-        IllegalArgumentException.class,
-        testAction::execute);
+    Assertions.assertThatThrownBy(testAction::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
   }
 
   @Test
@@ -87,10 +86,9 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .as(TableIdentifier.of("test", "test"))
             .icebergCatalog(testCatalog)
             .tableLocation(newTableLocation);
-    Assert.assertThrows(
-        "Should throw IllegalArgumentException if delta lake configuration is not set",
-        IllegalArgumentException.class,
-        testAction::execute);
+    Assertions.assertThatThrownBy(testAction::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Make sure to configure the action with a valid deltaLakeConfiguration");
   }
 
   private static class TestCatalog extends BaseMetastoreCatalog {
