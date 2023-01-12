@@ -70,6 +70,11 @@ from pyiceberg.types import (
     LongType,
     NestedField,
     StringType,
+    StructType,
+    UUIDType,
+    DecimalType,
+    BooleanType,
+    BinaryType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -605,7 +610,22 @@ def test_invert_always() -> None:
 def test_accessor_base_class() -> None:
     """Test retrieving a value at a position of a container using an accessor"""
 
-    struct = Record(**{f"field{idx}": None for idx in range(12)})
+    struct = Record(
+        StructType(
+            NestedField(1, "a", StringType()),
+            NestedField(2, "b", StringType()),
+            NestedField(3, "c", StringType()),
+            NestedField(4, "d", IntegerType()),
+            NestedField(5, "e", IntegerType()),
+            NestedField(6, "f", IntegerType()),
+            NestedField(7, "g", FloatType()),
+            NestedField(8, "h", DecimalType(8, 4)),
+            NestedField(9, "i", UUIDType()),
+            NestedField(10, "j", BooleanType()),
+            NestedField(11, "k", BooleanType()),
+            NestedField(12, "l", BinaryType()),
+        )
+    )
 
     uuid_value = uuid.uuid4()
 
@@ -902,15 +922,15 @@ def test_less_than_or_equal() -> None:
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-    struct = Record(**{f"field{idx}": None for idx in range(4)})
+    struct = Record(table_schema_simple.as_struct())
 
-    struct[1] = "foovalue"
-    struct[2] = 123
-    struct[3] = True
+    struct[0] = "foovalue"
+    struct[1] = 123
+    struct[2] = True
 
-    position1_accessor = Accessor(position=1)
-    position2_accessor = Accessor(position=2)
-    position3_accessor = Accessor(position=3)
+    position1_accessor = Accessor(position=0)
+    position2_accessor = Accessor(position=1)
+    position3_accessor = Accessor(position=2)
 
     field1 = table_schema_simple.find_field(1)
     field2 = table_schema_simple.find_field(2)

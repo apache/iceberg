@@ -17,21 +17,30 @@
 import pytest
 
 from pyiceberg.avro.codecs import DeflateCodec
-from pyiceberg.avro.file import AvroFileHeader
+from pyiceberg.avro.file import AvroFileHeader, META_SCHEMA
 
 
 def get_deflate_compressor() -> None:
-    header = AvroFileHeader(magic=bytes(0), meta={"avro.codec": "deflate"}, sync=bytes(16))
+    header = AvroFileHeader(META_SCHEMA)
+    header[0] = bytes(0)
+    header[1] = {"avro.codec": "deflate"}
+    header[2] = bytes(16)
     assert header.compression_codec() == DeflateCodec
 
 
 def get_null_compressor() -> None:
-    header = AvroFileHeader(magic=bytes(0), meta={"avro.codec": "null"}, sync=bytes(16))
+    header = AvroFileHeader(META_SCHEMA)
+    header[0] = bytes(0)
+    header[1] = {"avro.codec": "null"}
+    header[2] = bytes(16)
     assert header.compression_codec() is None
 
 
 def test_unknown_codec() -> None:
-    header = AvroFileHeader(magic=bytes(0), meta={"avro.codec": "unknown"}, sync=bytes(16))
+    header = AvroFileHeader(META_SCHEMA)
+    header[0] = bytes(0)
+    header[1] = {"avro.codec": "unknown"}
+    header[2] = bytes(16)
 
     with pytest.raises(ValueError) as exc_info:
         header.compression_codec()
@@ -40,7 +49,10 @@ def test_unknown_codec() -> None:
 
 
 def test_missing_schema() -> None:
-    header = AvroFileHeader(magic=bytes(0), meta={}, sync=bytes(16))
+    header = AvroFileHeader(META_SCHEMA)
+    header[0] = bytes(0)
+    header[1] = {}
+    header[2] = bytes(16)
 
     with pytest.raises(ValueError) as exc_info:
         header.get_schema()

@@ -65,14 +65,16 @@ def test_resolver() -> None:
         NestedField(6, "preferences", MapType(7, StringType(), 8, StringType())),
         schema_id=1,
     )
+
+    location_struct = StructType(
+        NestedField(4, "lat", DoubleType()),
+        NestedField(5, "long", DoubleType()),
+    )
     read_schema = Schema(
         NestedField(
             3,
             "location",
-            StructType(
-                NestedField(4, "lat", DoubleType()),
-                NestedField(5, "long", DoubleType()),
-            ),
+            location_struct,
         ),
         NestedField(1, "id", LongType()),
         NestedField(6, "preferences", MapType(7, StringType(), 8, StringType())),
@@ -90,11 +92,15 @@ def test_resolver() -> None:
                     (
                         (0, DoubleReader()),
                         (1, DoubleReader()),
-                    )
+                    ),
+                    Record,
+                    location_struct,
                 ),
             ),
             (2, MapReader(StringReader(), StringReader())),
-        )
+        ),
+        Record,
+        read_schema.as_struct(),
     )
 
 
@@ -273,4 +279,4 @@ def test_column_assignment() -> None:
         with AvroFile[Ints](PyArrowFileIO().new_input(tmp_avro_file), MANIFEST_ENTRY_SCHEMA, {-1: Ints}) as reader:
             records = list(reader)
 
-    assert records == [Ints(c=3, d=None)]
+    assert repr(records) == "[Ints[c=3, d=None]]"

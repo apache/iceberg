@@ -59,12 +59,11 @@ from pyiceberg.io.pyarrow import (
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.manifest import DataFile, DATA_FILE_SCHEMA
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
 from pyiceberg.table.metadata import TableMetadataV2
-from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -747,13 +746,14 @@ def file_map(schema_map: Schema, tmpdir: str) -> str:
 def project(
     schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None, table_schema: Optional[Schema] = None
 ) -> pa.Table:
+    def _construct_data_file(file: str) -> DataFile:
+        data_file = DataFile(DATA_FILE_SCHEMA)
+        data_file[1] = file  # file_path
+        data_file[5] = 0  # file_size_in_bytes
+        return data_file
+
     return project_table(
-        [
-            FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition=Record(), record_count=3, file_size_in_bytes=3)
-            )
-            for file in files
-        ],
+        [FileScanTask(_construct_data_file(file)) for file in files],
         Table(
             ("namespace", "table"),
             metadata=TableMetadataV2(

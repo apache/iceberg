@@ -79,10 +79,6 @@ class StructProtocol(Protocol):  # pragma: no cover
     """A generic protocol used by accessors to get and set at positions of an object"""
 
     @abstractmethod
-    def __init__(self, record_schema: Optional[StructType] = None, **data: Any) -> None:
-        ...
-
-    @abstractmethod
     def __getitem__(self, pos: int) -> Any:
         ...
 
@@ -131,17 +127,8 @@ class IcebergBaseModel(BaseModel):
 class Record(StructProtocol):
     _position_to_field_name: Dict[int, str]
 
-    class Config:
-        frozen = False
-
-    def __init__(self, record_schema: Optional[StructType] = None, **data: Any) -> None:
-        if record_schema:
-            self._position_to_field_name = {idx: field.name for idx, field in enumerate(record_schema.fields)}
-        elif data:
-            self._position_to_field_name = {}
-            for pos, (key, value) in enumerate(data.items()):
-                self._position_to_field_name[pos] = key
-                self.__setattr__(key, value)
+    def __init__(self, record_schema: StructType) -> None:
+        self._position_to_field_name = {idx: field.name for idx, field in enumerate(record_schema.fields)}
 
     def __setitem__(self, pos: int, value: Any) -> None:
         self.__setattr__(self._position_to_field_name[pos], value)
@@ -155,4 +142,4 @@ class Record(StructProtocol):
         return self.__dict__ == other.__dict__
 
     def __repr__(self) -> str:
-        return f"Record[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"
+        return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"

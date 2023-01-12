@@ -37,12 +37,11 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Type,
 )
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.typedef import Record, StructProtocol
+from pyiceberg.typedef import StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
@@ -251,27 +250,28 @@ class OptionReader(Reader):
 
 class StructReader(Reader):
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
-    create_struct: Type[StructProtocol]
-    struct: Optional[StructType]
+    create_struct: Callable[[StructType], StructProtocol]
+    struct: StructType
 
     def __init__(
         self,
         field_readers: Tuple[Tuple[Optional[int], Reader], ...],
-        create_struct: Optional[Type[StructProtocol]] = None,
-        struct: Optional[StructType] = None,
-    ):
+        create_struct: Callable[[StructType], StructProtocol],
+        struct: StructType,
+    ) -> None:
         self.field_readers = field_readers
-        self.create_struct = create_struct or Record
+        self.create_struct = create_struct
         self.struct = struct
 
-    def read(self, decoder: BinaryDecoder) -> Any:
+    def read(self, decoder: BinaryDecoder) -> StructProtocol:
         struct = self.create_struct(self.struct)
-        if not isinstance(struct, StructProtocol):
+
+        if not issubclass(struct.__class__, StructProtocol):
             raise ValueError(f"Expected struct to implement StructProtocol: {struct}")
 
         for (pos, field) in self.field_readers:
             if pos is not None:
-                struct[pos] = field.read(decoder)
+                struct[pos] = field.read(decoder)  # later: pass reuse in here
             else:
                 field.skip(decoder)
 

@@ -16,6 +16,7 @@
 # under the License.
 import pytest
 
+from pyiceberg.schema import Schema
 from pyiceberg.typedef import FrozenDict, KeyDefaultDict, Record
 from pyiceberg.types import (
     IntegerType,
@@ -45,9 +46,12 @@ def test_keydefaultdict() -> None:
     assert defaultdict[22] == 1
 
 
-def test_record_repr() -> None:
-    r = Record(a=1, b="vo", c=True)
-    assert repr(r) == "Record[a=1, b='vo', c=True]"
+def test_record_repr(table_schema_simple: Schema) -> None:
+    r = Record(table_schema_simple.as_struct())
+    r[0] = "vo"
+    r[1] = 1
+    r[2] = True
+    assert repr(r) == "Record[foo='vo', bar=1, baz=True]"
 
 
 def test_named_record() -> None:
