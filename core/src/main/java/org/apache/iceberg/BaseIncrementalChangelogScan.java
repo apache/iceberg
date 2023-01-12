@@ -72,6 +72,8 @@ class BaseIncrementalChangelogScan
             .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
             .toSet();
 
+    scanMetrics().totalDataManifests().increment(newDataManifests.size());
+
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
             .specsById(table().specs())
@@ -79,6 +81,7 @@ class BaseIncrementalChangelogScan
             .select(scanColumns())
             .filterData(filter())
             .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
+            .scanMetrics(scanMetrics())
             .ignoreExisting();
 
     if (shouldIgnoreResiduals()) {
@@ -155,6 +158,8 @@ class BaseIncrementalChangelogScan
 
             switch (entry.status()) {
               case ADDED:
+                context.scanMetrics().resultDataFiles().increment();
+                context.scanMetrics().totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
                 return new BaseAddedRowsScanTask(
                     changeOrdinal,
                     commitSnapshotId,
@@ -165,6 +170,13 @@ class BaseIncrementalChangelogScan
                     context.residuals());
 
               case DELETED:
+                // TODO: this is currently not accurate, rather than counting delete files, we
+                // should use/have a dimensional counter by "task type" here
+                context.scanMetrics().resultDeleteFiles().increment();
+                context
+                    .scanMetrics()
+                    .totalDeleteFileSizeInBytes()
+                    .increment(dataFile.fileSizeInBytes());
                 return new BaseDeletedDataFileScanTask(
                     changeOrdinal,
                     commitSnapshotId,

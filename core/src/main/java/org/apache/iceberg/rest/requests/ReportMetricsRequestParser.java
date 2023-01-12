@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Locale;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.CommitReportParser;
+import org.apache.iceberg.metrics.IncrementalScanReport;
+import org.apache.iceberg.metrics.IncrementalScanReportParser;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.ScanReportParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -59,6 +61,11 @@ public class ReportMetricsRequestParser {
       CommitReportParser.toJsonWithoutStartEnd((CommitReport) request.report(), gen);
     }
 
+    if (ReportType.INCREMENTAL_SCAN_REPORT == request.reportType()) {
+      IncrementalScanReportParser.toJsonWithoutStartEnd(
+          (IncrementalScanReport) request.report(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -91,6 +98,13 @@ public class ReportMetricsRequestParser {
       return ImmutableReportMetricsRequest.builder()
           .reportType(type)
           .report(CommitReportParser.fromJson(json))
+          .build();
+    }
+
+    if (ReportType.INCREMENTAL_SCAN_REPORT == type) {
+      return ImmutableReportMetricsRequest.builder()
+          .reportType(type)
+          .report(IncrementalScanReportParser.fromJson(json))
           .build();
     }
 
