@@ -186,9 +186,8 @@ public class RewriteDataFilesCommitManager {
     }
 
     /**
-     * Places a file group in the queue to be asynchronously committed either when the queue has
-     * enough elements to do a batch of size {@link #rewritesPerCommit} or the service has been
-     * closed.
+     * Places a file group in the queue and commits a batch of file groups
+     * if {@link #rewritesPerCommit} number of file groups are present in the queue.
      *
      * @param group file group to eventually be committed
      */
