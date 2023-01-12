@@ -233,7 +233,7 @@ public class LakeFormationTestBase {
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX
             + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
         LF_AUTHORIZED_CALLER_VALUE);
-    glueCatalogPrivilegedRole.initialize("test_registered", assumeRoleProperties);
+    glueCatalogPrivilegedRole.initialize("test_privileged", assumeRoleProperties);
 
     // Build test glueCatalog with lfRegisterPathRole
     assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "false");
@@ -244,7 +244,7 @@ public class LakeFormationTestBase {
     assumeRoleProperties.put(
         AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
     glueCatalogRegisterPathRole = new GlueCatalog();
-    glueCatalogRegisterPathRole.initialize("test_privileged", assumeRoleProperties);
+    glueCatalogRegisterPathRole.initialize("test_registered", assumeRoleProperties);
     // register S3 test bucket path
     deregisterResource(testBucketPath);
     registerResource(testBucketPath);

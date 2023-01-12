@@ -27,12 +27,21 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
+  @Rule
+  public final HadoopTableResource tableResource =
+      new HadoopTableResource(TEMPORARY_FOLDER, "test_db", "test_table", SCHEMA);
 
   public TestFlinkMergingMetrics(FileFormat fileFormat) {
     super(fileFormat);
@@ -44,7 +53,14 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
     FileAppender<RowData> appender =
         new FlinkAppenderFactory(
-                SCHEMA, flinkSchema, ImmutableMap.of(), PartitionSpec.unpartitioned())
+                tableResource.table(),
+                SCHEMA,
+                flinkSchema,
+                ImmutableMap.of(),
+                PartitionSpec.unpartitioned(),
+                null,
+                null,
+                null)
             .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);

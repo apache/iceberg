@@ -343,15 +343,15 @@ public class TableProperties {
   public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
+   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
+   *     performed starting from 0.13.0.
    */
   @Deprecated
   public static final String MERGE_CARDINALITY_CHECK_ENABLED =
       "write.merge.cardinality-check.enabled";
   /**
-   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from
-   *     0.13.0.
+   * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
+   *     performed starting from 0.13.0.
    */
   @Deprecated public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
@@ -360,5 +360,6 @@ public class TableProperties {
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
 
-  public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
+  /** @deprecated will be removed in 1.3.0, use the HMS_TABLE_OWNER constant from HiveCatalog */
+  @Deprecated public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
 }

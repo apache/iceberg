@@ -404,15 +404,15 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
-    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+    assertPartitioningEquals(sparkTable(), 2, "truncate(4, data)");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD years(ts)", tableName);
     assertPartitioningEquals(sparkTable(), 3, "years(ts)");
 
     sql("ALTER TABLE %s DROP PARTITION FIELD years(ts)", tableName);
-    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+    assertPartitioningEquals(sparkTable(), 2, "truncate(4, data)");
 
-    sql("ALTER TABLE %s DROP PARTITION FIELD truncate(data, 4)", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD truncate(4, data)", tableName);
     assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
 
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);

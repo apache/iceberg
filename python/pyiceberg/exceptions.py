@@ -36,6 +36,10 @@ class NoSuchTableError(Exception):
     """Raises when the table can't be found in the REST catalog"""
 
 
+class NoSuchIcebergTableError(NoSuchTableError):
+    """Raises when the table found in the REST catalog is not an iceberg table"""
+
+
 class NoSuchNamespaceError(Exception):
     """Raised when a referenced name-space is not found"""
 
@@ -82,3 +86,7 @@ class NotInstalledError(Exception):
 
 class SignError(Exception):
     """Raises when unable to sign a S3 request"""
+
+
+class ResolveError(Exception):
+    pass

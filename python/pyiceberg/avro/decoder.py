@@ -16,16 +16,13 @@
 # under the License.
 import decimal
 import struct
-from datetime import date, datetime, time
+from datetime import datetime, time
 from io import SEEK_CUR
+from typing import List
+from uuid import UUID
 
 from pyiceberg.io import InputStream
-from pyiceberg.utils.datetime import (
-    days_to_date,
-    micros_to_time,
-    micros_to_timestamp,
-    micros_to_timestamptz,
-)
+from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from pyiceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
@@ -52,10 +49,22 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        read_bytes = self._input_stream.read(n)
-        if len(read_bytes) != n:
-            raise ValueError(f"Read {len(read_bytes)} bytes, expected {n} bytes")
-        return read_bytes
+        data: List[bytes] = []
+
+        n_remaining = n
+        while n_remaining > 0:
+            data_read = self._input_stream.read(n_remaining)
+            read_len = len(data_read)
+            if read_len == n:
+                # If we read everything, we return directly
+                # otherwise we'll continue to fetch the rest
+                return data_read
+            elif read_len <= 0:
+                raise EOFError(f"EOF: read {read_len} bytes")
+            data.append(data_read)
+            n_remaining -= read_len
+
+        return b"".join(data)
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
@@ -116,7 +125,8 @@ class BinaryDecoder:
         """
         Bytes are encoded as a long followed by that many bytes of data.
         """
-        return self.read(self.read_int())
+        num_bytes = self.read_int()
+        return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
         """
@@ -125,13 +135,9 @@ class BinaryDecoder:
         """
         return self.read_bytes().decode("utf-8")
 
-    def read_date_from_int(self) -> date:
-        """
-        int is decoded as python date object.
-        int stores the number of days from
-        the unix epoch, 1 January 1970 (ISO calendar).
-        """
-        return days_to_date(self.read_int())
+    def read_uuid_from_fixed(self) -> UUID:
+        """Reads a UUID as a fixed[16]"""
+        return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
         """
@@ -155,7 +161,7 @@ class BinaryDecoder:
         """
         return micros_to_timestamp(self.read_int())
 
-    def read_timestamptz_micros(self):
+    def read_timestamptz_micros(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.

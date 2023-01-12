@@ -22,8 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
@@ -67,10 +67,9 @@ public class SparkReadConf {
   }
 
   public boolean localityEnabled() {
-    InputFile file = table.io().newInputFile(table.location());
-
-    if (file instanceof HadoopInputFile) {
-      String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
+    if (table.io() instanceof HadoopFileIO) {
+      HadoopInputFile file = (HadoopInputFile) table.io().newInputFile(table.location());
+      String scheme = file.getFileSystem().getScheme();
       boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
       return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
     }
@@ -226,6 +225,22 @@ public class SparkReadConf {
         .longConf()
         .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
         .defaultValue(Long.MIN_VALUE)
+        .parse();
+  }
+
+  public Long startTimestamp() {
+    return confParser.longConf().option(SparkReadOptions.START_TIMESTAMP).parseOptional();
+  }
+
+  public Long endTimestamp() {
+    return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
+  }
+
+  public boolean preserveDataGrouping() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.PRESERVE_DATA_GROUPING)
+        .defaultValue(SparkSQLProperties.PRESERVE_DATA_GROUPING_DEFAULT)
         .parse();
   }
 }

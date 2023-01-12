@@ -69,7 +69,7 @@ class SortField(IcebergBaseModel):
     def __init__(
         self,
         source_id: Optional[int] = None,
-        transform: Optional[Union[Transform, Callable[[IcebergType], Transform]]] = None,
+        transform: Optional[Union[Transform[Any, Any], Callable[[IcebergType], Transform[Any, Any]]]] = None,
         direction: Optional[SortDirection] = None,
         null_order: Optional[NullOrder] = None,
         **data: Any,
@@ -92,11 +92,11 @@ class SortField(IcebergBaseModel):
         return values
 
     source_id: int = Field(alias="source-id")
-    transform: Transform = Field()
+    transform: Transform[Any, Any] = Field()
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
-    def __str__(self):
+    def __str__(self) -> str:
         if type(self.transform) == IdentityTransform:
             # In the case of an identity transform, we can omit the transform
             return f"{self.source_id} {self.direction} {self.null_order}"
@@ -138,7 +138,7 @@ class SortOrder(IcebergBaseModel):
         result_str += "]"
         return result_str
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
         return f"SortOrder({fields}order_id={self.order_id})"
 

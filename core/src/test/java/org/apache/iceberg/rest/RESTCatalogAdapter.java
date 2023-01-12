@@ -77,7 +77,7 @@ public class RESTCatalogAdapter implements RESTClient {
           .put(CommitFailedException.class, 409)
           .put(UnprocessableEntityException.class, 422)
           .put(CommitStateUnknownException.class, 500)
-          .build();
+          .buildOrThrow();
 
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;
@@ -399,6 +399,15 @@ public class RESTCatalogAdapter implements RESTClient {
 
     // if the error handler doesn't throw an exception, throw a generic one
     throw new RESTException("Unhandled error: %s", error);
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
   @Override

@@ -30,19 +30,38 @@ public class InMemoryOutputFile implements OutputFile {
 
   private boolean exists = false;
   private ByteArrayOutputStream contents;
+  private InMemoryFileIO parentFileIO;
 
   public InMemoryOutputFile() {
     this("memory:" + UUID.randomUUID());
   }
 
   public InMemoryOutputFile(String location) {
+    this(location, null);
+  }
+
+  /**
+   * If the optional parentFileIO is provided, file-existence behaves similarly to S3FileIO;
+   * existence checks are performed up-front if creating without overwrite, but files only exist in
+   * the parentFileIO if close() has been called on the associated output streams (or pre-existing
+   * files are populated into the parentFileIO through other means).
+   *
+   * @param location the location returned by location() of this OutputFile, the InputFile obtained
+   *     from calling toInputFile(), and the location for looking up the associated InputFile from a
+   *     parentFileIO, if non-null.
+   * @param parentFileIO if non-null, commits an associated InMemoryInputFile on close() into the
+   *     parentFileIO, and uses the parentFileIO for "already exists" checks if creating without
+   *     overwriting.
+   */
+  public InMemoryOutputFile(String location, InMemoryFileIO parentFileIO) {
     Preconditions.checkNotNull(location, "location is null");
     this.location = location;
+    this.parentFileIO = parentFileIO;
   }
 
   @Override
   public PositionOutputStream create() {
-    if (exists) {
+    if (exists || (parentFileIO != null && parentFileIO.fileExists(location))) {
       throw new AlreadyExistsException("Already exists");
     }
     return createOrOverwrite();
@@ -70,7 +89,7 @@ public class InMemoryOutputFile implements OutputFile {
     return contents.toByteArray();
   }
 
-  private static class InMemoryPositionOutputStream extends PositionOutputStream {
+  private class InMemoryPositionOutputStream extends PositionOutputStream {
     private final ByteArrayOutputStream delegate;
     private boolean closed = false;
 
@@ -112,6 +131,9 @@ public class InMemoryOutputFile implements OutputFile {
     public void close() throws IOException {
       delegate.close();
       closed = true;
+      if (parentFileIO != null) {
+        parentFileIO.addFile(location(), toByteArray());
+      }
     }
 
     private void checkOpen() {

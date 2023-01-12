@@ -15,9 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems"""
+import errno
 import logging
+import os
 from functools import lru_cache, partial
-from typing import Callable, Dict, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Union,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -25,17 +32,22 @@ from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
 from requests import HTTPError
-from s3fs import S3FileSystem
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
-from pyiceberg.io import FileIO, InputFile, OutputFile
+from pyiceberg.io import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from pyiceberg.typedef import Properties
 
 logger = logging.getLogger(__name__)
 
 
-def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_) -> AWSRequest:
+def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_: Any) -> AWSRequest:
     if TOKEN not in properties:
         raise SignError("Signer set, but token is not available")
 
@@ -67,6 +79,8 @@ SIGNERS: Dict[str, Callable[[Properties, AWSRequest], AWSRequest]] = {"S3V4RestS
 
 
 def _s3(properties: Properties) -> AbstractFileSystem:
+    from s3fs import S3FileSystem
+
     client_kwargs = {
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),
@@ -74,7 +88,7 @@ def _s3(properties: Properties) -> AbstractFileSystem:
         "aws_session_token": properties.get("s3.session-token"),
     }
     config_kwargs = {}
-    register_events: Dict[str, Callable] = {}
+    register_events: Dict[str, Callable[[Properties], None]] = {}
 
     if signer := properties.get("s3.signer"):
         logger.info("Loading signer %s", signer)
@@ -95,10 +109,19 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     return fs
 
 
+def _adlfs(properties: Properties) -> AbstractFileSystem:
+    from adlfs import AzureBlobFileSystem
+
+    fs = AzureBlobFileSystem(**properties)
+    return fs
+
+
 SCHEME_TO_FS = {
     "s3": _s3,
     "s3a": _s3,
     "s3n": _s3,
+    "abfs": _adlfs,
+    "abfss": _adlfs,
 }
 
 
@@ -127,13 +150,23 @@ class FsspecInputFile(InputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def open(self):
+    def open(self, seekable: bool = True) -> InputStream:
         """Create an input stream for reading the contents of the file
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             OpenFile: An fsspec compliant file-like object
+
+        Raises:
+            FileNotFoundError: If the file does not exist
         """
-        return self._fs.open(self.location, "rb")
+        try:
+            return self._fs.open(self.location, "rb")
+        except FileNotFoundError as e:
+            # To have a consistent error handling experience, make sure exception contains missing file location.
+            raise e if e.filename else FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.location) from e
 
 
 class FsspecOutputFile(OutputFile):
@@ -161,7 +194,7 @@ class FsspecOutputFile(OutputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def create(self, overwrite: bool = False):
+    def create(self, overwrite: bool = False) -> OutputStream:
         """Create an output stream for reading the contents of the file
 
         Args:
@@ -194,7 +227,7 @@ class FsspecFileIO(FileIO):
     def __init__(self, properties: Properties):
         self._scheme_to_fs = {}
         self._scheme_to_fs.update(SCHEME_TO_FS)
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], AbstractFileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     def new_input(self, location: str) -> FsspecInputFile:

@@ -46,7 +46,7 @@ public class Transforms {
       int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
         return Truncate.get(parsedWidth);
-      } else if (name.equals("bucket")) {
+      } else if (name.equalsIgnoreCase("bucket")) {
         return Bucket.get(parsedWidth);
       }
     }
@@ -75,13 +75,13 @@ public class Transforms {
       int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
         return (Transform<?, ?>) Truncate.get(type, parsedWidth);
-      } else if (name.equals("bucket")) {
+      } else if (name.equalsIgnoreCase("bucket")) {
         return (Transform<?, ?>) Bucket.get(type, parsedWidth);
       }
     }
 
     if (transform.equalsIgnoreCase("identity")) {
-      return Identity.get();
+      return Identity.get(type);
     }
 
     try {
@@ -111,7 +111,7 @@ public class Transforms {
    */
   @Deprecated
   public static <T> Transform<T, T> identity(Type type) {
-    return Identity.get();
+    return Identity.get(type);
   }
 
   /**

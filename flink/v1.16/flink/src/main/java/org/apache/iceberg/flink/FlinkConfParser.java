@@ -51,6 +51,10 @@ class FlinkConfParser {
     return new LongConfParser();
   }
 
+  public <E extends Enum<E>> EnumConfParser<E> enumConfParser(Class<E> enumClass) {
+    return new EnumConfParser<>(enumClass);
+  }
+
   public StringConfParser stringConf() {
     return new StringConfParser();
   }
@@ -145,6 +149,34 @@ class FlinkConfParser {
 
     public String parseOptional() {
       return parse(Function.identity(), null);
+    }
+  }
+
+  class EnumConfParser<E extends Enum<E>> extends ConfParser<EnumConfParser<E>, E> {
+    private E defaultValue;
+    private final Class<E> enumClass;
+
+    EnumConfParser(Class<E> enumClass) {
+      this.enumClass = enumClass;
+    }
+
+    @Override
+    protected EnumConfParser<E> self() {
+      return this;
+    }
+
+    public EnumConfParser<E> defaultValue(E value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public E parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(s -> Enum.valueOf(enumClass, s), defaultValue);
+    }
+
+    public E parseOptional() {
+      return parse(s -> Enum.valueOf(enumClass, s), null);
     }
   }
 

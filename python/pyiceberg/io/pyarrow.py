@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-outer-name,arguments-renamed
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -21,18 +22,27 @@ by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct fil
 type to use. Theoretically, this allows the supported storage types to grow naturally
 with the pyarrow library.
 """
+from __future__ import annotations
 
 import os
-from functools import lru_cache, singledispatch
+from functools import lru_cache
 from typing import (
+    TYPE_CHECKING,
+    Any,
     Callable,
+    Iterable,
     List,
+    Optional,
+    Set,
     Tuple,
     Union,
 )
 from urllib.parse import urlparse
 
 import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -41,6 +51,20 @@ from pyarrow.fs import (
     S3FileSystem,
 )
 
+from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.expressions import (
+    AlwaysTrue,
+    BooleanExpression,
+    BoundTerm,
+    Literal,
+)
+from pyiceberg.expressions.visitors import (
+    BoundBooleanExpressionVisitor,
+    bind,
+    extract_field_ids,
+    translate_column_names,
+)
+from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
     FileIO,
     InputFile,
@@ -48,7 +72,16 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.schema import Schema, SchemaVisitor, visit
+from pyiceberg.schema import (
+    PartnerAccessor,
+    Schema,
+    SchemaVisitorPerPrimitiveType,
+    SchemaWithPartnerVisitor,
+    promote,
+    prune_columns,
+    visit,
+    visit_with_partner,
+)
 from pyiceberg.typedef import EMPTY_DICT, Properties
 from pyiceberg.types import (
     BinaryType,
@@ -58,6 +91,7 @@ from pyiceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
@@ -69,7 +103,16 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    UUIDType,
 )
+from pyiceberg.utils.singleton import Singleton
+
+if TYPE_CHECKING:
+    from pyiceberg.table import FileScanTask, Table
+
+ONE_MEGABYTE = 1024 * 1024
+BUFFER_SIZE = "buffer-size"
+ICEBERG_SCHEMA = b"iceberg.schema"
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -94,9 +137,14 @@ class PyArrowFile(InputFile, OutputFile):
         >>> # output_file.create().write(b'foobytes')
     """
 
-    def __init__(self, location: str, path: str, fs: FileSystem):
+    _fs: FileSystem
+    _path: str
+    _buffer_size: int
+
+    def __init__(self, location: str, path: str, fs: FileSystem, buffer_size: int = ONE_MEGABYTE):
         self._filesystem = fs
         self._path = path
+        self._buffer_size = buffer_size
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
@@ -130,8 +178,11 @@ class PyArrowFile(InputFile, OutputFile):
         except FileNotFoundError:
             return False
 
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the location
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
@@ -142,7 +193,10 @@ class PyArrowFile(InputFile, OutputFile):
                 an AWS error code 15
         """
         try:
-            input_file = self._filesystem.open_input_file(self._path)
+            if seekable:
+                input_file = self._filesystem.open_input_file(self._path)
+            else:
+                input_file = self._filesystem.open_input_stream(self._path, buffer_size=self._buffer_size)
         except FileNotFoundError:
             raise
         except PermissionError:
@@ -177,7 +231,7 @@ class PyArrowFile(InputFile, OutputFile):
         try:
             if not overwrite and self.exists() is True:
                 raise FileExistsError(f"Cannot create file, already exists: {self.location}")
-            output_file = self._filesystem.open_output_stream(self._path)
+            output_file = self._filesystem.open_output_stream(self._path, buffer_size=self._buffer_size)
         except PermissionError:
             raise
         except OSError as e:
@@ -186,7 +240,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
-    def to_input_file(self) -> "PyArrowFile":
+    def to_input_file(self) -> PyArrowFile:
         """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
@@ -198,7 +252,7 @@ class PyArrowFile(InputFile, OutputFile):
 
 class PyArrowFileIO(FileIO):
     def __init__(self, properties: Properties = EMPTY_DICT):
-        self.get_fs: Callable = lru_cache(self._get_fs)
+        self.get_fs: Callable[[str], FileSystem] = lru_cache(self._get_fs)
         super().__init__(properties=properties)
 
     @staticmethod
@@ -232,7 +286,7 @@ class PyArrowFileIO(FileIO):
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def new_output(self, location: str) -> PyArrowFile:
         """Get a PyArrowFile instance to write bytes to the file at the given location
@@ -245,7 +299,7 @@ class PyArrowFileIO(FileIO):
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
-        return PyArrowFile(fs=fs, location=location, path=path)
+        return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
@@ -278,11 +332,11 @@ class PyArrowFileIO(FileIO):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
 
 
-def schema_to_pyarrow(schema: Schema) -> pa.schema:
+def schema_to_pyarrow(schema: Union[Schema, IcebergType]) -> pa.schema:
     return visit(schema, _ConvertToArrowSchema())
 
 
-class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
+class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleton):
     def schema(self, _: Schema, struct_result: pa.StructType) -> pa.schema:
         return pa.schema(list(struct_result))
 
@@ -293,7 +347,7 @@ class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
         return pa.field(
             name=field.name,
             type=field_result,
-            nullable=not field.required,
+            nullable=field.optional,
             metadata={"doc": field.doc, "id": str(field.field_id)} if field.doc else {},
         )
 
@@ -303,79 +357,291 @@ class _ConvertToArrowSchema(SchemaVisitor[pa.DataType]):
     def map(self, _: MapType, key_result: pa.DataType, value_result: pa.DataType) -> pa.DataType:
         return pa.map_(key_type=key_result, item_type=value_result)
 
-    def primitive(self, primitive: PrimitiveType) -> pa.DataType:
-        return _iceberg_to_pyarrow_type(primitive)
+    def visit_fixed(self, fixed_type: FixedType) -> pa.DataType:
+        return pa.binary(len(fixed_type))
+
+    def visit_decimal(self, decimal_type: DecimalType) -> pa.DataType:
+        return pa.decimal128(decimal_type.precision, decimal_type.scale)
+
+    def visit_boolean(self, _: BooleanType) -> pa.DataType:
+        return pa.bool_()
+
+    def visit_integer(self, _: IntegerType) -> pa.DataType:
+        return pa.int32()
+
+    def visit_long(self, _: LongType) -> pa.DataType:
+        return pa.int64()
+
+    def visit_float(self, _: FloatType) -> pa.DataType:
+        # 32-bit IEEE 754 floating point
+        return pa.float32()
+
+    def visit_double(self, _: DoubleType) -> pa.DataType:
+        # 64-bit IEEE 754 floating point
+        return pa.float64()
+
+    def visit_date(self, _: DateType) -> pa.DataType:
+        # Date encoded as an int
+        return pa.date32()
+
+    def visit_time(self, _: TimeType) -> pa.DataType:
+        return pa.time64("us")
+
+    def visit_timestamp(self, _: TimestampType) -> pa.DataType:
+        return pa.timestamp(unit="us")
+
+    def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
+        return pa.timestamp(unit="us", tz="+00:00")
+
+    def visit_string(self, _: StringType) -> pa.DataType:
+        return pa.string()
+
+    def visit_uuid(self, _: UUIDType) -> pa.DataType:
+        return pa.binary(16)
+
+    def visit_binary(self, _: BinaryType) -> pa.DataType:
+        return pa.binary()
 
 
-@singledispatch
-def _iceberg_to_pyarrow_type(primitive: PrimitiveType) -> pa.DataType:
-    raise ValueError(f"Unknown type: {primitive}")
+def _convert_scalar(value: Any, iceberg_type: IcebergType) -> pa.scalar:
+    if not isinstance(iceberg_type, PrimitiveType):
+        raise ValueError(f"Expected primitive type, got: {iceberg_type}")
+    return pa.scalar(value).cast(schema_to_pyarrow(iceberg_type))
 
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: FixedType) -> pa.DataType:
-    return pa.binary(len(primitive))
+class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
+    def visit_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
+        return pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_not_in(self, term: BoundTerm[pc.Expression], literals: Set[Any]) -> pc.Expression:
+        pyarrow_literals = pa.array(literals, type=schema_to_pyarrow(term.ref().field.field_type))
+        return ~pc.field(term.ref().field.name).isin(pyarrow_literals)
+
+    def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ref.is_null(nan_is_null=True) & ref.is_valid()
+
+    def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
+        ref = pc.field(term.ref().field.name)
+        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
+
+    def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_null(nan_is_null=False)
+
+    def visit_not_null(self, term: BoundTerm[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name).is_valid()
+
+    def visit_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) == _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_not_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) != _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) >= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_greater_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) > _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) < _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_true(self) -> pc.Expression:
+        return pc.scalar(True)
+
+    def visit_false(self) -> pc.Expression:
+        return pc.scalar(False)
+
+    def visit_not(self, child_result: pc.Expression) -> pc.Expression:
+        return ~child_result
+
+    def visit_and(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result & right_result
+
+    def visit_or(self, left_result: pc.Expression, right_result: pc.Expression) -> pc.Expression:
+        return left_result | right_result
 
 
-@_iceberg_to_pyarrow_type.register
-def _(primitive: DecimalType) -> pa.DataType:
-    return pa.decimal128(primitive.precision, primitive.scale)
+def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
+    return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-@_iceberg_to_pyarrow_type.register
-def _(_: BooleanType) -> pa.DataType:
-    return pa.bool_()
+def project_table(
+    files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
+) -> pa.Table:
+    """Resolves the right columns based on the identifier
+
+    Args:
+        files(Iterable[FileScanTask]): A URI or a path to a local file
+        table(Table): The table that's being queried
+        row_filter(BooleanExpression): The expression for filtering rows
+        projected_schema(Schema): The output schema
+        case_sensitive(bool): Case sensitivity when looking up column names
+
+    Raises:
+        ResolveError: When an incompatible query is done
+    """
+
+    if isinstance(table.io, PyArrowFileIO):
+        scheme, path = PyArrowFileIO.parse_location(table.location())
+        fs = table.io.get_fs(scheme)
+    else:
+        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+
+    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
+
+    projected_field_ids = {
+        id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
+    }.union(extract_field_ids(bound_row_filter))
+
+    tables = []
+    for task in files:
+        _, path = PyArrowFileIO.parse_location(task.file.file_path)
+
+        # Get the schema
+        with fs.open_input_file(path) as fout:
+            parquet_schema = pq.read_schema(fout)
+            schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
+            if schema_raw is None:
+                raise ValueError(
+                    "Iceberg schema is not embedded into the Parquet file, see https://github.com/apache/iceberg/issues/6505"
+                )
+            file_schema = Schema.parse_raw(schema_raw)
+
+        pyarrow_filter = None
+        if row_filter is not AlwaysTrue():
+            translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
+            bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
+            pyarrow_filter = expression_to_pyarrow(bound_file_filter)
+
+        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
+
+        if file_schema is None:
+            raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
+
+        # Prune the stuff that we don't need anyway
+        file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
+
+        arrow_table = ds.dataset(
+            source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
+        ).to_table(filter=pyarrow_filter)
+
+        tables.append(to_requested_schema(projected_schema, file_project_schema, arrow_table))
+
+    if len(tables) > 1:
+        return pa.concat_tables(tables)
+    else:
+        return tables[0]
 
 
-@_iceberg_to_pyarrow_type.register
-def _(_: IntegerType) -> pa.DataType:
-    return pa.int32()
+def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
+    struct_array = visit_with_partner(requested_schema, table, ArrowProjectionVisitor(file_schema), ArrowAccessor(file_schema))
+
+    arrays = []
+    fields = []
+    for pos, field in enumerate(requested_schema.fields):
+        array = struct_array.field(pos)
+        arrays.append(array)
+        fields.append(pa.field(field.name, array.type, field.optional))
+    return pa.Table.from_arrays(arrays, schema=pa.schema(fields))
 
 
-@_iceberg_to_pyarrow_type.register
-def _(_: LongType) -> pa.DataType:
-    return pa.int64()
+class ArrowProjectionVisitor(SchemaWithPartnerVisitor[pa.Array, Optional[pa.Array]]):
+    file_schema: Schema
+
+    def __init__(self, file_schema: Schema):
+        self.file_schema = file_schema
+
+    def cast_if_needed(self, field: NestedField, values: pa.Array) -> pa.Array:
+        file_field = self.file_schema.find_field(field.field_id)
+        if field.field_type.is_primitive and field.field_type != file_field.field_type:
+            return values.cast(schema_to_pyarrow(promote(file_field.field_type, field.field_type)))
+        return values
+
+    def schema(self, schema: Schema, schema_partner: Optional[pa.Array], struct_result: Optional[pa.Array]) -> Optional[pa.Array]:
+        return struct_result
+
+    def struct(
+        self, struct: StructType, struct_array: Optional[pa.Array], field_results: List[Optional[pa.Array]]
+    ) -> Optional[pa.Array]:
+        if struct_array is None:
+            return None
+        field_arrays: List[pa.Array] = []
+        fields: List[pa.Field] = []
+        for field, field_array in zip(struct.fields, field_results):
+            if field_array is not None:
+                array = self.cast_if_needed(field, field_array)
+                field_arrays.append(array)
+                fields.append(pa.field(field.name, array.type, field.optional))
+            elif field.optional:
+                arrow_type = schema_to_pyarrow(field.field_type)
+                field_arrays.append(pa.nulls(len(struct_array), type=arrow_type))
+                fields.append(pa.field(field.name, arrow_type, field.optional))
+            else:
+                raise ResolveError(f"Field is required, and could not be found in the file: {field}")
+
+        return pa.StructArray.from_arrays(arrays=field_arrays, fields=pa.struct(fields))
+
+    def field(self, field: NestedField, _: Optional[pa.Array], field_array: Optional[pa.Array]) -> Optional[pa.Array]:
+        return field_array
+
+    def list(self, list_type: ListType, list_array: Optional[pa.Array], value_array: Optional[pa.Array]) -> Optional[pa.Array]:
+        return (
+            pa.ListArray.from_arrays(list_array.offsets, self.cast_if_needed(list_type.element_field, value_array))
+            if isinstance(list_array, pa.ListArray)
+            else None
+        )
+
+    def map(
+        self, map_type: MapType, map_array: Optional[pa.Array], key_result: Optional[pa.Array], value_result: Optional[pa.Array]
+    ) -> Optional[pa.Array]:
+        return (
+            pa.MapArray.from_arrays(
+                map_array.offsets,
+                self.cast_if_needed(map_type.key_field, key_result),
+                self.cast_if_needed(map_type.value_field, value_result),
+            )
+            if isinstance(map_array, pa.MapArray)
+            else None
+        )
+
+    def primitive(self, _: PrimitiveType, array: Optional[pa.Array]) -> Optional[pa.Array]:
+        return array
 
 
-@_iceberg_to_pyarrow_type.register
-def _(_: FloatType) -> pa.DataType:
-    # 32-bit IEEE 754 floating point
-    return pa.float32()
+class ArrowAccessor(PartnerAccessor[pa.Array]):
+    file_schema: Schema
 
+    def __init__(self, file_schema: Schema):
+        self.file_schema = file_schema
 
-@_iceberg_to_pyarrow_type.register
-def _(_: DoubleType) -> pa.DataType:
-    # 64-bit IEEE 754 floating point
-    return pa.float64()
+    def schema_partner(self, partner: Optional[pa.Array]) -> Optional[pa.Array]:
+        return partner
 
+    def field_partner(self, partner_struct: Optional[pa.Array], field_id: int, _: str) -> Optional[pa.Array]:
+        if partner_struct:
+            # use the field name from the file schema
+            try:
+                name = self.file_schema.find_field(field_id).name
+            except ValueError:
+                return None
 
-@_iceberg_to_pyarrow_type.register
-def _(_: DateType) -> pa.DataType:
-    # Date encoded as an int
-    return pa.date32()
+            if isinstance(partner_struct, pa.StructArray):
+                return partner_struct.field(name)
+            elif isinstance(partner_struct, pa.Table):
+                return partner_struct.column(name).combine_chunks()
 
+        return None
 
-@_iceberg_to_pyarrow_type.register
-def _(_: TimeType) -> pa.DataType:
-    return pa.time64("us")
+    def list_element_partner(self, partner_list: Optional[pa.Array]) -> Optional[pa.Array]:
+        return partner_list.values if isinstance(partner_list, pa.ListArray) else None
 
+    def map_key_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
+        return partner_map.keys if isinstance(partner_map, pa.MapArray) else None
 
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestampType) -> pa.DataType:
-    return pa.timestamp(unit="us")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: TimestamptzType) -> pa.DataType:
-    return pa.timestamp(unit="us", tz="+00:00")
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: StringType) -> pa.DataType:
-    return pa.string()
-
-
-@_iceberg_to_pyarrow_type.register
-def _(_: BinaryType) -> pa.DataType:
-    # Variable length by default
-    return pa.binary()
+    def map_value_partner(self, partner_map: Optional[pa.Array]) -> Optional[pa.Array]:
+        return partner_map.items if isinstance(partner_map, pa.MapArray) else None

@@ -26,10 +26,14 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.read.HasPartitionKey;
 import org.apache.spark.sql.connector.read.InputPartition;
 
-class SparkInputPartition implements InputPartition, Serializable {
+class SparkInputPartition implements InputPartition, HasPartitionKey, Serializable {
+  private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
   private final String expectedSchemaString;
@@ -39,11 +43,13 @@ class SparkInputPartition implements InputPartition, Serializable {
   private transient String[] preferredLocations = null;
 
   SparkInputPartition(
+      Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
       String expectedSchemaString,
       boolean caseSensitive,
       boolean localityPreferred) {
+    this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
     this.expectedSchemaString = expectedSchemaString;
@@ -61,9 +67,18 @@ class SparkInputPartition implements InputPartition, Serializable {
     return preferredLocations;
   }
 
+  @Override
+  public InternalRow partitionKey() {
+    return new StructInternalRow(groupingKeyType).setStruct(taskGroup.groupingKey());
+  }
+
   @SuppressWarnings("unchecked")
   public <T extends ScanTask> ScanTaskGroup<T> taskGroup() {
     return (ScanTaskGroup<T>) taskGroup;
+  }
+
+  public <T extends ScanTask> boolean allTasksOfType(Class<T> javaClass) {
+    return taskGroup.tasks().stream().allMatch(javaClass::isInstance);
   }
 
   public Table table() {

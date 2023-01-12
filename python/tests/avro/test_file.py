@@ -20,17 +20,17 @@ from pyiceberg.avro.codecs import DeflateCodec
 from pyiceberg.avro.file import AvroFileHeader
 
 
-def get_deflate_compressor():
+def get_deflate_compressor() -> None:
     header = AvroFileHeader(bytes(0), {"avro.codec": "deflate"}, bytes(16))
     assert header.compression_codec() == DeflateCodec
 
 
-def get_null_compressor():
+def get_null_compressor() -> None:
     header = AvroFileHeader(bytes(0), {"avro.codec": "null"}, bytes(16))
     assert header.compression_codec() is None
 
 
-def test_unknown_codec():
+def test_unknown_codec() -> None:
     header = AvroFileHeader(bytes(0), {"avro.codec": "unknown"}, bytes(16))
 
     with pytest.raises(ValueError) as exc_info:
@@ -39,7 +39,7 @@ def test_unknown_codec():
     assert "Unsupported codec: unknown" in str(exc_info.value)
 
 
-def test_missing_schema():
+def test_missing_schema() -> None:
     header = AvroFileHeader(bytes(0), {}, bytes(16))
 
     with pytest.raises(ValueError) as exc_info:

@@ -270,7 +270,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
           ImmutableMap.<String, String>builder()
               .putAll(metadata)
               .put(NAMESPACE_EXISTS_PROPERTY, "true")
-              .build();
+              .buildOrThrow();
     }
 
     insertProperties(namespace, createMetadata);
@@ -539,7 +539,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
             catalogName,
             namespaceName);
 
-    return ImmutableMap.<String, String>builder().putAll(entries).build();
+    return ImmutableMap.<String, String>builder().putAll(entries).buildOrThrow();
   }
 
   private boolean insertProperties(Namespace namespace, Map<String, String> properties) {
@@ -587,5 +587,10 @@ public class JdbcCatalog extends BaseMetastoreCatalog
             .toArray(String[]::new);
 
     return execute(JdbcUtil.deletePropertiesStatement(properties), args) > 0;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

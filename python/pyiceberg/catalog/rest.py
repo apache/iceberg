@@ -16,6 +16,7 @@
 #  under the License.
 from json import JSONDecodeError
 from typing import (
+    Any,
     Dict,
     List,
     Literal,
@@ -32,6 +33,7 @@ from pyiceberg import __version__
 from pyiceberg.catalog import (
     TOKEN,
     URI,
+    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -51,9 +53,9 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
     UnauthorizedError,
 )
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -172,7 +174,7 @@ class OAuthErrorResponse(IcebergBaseModel):
 class RestCatalog(Catalog):
     uri: str
     session: Session
-    properties: dict
+    properties: Properties
 
     def __init__(
         self,
@@ -198,9 +200,9 @@ class RestCatalog(Catalog):
         self.session = Session()
         # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
-            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):
+            if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
                 self.session.verify = ssl_ca_bundle
-            if ssl_client := ssl_config.get(CLIENT):
+            if ssl_client := ssl_config.get(CLIENT):  # type: ignore
                 if all(k in ssl_client for k in (CERT, KEY)):
                     self.session.cert = (ssl_client[CERT], ssl_client[KEY])
                 elif ssl_client_cert := ssl_client.get(CERT):
@@ -226,7 +228,7 @@ class RestCatalog(Catalog):
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
-    def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
+    def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
         """Constructs the endpoint
 
         Args:
@@ -263,7 +265,11 @@ class RestCatalog(Catalog):
         return TokenResponse(**response.json()).access_token
 
     def _fetch_config(self, properties: Properties) -> Properties:
-        response = self.session.get(self.url(Endpoints.get_config, prefixed=False))
+        params = {}
+        if warehouse_location := properties.get(WAREHOUSE_LOCATION):
+            params[WAREHOUSE_LOCATION] = warehouse_location
+
+        response = self.session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -286,7 +292,7 @@ class RestCatalog(Catalog):
             raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier_tuple}")
         return {"namespace": identifier_tuple[:-1], "name": identifier_tuple[-1]}
 
-    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
+    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]) -> None:
         exception: Type[Exception]
         code = exc.response.status_code
         if code in error_handler:
@@ -413,7 +419,7 @@ class RestCatalog(Catalog):
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier=identifier, purge_requested=True)
 
-    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]):
+    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         payload = {
             "source": self._split_identifier_for_json(from_identifier),
             "destination": self._split_identifier_for_json(to_identifier),
@@ -423,6 +429,8 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
+
+        return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)

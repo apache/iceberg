@@ -219,8 +219,8 @@ public class TestRowDataPartitionKey {
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 1994);
     List<RowData> rows = Lists.newArrayList(RandomRowData.convert(nestedSchema, records));
 
-    for (int i = 0; i < SUPPORTED_PRIMITIVES.size(); i++) {
-      String column = String.format("nested.%s", SUPPORTED_PRIMITIVES.get(i));
+    for (String supportedPrimitive : SUPPORTED_PRIMITIVES) {
+      String column = String.format("nested.%s", supportedPrimitive);
 
       PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity(column).build();
       Class<?>[] javaClasses = spec.javaClasses();

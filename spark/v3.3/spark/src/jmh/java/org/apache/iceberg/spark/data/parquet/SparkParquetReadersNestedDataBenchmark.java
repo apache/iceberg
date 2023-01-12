@@ -86,7 +86,7 @@ public class SparkParquetReadersNestedDataBenchmark {
   private static final Schema PROJECTED_SCHEMA =
       new Schema(
           optional(4, "nested", Types.StructType.of(required(1, "col1", Types.StringType.get()))));
-  private static final int NUM_RECORDS = 10000000;
+  private static final int NUM_RECORDS = 1000000;
   private File dataFile;
 
   @Setup
@@ -153,6 +153,7 @@ public class SparkParquetReadersNestedDataBenchmark {
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
             .set("spark.sql.caseSensitive", "false")
+            .set("spark.sql.parquet.fieldId.write.enabled", "false")
             .callInit()
             .build()) {
 

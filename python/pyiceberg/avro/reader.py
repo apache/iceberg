@@ -28,46 +28,24 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import date, datetime, time
+from datetime import datetime, time
 from decimal import Decimal
-from functools import singledispatch
 from typing import (
     Any,
     Callable,
+    Dict,
     List,
     Optional,
     Tuple,
-    Union,
 )
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.files import StructProtocol
-from pyiceberg.schema import Schema, SchemaVisitor
-from pyiceberg.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FixedType,
-    FloatType,
-    IntegerType,
-    ListType,
-    LongType,
-    MapType,
-    NestedField,
-    PrimitiveType,
-    StringType,
-    StructType,
-    TimestampType,
-    TimestamptzType,
-    TimeType,
-)
+from pyiceberg.typedef import Record, StructProtocol
 from pyiceberg.utils.singleton import Singleton
 
 
-def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
+def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:
     """Skips over an array or map
 
     Both the array and map are encoded similar, and we can re-use
@@ -101,17 +79,6 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
             for _ in range(block_count):
                 skip_entry()
         block_count = decoder.read_int()
-
-
-@dataclass(frozen=True)
-class AvroStruct(StructProtocol):
-    _data: List[Union[Any, StructProtocol]] = dataclassfield()
-
-    def set(self, pos: int, value: Any) -> None:
-        self._data[pos] = value
-
-    def get(self, pos: int) -> Any:
-        return self._data[pos]
 
 
 class Reader(Singleton):
@@ -167,8 +134,8 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> date:
-        return decoder.read_date_from_int()
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
@@ -208,10 +175,10 @@ class StringReader(Reader):
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
-        return UUID(decoder.read_utf8())
+        return decoder.read_uuid_from_fixed()
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        decoder.skip_utf8()
+        decoder.skip(16)
 
 
 @dataclass(frozen=True)
@@ -224,7 +191,7 @@ class FixedReader(Reader):
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip(len(self))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._len
 
 
@@ -271,30 +238,48 @@ class OptionReader(Reader):
             return self.option.skip(decoder)
 
 
-@dataclass(frozen=True)
-class StructReader(Reader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...] = dataclassfield()
+class StructProtocolReader(Reader):
+    create_struct: Callable[[], StructProtocol]
+    fields: Tuple[Tuple[Optional[int], Reader], ...]
 
-    def read(self, decoder: BinaryDecoder) -> AvroStruct:
-        result: List[Union[Any, StructProtocol]] = [None] * len(self.fields)
+    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Callable[[], StructProtocol]):
+        self.create_struct = create_struct
+        self.fields = fields
+
+    def create_or_reuse(self, reuse: Optional[StructProtocol]) -> StructProtocol:
+        if reuse:
+            return reuse
+        else:
+            return self.create_struct()
+
+    def read(self, decoder: BinaryDecoder) -> Any:
+        struct = self.create_or_reuse(None)
+
         for (pos, field) in self.fields:
             if pos is not None:
-                result[pos] = field.read(decoder)
+                struct.set(pos, field.read(decoder))  # later: pass reuse in here
             else:
                 field.skip(decoder)
 
-        return AvroStruct(result)
+        return struct
 
     def skip(self, decoder: BinaryDecoder) -> None:
         for _, field in self.fields:
             field.skip(decoder)
 
 
+class StructReader(StructProtocolReader):
+    fields: Tuple[Tuple[Optional[int], Reader], ...]
+
+    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...]):
+        super().__init__(fields, lambda: Record.of(len(fields)))
+
+
 @dataclass(frozen=True)
 class ListReader(Reader):
     element: Reader
 
-    def read(self, decoder: BinaryDecoder) -> list:
+    def read(self, decoder: BinaryDecoder) -> List[Any]:
         read_items = []
         block_count = decoder.read_int()
         while block_count != 0:
@@ -315,7 +300,7 @@ class MapReader(Reader):
     key: Reader
     value: Reader
 
-    def read(self, decoder: BinaryDecoder) -> dict:
+    def read(self, decoder: BinaryDecoder) -> Dict[Any, Any]:
         read_items = {}
         block_count = decoder.read_int()
         while block_count != 0:
@@ -331,102 +316,8 @@ class MapReader(Reader):
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        def skip():
+        def skip() -> None:
             self.key.skip(decoder)
             self.value.skip(decoder)
 
         _skip_map_array(decoder, skip)
-
-
-class ConstructReader(SchemaVisitor[Reader]):
-    def schema(self, schema: Schema, struct_result: Reader) -> Reader:
-        return struct_result
-
-    def struct(self, struct: StructType, field_results: List[Reader]) -> Reader:
-        return StructReader(tuple(enumerate(field_results)))
-
-    def field(self, field: NestedField, field_result: Reader) -> Reader:
-        return field_result if field.required else OptionReader(field_result)
-
-    def list(self, list_type: ListType, element_result: Reader) -> Reader:
-        element_reader = element_result if list_type.element_required else OptionReader(element_result)
-        return ListReader(element_reader)
-
-    def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
-        value_reader = value_result if map_type.value_required else OptionReader(value_result)
-        return MapReader(key_result, value_reader)
-
-    def primitive(self, primitive: PrimitiveType) -> Reader:
-        return primitive_reader(primitive)
-
-
-@singledispatch
-def primitive_reader(primitive: PrimitiveType) -> Reader:
-    raise ValueError(f"Unknown type: {primitive}")
-
-
-@primitive_reader.register
-def _(primitive: FixedType) -> Reader:
-    return FixedReader(len(primitive))
-
-
-@primitive_reader.register
-def _(primitive: DecimalType) -> Reader:
-    return DecimalReader(primitive.precision, primitive.scale)
-
-
-@primitive_reader.register
-def _(_: BooleanType) -> Reader:
-    return BooleanReader()
-
-
-@primitive_reader.register
-def _(_: IntegerType) -> Reader:
-    return IntegerReader()
-
-
-@primitive_reader.register
-def _(_: LongType) -> Reader:
-    # Ints and longs are encoded the same way in Python and
-    # also binary compatible in Avro
-    return IntegerReader()
-
-
-@primitive_reader.register
-def _(_: FloatType) -> Reader:
-    return FloatReader()
-
-
-@primitive_reader.register
-def _(_: DoubleType) -> Reader:
-    return DoubleReader()
-
-
-@primitive_reader.register
-def _(_: DateType) -> Reader:
-    return DateReader()
-
-
-@primitive_reader.register
-def _(_: TimeType) -> Reader:
-    return TimeReader()
-
-
-@primitive_reader.register
-def _(_: TimestampType) -> Reader:
-    return TimestampReader()
-
-
-@primitive_reader.register
-def _(_: TimestamptzType) -> Reader:
-    return TimestamptzReader()
-
-
-@primitive_reader.register
-def _(_: StringType) -> Reader:
-    return StringReader()
-
-
-@primitive_reader.register
-def _(_: BinaryType) -> Reader:
-    return BinaryReader()

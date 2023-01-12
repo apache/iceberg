@@ -16,24 +16,52 @@
 # under the License.
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from functools import cached_property
 from typing import (
+    TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
+    Generic,
+    Iterator,
     List,
     Optional,
     Tuple,
+    TypeVar,
 )
 
 from pydantic import Field
 
-from pyiceberg.expressions import AlwaysTrue, And, BooleanExpression
+from pyiceberg.expressions import (
+    AlwaysTrue,
+    And,
+    BooleanExpression,
+    visitors,
+)
+from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO
+from pyiceberg.io.pyarrow import project_table
+from pyiceberg.manifest import DataFile, ManifestFile, files
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
-from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
-from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
+from pyiceberg.typedef import (
+    EMPTY_DICT,
+    Identifier,
+    KeyDefaultDict,
+    Properties,
+    StructProtocol,
+)
+from pyiceberg.types import StructType
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
+    from duckdb import DuckDBPyConnection
 
 
 class Table:
@@ -42,13 +70,13 @@ class Table:
     metadata_location: str = Field()
     io: FileIO
 
-    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO):
+    def __init__(self, identifier: Identifier, metadata: TableMetadata, metadata_location: str, io: FileIO) -> None:
         self.identifier = identifier
         self.metadata = metadata
         self.metadata_location = metadata_location
         self.io = io
 
-    def refresh(self):
+    def refresh(self) -> Table:
         """Refresh the current table metadata"""
         raise NotImplementedError("To be implemented")
 
@@ -59,16 +87,14 @@ class Table:
     def scan(
         self,
         row_filter: Optional[BooleanExpression] = None,
-        partition_filter: Optional[BooleanExpression] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
-    ) -> TableScan:
-        return TableScan(
+    ) -> TableScan[Any]:
+        return DataScan(
             table=self,
             row_filter=row_filter or AlwaysTrue(),
-            partition_filter=partition_filter or AlwaysTrue(),
             selected_fields=selected_fields,
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
@@ -138,10 +164,12 @@ class Table:
         )
 
 
-class TableScan:
+S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
+
+
+class TableScan(Generic[S], ABC):
     table: Table
     row_filter: BooleanExpression
-    partition_filter: BooleanExpression
     selected_fields: Tuple[str]
     case_sensitive: bool
     snapshot_id: Optional[int]
@@ -151,7 +179,6 @@ class TableScan:
         self,
         table: Table,
         row_filter: Optional[BooleanExpression] = None,
-        partition_filter: Optional[BooleanExpression] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -159,7 +186,6 @@ class TableScan:
     ):
         self.table = table
         self.row_filter = row_filter or AlwaysTrue()
-        self.partition_filter = partition_filter or AlwaysTrue()
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -181,17 +207,23 @@ class TableScan:
 
         return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
 
-    def plan_files(self):
-        raise NotImplementedError("Not yet implemented")
+    @abstractmethod
+    def plan_files(self) -> Iterator[ScanTask]:
+        ...
 
-    def to_arrow(self):
-        raise NotImplementedError("Not yet implemented")
+    @abstractmethod
+    def to_arrow(self) -> pa.Table:
+        ...
 
-    def update(self, **overrides) -> TableScan:
+    @abstractmethod
+    def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
+        ...
+
+    def update(self: S, **overrides: Any) -> S:
         """Creates a copy of this table scan with updated fields."""
-        return TableScan(**{**self.__dict__, **overrides})
+        return type(self)(**{**self.__dict__, **overrides})
 
-    def use_ref(self, name: str):
+    def use_ref(self, name: str) -> S:
         if self.snapshot_id:
             raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
         if snapshot := self.table.snapshot_by_name(name):
@@ -199,16 +231,130 @@ class TableScan:
 
         raise ValueError(f"Cannot scan unknown ref={name}")
 
-    def select(self, *field_names: str) -> TableScan:
+    def select(self, *field_names: str) -> S:
         if "*" in self.selected_fields:
             return self.update(selected_fields=field_names)
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
-    def filter_rows(self, new_row_filter: BooleanExpression) -> TableScan:
+    def filter(self, new_row_filter: BooleanExpression) -> S:
         return self.update(row_filter=And(self.row_filter, new_row_filter))
 
-    def filter_partitions(self, new_partition_filter: BooleanExpression) -> TableScan:
-        return self.update(partition_filter=And(self.partition_filter, new_partition_filter))
-
-    def with_case_sensitive(self, case_sensitive: bool = True) -> TableScan:
+    def with_case_sensitive(self, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
+
+
+class ScanTask(ABC):
+    pass
+
+
+@dataclass(init=False)
+class FileScanTask(ScanTask):
+    file: DataFile
+    start: int
+    length: int
+
+    def __init__(self, data_file: DataFile, start: Optional[int] = None, length: Optional[int] = None):
+        self.file = data_file
+        self.start = start or 0
+        self.length = length or data_file.file_size_in_bytes
+
+
+class _DictAsStruct(StructProtocol):
+    pos_to_name: Dict[int, str]
+    wrapped: Dict[str, Any]
+
+    def __init__(self, partition_type: StructType):
+        self.pos_to_name = {pos: field.name for pos, field in enumerate(partition_type.fields)}
+
+    def wrap(self, to_wrap: Dict[str, Any]) -> _DictAsStruct:
+        self.wrapped = to_wrap
+        return self
+
+    def get(self, pos: int) -> Any:
+        return self.wrapped[self.pos_to_name[pos]]
+
+    def set(self, pos: int, value: Any) -> None:
+        raise NotImplementedError("Cannot set values in DictAsStruct")
+
+
+class DataScan(TableScan["DataScan"]):
+    def __init__(
+        self,
+        table: Table,
+        row_filter: Optional[BooleanExpression] = None,
+        selected_fields: Tuple[str] = ("*",),
+        case_sensitive: bool = True,
+        snapshot_id: Optional[int] = None,
+        options: Properties = EMPTY_DICT,
+    ):
+        super().__init__(table, row_filter, selected_fields, case_sensitive, snapshot_id, options)
+
+    def _build_partition_projection(self, spec_id: int) -> BooleanExpression:
+        project = inclusive_projection(self.table.schema(), self.table.specs()[spec_id])
+        return project(self.row_filter)
+
+    @cached_property
+    def partition_filters(self) -> KeyDefaultDict[int, BooleanExpression]:
+        return KeyDefaultDict(self._build_partition_projection)
+
+    def _build_manifest_evaluator(self, spec_id: int) -> Callable[[ManifestFile], bool]:
+        spec = self.table.specs()[spec_id]
+        return visitors.manifest_evaluator(spec, self.table.schema(), self.partition_filters[spec_id], self.case_sensitive)
+
+    def _build_partition_evaluator(self, spec_id: int) -> Callable[[DataFile], bool]:
+        spec = self.table.specs()[spec_id]
+        partition_type = spec.partition_type(self.table.schema())
+        partition_schema = Schema(*partition_type.fields)
+        partition_expr = self.partition_filters[spec_id]
+
+        # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
+        wrapper = _DictAsStruct(partition_type)
+        evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
+
+        return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
+
+    def plan_files(self) -> Iterator[FileScanTask]:
+        snapshot = self.snapshot()
+        if not snapshot:
+            return
+
+        io = self.table.io
+
+        # step 1: filter manifests using partition summaries
+        # the filter depends on the partition spec used to write the manifest file, so create a cache of filters for each spec id
+
+        manifest_evaluators: Dict[int, Callable[[ManifestFile], bool]] = KeyDefaultDict(self._build_manifest_evaluator)
+
+        manifests = [
+            manifest_file
+            for manifest_file in snapshot.manifests(io)
+            if manifest_evaluators[manifest_file.partition_spec_id](manifest_file)
+        ]
+
+        # step 2: filter the data files in each manifest
+        # this filter depends on the partition spec used to write the manifest file
+
+        partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
+
+        for manifest in manifests:
+            partition_filter = partition_evaluators[manifest.partition_spec_id]
+            all_files = files(io.new_input(manifest.manifest_path))
+            matching_partition_files = filter(partition_filter, all_files)
+
+            yield from (FileScanTask(file) for file in matching_partition_files)
+
+    def to_arrow(self) -> pa.Table:
+        return project_table(
+            self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
+        )
+
+    def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
+        return self.to_arrow().to_pandas(**kwargs)
+
+    def to_duckdb(self, table_name: str, connection: Optional[DuckDBPyConnection] = None) -> DuckDBPyConnection:
+        import duckdb
+
+        con = connection or duckdb.connect(database=":memory:")
+        con.register(table_name, self.to_arrow())
+
+        return con

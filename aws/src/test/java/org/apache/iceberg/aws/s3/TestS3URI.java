@@ -50,15 +50,6 @@ public class TestS3URI {
   }
 
   @Test
-  public void testEmptyPath() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing object key",
-        ValidationException.class,
-        "Invalid S3 URI, path is empty",
-        () -> new S3URI("https://bucket/"));
-  }
-
-  @Test
   public void testMissingScheme() {
     AssertHelpers.assertThrows(
         "Should not allow missing scheme",
@@ -68,12 +59,13 @@ public class TestS3URI {
   }
 
   @Test
-  public void testMissingBucket() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing bucket",
-        ValidationException.class,
-        "Invalid S3 URI, cannot determine bucket",
-        () -> new S3URI("https://bucket"));
+  public void testOnlyBucketNameLocation() {
+    String p1 = "s3://bucket";
+    S3URI url1 = new S3URI(p1);
+
+    assertEquals("bucket", url1.bucket());
+    assertEquals("", url1.key());
+    assertEquals(p1, url1.toString());
   }
 
   @Test

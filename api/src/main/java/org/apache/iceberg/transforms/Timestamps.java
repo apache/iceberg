@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
@@ -30,6 +28,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
 enum Timestamps implements Transform<Long, Integer> {
@@ -38,6 +37,7 @@ enum Timestamps implements Transform<Long, Integer> {
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
+  @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit granularity;
 
@@ -51,30 +51,24 @@ enum Timestamps implements Transform<Long, Integer> {
         return null;
       }
 
-      if (timestampMicros >= 0) {
-        OffsetDateTime timestamp =
-            Instant.ofEpochSecond(
-                    Math.floorDiv(timestampMicros, 1_000_000),
-                    Math.floorMod(timestampMicros, 1_000_000) * 1000)
-                .atOffset(ZoneOffset.UTC);
-        return (int) granularity.between(EPOCH, timestamp);
-      } else {
-        // add 1 micro to the value to account for the case where there is exactly 1 unit between
-        // the timestamp and epoch because the result will always be decremented.
-        OffsetDateTime timestamp =
-            Instant.ofEpochSecond(
-                    Math.floorDiv(timestampMicros, 1_000_000),
-                    Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
-                .atOffset(ZoneOffset.UTC);
-        return (int) granularity.between(EPOCH, timestamp) - 1;
+      switch (granularity) {
+        case YEARS:
+          return DateTimeUtil.microsToYears(timestampMicros);
+        case MONTHS:
+          return DateTimeUtil.microsToMonths(timestampMicros);
+        case DAYS:
+          return DateTimeUtil.microsToDays(timestampMicros);
+        case HOURS:
+          return DateTimeUtil.microsToHours(timestampMicros);
+        default:
+          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
       }
     }
   }
 
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private final ChronoUnit granularity;
   private final String name;
-  private final SerializableFunction<Long, Integer> apply;
+  private final Apply apply;
 
   Timestamps(ChronoUnit granularity, String name) {
     this.granularity = granularity;

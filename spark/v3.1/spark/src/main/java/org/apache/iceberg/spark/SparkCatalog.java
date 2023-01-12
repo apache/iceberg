@@ -32,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
@@ -485,6 +486,11 @@ public class SparkCatalog extends BaseCatalog {
             Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
     }
+
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
+    EnvironmentContext.put(
+        EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
+    EnvironmentContext.put(CatalogProperties.APP_ID, sparkSession.sparkContext().applicationId());
   }
 
   @Override

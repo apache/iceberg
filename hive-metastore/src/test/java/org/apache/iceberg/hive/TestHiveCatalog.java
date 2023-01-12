@@ -34,10 +34,14 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -153,18 +157,6 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testInitializeWithHiveProperties() {
-    HiveCatalog catalog = new HiveCatalog();
-    Map<String, String> props = Maps.newHashMap();
-    props.put(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname, "alias1");
-    props.put("non.forwarding.signature", "alias2");
-    catalog.initialize("hive", props);
-    Assertions.assertEquals(
-        "alias1", catalog.getConf().get(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname));
-    Assertions.assertNull(catalog.getConf().get("non.forwarding.signature"));
-  }
-
-  @Test
   public void testToStringWithoutSetConf() {
     Assertions.assertDoesNotThrow(
         () -> {
@@ -260,8 +252,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
     String location = temp.newFolder("tbl").toString();
     String owner = "some_owner";
-    ImmutableMap<String, String> properties =
-        ImmutableMap.of(TableProperties.HMS_TABLE_OWNER, owner);
+    ImmutableMap<String, String> properties = ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, owner);
 
     try {
       Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
@@ -269,7 +260,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           metastoreClient.getTable(DB_NAME, "tbl");
       Assert.assertEquals(owner, hmsTable.getOwner());
       Map<String, String> hmsTableParams = hmsTable.getParameters();
-      Assert.assertFalse(hmsTableParams.containsKey(TableProperties.HMS_TABLE_OWNER));
+      Assert.assertFalse(hmsTableParams.containsKey(HiveCatalog.HMS_TABLE_OWNER));
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -349,13 +340,91 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     ImmutableMap newMeta =
-        ImmutableMap.<String, String>builder().putAll(meta).put("location", hiveLocalDir).build();
+        ImmutableMap.<String, String>builder()
+            .putAll(meta)
+            .put("location", hiveLocalDir)
+            .buildOrThrow();
     Namespace namespace2 = Namespace.of("haveLocation");
 
     catalog.createNamespace(namespace2, newMeta);
     Database database2 = metastoreClient.getDatabase(namespace2.toString());
     Assert.assertEquals(
         "There no same location for db and namespace", database2.getLocationUri(), hiveLocalDir);
+  }
+
+  @Test
+  public void testCreateNamespaceWithOwnership() throws Exception {
+    createNamespaceAndVerifyOwnership(
+        "individual_ownership_1",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "apache",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.USER.name()),
+        "apache",
+        PrincipalType.USER);
+
+    createNamespaceAndVerifyOwnership(
+        "individual_ownership_2",
+        ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "someone"),
+        "someone",
+        PrincipalType.USER);
+
+    createNamespaceAndVerifyOwnership(
+        "group_ownership",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "iceberg",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        "iceberg",
+        PrincipalType.GROUP);
+
+    AssertHelpers.assertThrows(
+        String.format(
+            "Create namespace setting %s without setting %s is not allowed",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            createNamespaceAndVerifyOwnership(
+                "create_with_owner_type_alone",
+                ImmutableMap.of(HiveCatalog.HMS_DB_OWNER_TYPE, PrincipalType.USER.name()),
+                "no_post_create_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+
+    AssertHelpers.assertThrows(
+        "No enum constant " + PrincipalType.class.getCanonicalName(),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            createNamespaceAndVerifyOwnership(
+                "create_with_invalid_owner_type",
+                ImmutableMap.of(
+                    HiveCatalog.HMS_DB_OWNER, "iceberg",
+                    HiveCatalog.HMS_DB_OWNER_TYPE, "invalidOwnerType"),
+                "no_post_create_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+  }
+
+  private void createNamespaceAndVerifyOwnership(
+      String name, Map<String, String> prop, String expectedOwner, PrincipalType expectedOwnerType)
+      throws TException {
+    Namespace namespace = Namespace.of(name);
+
+    catalog.createNamespace(namespace, prop);
+    Database db = metastoreClient.getDatabase(namespace.toString());
+
+    Assert.assertEquals(expectedOwner, db.getOwnerName());
+    Assert.assertEquals(expectedOwnerType, db.getOwnerType());
   }
 
   @Test
@@ -427,6 +496,203 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
+  public void testSetNamespaceOwnership() throws TException {
+    setNamespaceOwnershipAndVerify(
+        "set_individual_ownership_on_default_owner",
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_individual_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.USER.name()),
+        System.getProperty("user.name"),
+        PrincipalType.USER,
+        "some_individual_owner",
+        PrincipalType.USER);
+
+    setNamespaceOwnershipAndVerify(
+        "set_group_ownership_on_default_owner",
+        ImmutableMap.of(),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        System.getProperty("user.name"),
+        PrincipalType.USER,
+        "some_group_owner",
+        PrincipalType.GROUP);
+
+    setNamespaceOwnershipAndVerify(
+        "change_individual_to_group_ownership",
+        ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        "some_owner",
+        PrincipalType.USER,
+        "some_group_owner",
+        PrincipalType.GROUP);
+
+    setNamespaceOwnershipAndVerify(
+        "change_group_to_individual_ownership",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_individual_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.USER.name()),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        "some_individual_owner",
+        PrincipalType.USER);
+
+    AssertHelpers.assertThrows(
+        String.format(
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            setNamespaceOwnershipAndVerify(
+                "set_owner_without_setting_owner_type",
+                ImmutableMap.of(),
+                ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_individual_owner"),
+                System.getProperty("user.name"),
+                PrincipalType.USER,
+                "no_post_setting_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+
+    AssertHelpers.assertThrows(
+        String.format(
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            setNamespaceOwnershipAndVerify(
+                "set_owner_type_without_setting_owner",
+                ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
+                ImmutableMap.of(HiveCatalog.HMS_DB_OWNER_TYPE, PrincipalType.GROUP.name()),
+                "some_owner",
+                PrincipalType.USER,
+                "no_post_setting_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+
+    AssertHelpers.assertThrows(
+        HiveCatalog.HMS_DB_OWNER_TYPE
+            + " has an invalid value of: "
+            + meta.get(HiveCatalog.HMS_DB_OWNER_TYPE)
+            + ". Acceptable values are: "
+            + Stream.of(PrincipalType.values()).map(Enum::name).collect(Collectors.joining(", ")),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            setNamespaceOwnershipAndVerify(
+                "set_invalid_owner_type",
+                ImmutableMap.of(),
+                ImmutableMap.of(
+                    HiveCatalog.HMS_DB_OWNER, "iceberg",
+                    HiveCatalog.HMS_DB_OWNER_TYPE, "invalidOwnerType"),
+                System.getProperty("user.name"),
+                PrincipalType.USER,
+                "no_post_setting_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+  }
+
+  @Test
+  public void testSetNamespaceOwnershipNoop() throws TException {
+    setNamespaceOwnershipAndVerify(
+        "set_ownership_noop_1",
+        ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_individual_owner"),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_individual_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.USER.name()),
+        "some_individual_owner",
+        PrincipalType.USER,
+        "some_individual_owner",
+        PrincipalType.USER);
+
+    setNamespaceOwnershipAndVerify(
+        "set_ownership_noop_2",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        "some_group_owner",
+        PrincipalType.GROUP);
+
+    setNamespaceOwnershipAndVerify(
+        "set_ownership_noop_3",
+        ImmutableMap.of(),
+        ImmutableMap.of(),
+        System.getProperty("user.name"),
+        PrincipalType.USER,
+        System.getProperty("user.name"),
+        PrincipalType.USER);
+
+    setNamespaceOwnershipAndVerify(
+        "set_ownership_noop_4",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableMap.of("unrelated_prop_1", "value_1", "unrelated_prop_2", "value_2"),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        "some_group_owner",
+        PrincipalType.GROUP);
+  }
+
+  private void setNamespaceOwnershipAndVerify(
+      String name,
+      Map<String, String> propToCreate,
+      Map<String, String> propToSet,
+      String expectedOwnerPostCreate,
+      PrincipalType expectedOwnerTypePostCreate,
+      String expectedOwnerPostSet,
+      PrincipalType expectedOwnerTypePostSet)
+      throws TException {
+    createNamespaceAndVerifyOwnership(
+        name, propToCreate, expectedOwnerPostCreate, expectedOwnerTypePostCreate);
+
+    catalog.setProperties(Namespace.of(name), propToSet);
+    Database database = metastoreClient.getDatabase(name);
+
+    Assert.assertEquals(expectedOwnerPostSet, database.getOwnerName());
+    Assert.assertEquals(expectedOwnerTypePostSet, database.getOwnerType());
+  }
+
+  @Test
   public void testRemoveNamespaceProperties() throws TException {
     Namespace namespace = Namespace.of("dbname_remove");
 
@@ -446,6 +712,139 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           catalog.removeProperties(
               Namespace.of("db2", "db2", "ns2"), ImmutableSet.of("comment", "owner"));
         });
+  }
+
+  @Test
+  public void testRemoveNamespaceOwnership() throws TException {
+    removeNamespaceOwnershipAndVerify(
+        "remove_individual_ownership",
+        ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
+        ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
+        "some_owner",
+        PrincipalType.USER,
+        System.getProperty("user.name"),
+        PrincipalType.USER);
+
+    removeNamespaceOwnershipAndVerify(
+        "remove_group_ownership",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        System.getProperty("user.name"),
+        PrincipalType.USER);
+
+    removeNamespaceOwnershipAndVerify(
+        "remove_ownership_on_default_noop_1",
+        ImmutableMap.of(),
+        ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
+        System.getProperty("user.name"),
+        PrincipalType.USER,
+        System.getProperty("user.name"),
+        PrincipalType.USER);
+
+    removeNamespaceOwnershipAndVerify(
+        "remove_ownership_on_default_noop_2",
+        ImmutableMap.of(),
+        ImmutableSet.of(),
+        System.getProperty("user.name"),
+        PrincipalType.USER,
+        System.getProperty("user.name"),
+        PrincipalType.USER);
+
+    removeNamespaceOwnershipAndVerify(
+        "remove_ownership_noop_1",
+        ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
+        ImmutableSet.of(),
+        "some_owner",
+        PrincipalType.USER,
+        "some_owner",
+        PrincipalType.USER);
+
+    removeNamespaceOwnershipAndVerify(
+        "remove_ownership_noop_2",
+        ImmutableMap.of(
+            HiveCatalog.HMS_DB_OWNER,
+            "some_group_owner",
+            HiveCatalog.HMS_DB_OWNER_TYPE,
+            PrincipalType.GROUP.name()),
+        ImmutableSet.of(),
+        "some_group_owner",
+        PrincipalType.GROUP,
+        "some_group_owner",
+        PrincipalType.GROUP);
+
+    AssertHelpers.assertThrows(
+        String.format(
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            removeNamespaceOwnershipAndVerify(
+                "remove_owner_without_removing_owner_type",
+                ImmutableMap.of(
+                    HiveCatalog.HMS_DB_OWNER,
+                    "some_individual_owner",
+                    HiveCatalog.HMS_DB_OWNER_TYPE,
+                    PrincipalType.USER.name()),
+                ImmutableSet.of(HiveCatalog.HMS_DB_OWNER),
+                "some_individual_owner",
+                PrincipalType.USER,
+                "no_post_remove_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+
+    AssertHelpers.assertThrows(
+        String.format(
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER),
+        IllegalArgumentException.class,
+        () -> {
+          try {
+            removeNamespaceOwnershipAndVerify(
+                "remove_owner_type_without_removing_owner",
+                ImmutableMap.of(
+                    HiveCatalog.HMS_DB_OWNER,
+                    "some_group_owner",
+                    HiveCatalog.HMS_DB_OWNER_TYPE,
+                    PrincipalType.GROUP.name()),
+                ImmutableSet.of(HiveCatalog.HMS_DB_OWNER_TYPE),
+                "some_group_owner",
+                PrincipalType.GROUP,
+                "no_post_remove_expectation_due_to_exception_thrown",
+                null);
+          } catch (TException e) {
+            throw new RuntimeException("Unexpected Exception", e);
+          }
+        });
+  }
+
+  private void removeNamespaceOwnershipAndVerify(
+      String name,
+      Map<String, String> propToCreate,
+      Set<String> propToRemove,
+      String expectedOwnerPostCreate,
+      PrincipalType expectedOwnerTypePostCreate,
+      String expectedOwnerPostRemove,
+      PrincipalType expectedOwnerTypePostRemove)
+      throws TException {
+    createNamespaceAndVerifyOwnership(
+        name, propToCreate, expectedOwnerPostCreate, expectedOwnerTypePostCreate);
+
+    catalog.removeProperties(Namespace.of(name), propToRemove);
+
+    Database database = metastoreClient.getDatabase(name);
+
+    Assert.assertEquals(expectedOwnerPostRemove, database.getOwnerName());
+    Assert.assertEquals(expectedOwnerTypePostRemove, database.getOwnerType());
   }
 
   @Test

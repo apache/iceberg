@@ -19,8 +19,6 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
-import java.sql.Date;
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -70,9 +68,13 @@ public class SparkValueConverter {
         return convertedMap;
 
       case DATE:
-        return DateTimeUtils.fromJavaDate((Date) object);
+        // if spark.sql.datetime.java8API.enabled is set to true, java.time.LocalDate
+        // for Spark SQL DATE type otherwise java.sql.Date is returned.
+        return DateTimeUtils.anyToDays(object);
       case TIMESTAMP:
-        return DateTimeUtils.fromJavaTimestamp((Timestamp) object);
+        // if spark.sql.datetime.java8API.enabled is set to true, java.time.Instant
+        // for Spark SQL TIMESTAMP type is returned otherwise java.sql.Timestamp is returned.
+        return DateTimeUtils.anyToMicros(object);
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:

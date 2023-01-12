@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
@@ -37,6 +36,8 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -46,7 +47,9 @@ import org.apache.spark.sql.types.StructType;
 
 class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
-  private final SparkSession spark;
+  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
+
+  private final JavaSparkContext sparkContext;
   private final Table table;
   private final IncrementalChangelogScan scan;
   private final SparkReadConf readConf;
@@ -70,7 +73,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
-    this.spark = spark;
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.scan = scan;
     this.readConf = readConf;
@@ -103,8 +106,14 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    return new SparkChangelogBatch(
-        spark, table, readConf, taskGroups(), expectedSchema, hashCode());
+    return new SparkBatch(
+        sparkContext,
+        table,
+        readConf,
+        EMPTY_GROUPING_KEY_TYPE,
+        taskGroups(),
+        expectedSchema,
+        hashCode());
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
@@ -123,18 +132,18 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public String description() {
     return String.format(
         "%s [fromSnapshotId=%d, toSnapshotId=%d, filters=%s]",
-        table, startSnapshotId, endSnapshotId, filtersAsString());
+        table, startSnapshotId, endSnapshotId, Spark3Util.describe(filters));
   }
 
   @Override
   public String toString() {
     return String.format(
         "IcebergChangelogScan(table=%s, type=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
-        table, expectedSchema.asStruct(), startSnapshotId, endSnapshotId, filtersAsString());
-  }
-
-  private String filtersAsString() {
-    return filters.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+        table,
+        expectedSchema.asStruct(),
+        startSnapshotId,
+        endSnapshotId,
+        Spark3Util.describe(filters));
   }
 
   @Override

@@ -60,7 +60,7 @@ public class FileMetadata {
     Builder(PartitionSpec spec) {
       this.spec = spec;
       this.specId = spec.specId();
-      this.isPartitioned = spec.fields().size() > 0;
+      this.isPartitioned = spec.isPartitioned();
       this.partitionData = isPartitioned ? DataFiles.newPartitionData(spec) : null;
     }
 
@@ -154,7 +154,9 @@ public class FileMetadata {
     }
 
     public Builder withPartition(StructLike newPartition) {
-      this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      if (isPartitioned) {
+        this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
+      }
       return this;
     }
 

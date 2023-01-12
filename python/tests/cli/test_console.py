@@ -29,10 +29,10 @@ from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
-from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 from tests.conftest import EXAMPLE_TABLE_METADATA_V2
@@ -134,19 +134,22 @@ MOCK_CATALOG = MockCatalog("production", uri="http://somewhere")
 MOCK_ENVIRONMENT = {"PYICEBERG_CATALOG__PRODUCTION__URI": "test://doesnotexist"}
 
 
-def test_missing_uri():
-    runner = CliRunner()
-    result = runner.invoke(run, ["list"])
-    assert result.exit_code == 1
-    assert (
-        result.output
-        == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
-    )
+def test_missing_uri(empty_home_dir_path: str) -> None:
+
+    # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
+    with mock.patch.dict(os.environ, {"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path}):
+        runner = CliRunner()
+        result = runner.invoke(run, ["list"])
+        assert result.exit_code == 1
+        assert (
+            result.output
+            == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
+        )
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_list_root(_):
+def test_list_root(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["list"])
     assert result.exit_code == 0
@@ -155,7 +158,7 @@ def test_list_root(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_list_namespace(_):
+def test_list_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["list", "default"])
     assert result.exit_code == 0
@@ -164,7 +167,7 @@ def test_list_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_namespace(_):
+def test_describe_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "default"])
     assert result.exit_code == 0
@@ -173,7 +176,7 @@ def test_describe_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_namespace_does_not_exists(_):
+def test_describe_namespace_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "doesnotexist"])
     assert result.exit_code == 1
@@ -182,7 +185,7 @@ def test_describe_namespace_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_table(_):
+def test_describe_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "default.foo"])
     assert result.exit_code == 0
@@ -218,7 +221,7 @@ Properties            read.split.target.size  134217728
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_describe_table_does_not_exists(_):
+def test_describe_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["describe", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -227,7 +230,7 @@ def test_describe_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_schema(_):
+def test_schema(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["schema", "default.foo"])
     assert result.exit_code == 0
@@ -242,7 +245,7 @@ z  long
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_schema_does_not_exists(_):
+def test_schema_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["schema", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -251,7 +254,7 @@ def test_schema_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_spec(_):
+def test_spec(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["spec", "default.foo"])
     assert result.exit_code == 0
@@ -266,7 +269,7 @@ def test_spec(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_spec_does_not_exists(_):
+def test_spec_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["spec", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -275,7 +278,7 @@ def test_spec_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_uuid(_):
+def test_uuid(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["uuid", "default.foo"])
     assert result.exit_code == 0
@@ -284,7 +287,7 @@ def test_uuid(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_uuid_does_not_exists(_):
+def test_uuid_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["uuid", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -293,7 +296,7 @@ def test_uuid_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_location(_):
+def test_location(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["location", "default.foo"])
     assert result.exit_code == 0
@@ -302,7 +305,7 @@ def test_location(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_location_does_not_exists(_):
+def test_location_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["location", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -311,7 +314,7 @@ def test_location_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_table(_):
+def test_drop_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["drop", "table", "default.foo"])
     assert result.exit_code == 0
@@ -320,7 +323,7 @@ def test_drop_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_table_does_not_exists(_):
+def test_drop_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["drop", "table", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -329,7 +332,7 @@ def test_drop_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_namespace(_):
+def test_drop_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["drop", "namespace", "default"])
     assert result.exit_code == 0
@@ -338,7 +341,7 @@ def test_drop_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_drop_namespace_does_not_exists(_):
+def test_drop_namespace_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["drop", "namespace", "doesnotexit"])
     assert result.exit_code == 1
@@ -347,7 +350,7 @@ def test_drop_namespace_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_rename_table(_):
+def test_rename_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["rename", "default.foo", "default.bar"])
     assert result.exit_code == 0
@@ -356,7 +359,7 @@ def test_rename_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_rename_table_does_not_exists(_):
+def test_rename_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["rename", "default.doesnotexit", "default.bar"])
     assert result.exit_code == 1
@@ -365,7 +368,7 @@ def test_rename_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table(_):
+def test_properties_get_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "table", "default.foo"])
     assert result.exit_code == 0
@@ -374,7 +377,7 @@ def test_properties_get_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_specific_property(_):
+def test_properties_get_table_specific_property(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 0
@@ -383,7 +386,7 @@ def test_properties_get_table_specific_property(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_specific_property_that_doesnt_exist(_):
+def test_properties_get_table_specific_property_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
@@ -392,7 +395,7 @@ def test_properties_get_table_specific_property_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_table_does_not_exist(_):
+def test_properties_get_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
@@ -401,7 +404,7 @@ def test_properties_get_table_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace(_):
+def test_properties_get_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "default"])
     assert result.exit_code == 0
@@ -410,7 +413,7 @@ def test_properties_get_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace_specific_property(_):
+def test_properties_get_namespace_specific_property(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
@@ -419,7 +422,7 @@ def test_properties_get_namespace_specific_property(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_get_namespace_does_not_exist(_):
+def test_properties_get_namespace_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "get", "namespace", "doesnotexist"])
     assert result.exit_code == 1
@@ -428,7 +431,7 @@ def test_properties_get_namespace_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_namespace(_):
+def test_properties_set_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "namespace", "default", "location", "s3://new_location"])
     assert result.exit_code == 0
@@ -437,7 +440,7 @@ def test_properties_set_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_namespace_that_doesnt_exist(_):
+def test_properties_set_namespace_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"])
     assert result.exit_code == 1
@@ -446,7 +449,7 @@ def test_properties_set_namespace_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_table(_):
+def test_properties_set_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "table", "default.foo", "location", "s3://new_location"])
     assert result.exit_code == 1
@@ -455,7 +458,7 @@ def test_properties_set_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_set_table_does_not_exist(_):
+def test_properties_set_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "set", "table", "default.doesnotexist", "location", "s3://new_location"])
     assert result.exit_code == 1
@@ -464,7 +467,7 @@ def test_properties_set_table_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_namespace(_):
+def test_properties_remove_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "namespace", "default", "location"])
     assert result.exit_code == 0
@@ -473,7 +476,7 @@ def test_properties_remove_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_namespace_that_doesnt_exist(_):
+def test_properties_remove_namespace_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
@@ -482,7 +485,7 @@ def test_properties_remove_namespace_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table(_):
+def test_properties_remove_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 1
@@ -491,7 +494,7 @@ def test_properties_remove_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table_property_does_not_exists(_):
+def test_properties_remove_table_property_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
@@ -500,7 +503,7 @@ def test_properties_remove_table_property_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_properties_remove_table_does_not_exist(_):
+def test_properties_remove_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["properties", "remove", "table", "default.doesnotexist", "location"])
     assert result.exit_code == 1
@@ -509,7 +512,7 @@ def test_properties_remove_table_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_list_root(_):
+def test_json_list_root(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "list"])
     assert result.exit_code == 0
@@ -518,7 +521,7 @@ def test_json_list_root(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_list_namespace(_):
+def test_json_list_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "list", "default"])
     assert result.exit_code == 0
@@ -527,7 +530,7 @@ def test_json_list_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_namespace(_):
+def test_json_describe_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "default"])
     assert result.exit_code == 0
@@ -536,7 +539,7 @@ def test_json_describe_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_namespace_does_not_exists(_):
+def test_json_describe_namespace_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "doesnotexist"])
     assert result.exit_code == 1
@@ -545,7 +548,7 @@ def test_json_describe_namespace_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_table(_):
+def test_json_describe_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "default.foo"])
     assert result.exit_code == 0
@@ -557,7 +560,7 @@ def test_json_describe_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_describe_table_does_not_exists(_):
+def test_json_describe_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "describe", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -568,7 +571,7 @@ def test_json_describe_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_schema(_):
+def test_json_schema(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "schema", "default.foo"])
     assert result.exit_code == 0
@@ -580,7 +583,7 @@ def test_json_schema(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_schema_does_not_exists(_):
+def test_json_schema_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "schema", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -589,7 +592,7 @@ def test_json_schema_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_spec(_):
+def test_json_spec(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "spec", "default.foo"])
     assert result.exit_code == 0
@@ -601,7 +604,7 @@ def test_json_spec(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_spec_does_not_exists(_):
+def test_json_spec_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "spec", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -610,7 +613,7 @@ def test_json_spec_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_uuid(_):
+def test_json_uuid(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "uuid", "default.foo"])
     assert result.exit_code == 0
@@ -619,7 +622,7 @@ def test_json_uuid(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_uuid_does_not_exists(_):
+def test_json_uuid_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "uuid", "default.doesnotexit"])
     assert result.exit_code == 1
@@ -628,7 +631,7 @@ def test_json_uuid_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_location(_):
+def test_json_location(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "location", "default.foo"])
     assert result.exit_code == 0
@@ -637,7 +640,7 @@ def test_json_location(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_location_does_not_exists(_):
+def test_json_location_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "location", "default.doesnotexist"])
     assert result.exit_code == 1
@@ -646,7 +649,7 @@ def test_json_location_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_table(_):
+def test_json_drop_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "table", "default.foo"])
     assert result.exit_code == 0
@@ -655,7 +658,7 @@ def test_json_drop_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_table_does_not_exists(_):
+def test_json_drop_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "table", "default.doesnotexist"])
     assert result.exit_code == 1
@@ -664,7 +667,7 @@ def test_json_drop_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_namespace(_):
+def test_json_drop_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "namespace", "default"])
     assert result.exit_code == 0
@@ -673,7 +676,7 @@ def test_json_drop_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_drop_namespace_does_not_exists(_):
+def test_json_drop_namespace_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "drop", "namespace", "doesnotexist"])
     assert result.exit_code == 1
@@ -682,7 +685,7 @@ def test_json_drop_namespace_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_rename_table(_):
+def test_json_rename_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "rename", "default.foo", "default.bar"])
     assert result.exit_code == 0
@@ -691,7 +694,7 @@ def test_json_rename_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_rename_table_does_not_exists(_):
+def test_json_rename_table_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "rename", "default.doesnotexit", "default.bar"])
     assert result.exit_code == 1
@@ -700,7 +703,7 @@ def test_json_rename_table_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table(_):
+def test_json_properties_get_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo"])
     assert result.exit_code == 0
@@ -709,7 +712,7 @@ def test_json_properties_get_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_specific_property(_):
+def test_json_properties_get_table_specific_property(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 0
@@ -718,7 +721,7 @@ def test_json_properties_get_table_specific_property(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_specific_property_that_doesnt_exist(_):
+def test_json_properties_get_table_specific_property_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
@@ -730,7 +733,7 @@ def test_json_properties_get_table_specific_property_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_table_does_not_exist(_):
+def test_json_properties_get_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "table", "doesnotexist"])
     assert result.exit_code == 1
@@ -739,7 +742,7 @@ def test_json_properties_get_table_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace(_):
+def test_json_properties_get_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default"])
     assert result.exit_code == 0
@@ -748,7 +751,7 @@ def test_json_properties_get_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace_specific_property(_):
+def test_json_properties_get_namespace_specific_property(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "default", "location"])
     assert result.exit_code == 0
@@ -757,7 +760,7 @@ def test_json_properties_get_namespace_specific_property(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_get_namespace_does_not_exist(_):
+def test_json_properties_get_namespace_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "get", "namespace", "doesnotexist"])
     assert result.exit_code == 1
@@ -766,7 +769,7 @@ def test_json_properties_get_namespace_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_namespace(_):
+def test_json_properties_set_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "set", "namespace", "default", "location", "s3://new_location"])
     assert result.exit_code == 0
@@ -775,7 +778,7 @@ def test_json_properties_set_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_namespace_that_doesnt_exist(_):
+def test_json_properties_set_namespace_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(
         run, ["--output=json", "properties", "set", "namespace", "doesnotexist", "location", "s3://new_location"]
@@ -786,7 +789,7 @@ def test_json_properties_set_namespace_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_table(_):
+def test_json_properties_set_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "set", "table", "default.foo", "location", "s3://new_location"])
     assert result.exit_code == 1
@@ -795,7 +798,7 @@ def test_json_properties_set_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_set_table_does_not_exist(_):
+def test_json_properties_set_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(
         run, ["--output=json", "properties", "set", "table", "default.doesnotexist", "location", "s3://new_location"]
@@ -806,7 +809,7 @@ def test_json_properties_set_table_does_not_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_namespace(_):
+def test_json_properties_remove_namespace(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "namespace", "default", "location"])
     assert result.exit_code == 0
@@ -815,7 +818,7 @@ def test_json_properties_remove_namespace(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_namespace_that_doesnt_exist(_):
+def test_json_properties_remove_namespace_that_doesnt_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "namespace", "doesnotexist", "location"])
     assert result.exit_code == 1
@@ -824,7 +827,7 @@ def test_json_properties_remove_namespace_that_doesnt_exist(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table(_):
+def test_json_properties_remove_table(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.foo", "read.split.target.size"])
     assert result.exit_code == 1
@@ -833,7 +836,7 @@ def test_json_properties_remove_table(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table_property_does_not_exists(_):
+def test_json_properties_remove_table_property_does_not_exists(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.foo", "doesnotexist"])
     assert result.exit_code == 1
@@ -845,7 +848,7 @@ def test_json_properties_remove_table_property_does_not_exists(_):
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
 @mock.patch("pyiceberg.cli.console.load_catalog", return_value=MOCK_CATALOG)
-def test_json_properties_remove_table_does_not_exist(_):
+def test_json_properties_remove_table_does_not_exist(_: MockCatalog) -> None:
     runner = CliRunner()
     result = runner.invoke(run, ["--output=json", "properties", "remove", "table", "default.doesnotexist", "location"])
     assert result.exit_code == 1

@@ -41,7 +41,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      throw new UnsupportedOperationException("Not implemented");
+      metadataBuilder.assignUUID(uuid);
     }
   }
 

@@ -14,24 +14,56 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=protected-access,unused-argument
+# pylint: disable=protected-access,unused-argument,redefined-outer-name
 
 import os
 import tempfile
+from typing import Any, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import FileType
 
+from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.expressions import (
+    AlwaysFalse,
+    AlwaysTrue,
+    And,
+    BooleanExpression,
+    BoundEqualTo,
+    BoundGreaterThan,
+    BoundGreaterThanOrEqual,
+    BoundIn,
+    BoundIsNaN,
+    BoundIsNull,
+    BoundLessThan,
+    BoundLessThanOrEqual,
+    BoundNotEqualTo,
+    BoundNotIn,
+    BoundNotNaN,
+    BoundNotNull,
+    BoundReference,
+    GreaterThan,
+    Not,
+    Or,
+    literal,
+)
 from pyiceberg.io import InputStream, OutputStream
 from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    expression_to_pyarrow,
+    project_table,
     schema_to_pyarrow,
 )
+from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
+from pyiceberg.table import FileScanTask, Table
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -44,14 +76,16 @@ from pyiceberg.types import (
     ListType,
     LongType,
     MapType,
+    NestedField,
     StringType,
+    StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
 )
 
 
-def test_pyarrow_input_file():
+def test_pyarrow_input_file() -> None:
     """Test reading a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -67,14 +101,44 @@ def test_pyarrow_input_file():
         input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
-        f = input_file.open()
-        assert isinstance(f, InputStream)  # Test that the file object abides by the InputStream protocol
-        data = f.read()
+        r = input_file.open(seekable=False)
+        assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        with pytest.raises(OSError) as exc_info:
+            r.seek(0, 0)
+        assert "only valid on seekable files" in str(exc_info.value)
+
+
+def test_pyarrow_input_file_seekable() -> None:
+    """Test reading a file using PyArrowFile"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Instantiate the input file
+        absolute_file_location = os.path.abspath(file_location)
+        input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
+
+        # Test opening and reading the file
+        r = input_file.open(seekable=True)
+        assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        r.seek(0, 0)
+        data = r.read()
         assert data == b"foo"
         assert len(input_file) == 3
 
 
-def test_pyarrow_output_file():
+def test_pyarrow_output_file() -> None:
     """Test writing a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -96,21 +160,21 @@ def test_pyarrow_output_file():
         assert len(output_file) == 3
 
 
-def test_pyarrow_invalid_scheme():
+def test_pyarrow_invalid_scheme() -> None:
     """Test that a ValueError is raised if a location is provided with an invalid scheme"""
 
     with pytest.raises(ValueError) as exc_info:
         PyArrowFileIO().new_input("foo://bar/baz.txt")
 
-    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
+    assert "Unrecognized filesystem type in URI" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         PyArrowFileIO().new_output("foo://bar/baz.txt")
 
-    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
+    assert "Unrecognized filesystem type in URI" in str(exc_info.value)
 
 
-def test_pyarrow_violating_input_stream_protocol():
+def test_pyarrow_violating_input_stream_protocol() -> None:
     """Test that a TypeError is raised if an input file is provided that violates the InputStream protocol"""
 
     # Missing seek, tell, closed, and close
@@ -126,7 +190,7 @@ def test_pyarrow_violating_input_stream_protocol():
     assert not isinstance(f, InputStream)
 
 
-def test_pyarrow_violating_output_stream_protocol():
+def test_pyarrow_violating_output_stream_protocol() -> None:
     """Test that a TypeError is raised if an output stream is provided that violates the OutputStream protocol"""
 
     # Missing closed, and close
@@ -148,7 +212,7 @@ def test_pyarrow_violating_output_stream_protocol():
     assert not isinstance(f, OutputStream)
 
 
-def test_raise_on_opening_a_local_file_not_found():
+def test_raise_on_opening_a_local_file_not_found() -> None:
     """Test that a PyArrowFile raises appropriately when a local file is not found"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -161,63 +225,7 @@ def test_raise_on_opening_a_local_file_not_found():
         assert "[Errno 2] Failed to open local file" in str(exc_info.value)
 
 
-def test_raise_on_opening_a_local_file_no_permission():
-    """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.open()
-
-        assert "[Errno 13] Failed to open local file" in str(exc_info.value)
-
-
-def test_raise_on_checking_if_local_file_exists_no_permission():
-    """Test that a PyArrowFile raises when checking for existence on a file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_creating_a_local_file_no_permission():
-    """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_delete_file_with_no_permission():
-    """Test that a PyArrowFile raises when deleting a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        file_io = PyArrowFileIO()
-
-        with pytest.raises(PermissionError) as exc_info:
-            file_io.delete(file_location)
-
-        assert "Cannot delete file" in str(exc_info.value)
-
-
-def test_raise_on_opening_an_s3_file_no_permission():
+def test_raise_on_opening_an_s3_file_no_permission() -> None:
     """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -231,7 +239,7 @@ def test_raise_on_opening_an_s3_file_no_permission():
     assert "Cannot open file, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_opening_an_s3_file_not_found():
+def test_raise_on_opening_an_s3_file_not_found() -> None:
     """Test that a PyArrowFile raises a FileNotFoundError when the pyarrow error includes 'Path does not exist'"""
 
     s3fs_mock = MagicMock()
@@ -246,7 +254,7 @@ def test_raise_on_opening_an_s3_file_not_found():
 
 
 @patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-def test_raise_on_creating_an_s3_file_no_permission(_):
+def test_raise_on_creating_an_s3_file_no_permission(_: Any) -> None:
     """Test that creating a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -260,7 +268,7 @@ def test_raise_on_creating_an_s3_file_no_permission(_):
     assert "Cannot create file, access denied:" in str(exc_info.value)
 
 
-def test_deleting_s3_file_no_permission():
+def test_deleting_s3_file_no_permission() -> None:
     """Test that a PyArrowFile raises a PermissionError when the pyarrow OSError includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -275,7 +283,7 @@ def test_deleting_s3_file_no_permission():
     assert "Cannot delete file, access denied:" in str(exc_info.value)
 
 
-def test_deleting_s3_file_not_found():
+def test_deleting_s3_file_not_found() -> None:
     """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
@@ -290,7 +298,7 @@ def test_deleting_s3_file_not_found():
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
 
 
-def test_schema_to_pyarrow_schema(table_schema_nested: Schema):
+def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
 bar: int32 not null
@@ -314,75 +322,75 @@ person: struct<name: string, age: int32 not null>
     assert repr(actual) == expected
 
 
-def test_fixed_type_to_pyarrow():
+def test_fixed_type_to_pyarrow() -> None:
     length = 22
     iceberg_type = FixedType(length)
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary(length)
 
 
-def test_decimal_type_to_pyarrow():
+def test_decimal_type_to_pyarrow() -> None:
     precision = 25
     scale = 19
     iceberg_type = DecimalType(precision, scale)
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.decimal128(precision, scale)
 
 
-def test_boolean_type_to_pyarrow():
+def test_boolean_type_to_pyarrow() -> None:
     iceberg_type = BooleanType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.bool_()
 
 
-def test_integer_type_to_pyarrow():
+def test_integer_type_to_pyarrow() -> None:
     iceberg_type = IntegerType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int32()
 
 
-def test_long_type_to_pyarrow():
+def test_long_type_to_pyarrow() -> None:
     iceberg_type = LongType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.int64()
 
 
-def test_float_type_to_pyarrow():
+def test_float_type_to_pyarrow() -> None:
     iceberg_type = FloatType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float32()
 
 
-def test_double_type_to_pyarrow():
+def test_double_type_to_pyarrow() -> None:
     iceberg_type = DoubleType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.float64()
 
 
-def test_date_type_to_pyarrow():
+def test_date_type_to_pyarrow() -> None:
     iceberg_type = DateType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.date32()
 
 
-def test_time_type_to_pyarrow():
+def test_time_type_to_pyarrow() -> None:
     iceberg_type = TimeType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.time64("us")
 
 
-def test_timestamp_type_to_pyarrow():
+def test_timestamp_type_to_pyarrow() -> None:
     iceberg_type = TimestampType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us")
 
 
-def test_timestamptz_type_to_pyarrow():
+def test_timestamptz_type_to_pyarrow() -> None:
     iceberg_type = TimestamptzType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="+00:00")
 
 
-def test_string_type_to_pyarrow():
+def test_string_type_to_pyarrow() -> None:
     iceberg_type = StringType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.string()
 
 
-def test_binary_type_to_pyarrow():
+def test_binary_type_to_pyarrow() -> None:
     iceberg_type = BinaryType()
     assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.binary()
 
 
-def test_struct_type_to_pyarrow(table_schema_simple: Schema):
+def test_struct_type_to_pyarrow(table_schema_simple: Schema) -> None:
     expected = pa.struct(
         [
             pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
@@ -393,7 +401,7 @@ def test_struct_type_to_pyarrow(table_schema_simple: Schema):
     assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
 
 
-def test_map_type_to_pyarrow():
+def test_map_type_to_pyarrow() -> None:
     iceberg_map = MapType(
         key_id=1,
         key_type=IntegerType(),
@@ -404,10 +412,705 @@ def test_map_type_to_pyarrow():
     assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(pa.int32(), pa.string())
 
 
-def test_list_type_to_pyarrow():
+def test_list_type_to_pyarrow() -> None:
     iceberg_map = ListType(
         element_id=1,
         element_type=IntegerType(),
         element_required=True,
     )
     assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(pa.int32())
+
+
+@pytest.fixture
+def bound_reference(table_schema_simple: Schema) -> BoundReference[str]:
+    return BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1))
+
+
+@pytest.fixture
+def bound_double_reference() -> BoundReference[float]:
+    schema = Schema(
+        NestedField(field_id=1, name="foo", field_type=DoubleType(), required=False),
+        schema_id=1,
+        identifier_field_ids=[2],
+    )
+    return BoundReference(schema.find_field(1), schema.accessor_for_field(1))
+
+
+def test_expr_is_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundIsNull(bound_reference)))
+        == "<pyarrow.compute.Expression is_null(foo, {nan_is_null=false})>"
+    )
+
+
+def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert repr(expression_to_pyarrow(BoundNotNull(bound_reference))) == "<pyarrow.compute.Expression is_valid(foo)>"
+
+
+def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
+        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
+    )
+
+
+def test_expr_not_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
+        == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
+    )
+
+
+def test_expr_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundEqualTo(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo == "hello")>'
+    )
+
+
+def test_expr_not_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundNotEqualTo(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo != "hello")>'
+    )
+
+
+def test_expr_greater_than_or_equal_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundGreaterThanOrEqual(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo >= "hello")>'
+    )
+
+
+def test_expr_greater_than_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundGreaterThan(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo > "hello")>'
+    )
+
+
+def test_expr_less_than_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundLessThan(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo < "hello")>'
+    )
+
+
+def test_expr_less_than_or_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundLessThanOrEqual(bound_reference, literal("hello"))))
+        == '<pyarrow.compute.Expression (foo <= "hello")>'
+    )
+
+
+def test_expr_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert repr(expression_to_pyarrow(BoundIn(bound_reference, {literal("hello"), literal("world")}))) in (
+        """<pyarrow.compute.Expression is_in(foo, {value_set=string:[
+  "world",
+  "hello"
+], skip_nulls=false})>""",
+        """<pyarrow.compute.Expression is_in(foo, {value_set=string:[
+  "hello",
+  "world"
+], skip_nulls=false})>""",
+    )
+
+
+def test_expr_not_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert repr(expression_to_pyarrow(BoundNotIn(bound_reference, {literal("hello"), literal("world")}))) in (
+        """<pyarrow.compute.Expression invert(is_in(foo, {value_set=string:[
+  "world",
+  "hello"
+], skip_nulls=false}))>""",
+        """<pyarrow.compute.Expression invert(is_in(foo, {value_set=string:[
+  "hello",
+  "world"
+], skip_nulls=false}))>""",
+    )
+
+
+def test_and_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(And(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
+        == '<pyarrow.compute.Expression ((foo == "hello") and is_null(foo, {nan_is_null=false}))>'
+    )
+
+
+def test_or_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(Or(BoundEqualTo(bound_reference, literal("hello")), BoundIsNull(bound_reference))))
+        == '<pyarrow.compute.Expression ((foo == "hello") or is_null(foo, {nan_is_null=false}))>'
+    )
+
+
+def test_not_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(Not(BoundEqualTo(bound_reference, literal("hello")))))
+        == '<pyarrow.compute.Expression invert((foo == "hello"))>'
+    )
+
+
+def test_always_true_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert repr(expression_to_pyarrow(AlwaysTrue())) == "<pyarrow.compute.Expression true>"
+
+
+def test_always_false_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert repr(expression_to_pyarrow(AlwaysFalse())) == "<pyarrow.compute.Expression false>"
+
+
+@pytest.fixture
+def schema_int() -> Schema:
+    return Schema(NestedField(1, "id", IntegerType(), required=False))
+
+
+@pytest.fixture
+def schema_int_str() -> Schema:
+    return Schema(NestedField(1, "id", IntegerType(), required=False), NestedField(2, "data", StringType(), required=False))
+
+
+@pytest.fixture
+def schema_str() -> Schema:
+    return Schema(NestedField(2, "data", StringType(), required=False))
+
+
+@pytest.fixture
+def schema_long() -> Schema:
+    return Schema(NestedField(3, "id", LongType(), required=False))
+
+
+@pytest.fixture
+def schema_struct() -> Schema:
+    return Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType()),
+                NestedField(42, "long", DoubleType()),
+            ),
+        )
+    )
+
+
+@pytest.fixture
+def schema_list() -> Schema:
+    return Schema(
+        NestedField(5, "ids", ListType(51, IntegerType(), element_required=False), required=False),
+    )
+
+
+@pytest.fixture
+def schema_list_of_structs() -> Schema:
+    return Schema(
+        NestedField(
+            5,
+            "locations",
+            ListType(
+                51,
+                StructType(NestedField(511, "lat", DoubleType()), NestedField(512, "long", DoubleType())),
+                element_required=False,
+            ),
+            required=False,
+        ),
+    )
+
+
+@pytest.fixture
+def schema_map() -> Schema:
+    return Schema(
+        NestedField(
+            5,
+            "properties",
+            MapType(
+                key_id=51,
+                key_type=StringType(),
+                value_id=52,
+                value_type=StringType(),
+                value_required=True,
+            ),
+            required=False,
+        ),
+    )
+
+
+def _write_table_to_file(filepath: str, schema: pa.Schema, table: pa.Table) -> str:
+    with pq.ParquetWriter(filepath, schema) as writer:
+        writer.write_table(table)
+    return filepath
+
+
+@pytest.fixture
+def file_int(schema_int: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int), metadata={"iceberg.schema": schema_int.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/a.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
+    )
+
+
+@pytest.fixture
+def file_int_str(schema_int_str: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_int_str), metadata={"iceberg.schema": schema_int_str.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/a.parquet",
+        pyarrow_schema,
+        pa.Table.from_arrays([pa.array([0, 1, 2]), pa.array(["0", "1", "2"])], schema=pyarrow_schema),
+    )
+
+
+@pytest.fixture
+def file_string(schema_str: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_str), metadata={"iceberg.schema": schema_str.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/b.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array(["0", "1", "2"])], schema=pyarrow_schema)
+    )
+
+
+@pytest.fixture
+def file_long(schema_long: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_long), metadata={"iceberg.schema": schema_long.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/c.parquet", pyarrow_schema, pa.Table.from_arrays([pa.array([0, 1, 2])], schema=pyarrow_schema)
+    )
+
+
+@pytest.fixture
+def file_struct(schema_struct: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_struct), metadata={"iceberg.schema": schema_struct.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/d.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"location": {"lat": 52.371807, "long": 4.896029}},
+                {"location": {"lat": 52.387386, "long": 4.646219}},
+                {"location": {"lat": 52.078663, "long": 4.288788}},
+            ],
+            schema=pyarrow_schema,
+        ),
+    )
+
+
+@pytest.fixture
+def file_list(schema_list: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_list), metadata={"iceberg.schema": schema_list.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"ids": list(range(1, 10))},
+                {"ids": list(range(2, 20))},
+                {"ids": list(range(3, 30))},
+            ],
+            schema=pyarrow_schema,
+        ),
+    )
+
+
+@pytest.fixture
+def file_list_of_structs(schema_list_of_structs: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(
+        schema_to_pyarrow(schema_list_of_structs), metadata={"iceberg.schema": schema_list_of_structs.json()}
+    )
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"locations": [{"lat": 52.371807, "long": 4.896029}, {"lat": 52.387386, "long": 4.646219}]},
+                {"locations": []},
+                {"locations": [{"lat": 52.078663, "long": 4.288788}, {"lat": 52.387386, "long": 4.646219}]},
+            ],
+            schema=pyarrow_schema,
+        ),
+    )
+
+
+@pytest.fixture
+def file_map(schema_map: Schema, tmpdir: str) -> str:
+    pyarrow_schema = pa.schema(schema_to_pyarrow(schema_map), metadata={"iceberg.schema": schema_map.json()})
+    return _write_table_to_file(
+        f"file:{tmpdir}/e.parquet",
+        pyarrow_schema,
+        pa.Table.from_pylist(
+            [
+                {"properties": [("a", "b")]},
+                {"properties": [("c", "d")]},
+                {"properties": [("e", "f"), ("g", "h")]},
+            ],
+            schema=pyarrow_schema,
+        ),
+    )
+
+
+def project(
+    schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None, table_schema: Optional[Schema] = None
+) -> pa.Table:
+    return project_table(
+        [
+            FileScanTask(
+                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+            )
+            for file in files
+        ],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location="file://a/b/",
+                last_column_id=1,
+                format_version=2,
+                schemas=[table_schema or schema],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location="file://a/b/c.json",
+            io=PyArrowFileIO(),
+        ),
+        expr or AlwaysTrue(),
+        schema,
+        case_sensitive=True,
+    )
+
+
+def test_projection_add_column(file_int: str) -> None:
+    schema = Schema(
+        # All new IDs
+        NestedField(10, "id", IntegerType(), required=False),
+        NestedField(20, "list", ListType(21, IntegerType(), element_required=False), required=False),
+        NestedField(
+            30,
+            "map",
+            MapType(key_id=31, key_type=IntegerType(), value_id=32, value_type=StringType(), value_required=False),
+            required=False,
+        ),
+        NestedField(
+            40,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType(), required=False), NestedField(42, "lon", DoubleType(), required=False)
+            ),
+            required=False,
+        ),
+    )
+    result_table = project(schema, [file_int])
+
+    for col in result_table.columns:
+        assert len(col) == 3
+
+    for actual, expected in zip(result_table.columns[0], [None, None, None]):
+        assert actual.as_py() == expected
+
+    for actual, expected in zip(result_table.columns[1], [None, None, None]):
+        assert actual.as_py() == expected
+
+    for actual, expected in zip(result_table.columns[2], [None, None, None]):
+        assert actual.as_py() == expected
+
+    for actual, expected in zip(result_table.columns[3], [None, None, None]):
+        assert actual.as_py() == expected
+
+    assert (
+        repr(result_table.schema)
+        == """id: int32
+list: list<item: int32>
+  child 0, item: int32
+map: map<int32, string>
+  child 0, entries: struct<key: int32 not null, value: string> not null
+      child 0, key: int32 not null
+      child 1, value: string
+location: struct<lat: double, lon: double>
+  child 0, lat: double
+  child 1, lon: double"""
+    )
+
+
+def test_read_list(schema_list: Schema, file_list: str) -> None:
+    result_table = project(schema_list, [file_list])
+
+    assert len(result_table.columns[0]) == 3
+    for actual, expected in zip(result_table.columns[0], [list(range(1, 10)), list(range(2, 20)), list(range(3, 30))]):
+        assert actual.as_py() == expected
+
+    assert repr(result_table.schema) == "ids: list<item: int32>\n  child 0, item: int32"
+
+
+def test_read_map(schema_map: Schema, file_map: str) -> None:
+    result_table = project(schema_map, [file_map])
+
+    assert len(result_table.columns[0]) == 3
+    for actual, expected in zip(result_table.columns[0], [[("a", "b")], [("c", "d")], [("e", "f"), ("g", "h")]]):
+        assert actual.as_py() == expected
+
+    assert (
+        repr(result_table.schema)
+        == """properties: map<string, string>
+  child 0, entries: struct<key: string not null, value: string> not null
+      child 0, key: string not null
+      child 1, value: string"""
+    )
+
+
+def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None:
+    schema = Schema(
+        # A new ID
+        NestedField(
+            2,
+            "id",
+            MapType(key_id=3, key_type=IntegerType(), value_id=4, value_type=StringType(), value_required=False),
+            required=False,
+        )
+    )
+    result_table = project(schema, [file_int])
+    # Everything should be None
+    for r in result_table.columns[0]:
+        assert r.as_py() is None
+
+    assert (
+        repr(result_table.schema)
+        == """id: map<int32, string>
+  child 0, entries: struct<key: int32 not null, value: string> not null
+      child 0, key: int32 not null
+      child 1, value: string"""
+    )
+
+
+def test_projection_add_column_struct_required(file_int: str) -> None:
+    schema = Schema(
+        # A new ID
+        NestedField(
+            2,
+            "other_id",
+            IntegerType(),
+            required=True,
+        )
+    )
+    with pytest.raises(ResolveError) as exc_info:
+        _ = project(schema, [file_int])
+    assert "Field is required, and could not be found in the file: 2: other_id: required int" in str(exc_info.value)
+
+
+def test_projection_rename_column(schema_int: Schema, file_int: str) -> None:
+    schema = Schema(
+        # Reuses the id 1
+        NestedField(1, "other_name", IntegerType())
+    )
+    result_table = project(schema, [file_int])
+    assert len(result_table.columns[0]) == 3
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2]):
+        assert actual.as_py() == expected
+
+    assert repr(result_table.schema) == "other_name: int32 not null"
+
+
+def test_projection_concat_files(schema_int: Schema, file_int: str) -> None:
+    result_table = project(schema_int, [file_int, file_int])
+
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2, 0, 1, 2]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 6
+    assert repr(result_table.schema) == "id: int32"
+
+
+def test_projection_filter(schema_int: Schema, file_int: str) -> None:
+    result_table = project(schema_int, [file_int], GreaterThan("id", 4))
+    assert len(result_table.columns[0]) == 0
+    assert repr(result_table.schema) == "id: int32"
+
+
+def test_projection_filter_renamed_column(file_int: str) -> None:
+    schema = Schema(
+        # Reuses the id 1
+        NestedField(1, "other_id", IntegerType())
+    )
+    result_table = project(schema, [file_int], GreaterThan("other_id", 1))
+    assert len(result_table.columns[0]) == 1
+    assert repr(result_table.schema) == "other_id: int32 not null"
+
+
+def test_projection_filter_add_column(schema_int: Schema, file_int: str, file_string: str) -> None:
+    """We have one file that has the column, and the other one doesn't"""
+    result_table = project(schema_int, [file_int, file_string])
+
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2, None, None, None]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 6
+    assert repr(result_table.schema) == "id: int32"
+
+
+def test_projection_filter_add_column_promote(file_int: str) -> None:
+    schema_long = Schema(NestedField(1, "id", LongType()))
+    result_table = project(schema_long, [file_int])
+
+    for actual, expected in zip(result_table.columns[0], [0, 1, 2]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "id: int64 not null"
+
+
+def test_projection_filter_add_column_demote(file_long: str) -> None:
+    schema_int = Schema(NestedField(3, "id", IntegerType()))
+    with pytest.raises(ResolveError) as exc_info:
+        _ = project(schema_int, [file_long])
+    assert "Cannot promote long to int" in str(exc_info.value)
+
+
+def test_projection_nested_struct_subset(file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType()),
+                # long is missing!
+            ),
+        )
+    )
+
+    result_table = project(schema, [file_struct])
+
+    for actual, expected in zip(result_table.columns[0], [52.371807, 52.387386, 52.078663]):
+        assert actual.as_py() == {"lat": expected}
+
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "location: struct<lat: double not null> not null\n  child 0, lat: double not null"
+
+
+def test_projection_nested_new_field(file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(43, "null", DoubleType(), required=False),  # Whoa, this column doesn't exist in the file
+            ),
+        )
+    )
+
+    result_table = project(schema, [file_struct])
+
+    for actual, expected in zip(result_table.columns[0], [None, None, None]):
+        assert actual.as_py() == {"null": expected}
+    assert len(result_table.columns[0]) == 3
+    assert repr(result_table.schema) == "location: struct<null: double> not null\n  child 0, null: double"
+
+
+def test_projection_nested_struct(schema_struct: Schema, file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            4,
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType(), required=False),
+                NestedField(43, "null", DoubleType(), required=False),
+                NestedField(42, "long", DoubleType(), required=False),
+            ),
+        )
+    )
+
+    result_table = project(schema, [file_struct])
+    for actual, expected in zip(
+        result_table.columns[0],
+        [
+            {"lat": 52.371807, "long": 4.896029, "null": None},
+            {"lat": 52.387386, "long": 4.646219, "null": None},
+            {"lat": 52.078663, "long": 4.288788, "null": None},
+        ],
+    ):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 3
+    assert (
+        repr(result_table.schema)
+        == "location: struct<lat: double, null: double, long: double> not null\n  child 0, lat: double\n  child 1, null: double\n  child 2, long: double"
+    )
+
+
+def test_projection_list_of_structs(schema_list_of_structs: Schema, file_list_of_structs: str) -> None:
+    schema = Schema(
+        NestedField(
+            5,
+            "locations",
+            ListType(
+                51,
+                StructType(
+                    NestedField(511, "latitude", DoubleType()),
+                    NestedField(512, "longitude", DoubleType()),
+                    NestedField(513, "altitude", DoubleType(), required=False),
+                ),
+                element_required=False,
+            ),
+            required=False,
+        ),
+    )
+
+    result_table = project(schema, [file_list_of_structs])
+    assert len(result_table.columns) == 1
+    assert len(result_table.columns[0]) == 3
+    for actual, expected in zip(
+        result_table.columns[0],
+        [
+            [
+                {"latitude": 52.371807, "longitude": 4.896029, "altitude": None},
+                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+            ],
+            [],
+            [
+                {"latitude": 52.078663, "longitude": 4.288788, "altitude": None},
+                {"latitude": 52.387386, "longitude": 4.646219, "altitude": None},
+            ],
+        ],
+    ):
+        assert actual.as_py() == expected
+    assert (
+        repr(result_table.schema)
+        == """locations: list<item: struct<latitude: double not null, longitude: double not null, altitude: double>>
+  child 0, item: struct<latitude: double not null, longitude: double not null, altitude: double>
+      child 0, latitude: double not null
+      child 1, longitude: double not null
+      child 2, altitude: double"""
+    )
+
+
+def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
+    schema = Schema(
+        NestedField(
+            5,  # 😱 this is 4 in the file, this will be fixed when projecting the file schema
+            "location",
+            StructType(
+                NestedField(41, "lat", DoubleType(), required=False), NestedField(42, "long", DoubleType(), required=False)
+            ),
+            required=False,
+        )
+    )
+
+    result_table = project(schema, [file_struct])
+    for actual, expected in zip(result_table.columns[0], [None, None, None]):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 3
+    assert (
+        repr(result_table.schema)
+        == """location: struct<lat: double, long: double>
+  child 0, lat: double
+  child 1, long: double"""
+    )
+
+
+def test_projection_filter_on_unprojected_field(schema_int_str: Schema, file_int_str: str) -> None:
+    schema = Schema(NestedField(1, "id", IntegerType()))
+
+    result_table = project(schema, [file_int_str], GreaterThan("data", "1"), schema_int_str)
+
+    for actual, expected in zip(
+        result_table.columns[0],
+        [2],
+    ):
+        assert actual.as_py() == expected
+    assert len(result_table.columns[0]) == 1
+    assert repr(result_table.schema) == "id: int32 not null"
+
+
+def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str: str) -> None:
+    schema = Schema(NestedField(1, "id", IntegerType()))
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
+
+    assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)

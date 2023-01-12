@@ -31,7 +31,9 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.13.4"
         force 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2'
+        force 'com.fasterxml.jackson.core:jackson-core:2.13.4'
       }
     }
   }
@@ -103,13 +105,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   }
 
   tasks.withType(Test) {
-    // For vectorized reads
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-    systemProperty("arrow.enable_unsafe_memory_access", "true")
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    systemProperty("arrow.enable_null_check_for_get", "false")
-
     // Vectorized reads need more memory
     maxHeapSize '2560m'
   }

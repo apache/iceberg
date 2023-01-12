@@ -65,7 +65,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
   @After
   public void clean() {
-    sql("DROP CATALOG IF EXISTS %s", catalogName);
+    dropCatalog(catalogName, true);
   }
 
   @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
