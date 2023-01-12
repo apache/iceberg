@@ -34,7 +34,7 @@ from pyiceberg.avro.reader import (
 from pyiceberg.avro.resolver import ResolveError, resolve
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import PydanticStruct
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     DecimalType,
@@ -261,7 +261,7 @@ def test_column_assignment() -> None:
         with open(tmp_avro_file, "wb") as out:
             writer(out, parsed_schema, int_records)
 
-        class Ints(PydanticStruct):
+        class Ints(Record):
             c: int = Field()
             d: Optional[int] = Field()
 

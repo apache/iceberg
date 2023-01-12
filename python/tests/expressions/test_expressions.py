@@ -605,7 +605,7 @@ def test_invert_always() -> None:
 def test_accessor_base_class() -> None:
     """Test retrieving a value at a position of a container using an accessor"""
 
-    struct = Record(length=12)
+    struct = Record(**{f"field{idx}": None for idx in range(12)})
 
     uuid_value = uuid.uuid4()
 
@@ -902,7 +902,7 @@ def test_less_than_or_equal() -> None:
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-    struct = Record(length=4)
+    struct = Record(**{f"field{idx}": None for idx in range(4)})
 
     struct[1] = "foovalue"
     struct[2] = 123

@@ -18,16 +18,9 @@
 from pyiceberg.io import load_file_io
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import (
-    DATA_FILE_SCHEMA,
-    MANIFEST_ENTRY_SCHEMA,
-    MANIFEST_FILE_SCHEMA,
     DataFile,
-    DataFileContent,
     FileFormat,
-    ManifestContent,
-    ManifestEntry,
     ManifestEntryStatus,
-    ManifestFile,
     PartitionFieldSummary,
     read_manifest_entry,
     read_manifest_list,
@@ -35,12 +28,6 @@ from pyiceberg.manifest import (
 from pyiceberg.table import Snapshot
 from pyiceberg.table.snapshots import Operation, Summary
 from pyiceberg.typedef import Record
-from pyiceberg.types import (
-    DateType,
-    IntegerType,
-    NestedField,
-    StructType,
-)
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
@@ -55,14 +42,9 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
 
     data_file = manifest_entry.data_file
 
-    partition = Record(2)
-    partition.set_record_schema(
-        StructType(NestedField(0, "VendorID", IntegerType()), NestedField(1, "tpep_pickup_datetime", DateType()))
-    )
-    partition.VendorID = 1
-    partition.tpep_pickup_datetime = 1925
+    partition = Record(VendorID=1, tpep_pickup_datetime=1925)
 
-    assert data_file.content == DataFileContent.DATA
+    assert data_file.content is None
     assert (
         data_file.file_path
         == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
@@ -212,7 +194,7 @@ def test_read_manifest(generated_manifest_file_file: str) -> None:
 
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
-    assert manifest_list.content == ManifestContent.DATA
+    assert manifest_list.content is None
     assert manifest_list.sequence_number is None
     assert manifest_list.min_sequence_number is None
     assert manifest_list.added_snapshot_id == 9182715666859759686
@@ -234,41 +216,3 @@ def test_read_manifest(generated_manifest_file_file: str) -> None:
     assert partition.contains_nan is False
     assert partition.lower_bound == b"\x01\x00\x00\x00"
     assert partition.upper_bound == b"\x02\x00\x00\x00"
-
-
-def test_data_file_length() -> None:
-    assert len(DataFile.__fields__) == len(DATA_FILE_SCHEMA)
-
-
-def test_data_file_defaults() -> None:
-    df = DataFile.construct()
-    df.set_record_schema(DATA_FILE_SCHEMA)
-
-    for idx in range(len(df.__fields__)):
-        df[idx] = None
-
-    assert df.content == DataFileContent.DATA
-    assert df.column_sizes == {}
-    assert df.value_counts == {}
-    assert df.null_value_counts == {}
-    assert df.nan_value_counts == {}
-    assert df.lower_bounds == {}
-    assert df.upper_bounds == {}
-    assert df.key_metadata is None
-    assert df.split_offsets is None
-    assert df.equality_ids is None
-    assert df.sort_order_id is None
-    assert df.spec_id is None
-    assert df.file_path is None
-    assert df.file_format is None
-    assert df.partition is None
-    assert df.record_count is None
-    assert df.file_size_in_bytes is None
-
-
-def test_manifest_entry_length() -> None:
-    assert len(ManifestEntry.__fields__) == len(MANIFEST_ENTRY_SCHEMA)
-
-
-def test_manifest_file_length() -> None:
-    assert len(ManifestFile.__fields__) == len(MANIFEST_FILE_SCHEMA)

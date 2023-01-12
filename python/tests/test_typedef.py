@@ -46,16 +46,18 @@ def test_keydefaultdict() -> None:
 
 
 def test_record_repr() -> None:
-    r = Record.of(1, "vo", True)
-    assert repr(r) == "Record[1, 'vo', True]"
+    r = Record(a=1, b="vo", c=True)
+    assert repr(r) == "Record[a=1, b='vo', c=True]"
 
 
 def test_named_record() -> None:
-    r = Record()
-    r.set_record_schema(StructType(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
+    r = Record(StructType(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
 
-    assert r.id is None
-    assert r.name is None
+    with pytest.raises(AttributeError):
+        assert r.id is None  # type: ignore
+
+    with pytest.raises(AttributeError):
+        assert r.name is None  # type: ignore
 
     r[0] = 123
     r[1] = "abc"
@@ -63,5 +65,5 @@ def test_named_record() -> None:
     assert r[0] == 123
     assert r[1] == "abc"
 
-    assert r.id == 123
-    assert r.name == "abc"
+    assert r.id == 123  # type: ignore
+    assert r.name == "abc"  # type: ignore

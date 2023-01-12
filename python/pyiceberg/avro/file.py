@@ -40,7 +40,7 @@ from pyiceberg.avro.resolver import construct_reader, resolve
 from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import EMPTY_DICT, PydanticStruct, StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
 from pyiceberg.types import (
     FixedType,
     MapType,
@@ -69,7 +69,7 @@ _CODEC_KEY = "avro.codec"
 _SCHEMA_KEY = "avro.schema"
 
 
-class AvroFileHeader(PydanticStruct):
+class AvroFileHeader(Record):
     magic: bytes = Field()
     meta: Dict[str, str] = Field()
     sync: bytes = Field()

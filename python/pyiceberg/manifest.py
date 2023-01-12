@@ -22,12 +22,10 @@ from typing import (
     Optional,
 )
 
-from pydantic import Field
-
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.io import FileIO, InputFile
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import EMPTY_DICT, PydanticStruct, Record
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -159,24 +157,24 @@ DATA_FILE_SCHEMA = StructType(
 )
 
 
-class DataFile(PydanticStruct):
-    content: DataFileContent = Field(default=DataFileContent.DATA)
-    file_path: str = Field()
-    file_format: FileFormat = Field()
-    partition: Record = Field()
-    record_count: int = Field()
-    file_size_in_bytes: int = Field()
-    column_sizes: Dict[int, int] = Field(default=EMPTY_DICT)
-    value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
-    null_value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
-    nan_value_counts: Dict[int, int] = Field(default=EMPTY_DICT)
-    lower_bounds: Dict[int, bytes] = Field(default=EMPTY_DICT)
-    upper_bounds: Dict[int, bytes] = Field(default=EMPTY_DICT)
-    key_metadata: Optional[bytes] = Field()
-    split_offsets: Optional[List[int]] = Field()
-    equality_ids: Optional[List[int]] = Field()
-    sort_order_id: Optional[int] = Field()
-    spec_id: Optional[int] = Field()
+class DataFile(Record):
+    content: Optional[DataFileContent]
+    file_path: str
+    file_format: FileFormat
+    partition: Record
+    record_count: int
+    file_size_in_bytes: int
+    column_sizes: Dict[int, int]
+    value_counts: Dict[int, int]
+    null_value_counts: Dict[int, int]
+    nan_value_counts: Dict[int, int]
+    lower_bounds: Dict[int, bytes]
+    upper_bounds: Dict[int, bytes]
+    key_metadata: Optional[bytes]
+    split_offsets: Optional[List[int]]
+    equality_ids: Optional[List[int]]
+    sort_order_id: Optional[int]
+    spec_id: Optional[int]
 
 
 MANIFEST_ENTRY_SCHEMA = Schema(
@@ -188,12 +186,12 @@ MANIFEST_ENTRY_SCHEMA = Schema(
 )
 
 
-class ManifestEntry(PydanticStruct):
-    status: ManifestEntryStatus = Field()
-    snapshot_id: Optional[int] = Field()
-    sequence_number: Optional[int] = Field()
-    file_sequence_number: Optional[int] = Field()
-    data_file: DataFile = Field()
+class ManifestEntry(Record):
+    status: ManifestEntryStatus
+    snapshot_id: Optional[int]
+    sequence_number: Optional[int]
+    file_sequence_number: Optional[int]
+    data_file: DataFile
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -204,11 +202,11 @@ PARTITION_FIELD_SUMMARY_TYPE = StructType(
 )
 
 
-class PartitionFieldSummary(PydanticStruct):
-    contains_null: bool = Field()
-    contains_nan: Optional[bool] = Field()
-    lower_bound: Optional[bytes] = Field()
-    upper_bound: Optional[bytes] = Field()
+class PartitionFieldSummary(Record):
+    contains_null: bool
+    contains_nan: Optional[bool]
+    lower_bound: Optional[bytes]
+    upper_bound: Optional[bytes]
 
 
 MANIFEST_FILE_SCHEMA: Schema = Schema(
@@ -230,22 +228,22 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
 )
 
 
-class ManifestFile(PydanticStruct):
-    manifest_path: str = Field()
-    manifest_length: int = Field()
-    partition_spec_id: int = Field()
-    content: ManifestContent = Field(default=ManifestContent.DATA)
-    sequence_number: Optional[int] = Field()
-    min_sequence_number: Optional[int] = Field()
-    added_snapshot_id: Optional[int] = Field()
-    added_files_count: Optional[int] = Field()
-    existing_files_count: Optional[int] = Field()
-    deleted_files_count: Optional[int] = Field()
-    added_rows_count: Optional[int] = Field()
-    existing_rows_count: Optional[int] = Field()
-    deleted_rows_count: Optional[int] = Field()
-    partitions: Optional[List[PartitionFieldSummary]] = Field()
-    key_metadata: Optional[bytes] = Field()
+class ManifestFile(Record):
+    manifest_path: str
+    manifest_length: int
+    partition_spec_id: int
+    content: Optional[ManifestContent]
+    sequence_number: Optional[int]
+    min_sequence_number: Optional[int]
+    added_snapshot_id: Optional[int]
+    added_files_count: Optional[int]
+    existing_files_count: Optional[int]
+    deleted_files_count: Optional[int]
+    added_rows_count: Optional[int]
+    existing_rows_count: Optional[int]
+    deleted_rows_count: Optional[int]
+    partitions: Optional[List[PartitionFieldSummary]]
+    key_metadata: Optional[bytes]
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)

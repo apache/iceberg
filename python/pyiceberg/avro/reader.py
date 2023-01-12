@@ -42,7 +42,7 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.typedef import PydanticStruct, Record, StructProtocol
+from pyiceberg.typedef import Record, StructProtocol
 from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
@@ -265,16 +265,9 @@ class StructReader(Reader):
         self.struct = struct
 
     def read(self, decoder: BinaryDecoder) -> Any:
-        if issubclass(self.create_struct, PydanticStruct):
-            struct = self.create_struct.construct()
-        else:
-            struct = self.create_struct()
-
+        struct = self.create_struct(self.struct)
         if not isinstance(struct, StructProtocol):
             raise ValueError(f"Expected struct to implement StructProtocol: {struct}")
-
-        if self.struct:
-            struct.set_record_schema(self.struct)
 
         for (pos, field) in self.field_readers:
             if pos is not None:
