@@ -335,6 +335,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       OutputFileFactory dataFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.dataFileFormat())
+              .operationId(context.queryId())
               .build();
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
@@ -660,6 +661,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final FileFormat deleteFileFormat;
     private final long targetDeleteFileSize;
     private final boolean fanoutWriterEnabled;
+    private final String queryId;
 
     Context(Schema dataSchema, SparkWriteConf writeConf, ExtendedLogicalWriteInfo info) {
       this.dataSchema = dataSchema;
@@ -671,6 +673,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.targetDeleteFileSize = writeConf.targetDeleteFileSize();
       this.metadataSparkType = info.metadataSchema();
       this.fanoutWriterEnabled = writeConf.fanoutWriterEnabled();
+      this.queryId = info.queryId();
     }
 
     Schema dataSchema() {
@@ -707,6 +710,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     boolean fanoutWriterEnabled() {
       return fanoutWriterEnabled;
+    }
+
+    String queryId() {
+      return queryId;
     }
   }
 }
