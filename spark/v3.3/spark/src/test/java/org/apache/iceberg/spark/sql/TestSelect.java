@@ -35,6 +35,7 @@ import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -288,11 +289,10 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testUnknownReferenceAsOf() {
-    AssertHelpers.assertThrows(
-        "Cannot find matching snapshot ID or reference name for version",
-        ValidationException.class,
-        "Cannot find matching snapshot ID or reference name for version",
-        () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
+        .as("Cannot find matching snapshot ID or reference name for version")
+        .isInstanceOf(ValidationException.class);
   }
 
   @Test
