@@ -266,15 +266,9 @@ class StructReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> StructProtocol:
         try:
-            constructor_spec = inspect.getfullargspec(self.create_struct)
-            if "struct" in constructor_spec.kwonlyargs:
-                struct = self.create_struct(struct=self.struct)
-            elif constructor_spec.args == ["struct"]:
-                struct = self.create_struct(self.struct)
-            else:
-                struct = self.create_struct()
-        except TypeError as e:
-            raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}") from e
+            struct = self.create_struct(struct=self.struct)
+        except TypeError:
+            struct = self.create_struct()
 
         if not isinstance(struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
