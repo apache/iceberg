@@ -365,3 +365,19 @@ def test_read_not_struct_type() -> None:
         _ = StructReader(((0, IntegerReader()),), str, struct).read(decoder)  # type: ignore
 
     assert "Incompatible with StructProtocol: <class 'str'>" in str(exc_info.value)
+
+
+def test_read_struct_exception_handling() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    def raise_err(struct: StructType):
+        raise TypeError("boom")
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    # You can also pass in an arbitrary function that returns a struct
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = StructReader(((0, IntegerReader()),), raise_err, struct).read(decoder)  # pylint: disable=unnecessary-lambda
+
+    assert "Unable to initialize struct:" in str(exc_info.value)

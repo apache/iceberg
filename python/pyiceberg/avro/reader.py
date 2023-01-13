@@ -25,7 +25,6 @@ read schema is different, while respecting the read schema
 """
 from __future__ import annotations
 
-import inspect
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
@@ -266,9 +265,13 @@ class StructReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> StructProtocol:
         try:
+            # Try initializing the struct, first with the struct keyword argument
             struct = self.create_struct(struct=self.struct)
-        except TypeError:
-            struct = self.create_struct()
+        except TypeError as e:
+            if "'struct' is an invalid keyword argument for" in str(e):
+                struct = self.create_struct()
+            else:
+                raise ValueError(f"Unable to initialize struct: {self.create_struct}") from e
 
         if not isinstance(struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
