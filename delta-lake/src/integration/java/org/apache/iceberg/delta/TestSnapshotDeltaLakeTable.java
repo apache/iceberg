@@ -83,11 +83,18 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String NAMESPACE = "default";
+  private static final String defaultSparkCatalog = "spark_catalog";
+  private static final String icebergCatalogName = "iceberg_hive";
   private String partitionedIdentifier;
   private String unpartitionedIdentifier;
   private String externalDataFilesIdentifier;
-  private static final String defaultSparkCatalog = "spark_catalog";
-  private static final String icebergCatalogName = "iceberg_hive";
+  private final String partitionedTableName = "partitioned_table";
+  private final String unpartitionedTableName = "unpartitioned_table";
+  private final String externalDataFilesTableName = "external_data_files_table";
+  private String partitionedLocation;
+  private String unpartitionedLocation;
+  private String newIcebergTableLocation;
+  private String externalDataFilesTableLocation;
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
@@ -113,14 +120,6 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   @Rule public TemporaryFolder temp2 = new TemporaryFolder();
   @Rule public TemporaryFolder temp3 = new TemporaryFolder();
   @Rule public TemporaryFolder temp4 = new TemporaryFolder();
-
-  private final String partitionedTableName = "partitioned_table";
-  private final String unpartitionedTableName = "unpartitioned_table";
-  private final String externalDataFilesTableName = "external_data_files_table";
-  private String partitionedLocation;
-  private String unpartitionedLocation;
-  private String newIcebergTableLocation;
-  private String externalDataFilesTableLocation;
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -416,7 +415,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
    * not in the same location as the delta lake table. The case that {@link AddFile#getPath()} or
    * {@link RemoveFile#getPath()} returns absolute path.
    *
-   * <p>The known <a href="https://github.com/delta-io/connectors/issues/380">issue</a> make it
+   * <p>The known <a href="https://github.com/delta-io/connectors/issues/380">issue</a> makes it
    * necessary to manually rebuild the AddFile to avoid deserialization error when committing the
    * transaction.
    */
@@ -442,7 +441,6 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     try {
       transaction.commit(newFiles, new Operation(Operation.Name.UPDATE), "Delta-Lake/2.2.0");
     } catch (DeltaConcurrentModificationException e) {
-      // handle exception here
       throw new RuntimeException(e);
     }
   }

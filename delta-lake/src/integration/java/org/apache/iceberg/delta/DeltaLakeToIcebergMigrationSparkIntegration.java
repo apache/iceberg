@@ -29,7 +29,8 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
   private DeltaLakeToIcebergMigrationSparkIntegration() {}
 
   /**
-   * Example of creating a snapshot a delta table to iceberg table action in SparkContext.
+   * Example of how to use a {@link SparkSession}, a table identifier and a delta table location to
+   * construct an action for snapshotting the delta table to an iceberg table.
    *
    * @param spark a SparkSession with iceberg catalog configured.
    * @param newTableIdentifier can be both 2 parts and 3 parts identifier, if it is 2 parts, the
