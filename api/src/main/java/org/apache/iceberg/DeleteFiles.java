@@ -56,6 +56,17 @@ public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
   }
 
   /**
+   * Delete a file tracked by a {@link DeleteFile} from the underlying table.
+   *
+   * @param file a DeleteFile to remove from the table
+   * @return this for method chaining
+   */
+  default DeleteFiles deleteFile(DeleteFile file) {
+    deleteFile(file.path());
+    return this;
+  }
+
+  /**
    * Delete files that match an {@link Expression} on data rows from the table.
    *
    * <p>A file is selected to be deleted by the expression if it could contain any rows that match

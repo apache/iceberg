@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
@@ -58,19 +59,25 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class BaseSparkAction<ThisT> {
+
+  public static final String USE_CACHING = "use-caching";
+  public static final boolean USE_CACHING_DEFAULT = true;
 
   protected static final String MANIFEST = "Manifest";
   protected static final String MANIFEST_LIST = "Manifest List";
@@ -359,6 +366,27 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.path().toString(), file.content().toString());
+    }
+  }
+
+  protected <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
+    Dataset<T> reusableDS;
+    boolean useCaching =
+        PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
+    if (useCaching) {
+      reusableDS = ds.cache();
+    } else {
+      int parallelism = SQLConf.get().numShufflePartitions();
+      reusableDS =
+          ds.repartition(parallelism).map((MapFunction<T, T>) value -> value, ds.exprEnc());
+    }
+
+    try {
+      return func.apply(reusableDS);
+    } finally {
+      if (useCaching) {
+        reusableDS.unpersist(false);
+      }
     }
   }
 }
