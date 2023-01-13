@@ -42,15 +42,11 @@ public class TestBaseSnapshotDeltaLakeTableAction {
   private final Catalog testCatalog = new TestCatalog();
 
   @Before
-  public void before() {
-    try {
-      File sourceFolder = temp1.newFolder();
-      File destFolder = temp2.newFolder();
-      sourceTableLocation = sourceFolder.toURI().toString();
-      newTableLocation = destFolder.toURI().toString();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+  public void before() throws IOException {
+    File sourceFolder = temp1.newFolder();
+    File destFolder = temp2.newFolder();
+    sourceTableLocation = sourceFolder.toURI().toString();
+    newTableLocation = destFolder.toURI().toString();
   }
 
   @Test
