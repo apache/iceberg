@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source.reader;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.shaded.guava30.com.google.common.base.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -31,6 +30,7 @@ import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.RowDataToAvroGenericRecordConverter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Read Iceberg rows as {@link GenericRecord}. */
 public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<GenericRecord> {

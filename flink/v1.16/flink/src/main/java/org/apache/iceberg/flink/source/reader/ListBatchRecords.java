@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.flink.shaded.guava30.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class ListBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
   private String splitId;

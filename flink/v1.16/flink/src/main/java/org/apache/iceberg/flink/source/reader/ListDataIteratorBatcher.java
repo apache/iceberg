@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.apache.flink.configuration.ReadableConfig;
@@ -27,6 +26,7 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * FlinkRecordReaderFunction essentially cloned objects already. So there is no need to use array
@@ -68,7 +68,7 @@ class ListDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
         throw new NoSuchElementException();
       }
 
-      final List<T> batch = new ArrayList<>(batchSize);
+      final List<T> batch = Lists.newArrayListWithCapacity(batchSize);
       int recordCount = 0;
       while (inputIterator.hasNext() && recordCount < batchSize) {
         T nextRecord = inputIterator.next();
