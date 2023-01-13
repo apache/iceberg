@@ -27,8 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.AllManifestsTable;
@@ -56,12 +58,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -219,6 +224,28 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   /**
+   * Uses a fixed thread pool with {@link SparkSQLProperties#DELETE_PARALLELISM} when the executorService
+   * passed to this function is null.
+   */
+  protected void withDefaultDeleteService(ExecutorService executorService, Consumer<ExecutorService> f) {
+    boolean createdDefaultDeleteService = false;
+    if (executorService == null) {
+      int numThreads = Integer.parseInt(
+              spark.conf().get(
+                      SparkSQLProperties.DELETE_PARALLELISM,
+                      SparkSQLProperties.DELETE_PARALLELISM_DEFAULT));
+      executorService = ThreadPools.newWorkerPool(this + "-default-delete-service", numThreads);
+      createdDefaultDeleteService = true;
+    }
+
+    f.accept(executorService);
+
+    if (createdDefaultDeleteService) {
+      executorService.shutdown();
+    }
+  }
+
+  /**
    * Deletes files and keeps track of how many files were removed for each file type.
    *
    * @param executorService an executor service to use for parallel deletes
@@ -231,24 +258,27 @@ abstract class BaseSparkAction<ThisT> {
 
     DeleteSummary summary = new DeleteSummary();
 
-    Tasks.foreach(files)
-        .retry(DELETE_NUM_RETRIES)
-        .stopRetryOn(NotFoundException.class)
-        .suppressFailureWhenFinished()
-        .executeWith(executorService)
-        .onFailure(
-            (fileInfo, exc) -> {
-              String path = fileInfo.getPath();
-              String type = fileInfo.getType();
-              LOG.warn("Delete failed for {}: {}", type, path, exc);
-            })
-        .run(
-            fileInfo -> {
-              String path = fileInfo.getPath();
-              String type = fileInfo.getType();
-              deleteFunc.accept(path);
-              summary.deletedFile(path, type);
-            });
+
+    withDefaultDeleteService(executorService, (deleteService) -> {
+      Tasks.foreach(files)
+          .retry(DELETE_NUM_RETRIES)
+          .stopRetryOn(NotFoundException.class)
+          .suppressFailureWhenFinished()
+          .executeWith(deleteService)
+          .onFailure(
+              (fileInfo, exc) -> {
+                String path = fileInfo.getPath();
+                String type = fileInfo.getType();
+                LOG.warn("Delete failed for {}: {}", type, path, exc);
+              })
+          .run(
+              fileInfo -> {
+                String path = fileInfo.getPath();
+                String type = fileInfo.getType();
+                deleteFunc.accept(path);
+                summary.deletedFile(path, type);
+              });
+      });
 
     return summary;
   }

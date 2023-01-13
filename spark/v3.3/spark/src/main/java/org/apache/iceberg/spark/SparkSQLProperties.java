@@ -48,7 +48,7 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 
-  // Controls how many deletes to execute in parallel when issuing a drop table purge
-  public static final String PURGE_PARALLELISM = "purge-parallelism";
-  public static final String PURGE_PARALLELISM_DEFAULT = "25";
+  // Controls how many physical file deletes to execute in parallel when not otherwise specified
+  public static final String DELETE_PARALLELISM = "driver-delete-default-parallelism";
+  public static final String DELETE_PARALLELISM_DEFAULT = "25";
 }
