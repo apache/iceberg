@@ -747,7 +747,7 @@ def project(
     schema: Schema, files: List[str], expr: Optional[BooleanExpression] = None, table_schema: Optional[Schema] = None
 ) -> pa.Table:
     def _construct_data_file(file: str) -> DataFile:
-        data_file = DataFile(DATA_FILE_SCHEMA)
+        data_file = DataFile(struct=DATA_FILE_SCHEMA)
         data_file[1] = file  # file_path
         data_file[5] = 0  # file_size_in_bytes
         return data_file

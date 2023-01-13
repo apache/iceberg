@@ -611,7 +611,7 @@ def test_accessor_base_class() -> None:
     """Test retrieving a value at a position of a container using an accessor"""
 
     struct = Record(
-        StructType(
+        struct=StructType(
             NestedField(1, "a", StringType()),
             NestedField(2, "b", StringType()),
             NestedField(3, "c", StringType()),
@@ -922,7 +922,7 @@ def test_less_than_or_equal() -> None:
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-    struct = Record(table_schema_simple.as_struct())
+    struct = Record(struct=table_schema_simple.as_struct())
 
     struct[0] = "foovalue"
     struct[1] = 123

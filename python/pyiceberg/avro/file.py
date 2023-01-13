@@ -32,8 +32,6 @@ from typing import (
     TypeVar,
 )
 
-from pydantic import Field
-
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.reader import Reader
@@ -71,9 +69,9 @@ _SCHEMA_KEY = "avro.schema"
 
 
 class AvroFileHeader(Record):
-    magic: bytes = Field()
-    meta: Dict[str, str] = Field()
-    sync: bytes = Field()
+    magic: bytes
+    meta: Dict[str, str]
+    sync: bytes
 
     def compression_codec(self) -> Optional[Type[Codec]]:
         """Get the file's compression codec algorithm from the file's metadata.
@@ -122,7 +120,7 @@ class Block(Generic[D]):
 class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
-    read_types: Dict[int, Callable[[StructType], StructProtocol]]
+    read_types: Dict[int, Callable[..., StructProtocol]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -135,7 +133,7 @@ class AvroFile(Generic[D]):
         self,
         input_file: InputFile,
         read_schema: Optional[Schema] = None,
-        read_types: Dict[int, Callable[[StructType], StructProtocol]] = EMPTY_DICT,
+        read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
     ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema

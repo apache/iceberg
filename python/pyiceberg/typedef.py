@@ -130,7 +130,7 @@ class Record(StructProtocol):
     def __init__(self, *data: Any, struct: Optional[StructType] = None) -> None:
         if struct is not None:
             self._position_to_field_name = {idx: field.name for idx, field in enumerate(struct.fields)}
-        elif data is not None:
+        else:
             self._position_to_field_name = {}
             for idx, d in enumerate(data):
                 self._position_to_field_name[idx] = f"field{idx + 1}"

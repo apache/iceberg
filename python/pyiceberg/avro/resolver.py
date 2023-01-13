@@ -79,7 +79,7 @@ from pyiceberg.types import (
 
 
 def construct_reader(
-    file_schema: Union[Schema, IcebergType], read_types: Dict[int, Callable[[StructType], StructProtocol]] = EMPTY_DICT
+    file_schema: Union[Schema, IcebergType], read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT
 ) -> Reader:
     """Constructs a reader from a file schema
 
@@ -95,7 +95,7 @@ def construct_reader(
 def resolve(
     file_schema: Union[Schema, IcebergType],
     read_schema: Union[Schema, IcebergType],
-    read_types: Dict[int, Callable[[StructType], StructProtocol]] = EMPTY_DICT,
+    read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
 ) -> Reader:
     """Resolves the file and read schema to produce a reader
 
@@ -111,10 +111,10 @@ def resolve(
 
 
 class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
-    read_types: Dict[int, Callable[[StructType], StructProtocol]]
+    read_types: Dict[int, Callable[..., StructProtocol]]
     context: List[int]
 
-    def __init__(self, read_types: Dict[int, Callable[[StructType], StructProtocol]] = EMPTY_DICT) -> None:
+    def __init__(self, read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT) -> None:
         self.read_types = read_types
         self.context = []
 

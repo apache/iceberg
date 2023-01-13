@@ -797,7 +797,7 @@ def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
 
 def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     """Helper to create a ManifestFile"""
-    r = ManifestFile(MANIFEST_FILE_SCHEMA.as_struct())
+    r = ManifestFile(struct=MANIFEST_FILE_SCHEMA.as_struct())
     r[13] = partitions
     return r
 
@@ -842,7 +842,7 @@ def manifest() -> ManifestFile:
         contains_null: bool, contains_nan: Optional[bool], lower_bound: Optional[bytes], upper_bound: Optional[bytes]
     ) -> PartitionFieldSummary:
         """Helper to create a PartitionFieldSummary"""
-        r = PartitionFieldSummary(PARTITION_FIELD_SUMMARY_TYPE)
+        r = PartitionFieldSummary(struct=PARTITION_FIELD_SUMMARY_TYPE)
         r[0] = contains_null
         r[1] = contains_nan
         r[2] = lower_bound

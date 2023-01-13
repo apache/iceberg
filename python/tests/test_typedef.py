@@ -47,7 +47,7 @@ def test_keydefaultdict() -> None:
 
 
 def test_record_repr(table_schema_simple: Schema) -> None:
-    r = Record(table_schema_simple.as_struct())
+    r = Record(struct=table_schema_simple.as_struct())
     r[0] = "vo"
     r[1] = 1
     r[2] = True
@@ -55,7 +55,7 @@ def test_record_repr(table_schema_simple: Schema) -> None:
 
 
 def test_named_record() -> None:
-    r = Record(StructType(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
+    r = Record(struct=StructType(NestedField(0, "id", IntegerType()), NestedField(1, "name", StringType())))
 
     with pytest.raises(AttributeError):
         assert r.id is None  # type: ignore

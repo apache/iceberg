@@ -21,7 +21,7 @@ from pyiceberg.avro.file import META_SCHEMA, AvroFileHeader
 
 
 def get_deflate_compressor() -> None:
-    header = AvroFileHeader(META_SCHEMA)
+    header = AvroFileHeader(struct=META_SCHEMA)
     header[0] = bytes(0)
     header[1] = {"avro.codec": "deflate"}
     header[2] = bytes(16)
@@ -29,7 +29,7 @@ def get_deflate_compressor() -> None:
 
 
 def get_null_compressor() -> None:
-    header = AvroFileHeader(META_SCHEMA)
+    header = AvroFileHeader(struct=META_SCHEMA)
     header[0] = bytes(0)
     header[1] = {"avro.codec": "null"}
     header[2] = bytes(16)
@@ -37,7 +37,7 @@ def get_null_compressor() -> None:
 
 
 def test_unknown_codec() -> None:
-    header = AvroFileHeader(META_SCHEMA)
+    header = AvroFileHeader(struct=META_SCHEMA)
     header[0] = bytes(0)
     header[1] = {"avro.codec": "unknown"}
     header[2] = bytes(16)
@@ -49,7 +49,7 @@ def test_unknown_codec() -> None:
 
 
 def test_missing_schema() -> None:
-    header = AvroFileHeader(META_SCHEMA)
+    header = AvroFileHeader(struct=META_SCHEMA)
     header[0] = bytes(0)
     header[1] = {}
     header[2] = bytes(16)

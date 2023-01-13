@@ -25,6 +25,7 @@ read schema is different, while respecting the read schema
 """
 from __future__ import annotations
 
+import inspect
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
@@ -250,13 +251,13 @@ class OptionReader(Reader):
 
 class StructReader(Reader):
     field_readers: Tuple[Tuple[Optional[int], Reader], ...]
-    create_struct: Callable[[StructType], StructProtocol]
+    create_struct: Callable[..., StructProtocol]
     struct: StructType
 
     def __init__(
         self,
         field_readers: Tuple[Tuple[Optional[int], Reader], ...],
-        create_struct: Callable[[StructType], StructProtocol],
+        create_struct: Callable[..., StructProtocol],
         struct: StructType,
     ) -> None:
         self.field_readers = field_readers
@@ -264,7 +265,16 @@ class StructReader(Reader):
         self.struct = struct
 
     def read(self, decoder: BinaryDecoder) -> StructProtocol:
-        struct = self.create_struct(self.struct)
+        try:
+            constructor_spec = inspect.getfullargspec(self.create_struct)
+            if "struct" in constructor_spec.kwonlyargs:
+                struct = self.create_struct(struct=self.struct)
+            elif constructor_spec.args == ["struct"]:
+                struct = self.create_struct(self.struct)
+            else:
+                struct = self.create_struct()
+        except TypeError as e:
+            raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}") from e
 
         if not isinstance(struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
