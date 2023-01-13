@@ -32,17 +32,16 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFilesActionResult;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.function.MapFunction;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
-import scala.collection.JavaConverters;
 
 /**
  * An action that removes dangling delete files from the current snapshot. A delete file is dangling
@@ -133,14 +132,22 @@ public class RemoveDanglingDeletesSparkAction
             .toDF("partition", "spec_id", "min_data_sequence_number");
 
     // Dangling position delete files
+    Column joinCond =
+        minDataSeqNumberPerPartition
+            .col("partition")
+            .equalTo(entries.col("partition"))
+            .and(minDataSeqNumberPerPartition.col("spec_id").equalTo(entries.col("spec_id")));
     Dataset<Row> posDeleteDs =
         entries
             .filter("content == 1") // position delete files
-            .join(
-                minDataSeqNumberPerPartition,
-                JavaConverters.asScalaBuffer(ImmutableList.of("partition", "spec_id")))
+            .join(minDataSeqNumberPerPartition, joinCond)
             .filter("sequence_number < min_data_sequence_number")
-            .selectExpr("partition", "spec_id", "file_path", "file_size_in_bytes", "record_count");
+            .select(
+                entries.col("partition"),
+                entries.col("spec_id"),
+                entries.col("file_path"),
+                entries.col("file_size_in_bytes"),
+                entries.col("record_count"));
     MakeDeleteFile makePosDeleteFn =
         new MakeDeleteFile(true, Partitioning.partitionType(table), table.specs());
     Dataset<DeleteFile> posDeletesToRemove =
@@ -152,11 +159,14 @@ public class RemoveDanglingDeletesSparkAction
     Dataset<Row> eqDeleteDs =
         entries
             .filter("content == 2") // equality delete files
-            .join(
-                minDataSeqNumberPerPartition,
-                JavaConverters.asScalaBuffer(ImmutableList.of("partition", "spec_id")))
+            .join(minDataSeqNumberPerPartition, joinCond)
             .filter("sequence_number <= min_data_sequence_number")
-            .selectExpr("partition", "spec_id", "file_path", "file_size_in_bytes", "record_count");
+            .select(
+                entries.col("partition"),
+                entries.col("spec_id"),
+                entries.col("file_path"),
+                entries.col("file_size_in_bytes"),
+                entries.col("record_count"));
     MakeDeleteFile makeEqDeleteFn =
         new MakeDeleteFile(false, Partitioning.partitionType(table), table.specs());
     Dataset<DeleteFile> eqDeletesToRemove =
