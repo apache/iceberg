@@ -443,8 +443,6 @@ public class TestContinuousSplitPlannerImpl {
     appendTwoSnapshots();
 
     long invalidSnapshotTimestampMs = snapshot2.timestampMillis() + 1000L;
-    String invalidSnapshotTimestampMsStr =
-        DateTimeUtil.formatTimestampMillis(invalidSnapshotTimestampMs);
 
     ScanContext scanContextWithInvalidSnapshotId =
         ScanContext.builder()
