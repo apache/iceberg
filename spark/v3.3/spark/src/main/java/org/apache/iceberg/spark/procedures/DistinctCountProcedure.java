@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import static java.lang.String.format;
-import static java.util.UUID.randomUUID;
-import static org.apache.hadoop.shaded.com.google.common.collect.ImmutableList.toImmutableList;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -56,8 +52,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A procedure that gets approximate NDV (number of distinct value) for the requested columns
- * and sets this to the table's StatisticsFile.
+ * A procedure that gets approximate NDV (number of distinct value) for the requested columns and
+ * sets this to the table's StatisticsFile.
  */
 public class DistinctCountProcedure extends BaseProcedure {
   private static final Logger LOG = LoggerFactory.getLogger(DistinctCountProcedure.class);
@@ -126,7 +122,7 @@ public class DistinctCountProcedure extends BaseProcedure {
 
     TableOperations operations = ((HasTableOperations) table).operations();
     FileIO fileIO = ((HasTableOperations) table).operations().io();
-    String path = operations.metadataFileLocation(format("%s.stats", randomUUID()));
+    String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
     OutputFile outputFile = fileIO.newOutputFile(path);
 
     try (PuffinWriter writer =
@@ -152,7 +148,7 @@ public class DistinctCountProcedure extends BaseProcedure {
               writer.footerSize(),
               writer.writtenBlobsMetadata().stream()
                   .map(GenericBlobMetadata::from)
-                  .collect(toImmutableList()));
+                  .collect(ImmutableList.toImmutableList()));
 
       table
           .updateStatistics()

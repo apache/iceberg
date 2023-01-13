@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BlobMetadata;
@@ -27,6 +25,7 @@ import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,14 +69,14 @@ public class TestDistinctCountProcedure extends SparkExtensionsTestBase {
     List<BlobMetadata> metadataList = ((GenericStatisticsFile) files.get(0)).blobMetadata();
 
     BlobMetadata firstBlob = metadataList.get(0);
-    assertThat(firstBlob.type()).as("type").isEqualTo(StandardBlobTypes.NDV_BLOB);
-    assertThat(firstBlob.fields()).as("columns").isEqualTo(ImmutableList.of(0));
-    assertThat(Long.parseLong(firstBlob.properties().get("ndv"))).isEqualTo(6);
+    Assertions.assertThat(firstBlob.type()).as("type").isEqualTo(StandardBlobTypes.NDV_BLOB);
+    Assertions.assertThat(firstBlob.fields()).as("columns").isEqualTo(ImmutableList.of(0));
+    Assertions.assertThat(Long.parseLong(firstBlob.properties().get("ndv"))).isEqualTo(6);
 
     BlobMetadata secondBlob = metadataList.get(1);
-    assertThat(secondBlob.type()).as("type").isEqualTo(StandardBlobTypes.NDV_BLOB);
-    assertThat(secondBlob.fields()).as("columns").isEqualTo(ImmutableList.of(1));
-    assertThat(Long.parseLong(secondBlob.properties().get("ndv"))).isEqualTo(2);
+    Assertions.assertThat(secondBlob.type()).as("type").isEqualTo(StandardBlobTypes.NDV_BLOB);
+    Assertions.assertThat(secondBlob.fields()).as("columns").isEqualTo(ImmutableList.of(1));
+    Assertions.assertThat(Long.parseLong(secondBlob.properties().get("ndv"))).isEqualTo(2);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
