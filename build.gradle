@@ -509,6 +509,7 @@ project(':iceberg-delta-lake') {
       testClassesDirs = sourceSets.integration.output.classesDirs
       classpath = sourceSets.integration.runtimeClasspath
     }
+    check.dependsOn integrationTest
   }
 }
 

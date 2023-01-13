@@ -28,12 +28,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -44,8 +40,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 @SuppressWarnings("VisibilityModifier")
 public abstract class SparkDeltaLakeSnapshotTestBase {
@@ -53,8 +47,8 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
-
   private static File warehouse = null;
+  protected final String catalogName;
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -115,30 +109,9 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
     }
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  protected final String catalogName;
-  protected final Catalog validationCatalog;
-  protected final SupportsNamespaces validationNamespaceCatalog;
-  protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
-  protected final String tableName;
-
-  public SparkDeltaLakeSnapshotTestBase() {
-    this(SparkCatalogConfig.HADOOP);
-  }
-
-  public SparkDeltaLakeSnapshotTestBase(SparkCatalogConfig config) {
-    this(config.catalogName(), config.implementation(), config.properties());
-  }
-
   public SparkDeltaLakeSnapshotTestBase(
       String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
-    this.validationCatalog =
-        catalogName.equals("testhadoop")
-            ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
-            : catalog;
-    this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     config.forEach(
@@ -148,14 +121,7 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
-    this.tableName =
-        (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
-
     sql("CREATE NAMESPACE IF NOT EXISTS default");
-  }
-
-  protected String tableName(String name) {
-    return (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default." + name;
   }
 
   protected List<Object[]> sql(String query, Object... args) {
