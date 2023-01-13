@@ -44,6 +44,7 @@ import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -342,16 +343,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         "The original table and the transformed one should have the same size",
         deltaTableContents.size(),
         icebergTableContents.size());
-    Assert.assertTrue(
-        "The original table and the transformed one should have the same contents",
-        icebergTableContents.containsAll(deltaTableContents));
-    Assert.assertTrue(
-        "The original table and the transformed one should have the same contents",
-        deltaTableContents.containsAll(icebergTableContents));
     Assert.assertEquals(
         "The number of files in the delta table should be the same as the number of files in the snapshot iceberg table",
         deltaLog.update().getAllFiles().size(),
         snapshotReport.snapshotDataFilesCount());
+    Assertions.assertThat(icebergTableContents).containsAll(deltaTableContents);
+    Assertions.assertThat(deltaTableContents).containsAll(icebergTableContents);
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
@@ -372,13 +369,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     expectedPropertiesBuilder.put(SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE);
     expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
     ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
-    Assert.assertTrue(
-        "The snapshot iceberg table should have the expected properties, all in original delta lake table, added by the action and user added ones",
-        icebergTable.properties().entrySet().containsAll(expectedProperties.entrySet()));
-    Assert.assertTrue(
-        "The snapshot iceberg table's property should contains the original location",
-        icebergTable.properties().containsKey(ORIGINAL_LOCATION_PROP)
-            && icebergTable.properties().get(ORIGINAL_LOCATION_PROP).equals(deltaTableLocation));
+
+    Assertions.assertThat(icebergTable.properties().entrySet())
+        .containsAll(expectedProperties.entrySet());
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(ORIGINAL_LOCATION_PROP, deltaTableLocation);
   }
 
   private void checkDataFilePathsIntegrity(
@@ -396,9 +391,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .addedDataFiles(icebergTable.io())
         .forEach(
             dataFile -> {
-              Assert.assertTrue(
-                  "The data file path should be the same as the original delta table",
-                  deltaTableDataFilePaths.contains(dataFile.path().toString()));
+              Assertions.assertThat(deltaTableDataFilePaths).contains(dataFile.path().toString());
             });
   }
 
