@@ -613,6 +613,47 @@ env.execute("Test Iceberg Streaming Read");
 There are other options that we could set by Java API, please see the 
 [IcebergSource#Builder](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/source/IcebergSource.html).
 
+### Read as Avro GenericRecord
+
+FLIP-27 Iceberg source provides `AvroGenericRecordReaderFunction` that converts
+Flink `RowData` Avro `GenericRecord`. You can use the convert to read from
+Iceberg table as Avro GenericRecord DataStream.
+
+Please make sure `flink-avro` jar is included in the classpath.
+Also `iceberg-flink-runtime` shaded bundle jar can't be used
+because the runtime jar shades the avro package.
+Please use non-shaded `iceberg-flink` jar instead.
+
+```java
+TableLoader tableLoader = ...;
+Table table;
+try (TableLoader loader = tableLoader) {
+    loader.open();
+    table = loader.loadTable();
+}
+
+AvroGenericRecordReaderFunction readerFunction =
+    new AvroGenericRecordReaderFunction(
+        table.name(),
+        new Configuration(),
+        table.schema(),
+        null,
+        null,
+        false,
+        table.io(),
+        table.encryption());
+
+IcebergSource<GenericRecord> source =
+    IcebergSource.<GenericRecord>builder()
+        .tableLoader(tableLoader)
+        .readerFunction(readerFunction)
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        ...
+        .build();
+
+DataStream<Row> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(),
+    "Iceberg Source as Avro GenericRecord", new GenericRecordAvroTypeInfo(avroSchema));
+```
 
 ## Writing with DataStream
 
