@@ -27,6 +27,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -110,15 +111,19 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     Preconditions.checkArgument(
         tableName != null && !tableName.isEmpty(), "Table name can not be empty");
 
-    GetTableResponse response =
-        glue()
-            .getTable(
-                GetTableRequest.builder()
-                    .catalogId(glueCatalogId)
-                    .databaseName(dbName)
-                    .name(tableName)
-                    .build());
-    return response.table().isRegisteredWithLakeFormation();
+    try {
+      GetTableResponse response =
+          glue()
+              .getTable(
+                  GetTableRequest.builder()
+                      .catalogId(glueCatalogId)
+                      .databaseName(dbName)
+                      .name(tableName)
+                      .build());
+      return response.table().isRegisteredWithLakeFormation();
+    } catch (EntityNotFoundException e) {
+      return false;
+    }
   }
 
   private String buildTableArn() {
