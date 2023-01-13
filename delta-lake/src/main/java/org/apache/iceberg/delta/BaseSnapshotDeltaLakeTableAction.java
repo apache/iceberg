@@ -267,7 +267,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     }
   }
 
-  public DataFile buildDataFileFromAction(Action action, Table table) {
+  private DataFile buildDataFileFromAction(Action action, Table table) {
     PartitionSpec spec = table.spec();
     String path;
     Map<String, String> partitionValues;
