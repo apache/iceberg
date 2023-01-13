@@ -17,7 +17,7 @@
 import pytest
 
 from pyiceberg.avro.codecs import DeflateCodec
-from pyiceberg.avro.file import AvroFileHeader, META_SCHEMA
+from pyiceberg.avro.file import META_SCHEMA, AvroFileHeader
 
 
 def get_deflate_compressor() -> None:

@@ -59,7 +59,7 @@ from pyiceberg.io.pyarrow import (
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, DATA_FILE_SCHEMA
+from pyiceberg.manifest import DATA_FILE_SCHEMA, DataFile
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table

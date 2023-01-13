@@ -127,8 +127,14 @@ class IcebergBaseModel(BaseModel):
 class Record(StructProtocol):
     _position_to_field_name: Dict[int, str]
 
-    def __init__(self, record_schema: StructType) -> None:
-        self._position_to_field_name = {idx: field.name for idx, field in enumerate(record_schema.fields)}
+    def __init__(self, *data: Any, struct: Optional[StructType] = None) -> None:
+        if struct is not None:
+            self._position_to_field_name = {idx: field.name for idx, field in enumerate(struct.fields)}
+        elif data is not None:
+            self._position_to_field_name = {}
+            for idx, d in enumerate(data):
+                self._position_to_field_name[idx] = f"field{idx + 1}"
+                self[idx] = d
 
     def __setitem__(self, pos: int, value: Any) -> None:
         self.__setattr__(self._position_to_field_name[pos], value)

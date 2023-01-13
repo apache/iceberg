@@ -24,12 +24,12 @@ import json
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
+    Callable,
     Dict,
     Generic,
     Optional,
     Type,
     TypeVar,
-    Callable,
 )
 
 from pydantic import Field

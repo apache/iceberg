@@ -71,3 +71,8 @@ def test_named_record() -> None:
 
     assert r.id == 123  # type: ignore
     assert r.name == "abc"  # type: ignore
+
+
+def test_record_positional_args() -> None:
+    r = Record(1, "a", True)
+    assert repr(r) == "Record[field1=1, field2='a', field3=True]"

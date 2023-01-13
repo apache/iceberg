@@ -19,6 +19,7 @@ import json
 
 import pytest
 
+from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -30,15 +31,18 @@ from pyiceberg.avro.reader import (
     FloatReader,
     IntegerReader,
     StringReader,
+    StructReader,
     TimeReader,
     TimestampReader,
     TimestamptzReader,
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
+from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -49,8 +53,10 @@ from pyiceberg.types import (
     FloatType,
     IntegerType,
     LongType,
+    NestedField,
     PrimitiveType,
     StringType,
+    StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
@@ -327,3 +333,33 @@ def test_unknown_type() -> None:
 
 def test_uuid_reader() -> None:
     assert construct_reader(UUIDType()) == UUIDReader()
+
+
+def test_read_struct() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
+    assert repr(result) == "Record[id=12]"
+
+
+def test_read_struct_lambda() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    # You can also pass in an arbitrary function that returns a struct
+    result = StructReader(((0, IntegerReader()),), lambda struct: Record(struct), struct).read(decoder)
+    assert repr(result) == "Record[id=12]"
+
+
+def test_read_not_struct_type() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    with pytest.raises(ValueError) as exc_info:
+        _ = StructReader(((0, IntegerReader()),), str, struct).read(decoder)  # type: ignore
+
+    assert "Incompatible with StructProtocol: <class 'str'>" in str(exc_info.value)

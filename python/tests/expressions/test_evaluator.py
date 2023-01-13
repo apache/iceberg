@@ -16,7 +16,6 @@
 # under the License.
 from typing import Optional
 
-
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,

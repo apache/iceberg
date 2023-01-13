@@ -266,8 +266,8 @@ class StructReader(Reader):
     def read(self, decoder: BinaryDecoder) -> StructProtocol:
         struct = self.create_struct(self.struct)
 
-        if not issubclass(struct.__class__, StructProtocol):
-            raise ValueError(f"Expected struct to implement StructProtocol: {struct}")
+        if not isinstance(struct, StructProtocol):
+            raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
 
         for (pos, field) in self.field_readers:
             if pos is not None:

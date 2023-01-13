@@ -16,7 +16,12 @@
 # under the License.
 # pylint:disable=redefined-outer-name
 
-from typing import Any, List, Set, Optional
+from typing import (
+    Any,
+    List,
+    Optional,
+    Set,
+)
 
 import pytest
 
@@ -69,7 +74,12 @@ from pyiceberg.expressions.visitors import (
     visit,
     visit_bound_predicate,
 )
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary, PARTITION_FIELD_SUMMARY_TYPE, MANIFEST_FILE_SCHEMA
+from pyiceberg.manifest import (
+    MANIFEST_FILE_SCHEMA,
+    PARTITION_FIELD_SUMMARY_TYPE,
+    ManifestFile,
+    PartitionFieldSummary,
+)
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,

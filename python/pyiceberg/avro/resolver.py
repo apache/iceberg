@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=arguments-renamed,unused-argument
 from typing import (
+    Callable,
     Dict,
     List,
     Optional,
     Tuple,
     Union,
-    Callable,
 )
 
 from pyiceberg.avro.reader import (
