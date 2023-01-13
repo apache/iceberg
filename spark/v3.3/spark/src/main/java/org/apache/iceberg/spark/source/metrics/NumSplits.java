@@ -36,8 +36,8 @@ public class NumSplits implements CustomMetric {
   @Override
   public String aggregateTaskMetrics(long[] taskMetrics) {
     long sum = initialValue;
-    for (int i = 0; i < taskMetrics.length; i++) {
-      sum += taskMetrics[i];
+    for (long taskMetric : taskMetrics) {
+      sum += taskMetric;
     }
 
     return NumberFormat.getIntegerInstance().format(sum);

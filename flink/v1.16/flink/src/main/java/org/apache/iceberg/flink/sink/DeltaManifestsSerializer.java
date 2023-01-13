@@ -66,8 +66,8 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
 
     CharSequence[] referencedDataFiles = deltaManifests.referencedDataFiles();
     out.writeInt(referencedDataFiles.length);
-    for (int i = 0; i < referencedDataFiles.length; i++) {
-      out.writeUTF(referencedDataFiles[i].toString());
+    for (CharSequence referencedDataFile : referencedDataFiles) {
+      out.writeUTF(referencedDataFile.toString());
     }
 
     return binaryOut.toByteArray();
