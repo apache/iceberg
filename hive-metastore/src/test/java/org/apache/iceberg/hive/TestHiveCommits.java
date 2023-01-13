@@ -31,6 +31,7 @@ import java.io.File;
 import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
@@ -348,6 +349,31 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertEquals(
         "One metadata files should exist",
         1,
+        metadataFileCount(tableLocation + "/writeMetaDataLoc"));
+  }
+
+  @Test
+  public void testCreateTableCommitFailure() throws TException, InterruptedException {
+    String namespace = DB_NAME;
+    String tableName = getRandomName();
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+
+    HiveTableOperations hiveTableOperations =
+        (HiveTableOperations) catalog.newTableOps(tableIdentifier);
+
+    String tableLocation = catalog.defaultWarehouseLocation(tableIdentifier);
+    TableMetadata metadataV1 = createTableMetadata(tableLocation);
+
+    HiveTableOperations spyOps = spy(hiveTableOperations);
+    failCommitAndThrowException(spyOps, new InvalidObjectException());
+
+    Assertions.assertThatThrownBy(() -> spyOps.commit(null, metadataV1))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid Hive object for");
+
+    Assert.assertEquals(
+        "No metadata files should exist",
+        0,
         metadataFileCount(tableLocation + "/writeMetaDataLoc"));
   }
 

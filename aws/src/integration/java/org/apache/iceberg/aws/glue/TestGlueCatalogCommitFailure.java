@@ -428,6 +428,30 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
         metadataFileCount(tableLocation + "/writeMetaDataLoc"));
   }
 
+  @Test
+  public void testCreateTableCommitFailure() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+
+    GlueTableOperations glueTableOperations =
+        (GlueTableOperations) glueCatalog.newTableOps(TableIdentifier.of(namespace, tableName));
+
+    String tableLocation = "s3://" + testBucketName + "/" + namespace + "/" + tableName;
+    TableMetadata metadataV1 = createTableMetadata(tableLocation);
+
+    GlueTableOperations spyOps = Mockito.spy(glueTableOperations);
+    failCommitAndThrowException(spyOps, AccessDeniedException.builder().build());
+
+    Assertions.assertThatThrownBy(() -> spyOps.commit(null, metadataV1))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("because Glue cannot access the requested resources");
+
+    Assert.assertEquals(
+        "No metadata files should exist",
+        0,
+        metadataFileCount(tableLocation + "/writeMetaDataLoc"));
+  }
+
   private Table setupTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
