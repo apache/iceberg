@@ -340,6 +340,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(context.deleteFileFormat())
+              .operationId(context.queryId())
+              .suffix("deletes")
               .build();
 
       SparkFileWriterFactory writerFactory =
