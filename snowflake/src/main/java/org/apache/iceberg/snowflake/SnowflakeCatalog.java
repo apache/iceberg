@@ -46,6 +46,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   private static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
+  // Injectable factory for testing purposes.
   static class FileIOFactory {
     public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
       return CatalogUtil.loadFileIO(impl, properties, hadoopConf);
