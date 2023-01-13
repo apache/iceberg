@@ -37,7 +37,6 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
