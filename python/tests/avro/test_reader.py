@@ -350,7 +350,9 @@ def test_read_struct_lambda() -> None:
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     # You can also pass in an arbitrary function that returns a struct
-    result = StructReader(((0, IntegerReader()),), lambda struct: Record(struct), struct).read(decoder)
+    result = StructReader(
+        ((0, IntegerReader()),), lambda struct: Record(struct), struct  # pylint: disable=unnecessary-lambda
+    ).read(decoder)
     assert repr(result) == "Record[id=12]"
 
 

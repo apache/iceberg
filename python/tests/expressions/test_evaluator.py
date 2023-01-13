@@ -54,14 +54,14 @@ FLOAT_SCHEMA = Schema(
 )
 
 
-def _record_simple(id: int, data: Optional[str]) -> Record:
+def _record_simple(id: int, data: Optional[str]) -> Record:  # pylint: disable=redefined-builtin
     r = Record(SIMPLE_SCHEMA.as_struct())
     r[0] = id
     r[1] = data
     return r
 
 
-def _record_float(id: float, f: float) -> Record:
+def _record_float(id: float, f: float) -> Record:  # pylint: disable=redefined-builtin
     r = Record(FLOAT_SCHEMA.as_struct())
     r[0] = id
     r[1] = f
