@@ -16,7 +16,12 @@
 # under the License.
 import json
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import (
+    Any,
+    List,
+    Optional,
+    Tuple,
+)
 from uuid import UUID
 
 from rich.console import Console
@@ -66,6 +71,10 @@ class Output(ABC):
 
     @abstractmethod
     def uuid(self, uuid: Optional[UUID]) -> None:
+        ...
+
+    @abstractmethod
+    def result_table(self, rows: List[Tuple[Any]]) -> None:
         ...
 
 
@@ -167,6 +176,13 @@ class ConsoleOutput(Output):
     def uuid(self, uuid: Optional[UUID]) -> None:
         Console().print(str(uuid) if uuid else "missing")
 
+    def result_table(self, rows: List[Tuple[Any]]) -> None:
+        output_table = self._table
+        for row in rows:
+            output_table.add_row(str(row))
+
+        Console().print(output_table)
+
 
 class JsonOutput(Output):
     """Writes json to stdout"""
@@ -212,3 +228,6 @@ class JsonOutput(Output):
 
     def uuid(self, uuid: Optional[UUID]) -> None:
         self._out({"uuid": str(uuid) if uuid else "missing"})
+
+    def result_table(self, rows: List[Tuple[Any]]) -> None:
+        print(json.dumps(rows))

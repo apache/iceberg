@@ -24,7 +24,9 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
@@ -470,6 +472,59 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
+def open_task(
+    task: FileScanTask,
+    fs: FileSystem,
+    table: Table,
+    row_filter: BooleanExpression,
+    projected_schema: Schema,
+    case_sensitive: bool,
+) -> pa.Table:
+    _, path = PyArrowFileIO.parse_location(task.file.file_path)
+
+    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
+
+    # Get the schema
+    with fs.open_input_file(path) as fout:
+        parquet_schema = pq.read_schema(fout)
+        schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
+        if schema_raw is None:
+            raise ValueError(
+                "Iceberg schema is not embedded into the Parquet file, see https://github.com/apache/iceberg/issues/6505"
+            )
+        file_schema = Schema.parse_raw(schema_raw)
+
+    pyarrow_filter = None
+    if bound_row_filter is not AlwaysTrue():
+        translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
+        bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
+        pyarrow_filter = expression_to_pyarrow(bound_file_filter)
+
+    projected_field_ids = {
+        id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
+    }.union(extract_field_ids(bound_row_filter))
+
+    file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
+
+    if file_schema is None:
+        raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
+
+    # Prune the stuff that we don't need anyway
+    file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
+
+    read_options = {
+        "pre_buffer": True,
+        "use_buffered_stream": True,
+        "buffer_size": 8388608,
+    }
+
+    arrow_table = ds.dataset(
+        source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(**read_options), filesystem=fs
+    ).to_table(filter=pyarrow_filter)
+
+    return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+
+
 def project_table(
     files: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
 ) -> pa.Table:
@@ -485,52 +540,20 @@ def project_table(
     Raises:
         ResolveError: When an incompatible query is done
     """
-
     if isinstance(table.io, PyArrowFileIO):
         scheme, path = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
     else:
         raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
 
-    bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
-
-    projected_field_ids = {
-        id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
-    }.union(extract_field_ids(bound_row_filter))
-
     tables = []
-    for task in files:
-        _, path = PyArrowFileIO.parse_location(task.file.file_path)
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for task in files:
+            futures.append(executor.submit(open_task, task, fs, table, row_filter, projected_schema, case_sensitive))
 
-        # Get the schema
-        with fs.open_input_file(path) as fout:
-            parquet_schema = pq.read_schema(fout)
-            schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
-            if schema_raw is None:
-                raise ValueError(
-                    "Iceberg schema is not embedded into the Parquet file, see https://github.com/apache/iceberg/issues/6505"
-                )
-            file_schema = Schema.parse_raw(schema_raw)
-
-        pyarrow_filter = None
-        if row_filter is not AlwaysTrue():
-            translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
-            bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
-            pyarrow_filter = expression_to_pyarrow(bound_file_filter)
-
-        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
-
-        if file_schema is None:
-            raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
-
-        # Prune the stuff that we don't need anyway
-        file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
-
-        arrow_table = ds.dataset(
-            source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
-        ).to_table(filter=pyarrow_filter)
-
-        tables.append(to_requested_schema(projected_schema, file_project_schema, arrow_table))
+        for future in concurrent.futures.as_completed(futures):
+            tables.append(future.result())
 
     if len(tables) > 1:
         return pa.concat_tables(tables)

@@ -16,7 +16,10 @@
 # under the License.
 from __future__ import annotations
 
+import concurrent
+import datetime
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cached_property
 from typing import (
@@ -328,14 +331,23 @@ class DataScan(TableScan["DataScan"]):
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
-        for manifest in manifests:
-            partition_filter = partition_evaluators[manifest.partition_spec_id]
-            all_files = files(io.new_input(manifest.manifest_path))
-            matching_partition_files = filter(partition_filter, all_files)
+        futures = []
+        with ThreadPoolExecutor() as executor:
+            for manifest in manifests:
+                partition_filter = partition_evaluators[manifest.partition_spec_id]
 
-            matching_partition_data_files = map(_check_content, matching_partition_files)
+                def read_manifest():
+                    all_files = files(io.new_input(manifest.manifest_path))
+                    return tuple(filter(partition_filter, tuple(all_files)))
 
-            yield from (FileScanTask(file) for file in matching_partition_data_files)
+                futures.append(executor.submit(read_manifest))
+
+            tasks = []
+            for future in concurrent.futures.as_completed(futures):
+                matching_files = map(_check_content, future.result())
+                tasks.extend(tuple(FileScanTask(file) for file in matching_files))
+
+            return tasks
 
     def to_arrow(self) -> pa.Table:
         return project_table(

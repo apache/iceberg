@@ -19,6 +19,7 @@ from functools import wraps
 from typing import (
     Any,
     Callable,
+    List,
     Literal,
     Optional,
     Tuple,
@@ -365,3 +366,37 @@ def table(ctx: Context, identifier: str, property_name: str) -> None:  # noqa: F
         ctx.exit(1)
     else:
         raise NoSuchPropertyException(f"Property {property_name} does not exist on {identifier}")
+
+
+@run.command()
+@click.option("--table", "-t", multiple=True)
+@click.argument("sql")
+@click.pass_context
+@catch_exception()
+def sql(ctx: Context, table: List[str], sql: str) -> None:
+    """Lists all the files of the table"""
+    import duckdb
+
+    from pyiceberg.expressions import parser
+
+    catalog, output = _catalog_and_output(ctx)
+
+    con = duckdb.connect(database=":memory:")
+    for arg in table:
+        if "=" in arg:
+            ident, filter = arg.split("=", maxsplit=1)
+        else:
+            ident = arg
+            filter = None
+
+        t = catalog.load_table(ident)
+        alias = t.name()[-1]
+
+        scan = t.scan()
+        if filter:
+            scan = scan.filter(parser.parse(filter))
+
+        # register the table with duckdb
+        scan.to_duckdb(alias, con)
+
+    output.result_table(con.execute(sql).fetchall())
