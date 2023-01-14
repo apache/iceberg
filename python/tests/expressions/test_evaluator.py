@@ -70,79 +70,79 @@ def _record_float(id: float, f: float) -> Record:  # pylint: disable=redefined-b
 
 def test_true() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, AlwaysTrue(), case_sensitive=True)
-    assert evaluate(_record_simple(1, "a"))
+    assert evaluate(Record(1, "a"))
 
 
 def test_false() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, AlwaysFalse(), case_sensitive=True)
-    assert not evaluate(_record_simple(1, "a"))
+    assert not evaluate(Record(1, "a"))
 
 
 def test_less_than() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, LessThan("id", 3), case_sensitive=True)
-    assert evaluate(_record_simple(2, "a"))
-    assert not evaluate(_record_simple(3, "a"))
+    assert evaluate(Record(2, "a"))
+    assert not evaluate(Record(3, "a"))
 
 
 def test_less_than_or_equal() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, LessThanOrEqual("id", 3), case_sensitive=True)
-    assert evaluate(_record_simple(1, "a"))
-    assert evaluate(_record_simple(3, "a"))
-    assert not evaluate(_record_simple(4, "a"))
+    assert evaluate(Record(1, "a"))
+    assert evaluate(Record(3, "a"))
+    assert not evaluate(Record(4, "a"))
 
 
 def test_greater_than() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, GreaterThan("id", 3), case_sensitive=True)
-    assert not evaluate(_record_simple(1, "a"))
-    assert not evaluate(_record_simple(3, "a"))
-    assert evaluate(_record_simple(4, "a"))
+    assert not evaluate(Record(1, "a"))
+    assert not evaluate(Record(3, "a"))
+    assert evaluate(Record(4, "a"))
 
 
 def test_greater_than_or_equal() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, GreaterThanOrEqual("id", 3), case_sensitive=True)
-    assert not evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, "a"))
-    assert evaluate(_record_simple(4, "a"))
+    assert not evaluate(Record(2, "a"))
+    assert evaluate(Record(3, "a"))
+    assert evaluate(Record(4, "a"))
 
 
 def test_equal_to() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, EqualTo("id", 3), case_sensitive=True)
-    assert not evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, "a"))
-    assert not evaluate(_record_simple(4, "a"))
+    assert not evaluate(Record(2, "a"))
+    assert evaluate(Record(3, "a"))
+    assert not evaluate(Record(4, "a"))
 
 
 def test_not_equal_to() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, NotEqualTo("id", 3), case_sensitive=True)
-    assert evaluate(_record_simple(2, "a"))
-    assert not evaluate(_record_simple(3, "a"))
-    assert evaluate(_record_simple(4, "a"))
+    assert evaluate(Record(2, "a"))
+    assert not evaluate(Record(3, "a"))
+    assert evaluate(Record(4, "a"))
 
 
 def test_in() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, In("id", [1, 2, 3]), case_sensitive=True)
-    assert evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, "a"))
-    assert not evaluate(_record_simple(4, "a"))
+    assert evaluate(Record(2, "a"))
+    assert evaluate(Record(3, "a"))
+    assert not evaluate(Record(4, "a"))
 
 
 def test_not_in() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, NotIn("id", [1, 2, 3]), case_sensitive=True)
-    assert not evaluate(_record_simple(2, "a"))
-    assert not evaluate(_record_simple(3, "a"))
-    assert evaluate(_record_simple(4, "a"))
+    assert not evaluate(Record(2, "a"))
+    assert not evaluate(Record(3, "a"))
+    assert evaluate(Record(4, "a"))
 
 
 def test_is_null() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, IsNull("data"), case_sensitive=True)
-    assert not evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, None))
+    assert not evaluate(Record(2, "a"))
+    assert evaluate(Record(3, None))
 
 
 def test_not_null() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, NotNull("data"), case_sensitive=True)
-    assert evaluate(_record_simple(2, "a"))
-    assert not evaluate(_record_simple(3, None))
+    assert evaluate(Record(2, "a"))
+    assert not evaluate(Record(3, None))
 
 
 def test_is_nan() -> None:
@@ -161,19 +161,19 @@ def test_not_nan() -> None:
 
 def test_not() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, Not(LessThan("id", 3)), case_sensitive=True)
-    assert not evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, "a"))
+    assert not evaluate(Record(2, "a"))
+    assert evaluate(Record(3, "a"))
 
 
 def test_and() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, And(LessThan("id", 3), GreaterThan("id", 1)), case_sensitive=True)
-    assert not evaluate(_record_simple(1, "a"))
-    assert evaluate(_record_simple(2, "a"))
-    assert not evaluate(_record_simple(3, "a"))
+    assert not evaluate(Record(1, "a"))
+    assert evaluate(Record(2, "a"))
+    assert not evaluate(Record(3, "a"))
 
 
 def test_or() -> None:
     evaluate = expression_evaluator(SIMPLE_SCHEMA, Or(LessThan("id", 2), GreaterThan("id", 2)), case_sensitive=True)
-    assert evaluate(_record_simple(1, "a"))
-    assert not evaluate(_record_simple(2, "a"))
-    assert evaluate(_record_simple(3, "a"))
+    assert evaluate(Record(1, "a"))
+    assert not evaluate(Record(2, "a"))
+    assert evaluate(Record(3, "a"))

@@ -16,6 +16,7 @@
 # under the License.
 from enum import Enum
 from typing import (
+    Any,
     Dict,
     Iterator,
     List,
@@ -74,7 +75,7 @@ class FileFormat(str, Enum):
         return f"FileFormat.{self.name}"
 
 
-DATA_FILE_SCHEMA = StructType(
+DATA_FILE_TYPE = StructType(
     NestedField(
         field_id=134,
         name="content",
@@ -176,13 +177,16 @@ class DataFile(Record):
     sort_order_id: Optional[int]
     spec_id: Optional[int]
 
+    def __init__(self, *data: Any, **named_data: Any) -> None:
+        super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
+
 
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
     NestedField(1, "snapshot_id", LongType(), required=False),
     NestedField(3, "sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
-    NestedField(2, "data_file", DATA_FILE_SCHEMA, required=False),
+    NestedField(2, "data_file", DATA_FILE_TYPE, required=False),
 )
 
 
@@ -192,6 +196,9 @@ class ManifestEntry(Record):
     sequence_number: Optional[int]
     file_sequence_number: Optional[int]
     data_file: DataFile
+
+    def __init__(self, *data: Any, **named_data: Any) -> None:
+        super().__init__(*data, **{"struct": MANIFEST_ENTRY_SCHEMA.as_struct(), **named_data})
 
 
 PARTITION_FIELD_SUMMARY_TYPE = StructType(
@@ -207,6 +214,9 @@ class PartitionFieldSummary(Record):
     contains_nan: Optional[bool]
     lower_bound: Optional[bytes]
     upper_bound: Optional[bytes]
+
+    def __init__(self, *data: Any, **named_data: Any) -> None:
+        super().__init__(*data, **{"struct": PARTITION_FIELD_SUMMARY_TYPE, **named_data})
 
 
 MANIFEST_FILE_SCHEMA: Schema = Schema(
@@ -244,6 +254,9 @@ class ManifestFile(Record):
     deleted_rows_count: Optional[int]
     partitions: Optional[List[PartitionFieldSummary]]
     key_metadata: Optional[bytes]
+
+    def __init__(self, *data: Any, **named_data: Any) -> None:
+        super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
 
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)

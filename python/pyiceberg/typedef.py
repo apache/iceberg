@@ -127,14 +127,20 @@ class IcebergBaseModel(BaseModel):
 class Record(StructProtocol):
     _position_to_field_name: Dict[int, str]
 
-    def __init__(self, *data: Any, struct: Optional[StructType] = None) -> None:
+    def __init__(self, *data: Any, struct: Optional[StructType] = None, **named_data: Any) -> None:
         if struct is not None:
             self._position_to_field_name = {idx: field.name for idx, field in enumerate(struct.fields)}
+        elif named_data:
+            # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
+            self._position_to_field_name = {idx: name for idx, name in enumerate(named_data.keys())}
         else:
-            self._position_to_field_name = {}
-            for idx, d in enumerate(data):
-                self._position_to_field_name[idx] = f"field{idx + 1}"
-                self[idx] = d
+            self._position_to_field_name = {idx: f"field{idx + 1}" for idx in range(len(data))}
+
+        for idx, d in enumerate(data):
+            self[idx] = d
+
+        for field_name, d in named_data.items():
+            self.__setattr__(field_name, d)
 
     def __setitem__(self, pos: int, value: Any) -> None:
         self.__setattr__(self._position_to_field_name[pos], value)

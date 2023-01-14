@@ -16,12 +16,7 @@
 # under the License.
 # pylint:disable=redefined-outer-name
 
-from typing import (
-    Any,
-    List,
-    Optional,
-    Set,
-)
+from typing import Any, List, Set
 
 import pytest
 
@@ -74,12 +69,7 @@ from pyiceberg.expressions.visitors import (
     visit,
     visit_bound_predicate,
 )
-from pyiceberg.manifest import (
-    MANIFEST_FILE_SCHEMA,
-    PARTITION_FIELD_SUMMARY_TYPE,
-    ManifestFile,
-    PartitionFieldSummary,
-)
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
@@ -797,9 +787,7 @@ def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
 
 def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
     """Helper to create a ManifestFile"""
-    r = ManifestFile(struct=MANIFEST_FILE_SCHEMA.as_struct())
-    r[13] = partitions
-    return r
+    return ManifestFile(manifest_path="", manifest_length=0, partition_spec_id=0, partitions=partitions)
 
 
 INT_MIN_VALUE = 30
@@ -838,94 +826,83 @@ def manifest_no_stats() -> ManifestFile:
 
 @pytest.fixture
 def manifest() -> ManifestFile:
-    def _PartitionFieldSummary(
-        contains_null: bool, contains_nan: Optional[bool], lower_bound: Optional[bytes], upper_bound: Optional[bytes]
-    ) -> PartitionFieldSummary:
-        """Helper to create a PartitionFieldSummary"""
-        r = PartitionFieldSummary(struct=PARTITION_FIELD_SUMMARY_TYPE)
-        r[0] = contains_null
-        r[1] = contains_nan
-        r[2] = lower_bound
-        r[3] = upper_bound
-        return r
-
     return _to_manifest_file(
         # id
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=False,
             contains_nan=None,
             lower_bound=INT_MIN,
             upper_bound=INT_MAX,
         ),
         # all_nulls_missing_nan
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=None,
             lower_bound=None,
             upper_bound=None,
         ),
         # some_nulls
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=None,
             lower_bound=STRING_MIN,
             upper_bound=STRING_MAX,
         ),
         # no_nulls
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=False,
             contains_nan=None,
             lower_bound=STRING_MIN,
             upper_bound=STRING_MAX,
         ),
         # float
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=None,
             lower_bound=_to_byte_buffer(FloatType(), 0.0),
             upper_bound=_to_byte_buffer(FloatType(), 20.0),
         ),
         # all_nulls_double
-        _PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
         # all_nulls_no_nans
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=False,
             lower_bound=None,
             upper_bound=None,
         ),
         # all_nans
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=False,
             contains_nan=True,
             lower_bound=None,
             upper_bound=None,
         ),
         # both_nan_and_null
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=True,
             lower_bound=None,
             upper_bound=None,
         ),
         # no_nan_or_null
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=False,
             contains_nan=False,
             lower_bound=_to_byte_buffer(FloatType(), 0.0),
             upper_bound=_to_byte_buffer(FloatType(), 20.0),
         ),
         # all_nulls_missing_nan_float
-        _PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
+        PartitionFieldSummary(contains_null=True, contains_nan=None, lower_bound=None, upper_bound=None),
         # all_same_value_or_null
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=True,
             contains_nan=None,
             lower_bound=STRING_MIN,
             upper_bound=STRING_MIN,
         ),
         # no_nulls_same_value_a
-        _PartitionFieldSummary(
+        PartitionFieldSummary(
             contains_null=False,
             contains_nan=None,
             lower_bound=STRING_MIN,

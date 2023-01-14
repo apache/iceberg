@@ -47,10 +47,7 @@ def test_keydefaultdict() -> None:
 
 
 def test_record_repr(table_schema_simple: Schema) -> None:
-    r = Record(struct=table_schema_simple.as_struct())
-    r[0] = "vo"
-    r[1] = 1
-    r[2] = True
+    r = Record("vo", 1, True, struct=table_schema_simple.as_struct())
     assert repr(r) == "Record[foo='vo', bar=1, baz=True]"
 
 
@@ -76,3 +73,17 @@ def test_named_record() -> None:
 def test_record_positional_args() -> None:
     r = Record(1, "a", True)
     assert repr(r) == "Record[field1=1, field2='a', field3=True]"
+
+
+def test_record_named_args() -> None:
+    r = Record(foo=1, bar="a", baz=True)
+
+    assert r.foo == 1  # type: ignore
+    assert r.bar == "a"  # type: ignore
+    assert r.baz is True  # type: ignore
+
+    assert r[0] == 1
+    assert r[1] == "a"
+    assert r[2] is True
+
+    assert repr(r) == "Record[foo=1, bar='a', baz=True]"

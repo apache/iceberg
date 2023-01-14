@@ -371,13 +371,13 @@ def test_read_struct_exception_handling() -> None:
     mis = MemoryInputStream(b"\x18")
     decoder = BinaryDecoder(mis)
 
-    def raise_err(struct: StructType):
+    def raise_err(struct: StructType) -> None:
         raise TypeError("boom")
 
     struct = StructType(NestedField(1, "id", IntegerType(), required=True))
     # You can also pass in an arbitrary function that returns a struct
 
     with pytest.raises(ValueError) as exc_info:
-        _ = StructReader(((0, IntegerReader()),), raise_err, struct).read(decoder)  # pylint: disable=unnecessary-lambda
+        _ = StructReader(((0, IntegerReader()),), raise_err, struct).read(decoder)  # type: ignore
 
     assert "Unable to initialize struct:" in str(exc_info.value)
