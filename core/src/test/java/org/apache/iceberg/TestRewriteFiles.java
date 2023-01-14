@@ -44,10 +44,10 @@ public class TestRewriteFiles extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
   public static Object[] parameters() {
     return new Object[][] {
-            new Object[] {1, "main"},
-            new Object[] {1, "testBranch"},
-            new Object[] {2, "main"},
-            new Object[] {2, "testBranch"}
+      new Object[] {1, "main"},
+      new Object[] {1, "testBranch"},
+      new Object[] {2, "main"},
+      new Object[] {2, "testBranch"}
     };
   }
 
@@ -61,26 +61,33 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     TableMetadata base = readMetadata();
-    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertNull("Should not have a current snapshot", base.ref(branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         ValidationException.class,
         "Missing required files to delete: /path/to/data-a.parquet",
-        () -> commit(table, table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)), branch));
+        () ->
+            commit(
+                table,
+                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)),
+                branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         ValidationException.class,
         "Missing required files to delete: /path/to/data-a-deletes.parquet",
         () ->
-            commit(table, table
-                .newRewrite()
-                .rewriteFiles(
-                    ImmutableSet.of(),
-                    ImmutableSet.of(FILE_A_DELETES),
-                    ImmutableSet.of(FILE_A),
-                    ImmutableSet.of(FILE_B_DELETES)), branch));
+            commit(
+                table,
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(),
+                        ImmutableSet.of(FILE_A_DELETES),
+                        ImmutableSet.of(FILE_A),
+                        ImmutableSet.of(FILE_B_DELETES)),
+                branch));
   }
 
   @Test
@@ -91,33 +98,40 @@ public class TestRewriteFiles extends TableTestBase {
         "Expected an exception",
         ValidationException.class,
         "Missing required files to delete: /path/to/data-a.parquet",
-        () -> apply(table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()), branch));
+        () ->
+            apply(
+                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet()),
+                branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
         "Delete files to add must be empty because there's no delete file to be rewritten",
         () ->
-                apply(
-                table.newRewrite()
-                .rewriteFiles(
-                    ImmutableSet.of(FILE_A),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(FILE_A_DELETES)), branch));
+            apply(
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(FILE_A),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(FILE_A_DELETES)),
+                branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
         "Delete files to add must be empty because there's no delete file to be rewritten",
         () ->
-            apply(table
-                .newRewrite()
-                .rewriteFiles(
-                    ImmutableSet.of(FILE_A),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(FILE_B),
-                    ImmutableSet.of(FILE_B_DELETES)), branch));
+            apply(
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(FILE_A),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(FILE_B),
+                        ImmutableSet.of(FILE_B_DELETES)),
+                branch));
   }
 
   @Test
@@ -128,47 +142,55 @@ public class TestRewriteFiles extends TableTestBase {
         "Expected an exception",
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
-        () -> apply(table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)), branch));
+        () ->
+            apply(
+                table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)),
+                branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
         () ->
-            apply(table
-                .newRewrite()
-                .rewriteFiles(
-                    ImmutableSet.of(),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(FILE_A_DELETES)), branch));
+            apply(
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(FILE_A_DELETES)),
+                branch));
 
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
         () ->
-            apply(table
-                .newRewrite()
-                .rewriteFiles(
-                    ImmutableSet.of(),
-                    ImmutableSet.of(),
-                    ImmutableSet.of(FILE_A),
-                    ImmutableSet.of(FILE_A_DELETES)), branch));
+            apply(
+                table
+                    .newRewrite()
+                    .rewriteFiles(
+                        ImmutableSet.of(),
+                        ImmutableSet.of(),
+                        ImmutableSet.of(FILE_A),
+                        ImmutableSet.of(FILE_A_DELETES)),
+                branch));
   }
 
   @Test
   public void testDeleteWithDuplicateEntriesInManifest() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A).appendFile(FILE_B), branch);
+    commit(
+        table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseSnapshotId = latestSnapshot(base, branch).snapshotId();
     Assert.assertEquals(
         "Should create 1 manifest for initial write",
         1,
-            latestSnapshot(base, branch).allManifests(table.io()).size());
+        latestSnapshot(base, branch).allManifests(table.io()).size());
     ManifestFile initialManifest = latestSnapshot(base, branch).allManifests(table.io()).get(0);
 
     Snapshot pending =
@@ -201,11 +223,11 @@ public class TestRewriteFiles extends TableTestBase {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
-    long baseSnapshotId = latestSnapshot(table, branch).snapshotId();
+    long baseSnapshotId = latestSnapshot(base, branch).snapshotId();
     Assert.assertEquals(
         "Should create 1 manifest for initial write",
         1,
-            latestSnapshot(table, branch).allManifests(table.io()).size());
+        latestSnapshot(table, branch).allManifests(table.io()).size());
     ManifestFile initialManifest = latestSnapshot(table, branch).allManifests(table.io()).get(0);
 
     Snapshot pending =
@@ -237,13 +259,16 @@ public class TestRewriteFiles extends TableTestBase {
         "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    commit(table, table
-        .newRowDelta()
-        .addRows(FILE_A)
-        .addRows(FILE_B)
-        .addRows(FILE_C)
-        .addDeletes(FILE_A_DELETES)
-        .addDeletes(FILE_B_DELETES), branch);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addRows(FILE_C)
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES),
+        branch);
 
     TableMetadata base = readMetadata();
     Snapshot baseSnap = latestSnapshot(base, branch);
@@ -267,14 +292,16 @@ public class TestRewriteFiles extends TableTestBase {
 
     // Rewrite the files.
     Snapshot pending =
-        apply(table
-            .newRewrite()
-            .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
-            .rewriteFiles(
-                ImmutableSet.of(FILE_A),
-                ImmutableSet.of(FILE_A_DELETES),
-                ImmutableSet.of(FILE_D),
-                ImmutableSet.of()), branch);
+        apply(
+            table
+                .newRewrite()
+                .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
+                .rewriteFiles(
+                    ImmutableSet.of(FILE_A),
+                    ImmutableSet.of(FILE_A_DELETES),
+                    ImmutableSet.of(FILE_D),
+                    ImmutableSet.of()),
+            branch);
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests(table.io()).size());
     Assert.assertFalse(
@@ -309,13 +336,16 @@ public class TestRewriteFiles extends TableTestBase {
         "Sequence number is only supported in iceberg format v2. ", formatVersion > 1);
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    commit(table, table
-        .newRowDelta()
-        .addRows(FILE_A)
-        .addRows(FILE_B)
-        .addRows(FILE_C)
-        .addDeletes(FILE_A_DELETES)
-        .addDeletes(FILE_B_DELETES), branch);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addRows(FILE_C)
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES),
+        branch);
 
     TableMetadata base = readMetadata();
     Snapshot baseSnap = latestSnapshot(base, branch);
@@ -340,10 +370,12 @@ public class TestRewriteFiles extends TableTestBase {
     // Rewrite the files.
     long oldSequenceNumber = latestSnapshot(table, branch).sequenceNumber();
     Snapshot pending =
-        apply(table
-            .newRewrite()
-            .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
-            .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber), branch);
+        apply(
+            table
+                .newRewrite()
+                .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
+                .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber),
+            branch);
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests(table.io()).size());
     Assert.assertFalse(
@@ -403,7 +435,7 @@ public class TestRewriteFiles extends TableTestBase {
         "Should retry 4 times and throw last failure",
         CommitFailedException.class,
         "Injected failure",
-            () -> commit(table, rewrite, branch));
+        () -> commit(table, rewrite, branch));
 
     Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
     Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
@@ -417,13 +449,16 @@ public class TestRewriteFiles extends TableTestBase {
     Assume.assumeTrue(
         "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
 
-    commit(table, table
-        .newRowDelta()
-        .addRows(FILE_A)
-        .addRows(FILE_B)
-        .addRows(FILE_C)
-        .addDeletes(FILE_A_DELETES)
-        .addDeletes(FILE_B_DELETES), branch);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addRows(FILE_C)
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES),
+        branch);
 
     long baseSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
     table.ops().failCommits(5);
@@ -515,13 +550,16 @@ public class TestRewriteFiles extends TableTestBase {
     Assume.assumeTrue(
         "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
 
-    commit(table, table
-        .newRowDelta()
-        .addRows(FILE_A)
-        .addRows(FILE_B)
-        .addRows(FILE_C)
-        .addDeletes(FILE_A_DELETES)
-        .addDeletes(FILE_B_DELETES), branch);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addRows(FILE_C)
+            .addDeletes(FILE_A_DELETES)
+            .addDeletes(FILE_B_DELETES),
+        branch);
 
     long baseSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
     table.ops().failCommits(3);
@@ -639,7 +677,7 @@ public class TestRewriteFiles extends TableTestBase {
     Assume.assumeTrue(
         "Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
 
-    commit(table , table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
 
     // Apply and commit the rewrite transaction.
     RewriteFiles rewrite =
@@ -696,7 +734,11 @@ public class TestRewriteFiles extends TableTestBase {
         "Expected an exception",
         ValidationException.class,
         "Missing required files to delete: /path/to/data-c.parquet",
-        () -> commit(table, table.newRewrite().rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D)), branch));
+        () ->
+            commit(
+                table,
+                table.newRewrite().rewriteFiles(Sets.newSet(FILE_C), Sets.newSet(FILE_D)),
+                branch));
 
     Assert.assertEquals("Only 1 manifests should exist", 1, listManifestFiles().size());
   }
@@ -714,7 +756,8 @@ public class TestRewriteFiles extends TableTestBase {
         latestSnapshot(base, branch).allManifests(table.io()).size());
 
     RewriteFiles rewrite = table.newRewrite();
-    Snapshot pending = apply(rewrite.rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)), branch);
+    Snapshot pending =
+        apply(rewrite.rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B)), branch);
 
     Assert.assertEquals("Should contain 2 manifest", 2, pending.allManifests(table.io()).size());
 
@@ -735,7 +778,11 @@ public class TestRewriteFiles extends TableTestBase {
         "Expected an exception",
         ValidationException.class,
         "Missing required files to delete: /path/to/data-a.parquet",
-        () -> commit(table, table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D)), branch));
+        () ->
+            commit(
+                table,
+                table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_D)),
+                branch));
 
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
   }
@@ -757,15 +804,19 @@ public class TestRewriteFiles extends TableTestBase {
         ValidationException.class,
         "Cannot commit, found new delete for replaced data file",
         () ->
-            apply(table
-                .newRewrite()
-                .validateFromSnapshot(snapshotBeforeDeletes)
-                .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)), branch));
+            apply(
+                table
+                    .newRewrite()
+                    .validateFromSnapshot(snapshotBeforeDeletes)
+                    .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
+                branch));
 
     // the rewrite should be valid when validating from the snapshot after the deletes
-    apply(table
-        .newRewrite()
-        .validateFromSnapshot(snapshotAfterDeletes)
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)), branch);
+    apply(
+        table
+            .newRewrite()
+            .validateFromSnapshot(snapshotAfterDeletes)
+            .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
+        branch);
   }
 }

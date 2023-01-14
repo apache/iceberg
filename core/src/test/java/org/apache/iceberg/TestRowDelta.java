@@ -1286,7 +1286,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     commit(table, rowDelta, branch);
 
-    validateTableDeleteFilesWithRef(table, branch, deleteFile1, deleteFile2);
+    validateBranchDeleteFiles(table, branch, deleteFile1, deleteFile2);
   }
 
   @Test
@@ -1335,13 +1335,8 @@ public class TestRowDelta extends V2TableTestBase {
     commit(table, rowDelta, branch);
     commit(table, rewriteFiles, branch);
 
-    if (branch == "testBranch") {
-      validateTableDeleteFilesWithRef(table, "testBranch", deleteFile1);
-      validateTableFilesWithRef(table, branch, dataFile2);
-    } else {
-      validateTableDeleteFiles(table, deleteFile1);
-      validateTableFiles(table, dataFile2);
-    }
+    validateBranchDeleteFiles(table, branch, deleteFile1);
+    validateBranchFiles(table, branch, dataFile2);
   }
 
   @Test
@@ -1516,51 +1511,5 @@ public class TestRowDelta extends V2TableTestBase {
                 .validateNoConflictingDataFiles()
                 .validateNoConflictingDeleteFiles()
                 .commit());
-  }
-
-  @Test
-  public void testBranchValidationsNotValidAncestor() {
-    table.newAppend().appendFile(FILE_A).commit();
-    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
-    table.newAppend().appendFile(FILE_B).commit();
-
-    // This commit will result in validation exception as we start validation from a snapshot which
-    // is not an ancestor of the branch
-    RowDelta rowDelta =
-        table
-            .newRowDelta()
-            .toBranch("branch")
-            .addDeletes(FILE_A_DELETES)
-            .validateFromSnapshot(table.currentSnapshot().snapshotId())
-            .conflictDetectionFilter(Expressions.alwaysTrue())
-            .validateNoConflictingDeleteFiles();
-
-    AssertHelpers.assertThrows(
-        "Snapshot 2 is not an ancestor of 1",
-        IllegalArgumentException.class,
-        () -> rowDelta.commit());
-  }
-
-  @Test
-  public void testBranchValidationsValidAncestor() {
-    table.newAppend().appendFile(FILE_A).commit();
-    Long ancestorSnapshot = table.currentSnapshot().snapshotId();
-    table.manageSnapshots().createBranch("branch", ancestorSnapshot).commit();
-
-    // This commit not result in validation exception as we start validation from a snapshot which
-    // is an actual ancestor of the branch
-    table
-        .newRowDelta()
-        .toBranch("branch")
-        .addDeletes(FILE_A_DELETES)
-        .validateFromSnapshot(ancestorSnapshot)
-        .conflictDetectionFilter(Expressions.alwaysTrue())
-        .validateNoConflictingDeleteFiles()
-        .commit();
-
-    int branchSnapshot = 2;
-
-    Assert.assertEquals(table.currentSnapshot().snapshotId(), 1);
-    Assert.assertEquals(table.ops().current().ref("branch").snapshotId(), branchSnapshot);
   }
 }

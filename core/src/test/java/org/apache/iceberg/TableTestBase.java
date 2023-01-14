@@ -458,7 +458,7 @@ public class TableTestBase {
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
-  void validateTableFilesWithRef(Table tbl, String ref, DataFile... expectedFiles) {
+  void validateBranchFiles(Table tbl, String ref, DataFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.path());
@@ -484,13 +484,13 @@ public class TableTestBase {
     Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
-  void validateTableDeleteFilesWithRef(Table tbl, String ref, DeleteFile... expectedFiles) {
+  void validateBranchDeleteFiles(Table tbl, String branch, DeleteFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DeleteFile file : expectedFiles) {
       expectedFilePaths.add(file.path());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
-    for (FileScanTask task : tbl.newScan().useRef(ref).planFiles()) {
+    for (FileScanTask task : tbl.newScan().useRef(branch).planFiles()) {
       for (DeleteFile file : task.deletes()) {
         actualFilePaths.add(file.path());
       }
