@@ -27,10 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.AllManifestsTable;
@@ -66,7 +64,6 @@ import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
-import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -227,21 +224,23 @@ abstract class BaseSparkAction<ThisT> {
    * Uses a fixed thread pool with {@link SparkSQLProperties#DELETE_PARALLELISM} when the executorService
    * passed to this function is null.
    */
-  protected void withDefaultDeleteService(ExecutorService executorService, Consumer<ExecutorService> f) {
+  protected void withDefaultDeleteService(ExecutorService executorService, Consumer<ExecutorService> func) {
+    ExecutorService deleteService = executorService;
+
     boolean createdDefaultDeleteService = false;
-    if (executorService == null) {
+    if (deleteService == null) {
       int numThreads = Integer.parseInt(
               spark.conf().get(
                       SparkSQLProperties.DELETE_PARALLELISM,
                       SparkSQLProperties.DELETE_PARALLELISM_DEFAULT));
-      executorService = ThreadPools.newWorkerPool(this + "-default-delete-service", numThreads);
+      deleteService = ThreadPools.newWorkerPool(this + "-default-delete-service", numThreads);
       createdDefaultDeleteService = true;
     }
 
-    f.accept(executorService);
+    func.accept(deleteService);
 
     if (createdDefaultDeleteService) {
-      executorService.shutdown();
+      deleteService.shutdown();
     }
   }
 
