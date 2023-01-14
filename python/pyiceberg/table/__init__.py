@@ -262,8 +262,7 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-
-def _check_content(file: ManifestFile) -> ManifestFile:
+def _check_content(file: DataFile) -> DataFile:
     try:
         if file.content == ManifestContent.DELETES:
             raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
