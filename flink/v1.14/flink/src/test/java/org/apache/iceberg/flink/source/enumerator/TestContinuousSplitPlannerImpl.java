@@ -37,7 +37,6 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -434,7 +433,7 @@ public class TestContinuousSplitPlannerImpl {
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot timestamp",
         IllegalArgumentException.class,
-        "Cannot find a snapshot older than 1970-01-01T00:00:00.001+00:00",
+        "Cannot find a snapshot after: ",
         () -> splitPlanner.planSplits(null));
   }
 
@@ -442,9 +441,7 @@ public class TestContinuousSplitPlannerImpl {
   public void testIncrementalFromSnapshotTimestampWithInvalidIds() throws Exception {
     appendTwoSnapshots();
 
-    long invalidSnapshotTimestampMs = snapshot1.timestampMillis() - 1000L;
-    String invalidSnapshotTimestampMsStr =
-        DateTimeUtil.formatTimestampMillis(invalidSnapshotTimestampMs);
+    long invalidSnapshotTimestampMs = snapshot2.timestampMillis() + 1000L;
 
     ScanContext scanContextWithInvalidSnapshotId =
         ScanContext.builder()
@@ -459,7 +456,7 @@ public class TestContinuousSplitPlannerImpl {
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot timestamp",
         IllegalArgumentException.class,
-        "Cannot find a snapshot older than " + invalidSnapshotTimestampMsStr,
+        "Cannot find a snapshot after: ",
         () -> splitPlanner.planSplits(null));
   }
 

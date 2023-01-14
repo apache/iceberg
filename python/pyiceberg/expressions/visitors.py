@@ -22,6 +22,7 @@ from typing import (
     Generic,
     List,
     Set,
+    Tuple,
     TypeVar,
 )
 
@@ -842,3 +843,41 @@ class _ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
 
 def extract_field_ids(expr: BooleanExpression) -> Set[int]:
     return visit(expr, _ExpressionFieldIDs())
+
+
+class _RewriteToDNF(BooleanExpressionVisitor[Tuple[BooleanExpression, ...]]):
+    def visit_true(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysTrue(),)
+
+    def visit_false(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysFalse(),)
+
+    def visit_not(self, child_result: Tuple[BooleanExpression, ...]) -> Tuple[BooleanExpression, ...]:
+        raise ValueError(f"Not expressions are not allowed: {child_result}")
+
+    def visit_and(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        # Distributive law:
+        # ((P OR Q) AND (R OR S)) AND (((P AND R) OR (P AND S)) OR ((Q AND R) OR ((Q AND S)))
+        # A AND (B OR C) = (A AND B) OR (A AND C)
+        # (A OR B) AND C = (A AND C) OR (B AND C)
+        return tuple(And(le, re) for le in left_result for re in right_result)
+
+    def visit_or(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        return left_result + right_result
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
+
+
+def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
+    # Rewrites an arbitrary boolean expression to disjunctive normal form (DNF):
+    # (A AND NOT(B) AND C) OR (NOT(D) AND E AND F) OR (G)
+    expr_without_not = rewrite_not(expr)
+    return visit(expr_without_not, _RewriteToDNF())

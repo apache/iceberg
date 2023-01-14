@@ -32,7 +32,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -161,7 +161,7 @@ public class TestDeserializer {
   @Test
   public void testDeserializeEverySupportedType() {
     Assume.assumeFalse(
-        "No test yet for Hive3 (Date/Timestamp creation)", MetastoreUtil.hive3PresentOnClasspath());
+        "No test yet for Hive3 (Date/Timestamp creation)", HiveVersion.min(HiveVersion.HIVE_3));
 
     Deserializer deserializer =
         new Deserializer.Builder()

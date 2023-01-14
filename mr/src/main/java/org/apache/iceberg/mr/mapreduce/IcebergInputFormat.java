@@ -61,7 +61,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -200,7 +200,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
 
     static {
-      if (MetastoreUtil.hive3PresentOnClasspath()) {
+      if (HiveVersion.min(HiveVersion.HIVE_3)) {
         HIVE_VECTORIZED_READER_BUILDER =
             DynMethods.builder("reader")
                 .impl(
@@ -398,7 +398,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case PIG:
           throw new UnsupportedOperationException("Parquet support not yet supported for Pig");
         case HIVE:
-          if (MetastoreUtil.hive3PresentOnClasspath()) {
+          if (HiveVersion.min(HiveVersion.HIVE_3)) {
             parquetIterator =
                 HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
           } else {
@@ -445,7 +445,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO: implement value readers for Pig
           throw new UnsupportedOperationException("ORC support not yet supported for Pig");
         case HIVE:
-          if (MetastoreUtil.hive3PresentOnClasspath()) {
+          if (HiveVersion.min(HiveVersion.HIVE_3)) {
             orcIterator =
                 HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
           } else {
