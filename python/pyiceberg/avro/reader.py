@@ -41,7 +41,8 @@ from typing import (
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.typedef import Record, StructProtocol
+from pyiceberg.typedef import StructProtocol
+from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -89,6 +90,9 @@ class Reader(Singleton):
     @abstractmethod
     def skip(self, decoder: BinaryDecoder) -> None:
         ...
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 class NoneReader(Reader):
@@ -194,6 +198,9 @@ class FixedReader(Reader):
     def __len__(self) -> int:
         return self._len
 
+    def __repr__(self) -> str:
+        return f"FixedReader({self._len})"
+
 
 class BinaryReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bytes:
@@ -213,6 +220,9 @@ class DecimalReader(Reader):
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()
+
+    def __repr__(self) -> str:
+        return f"DecimalReader({self.precision}, {self.scale})"
 
 
 @dataclass(frozen=True)
@@ -238,41 +248,58 @@ class OptionReader(Reader):
             return self.option.skip(decoder)
 
 
-class StructProtocolReader(Reader):
-    create_struct: Callable[[], StructProtocol]
-    fields: Tuple[Tuple[Optional[int], Reader], ...]
+class StructReader(Reader):
+    field_readers: Tuple[Tuple[Optional[int], Reader], ...]
+    create_struct: Callable[..., StructProtocol]
+    struct: StructType
 
-    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...], create_struct: Callable[[], StructProtocol]):
+    def __init__(
+        self,
+        field_readers: Tuple[Tuple[Optional[int], Reader], ...],
+        create_struct: Callable[..., StructProtocol],
+        struct: StructType,
+    ) -> None:
+        self.field_readers = field_readers
         self.create_struct = create_struct
-        self.fields = fields
+        self.struct = struct
 
-    def create_or_reuse(self, reuse: Optional[StructProtocol]) -> StructProtocol:
-        if reuse:
-            return reuse
-        else:
-            return self.create_struct()
+    def read(self, decoder: BinaryDecoder) -> StructProtocol:
+        try:
+            # Try initializing the struct, first with the struct keyword argument
+            struct = self.create_struct(struct=self.struct)
+        except TypeError as e:
+            if "'struct' is an invalid keyword argument for" in str(e):
+                struct = self.create_struct()
+            else:
+                raise ValueError(f"Unable to initialize struct: {self.create_struct}") from e
 
-    def read(self, decoder: BinaryDecoder) -> Any:
-        struct = self.create_or_reuse(None)
+        if not isinstance(struct, StructProtocol):
+            raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
 
-        for (pos, field) in self.fields:
+        for (pos, field) in self.field_readers:
             if pos is not None:
-                struct.set(pos, field.read(decoder))  # later: pass reuse in here
+                struct[pos] = field.read(decoder)  # later: pass reuse in here
             else:
                 field.skip(decoder)
 
         return struct
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        for _, field in self.fields:
+        for _, field in self.field_readers:
             field.skip(decoder)
 
+    def __eq__(self, other: Any) -> bool:
+        return (
+            self.field_readers == other.field_readers and self.create_struct == other.create_struct
+            if isinstance(other, StructReader)
+            else False
+        )
 
-class StructReader(StructProtocolReader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...]
+    def __repr__(self) -> str:
+        return f"StructReader(({','.join(repr(field) for field in self.field_readers)}), {repr(self.create_struct)})"
 
-    def __init__(self, fields: Tuple[Tuple[Optional[int], Reader], ...]):
-        super().__init__(fields, lambda: Record.of(len(fields)))
+    def __hash__(self) -> int:
+        return hash(self.field_readers)
 
 
 @dataclass(frozen=True)
