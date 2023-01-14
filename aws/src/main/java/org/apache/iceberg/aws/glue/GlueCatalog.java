@@ -45,6 +45,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -177,13 +178,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
       GlueClient client,
       LockManager lock,
       FileIO io) {
-    Preconditions.checkArgument(
-        path != null && path.length() > 0,
-        "Cannot initialize GlueCatalog because warehousePath must not be null or empty");
-
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = LocationUtil.stripTrailingSlash(path);
+    this.warehousePath = path != null ? LocationUtil.stripTrailingSlash(path) : null;
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
@@ -270,6 +267,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
     if (dbLocationUri != null) {
       return String.format("%s/%s", dbLocationUri, tableIdentifier.name());
     }
+
+    ValidationException.check(
+        warehousePath != null && warehousePath.length() > 0,
+        "Cannot derive default warehouse location, warehouse path must not be null or empty");
 
     return String.format(
         "%s/%s.db/%s",
