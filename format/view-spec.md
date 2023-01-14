@@ -148,7 +148,7 @@ The metadata directory contains View Version Metadata files. The text after '=>'
     "timestamp-ms" : 1573518431292,
     "summary" : {
       "operation" : "create", => View operation that caused this metadata to be created
-      "engineVersion" : "presto-350", => Version of the engine that performed the operation (create / replace)
+      "engineVersion" : "presto-350" => Version of the engine that performed the operation (create / replace)
     },
     "representations" : [ { => SQL metadata of the view
       "type" : "sql",
@@ -157,7 +157,7 @@ The metadata directory contains View Version Metadata files. The text after '=>'
       "schema-id" : 1,
       "default-catalog" : "iceberg",
       "default-namespace" : [ "anorwood" ]
-    } ],
+    } ]
   } ],
   "version-log" : [ { => Log of the created versions
     "timestamp-ms" : 1573518431292,
@@ -199,7 +199,7 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
     "timestamp-ms" : 1573518431292,
     "summary" : {
       "operation" : "create",
-      "engineVersion" : "presto-350",
+      "engineVersion" : "presto-350"
     },
     "representations" : [ {
       "type" : "sql",
@@ -215,7 +215,7 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
     "timestamp-ms" : 1573518440265,
     "summary" : {
       "operation" : "replace", => The ‘replace’ operation caused this latest version creation
-      "engineVersion" : "spark-2.4.4",
+      "engineVersion" : "spark-2.4.4"
     },
     "representations" : [ {
       "type" : "sql",
@@ -224,7 +224,7 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
       "schema-id" : 2,
       "default-catalog" : "iceberg",
       "default-namespace" : [ "anorwood" ]
-    },
+    } ]
   } ],
   "version-log" : [ {
     "timestamp-ms" : 1573518431292,

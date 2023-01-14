@@ -82,3 +82,5 @@ GCP:
   - gcp/**/*
 DELL:
   - dell/**/*
+SNOWFLAKE:
+  - snowflake/**/*

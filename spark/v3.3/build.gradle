@@ -216,6 +216,9 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    implementation (project(':iceberg-snowflake')) {
+      exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
+    }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"

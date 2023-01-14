@@ -26,8 +26,7 @@ from rich.tree import Tree
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
-from pyiceberg.typedef import Identifier, Properties
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel, Identifier, Properties
 
 
 class Output(ABC):

@@ -213,17 +213,12 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
             "Start snapshot id not found in history: " + scanContext.startSnapshotId());
         return Optional.of(matchedSnapshotById);
       case INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP:
-        long snapshotIdAsOfTime =
-            SnapshotUtil.snapshotIdAsOfTime(table, scanContext.startSnapshotTimestamp());
-        Snapshot matchedSnapshotByTimestamp = table.snapshot(snapshotIdAsOfTime);
-        if (matchedSnapshotByTimestamp.timestampMillis() == scanContext.startSnapshotTimestamp()) {
-          return Optional.of(matchedSnapshotByTimestamp);
-        } else {
-          // if the snapshotIdAsOfTime has the timestamp value smaller than the
-          // scanContext.startSnapshotTimestamp(),
-          // return the child snapshot whose timestamp value is larger
-          return Optional.of(SnapshotUtil.snapshotAfter(table, snapshotIdAsOfTime));
-        }
+        Snapshot matchedSnapshotByTimestamp =
+            SnapshotUtil.oldestAncestorAfter(table, scanContext.startSnapshotTimestamp());
+        Preconditions.checkArgument(
+            matchedSnapshotByTimestamp != null,
+            "Cannot find a snapshot after: " + scanContext.startSnapshotTimestamp());
+        return Optional.of(matchedSnapshotByTimestamp);
       default:
         throw new IllegalArgumentException(
             "Unknown starting strategy: " + scanContext.streamingStartingStrategy());

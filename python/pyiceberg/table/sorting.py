@@ -29,8 +29,8 @@ from pydantic import Field, root_validator
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import IdentityTransform, Transform
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import IcebergType
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 class SortDirection(Enum):

@@ -389,10 +389,10 @@ def test_build_position_accessors_with_struct(table_schema_nested: Schema) -> No
         def __init__(self, pos: Dict[int, Any] = EMPTY_DICT):
             self._pos: Dict[int, Any] = pos
 
-        def set(self, pos: int, value: Any) -> None:
+        def __setitem__(self, pos: int, value: Any) -> None:
             pass
 
-        def get(self, pos: int) -> Any:
+        def __getitem__(self, pos: int) -> Any:
             return self._pos[pos]
 
     accessors = build_position_accessors(table_schema_nested)

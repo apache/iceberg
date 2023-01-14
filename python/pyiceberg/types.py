@@ -45,7 +45,7 @@ from typing import (
 from pydantic import Field, PrivateAttr
 from pydantic.typing import AnyCallable
 
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
@@ -279,6 +279,9 @@ class StructType(IcebergType):
 
     def __repr__(self) -> str:
         return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
+
+    def __len__(self) -> int:
+        return len(self.fields)
 
 
 class ListType(IcebergType):

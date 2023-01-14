@@ -4,7 +4,7 @@ org.apache.calcite:* = 1.10.0
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:* = 2.3.8
 org.apache.httpcomponents.client5:* = 5.1
-org.apache.orc:* = 1.8.1
+org.apache.orc:* = 1.8.2
 org.apache.parquet:* = 1.12.3
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.14.1
@@ -28,6 +28,7 @@ org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.immutables:value = 2.9.2
+net.snowflake:snowflake-jdbc = 3.13.22
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2

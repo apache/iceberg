@@ -59,9 +59,7 @@ from pyiceberg.typedef import (
     Identifier,
     KeyDefaultDict,
     Properties,
-    StructProtocol,
 )
-from pyiceberg.types import StructType
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -264,23 +262,6 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-class _DictAsStruct(StructProtocol):
-    pos_to_name: Dict[int, str]
-    wrapped: Dict[str, Any]
-
-    def __init__(self, partition_type: StructType):
-        self.pos_to_name = {pos: field.name for pos, field in enumerate(partition_type.fields)}
-
-    def wrap(self, to_wrap: Dict[str, Any]) -> _DictAsStruct:
-        self.wrapped = to_wrap
-        return self
-
-    def get(self, pos: int) -> Any:
-        return self.wrapped[self.pos_to_name[pos]]
-
-    def set(self, pos: int, value: Any) -> None:
-        raise NotImplementedError("Cannot set values in DictAsStruct")
-
 
 def _check_content(file: ManifestFile) -> ManifestFile:
     try:
@@ -322,11 +303,8 @@ class DataScan(TableScan["DataScan"]):
         partition_schema = Schema(*partition_type.fields)
         partition_expr = self.partition_filters[spec_id]
 
-        # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
-        wrapper = _DictAsStruct(partition_type)
         evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
-
-        return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
+        return lambda data_file: evaluator(data_file.partition)
 
     def plan_files(self) -> Iterator[FileScanTask]:
         snapshot = self.snapshot()
