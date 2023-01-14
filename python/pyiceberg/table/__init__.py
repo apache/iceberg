@@ -282,6 +282,16 @@ class _DictAsStruct(StructProtocol):
         raise NotImplementedError("Cannot set values in DictAsStruct")
 
 
+def _check_content(file: ManifestFile) -> ManifestFile:
+    try:
+        if file.content == ManifestContent.DELETES:
+            raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
+        return file
+    except AttributeError:
+        # If the attribute is not there, it is a V1 record
+        return file
+
+
 class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
@@ -345,15 +355,6 @@ class DataScan(TableScan["DataScan"]):
             partition_filter = partition_evaluators[manifest.partition_spec_id]
             all_files = files(io.new_input(manifest.manifest_path))
             matching_partition_files = filter(partition_filter, all_files)
-
-            def _check_content(file: ManifestFile) -> ManifestFile:
-                try:
-                    if file.content == ManifestContent.DELETES:
-                        raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
-                    return file
-                except AttributeError:
-                    # If the attribute is not there, it is a V1 record
-                    return file
 
             matching_partition_data_files = map(_check_content, matching_partition_files)
 

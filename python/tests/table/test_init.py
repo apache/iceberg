@@ -26,9 +26,10 @@ from pyiceberg.expressions import (
     In,
 )
 from pyiceberg.io import load_file_io
+from pyiceberg.manifest import ManifestContent, ManifestFile
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.table import Table, _check_content
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.snapshots import (
     Operation,
@@ -43,6 +44,7 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform
+from pyiceberg.typedef import Record
 from pyiceberg.types import LongType, NestedField
 
 
@@ -243,3 +245,53 @@ def test_table_scan_projection_unknown_column(table: Table) -> None:
         _ = scan.select("a").projection()
 
     assert "Could not find column: 'a'" in str(exc_info.value)
+
+
+def test_check_content_deletes():
+    with pytest.raises(ValueError) as exc_info:
+        _check_content(
+            ManifestFile(
+                manifest_path="s3://abc.parquet",
+                manifest_length=7989,
+                partition_spec_id=0,
+                content=ManifestContent.DELETES,
+                sequence_number=0,
+                min_sequence_number=0,
+                added_snapshot_id=9182715666859759686,
+                added_data_files_count=3,
+                existing_data_files_count=0,
+                deleted_data_files_count=0,
+                added_rows_count=237993,
+                existing_rows_counts=None,
+                deleted_rows_count=0,
+                partitions=[],
+                key_metadata=None,
+            )
+        )
+    assert "PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568" in str(exc_info.value)
+
+
+def test_check_content_data():
+    manifest_file = ManifestFile(
+        manifest_path="s3://abc.parquet",
+        manifest_length=7989,
+        partition_spec_id=0,
+        content=ManifestContent.DATA,
+        sequence_number=0,
+        min_sequence_number=0,
+        added_snapshot_id=9182715666859759686,
+        added_data_files_count=3,
+        existing_data_files_count=0,
+        deleted_data_files_count=0,
+        added_rows_count=237993,
+        existing_rows_counts=None,
+        deleted_rows_count=0,
+        partitions=[],
+        key_metadata=None,
+    )
+    assert _check_content(manifest_file) == manifest_file
+
+
+def test_check_content_missing_attr():
+    r = Record(*([None] * 15))
+    assert _check_content(r) == r  # type: ignore
