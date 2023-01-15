@@ -49,6 +49,7 @@ public class SparkSQLProperties {
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 
   // Controls how many physical file deletes to execute in parallel when not otherwise specified
-  public static final String DELETE_PARALLELISM = "driver-delete-default-parallelism";
+  public static final String DELETE_PARALLELISM =
+      "spark.sql.iceberg.driver-delete-default-parallelism";
   public static final String DELETE_PARALLELISM_DEFAULT = "25";
 }

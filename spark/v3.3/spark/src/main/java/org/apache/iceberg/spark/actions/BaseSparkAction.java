@@ -221,16 +221,20 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   /**
-   * Uses a fixed thread pool with {@link SparkSQLProperties#DELETE_PARALLELISM} when the executorService
-   * passed to this function is null.
+   * Uses a fixed thread pool with {@link SparkSQLProperties#DELETE_PARALLELISM} when the
+   * executorService passed to this function is null.
    */
-  protected void withDefaultDeleteService(ExecutorService executorService, Consumer<ExecutorService> func) {
+  protected void withDefaultDeleteService(
+      ExecutorService executorService, Consumer<ExecutorService> func) {
     ExecutorService deleteService = executorService;
 
     boolean createdDefaultDeleteService = false;
     if (deleteService == null) {
-      int numThreads = Integer.parseInt(
-              spark.conf().get(
+      int numThreads =
+          Integer.parseInt(
+              spark
+                  .conf()
+                  .get(
                       SparkSQLProperties.DELETE_PARALLELISM,
                       SparkSQLProperties.DELETE_PARALLELISM_DEFAULT));
       deleteService = ThreadPools.newWorkerPool(this + "-default-delete-service", numThreads);
@@ -257,27 +261,28 @@ abstract class BaseSparkAction<ThisT> {
 
     DeleteSummary summary = new DeleteSummary();
 
-
-    withDefaultDeleteService(executorService, (deleteService) -> {
-      Tasks.foreach(files)
-          .retry(DELETE_NUM_RETRIES)
-          .stopRetryOn(NotFoundException.class)
-          .suppressFailureWhenFinished()
-          .executeWith(deleteService)
-          .onFailure(
-              (fileInfo, exc) -> {
-                String path = fileInfo.getPath();
-                String type = fileInfo.getType();
-                LOG.warn("Delete failed for {}: {}", type, path, exc);
-              })
-          .run(
-              fileInfo -> {
-                String path = fileInfo.getPath();
-                String type = fileInfo.getType();
-                deleteFunc.accept(path);
-                summary.deletedFile(path, type);
-              });
-      });
+    withDefaultDeleteService(
+        executorService,
+        (deleteService) -> {
+          Tasks.foreach(files)
+              .retry(DELETE_NUM_RETRIES)
+              .stopRetryOn(NotFoundException.class)
+              .suppressFailureWhenFinished()
+              .executeWith(deleteService)
+              .onFailure(
+                  (fileInfo, exc) -> {
+                    String path = fileInfo.getPath();
+                    String type = fileInfo.getType();
+                    LOG.warn("Delete failed for {}: {}", type, path, exc);
+                  })
+              .run(
+                  fileInfo -> {
+                    String path = fileInfo.getPath();
+                    String type = fileInfo.getType();
+                    deleteFunc.accept(path);
+                    summary.deletedFile(path, type);
+                  });
+        });
 
     return summary;
   }
