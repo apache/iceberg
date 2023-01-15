@@ -8,6 +8,7 @@ org.apache.orc:* = 1.8.2
 org.apache.parquet:* = 1.12.3
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.14.1
+com.google.code.findbugs:jsr305 = 3.0.2
 com.google.errorprone:error_prone_annotations = 2.3.3
 com.google.guava:* = 31.1-jre
 com.github.ben-manes.caffeine:caffeine = 2.9.3

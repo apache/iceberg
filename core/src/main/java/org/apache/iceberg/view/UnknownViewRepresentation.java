@@ -18,43 +18,7 @@
  */
 package org.apache.iceberg.view;
 
-import java.util.List;
-import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface SQLViewRepresentation extends ViewRepresentation {
-
-  @Override
-  default String type() {
-    return Type.SQL;
-  }
-
-  /** The view query SQL text. */
-  String sql();
-
-  /** The view query SQL dialect. */
-  String dialect();
-
-  /** The default catalog when the view is created. */
-  @Nullable
-  String defaultCatalog();
-
-  /** The default namespace when the view is created. */
-  @Nullable
-  Namespace defaultNamespace();
-
-  /**
-   * The query output schema ID at version create time, without aliases or null if no schema is
-   * defined
-   */
-  @Nullable
-  Integer schemaId();
-
-  /** The view field comments. */
-  List<String> fieldComments();
-
-  /** The view field aliases. */
-  List<String> fieldAliases();
-}
+public interface UnknownViewRepresentation extends ViewRepresentation {}
