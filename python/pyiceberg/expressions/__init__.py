@@ -216,7 +216,8 @@ class And(BooleanExpression):
     def __repr__(self) -> str:
         return f"And(left={repr(self.left)}, right={repr(self.right)})"
 
-    def __invert__(self) -> Or:
+    def __invert__(self) -> BooleanExpression:
+        # De Morgan's law: not (A and B) = (not A) or (not B)
         return Or(~self.left, ~self.right)
 
 
@@ -247,7 +248,8 @@ class Or(BooleanExpression):
     def __repr__(self) -> str:
         return f"Or(left={repr(self.left)}, right={repr(self.right)})"
 
-    def __invert__(self) -> And:
+    def __invert__(self) -> BooleanExpression:
+        # De Morgan's law: not (A or B) = (not A) and (not B)
         return And(~self.left, ~self.right)
 
 

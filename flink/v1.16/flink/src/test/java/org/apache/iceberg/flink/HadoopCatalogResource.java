@@ -20,7 +20,11 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
@@ -30,9 +34,9 @@ public class HadoopCatalogResource extends ExternalResource {
   protected final String database;
   protected final String tableName;
 
-  protected HadoopCatalog catalog;
+  protected Catalog catalog;
+  protected CatalogLoader catalogLoader;
   protected String warehouse;
-  protected String location;
   protected TableLoader tableLoader;
 
   public HadoopCatalogResource(TemporaryFolder temporaryFolder, String database, String tableName) {
@@ -47,21 +51,37 @@ public class HadoopCatalogResource extends ExternalResource {
     Assert.assertTrue(warehouseFile.delete());
     // before variables
     this.warehouse = "file:" + warehouseFile;
-    Configuration hadoopConf = new Configuration();
-    this.catalog = new HadoopCatalog(hadoopConf, warehouse);
-    this.location = String.format("%s/%s/%s", warehouse, database, tableName);
-    this.tableLoader = TableLoader.fromHadoopTable(location);
+    this.catalogLoader =
+        CatalogLoader.hadoop(
+            "hadoop",
+            new Configuration(),
+            ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse));
+    this.catalog = catalogLoader.loadCatalog();
+    this.tableLoader =
+        TableLoader.fromCatalog(catalogLoader, TableIdentifier.of(database, tableName));
   }
 
   @Override
-  protected void after() {}
+  protected void after() {
+    try {
+      catalog.dropTable(TableIdentifier.of(database, tableName));
+      ((HadoopCatalog) catalog).close();
+      tableLoader.close();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to close catalog resource");
+    }
+  }
 
   public TableLoader tableLoader() {
     return tableLoader;
   }
 
-  public HadoopCatalog catalog() {
+  public Catalog catalog() {
     return catalog;
+  }
+
+  public CatalogLoader catalogLoader() {
+    return catalogLoader;
   }
 
   public String warehouse() {

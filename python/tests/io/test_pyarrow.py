@@ -101,8 +101,38 @@ def test_pyarrow_input_file() -> None:
         input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
-        r = input_file.open()
+        r = input_file.open(seekable=False)
         assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        with pytest.raises(OSError) as exc_info:
+            r.seek(0, 0)
+        assert "only valid on seekable files" in str(exc_info.value)
+
+
+def test_pyarrow_input_file_seekable() -> None:
+    """Test reading a file using PyArrowFile"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Instantiate the input file
+        absolute_file_location = os.path.abspath(file_location)
+        input_file = PyArrowFileIO().new_input(location=f"{absolute_file_location}")
+
+        # Test opening and reading the file
+        r = input_file.open(seekable=True)
+        assert isinstance(r, InputStream)  # Test that the file object abides by the InputStream protocol
+        data = r.read()
+        assert data == b"foo"
+        assert len(input_file) == 3
+        r.seek(0, 0)
         data = r.read()
         assert data == b"foo"
         assert len(input_file) == 3
@@ -193,62 +223,6 @@ def test_raise_on_opening_a_local_file_not_found() -> None:
             f.open()
 
         assert "[Errno 2] Failed to open local file" in str(exc_info.value)
-
-
-def test_raise_on_opening_a_local_file_no_permission() -> None:
-    """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.open()
-
-        assert "[Errno 13] Failed to open local file" in str(exc_info.value)
-
-
-def test_raise_on_checking_if_local_file_exists_no_permission() -> None:
-    """Test that a PyArrowFile raises when checking for existence on a file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_creating_a_local_file_no_permission() -> None:
-    """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        f = PyArrowFileIO().new_input(file_location)
-
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
-
-        assert "Cannot get file info, access denied:" in str(exc_info.value)
-
-
-def test_raise_on_delete_file_with_no_permission() -> None:
-    """Test that a PyArrowFile raises when deleting a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        file_io = PyArrowFileIO()
-
-        with pytest.raises(PermissionError) as exc_info:
-            file_io.delete(file_location)
-
-        assert "Cannot delete file" in str(exc_info.value)
 
 
 def test_raise_on_opening_an_s3_file_no_permission() -> None:

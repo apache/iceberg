@@ -53,12 +53,6 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
   public void setupBenchmark() {
     setupSpark(true);
     appendData();
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within
-    // bounds
-    System.setProperty("arrow.enable_unsafe_memory_access", "true");
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    System.setProperty("arrow.enable_null_check_for_get", "false");
   }
 
   @Override

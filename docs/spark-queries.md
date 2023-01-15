@@ -126,6 +126,8 @@ To select a specific table snapshot or the snapshot at some time in the DataFram
 
 * `snapshot-id` selects a specific table snapshot
 * `as-of-timestamp` selects the current snapshot at a timestamp, in milliseconds
+* `branch` selects the head snapshot of the specified branch. Note that currently branch cannot be combined with as-of-timestamp.
+* `tag` selects the snapshot associated with the specified tag
 
 ```scala
 // time travel to October 26, 1986 at 01:21:00
@@ -139,6 +141,22 @@ spark.read
 // time travel to snapshot with ID 10963874102873L
 spark.read
     .option("snapshot-id", 10963874102873L)
+    .format("iceberg")
+    .load("path/to/table")
+```
+
+```scala
+// time travel to tag historical-snapshot
+spark.read
+    .option(SparkReadOptions.TAG, "historical-snapshot")
+    .format("iceberg")
+    .load("path/to/table")
+```
+
+```scala
+// time travel to the head snapshot of audit-branch
+spark.read
+    .option(SparkReadOptions.BRANCH, "audit-branch")
     .format("iceberg")
     .load("path/to/table")
 ```

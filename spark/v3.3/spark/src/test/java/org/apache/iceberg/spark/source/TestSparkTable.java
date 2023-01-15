@@ -57,4 +57,14 @@ public class TestSparkTable extends SparkCatalogTestBase {
     Assert.assertNotSame("References must be different", table1, table2);
     Assert.assertEquals("Tables must be equivalent", table1, table2);
   }
+
+  @Test
+  public void testTableName() throws NoSuchTableException {
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+    String actualTableName = catalog.loadTable(identifier).name();
+    String expectedTableName = String.format("Iceberg %s.%s", catalogName, tableIdent);
+    Assert.assertEquals("Table name mismatched", expectedTableName, actualTableName);
+  }
 }

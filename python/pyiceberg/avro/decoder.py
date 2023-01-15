@@ -18,6 +18,7 @@ import decimal
 import struct
 from datetime import datetime, time
 from io import SEEK_CUR
+from typing import List
 from uuid import UUID
 
 from pyiceberg.io import InputStream
@@ -48,13 +49,22 @@ class BinaryDecoder:
         """
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
-        read_bytes = self._input_stream.read(n)
-        read_len = len(read_bytes)
-        if read_len <= 0:
-            raise EOFError
-        elif read_len != n:
-            raise ValueError(f"Read {len(read_bytes)} bytes, expected {n} bytes")
-        return read_bytes
+        data: List[bytes] = []
+
+        n_remaining = n
+        while n_remaining > 0:
+            data_read = self._input_stream.read(n_remaining)
+            read_len = len(data_read)
+            if read_len == n:
+                # If we read everything, we return directly
+                # otherwise we'll continue to fetch the rest
+                return data_read
+            elif read_len <= 0:
+                raise EOFError(f"EOF: read {read_len} bytes")
+            data.append(data_read)
+            n_remaining -= read_len
+
+        return b"".join(data)
 
     def skip(self, n: int) -> None:
         self._input_stream.seek(n, SEEK_CUR)
@@ -115,7 +125,8 @@ class BinaryDecoder:
         """
         Bytes are encoded as a long followed by that many bytes of data.
         """
-        return self.read(self.read_int())
+        num_bytes = self.read_int()
+        return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
         """

@@ -33,6 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+    compileOnly "org.apache.flink:flink-avro:${flinkVersion}"
     // for dropwizard histogram metrics implementation
     compileOnly "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}"

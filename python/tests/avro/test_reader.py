@@ -19,6 +19,7 @@ import json
 
 import pytest
 
+from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     BinaryReader,
@@ -30,14 +31,16 @@ from pyiceberg.avro.reader import (
     FloatReader,
     IntegerReader,
     StringReader,
+    StructReader,
     TimeReader,
     TimestampReader,
     TimestamptzReader,
     UUIDReader,
 )
 from pyiceberg.avro.resolver import construct_reader
+from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.io.pyarrow import PyArrowFileIO
-from pyiceberg.manifest import _convert_pos_to_dict
+from pyiceberg.manifest import MANIFEST_ENTRY_SCHEMA, DataFile, ManifestEntry
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
@@ -49,9 +52,7 @@ from pyiceberg.types import (
     FixedType,
     FloatType,
     IntegerType,
-    ListType,
     LongType,
-    MapType,
     NestedField,
     PrimitiveType,
     StringType,
@@ -64,8 +65,12 @@ from pyiceberg.types import (
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema) -> None:
-    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
-        header = reader._read_header()
+    with AvroFile[ManifestEntry](
+        PyArrowFileIO().new_input(generated_manifest_entry_file),
+        MANIFEST_ENTRY_SCHEMA,
+        {-1: ManifestEntry, 2: DataFile},
+    ) as reader:
+        header = reader.header
 
     assert header.magic == b"Obj\x01"
     assert json.loads(header.meta["avro.schema"]) == {
@@ -264,187 +269,6 @@ def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_
     assert header.get_schema() == iceberg_manifest_entry_schema
 
 
-def test_read_manifest_entry_file(generated_manifest_entry_file: str) -> None:
-    with AvroFile(PyArrowFileIO().new_input(generated_manifest_entry_file)) as reader:
-        # Consume the generator
-        records = list(reader)
-
-    assert len(records) == 2, f"Expected 2 records, got {len(records)}"
-    assert records[0] == Record(
-        1,
-        8744736658442914487,
-        Record(
-            "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
-            "PARQUET",
-            Record(1, 1925),
-            19513,
-            388872,
-            67108864,
-            {
-                1: 53,
-                2: 98153,
-                3: 98693,
-                4: 53,
-                5: 53,
-                6: 53,
-                7: 17425,
-                8: 18528,
-                9: 53,
-                10: 44788,
-                11: 35571,
-                12: 53,
-                13: 1243,
-                14: 2355,
-                15: 12750,
-                16: 4029,
-                17: 110,
-                18: 47194,
-                19: 2948,
-            },
-            {
-                1: 19513,
-                2: 19513,
-                3: 19513,
-                4: 19513,
-                5: 19513,
-                6: 19513,
-                7: 19513,
-                8: 19513,
-                9: 19513,
-                10: 19513,
-                11: 19513,
-                12: 19513,
-                13: 19513,
-                14: 19513,
-                15: 19513,
-                16: 19513,
-                17: 19513,
-                18: 19513,
-                19: 19513,
-            },
-            {
-                1: 19513,
-                2: 0,
-                3: 0,
-                4: 19513,
-                5: 19513,
-                6: 19513,
-                7: 0,
-                8: 0,
-                9: 19513,
-                10: 0,
-                11: 0,
-                12: 19513,
-                13: 0,
-                14: 0,
-                15: 0,
-                16: 0,
-                17: 0,
-                18: 0,
-                19: 0,
-            },
-            {16: 0, 17: 0, 18: 0, 19: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0},
-            {
-                2: b"2020-04-01 00:00",
-                3: b"2020-04-01 00:12",
-                7: b"\x03\x00\x00\x00",
-                8: b"\x01\x00\x00\x00",
-                10: b"\xf6(\\\x8f\xc2\x05S\xc0",
-                11: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                13: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                14: b"\x00\x00\x00\x00\x00\x00\xe0\xbf",
-                15: b")\\\x8f\xc2\xf5(\x08\xc0",
-                16: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                17: b"\x00\x00\x00\x00\x00\x00\x00\x00",
-                18: b"\xf6(\\\x8f\xc2\xc5S\xc0",
-                19: b"\x00\x00\x00\x00\x00\x00\x04\xc0",
-            },
-            {
-                2: b"2020-04-30 23:5:",
-                3: b"2020-05-01 00:41",
-                7: b"\t\x01\x00\x00",
-                8: b"\t\x01\x00\x00",
-                10: b"\xcd\xcc\xcc\xcc\xcc,_@",
-                11: b"\x1f\x85\xebQ\\\xe2\xfe@",
-                13: b"\x00\x00\x00\x00\x00\x00\x12@",
-                14: b"\x00\x00\x00\x00\x00\x00\xe0?",
-                15: b"q=\n\xd7\xa3\xf01@",
-                16: b"\x00\x00\x00\x00\x00`B@",
-                17: b"333333\xd3?",
-                18: b"\x00\x00\x00\x00\x00\x18b@",
-                19: b"\x00\x00\x00\x00\x00\x00\x04@",
-            },
-            None,
-            [4],
-            0,
-        ),
-    )
-
-
-def test_read_manifest_file_file(generated_manifest_file_file: str) -> None:
-    with AvroFile(PyArrowFileIO().new_input(generated_manifest_file_file)) as reader:
-        # Consume the generator
-        records = list(reader)
-
-    assert len(records) == 1, f"Expected 1 records, got {len(records)}"
-    actual = records[0]
-    expected = Record(
-        actual.get(0),
-        7989,
-        0,
-        9182715666859759686,
-        3,
-        0,
-        0,
-        [Record(True, False, b"\x01\x00\x00\x00", b"\x02\x00\x00\x00")],
-        237993,
-        0,
-        0,
-    )
-    assert actual == expected
-
-
-def test_null_list_convert_pos_to_dict() -> None:
-    data = _convert_pos_to_dict(
-        Schema(
-            NestedField(name="field", field_id=1, field_type=ListType(element_id=2, element=StringType(), element_required=False))
-        ),
-        Record(None),
-    )
-    assert data["field"] is None
-
-
-def test_null_dict_convert_pos_to_dict() -> None:
-    data = _convert_pos_to_dict(
-        Schema(
-            NestedField(
-                name="field",
-                field_id=1,
-                field_type=MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=False),
-            )
-        ),
-        Record(None),
-    )
-    assert data["field"] is None
-
-
-def test_null_struct_convert_pos_to_dict() -> None:
-    data = _convert_pos_to_dict(
-        Schema(
-            NestedField(
-                name="field",
-                field_id=1,
-                field_type=StructType(
-                    NestedField(2, "required_field", StringType(), True), NestedField(3, "optional_field", IntegerType())
-                ),
-                required=False,
-            )
-        ),
-        Record(None),
-    )
-    assert data["field"] is None
-
-
 def test_fixed_reader() -> None:
     assert construct_reader(FixedType(22)) == FixedReader(22)
 
@@ -509,3 +333,51 @@ def test_unknown_type() -> None:
 
 def test_uuid_reader() -> None:
     assert construct_reader(UUIDType()) == UUIDReader()
+
+
+def test_read_struct() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    result = StructReader(((0, IntegerReader()),), Record, struct).read(decoder)
+    assert repr(result) == "Record[id=12]"
+
+
+def test_read_struct_lambda() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    # You can also pass in an arbitrary function that returns a struct
+    result = StructReader(
+        ((0, IntegerReader()),), lambda struct: Record(struct=struct), struct  # pylint: disable=unnecessary-lambda
+    ).read(decoder)
+    assert repr(result) == "Record[id=12]"
+
+
+def test_read_not_struct_type() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    with pytest.raises(ValueError) as exc_info:
+        _ = StructReader(((0, IntegerReader()),), str, struct).read(decoder)  # type: ignore
+
+    assert "Incompatible with StructProtocol: <class 'str'>" in str(exc_info.value)
+
+
+def test_read_struct_exception_handling() -> None:
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+
+    def raise_err(struct: StructType) -> None:
+        raise TypeError("boom")
+
+    struct = StructType(NestedField(1, "id", IntegerType(), required=True))
+    # You can also pass in an arbitrary function that returns a struct
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = StructReader(((0, IntegerReader()),), raise_err, struct).read(decoder)  # type: ignore
+
+    assert "Unable to initialize struct:" in str(exc_info.value)

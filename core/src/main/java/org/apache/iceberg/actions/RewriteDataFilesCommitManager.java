@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.io.Closeable;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -136,6 +137,7 @@ public class RewriteDataFilesCommitManager {
   public class CommitService implements Closeable {
     private final ExecutorService committerService;
     private final ConcurrentLinkedQueue<RewriteFileGroup> completedRewrites;
+    private final ConcurrentLinkedQueue<String> inProgressCommits;
     private final List<RewriteFileGroup> committedRewrites;
     private final int rewritesPerCommit;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -153,6 +155,7 @@ public class RewriteDataFilesCommitManager {
 
       completedRewrites = Queues.newConcurrentLinkedQueue();
       committedRewrites = Lists.newArrayList();
+      inProgressCommits = Queues.newConcurrentLinkedQueue();
     }
 
     /** Starts a single threaded executor service for handling file group commits. */
@@ -163,9 +166,9 @@ public class RewriteDataFilesCommitManager {
       // Partial progress commit service
       committerService.execute(
           () -> {
-            while (running.get() || completedRewrites.size() > 0) {
+            while (running.get() || completedRewrites.size() > 0 || inProgressCommits.size() > 0) {
               try {
-                if (completedRewrites.size() == 0) {
+                if (completedRewrites.size() == 0 && inProgressCommits.size() == 0) {
                   // Give other threads a chance to make progress
                   Thread.sleep(100);
                 }
@@ -174,32 +177,17 @@ public class RewriteDataFilesCommitManager {
                 throw new RuntimeException("Interrupted while processing commits", e);
               }
 
-              // Either we have a full commit group, or we have completed writing and need to commit
-              // what is left over
-              if (completedRewrites.size() >= rewritesPerCommit
-                  || (!running.get() && completedRewrites.size() > 0)) {
-                Set<RewriteFileGroup> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
-                for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
-                  batch.add(completedRewrites.poll());
-                }
-
-                try {
-                  commitOrClean(batch);
-                  committedRewrites.addAll(batch);
-                } catch (Exception e) {
-                  LOG.error(
-                      "Failure during rewrite commit process, partial progress enabled. Ignoring",
-                      e);
-                }
+              // commit whatever is left once done with writing.
+              if (!running.get() && completedRewrites.size() > 0) {
+                commitReadyCommitGroups();
               }
             }
           });
     }
 
     /**
-     * Places a file group in the queue to be asynchronously committed either when the queue has
-     * enough elements to do a batch of size {@link #rewritesPerCommit} or the service has been
-     * closed.
+     * Places a file group in the queue and commits a batch of file groups if {@link
+     * #rewritesPerCommit} number of file groups are present in the queue.
      *
      * @param group file group to eventually be committed
      */
@@ -208,6 +196,7 @@ public class RewriteDataFilesCommitManager {
       Preconditions.checkState(
           running.get(), "Cannot add rewrites to a service which has already been closed");
       completedRewrites.add(group);
+      commitReadyCommitGroups();
     }
 
     /** Returns all File groups which have been committed */
@@ -222,21 +211,23 @@ public class RewriteDataFilesCommitManager {
     public void close() {
       Preconditions.checkState(
           running.compareAndSet(true, false), "Cannot close already closed RewriteService");
-      LOG.info("Closing commit service for {}", table);
+      LOG.info("Closing commit service for {} waiting for all commits to finish", table);
       committerService.shutdown();
 
+      boolean timeout = false;
       try {
         // All rewrites have completed and all new files have been created, we are now waiting for
         // the commit
-        // pool to finish doing it's commits to Iceberg State. In the case of partial progress this
+        // pool to finish doing its commits to Iceberg State. In the case of partial progress this
         // should
         // have been occurring simultaneously with rewrites, if not there should be only a single
         // commit operation.
-        // In either case this should take much less than 10 minutes to actually complete.
-        if (!committerService.awaitTermination(10, TimeUnit.MINUTES)) {
+        if (!committerService.awaitTermination(120, TimeUnit.MINUTES)) {
           LOG.warn(
-              "Commit operation did not complete within 10 minutes of the files being written. This may mean "
-                  + "that changes were not successfully committed to the the Iceberg table.");
+              "Commit operation did not complete within 120 minutes of the all files "
+                  + "being rewritten. This may mean that some changes were not successfully committed to the "
+                  + "table.");
+          timeout = true;
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
@@ -244,10 +235,56 @@ public class RewriteDataFilesCommitManager {
             "Cannot complete commit for rewrite, commit service interrupted", e);
       }
 
+      if (!completedRewrites.isEmpty() && timeout) {
+        LOG.error("Attempting to cleanup uncommitted file groups");
+        completedRewrites.forEach(RewriteDataFilesCommitManager.this::abortFileGroup);
+      }
+
+      Preconditions.checkArgument(
+          !timeout && completedRewrites.isEmpty(),
+          "Timeout occurred when waiting for commits to complete. "
+              + "{} file groups committed. {} file groups remain uncommitted. "
+              + "Retry this operation to attempt rewriting the failed groups.",
+          committedRewrites.size(),
+          completedRewrites.size());
+
       Preconditions.checkState(
           completedRewrites.isEmpty(),
           "File groups offered after service was closed, "
               + "they were not successfully committed.");
+    }
+
+    private void commitReadyCommitGroups() {
+      Set<RewriteFileGroup> batch = null;
+      if (canCreateCommitGroup()) {
+        synchronized (completedRewrites) {
+          if (canCreateCommitGroup()) {
+            batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
+            for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
+              batch.add(completedRewrites.poll());
+            }
+          }
+        }
+      }
+
+      if (batch != null) {
+        String inProgressCommitToken = UUID.randomUUID().toString();
+        inProgressCommits.add(inProgressCommitToken);
+        try {
+          commitOrClean(batch);
+          committedRewrites.addAll(batch);
+        } catch (Exception e) {
+          LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+        }
+        inProgressCommits.remove(inProgressCommitToken);
+      }
+    }
+
+    private boolean canCreateCommitGroup() {
+      // Either we have a full commit group, or we have completed writing and need to commit
+      // what is left over
+      return (completedRewrites.size() >= rewritesPerCommit)
+          || (!running.get() && completedRewrites.size() > 0);
     }
   }
 }

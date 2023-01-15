@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from io import SEEK_SET, BufferedReader
 from types import TracebackType
 from typing import (
     Callable,
     Dict,
+    Generic,
     Optional,
     Type,
+    TypeVar,
 )
 
 from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
@@ -67,10 +68,9 @@ _CODEC_KEY = "avro.codec"
 _SCHEMA_KEY = "avro.schema"
 
 
-@dataclass(frozen=True)
-class AvroFileHeader:
+class AvroFileHeader(Record):
     magic: bytes
-    meta: dict[str, str]
+    meta: Dict[str, str]
     sync: bytes
 
     def compression_codec(self) -> Optional[Type[Codec]]:
@@ -94,49 +94,52 @@ class AvroFileHeader:
             raise ValueError("No schema found in Avro file headers")
 
 
+D = TypeVar("D", bound=StructProtocol)
+
+
 @dataclass
-class Block:
+class Block(Generic[D]):
     reader: Reader
     block_records: int
     block_decoder: BinaryDecoder
     position: int = 0
 
-    def __iter__(self) -> Block:
+    def __iter__(self) -> Block[D]:
         return self
 
     def has_next(self) -> bool:
         return self.position < self.block_records
 
-    def __next__(self) -> Record:
+    def __next__(self) -> D:
         if self.has_next():
             self.position += 1
             return self.reader.read(self.block_decoder)
         raise StopIteration
 
 
-class AvroFile:
+class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
-    read_types: Dict[int, Callable[[Schema], StructProtocol]]
+    read_types: Dict[int, Callable[..., StructProtocol]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
     reader: Reader
 
     decoder: BinaryDecoder
-    block: Optional[Block] = None
+    block: Optional[Block[D]] = None
 
     def __init__(
         self,
         input_file: InputFile,
         read_schema: Optional[Schema] = None,
-        read_types: Dict[int, Callable[[Schema], StructProtocol]] = EMPTY_DICT,
+        read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
     ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
         self.read_types = read_types
 
-    def __enter__(self) -> AvroFile:
+    def __enter__(self) -> AvroFile[D]:
         """
         Opens the file and reads the header and generates
         a reader tree to start reading the payload
@@ -144,7 +147,7 @@ class AvroFile:
         Returns:
             A generator returning the AvroStructs
         """
-        self.input_stream = BufferedReader(self.input_file.open())  # type: ignore
+        self.input_stream = self.input_file.open(seekable=False)
         self.decoder = BinaryDecoder(self.input_stream)
         self.header = self._read_header()
         self.schema = self.header.get_schema()
@@ -160,7 +163,7 @@ class AvroFile:
     ) -> None:
         self.input_stream.close()
 
-    def __iter__(self) -> AvroFile:
+    def __iter__(self) -> AvroFile[D]:
         return self
 
     def _read_block(self) -> int:
@@ -181,7 +184,7 @@ class AvroFile:
         )
         return block_records
 
-    def __next__(self) -> Record:
+    def __next__(self) -> D:
         if self.block and self.block.has_next():
             return next(self.block)
 
@@ -195,7 +198,4 @@ class AvroFile:
         raise StopIteration
 
     def _read_header(self) -> AvroFileHeader:
-        self.input_stream.seek(0, SEEK_SET)
-        reader = construct_reader(META_SCHEMA)
-        _header = reader.read(self.decoder)
-        return AvroFileHeader(magic=_header.get(0), meta=_header.get(1), sync=_header.get(2))
+        return construct_reader(META_SCHEMA, {-1: AvroFileHeader}).read(self.decoder)
