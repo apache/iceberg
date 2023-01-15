@@ -14,8 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 
+from tempfile import TemporaryDirectory
+from typing import Optional
+
+import pytest
+from pydantic import Field
+
+from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     DecimalReader,
     DoubleReader,
@@ -25,8 +31,10 @@ from pyiceberg.avro.reader import (
     StringReader,
     StructReader,
 )
-from pyiceberg.avro.resolver import ResolveException, promote, resolve
+from pyiceberg.avro.resolver import ResolveError, resolve
+from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.schema import Schema
+from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
     DecimalType,
@@ -57,14 +65,16 @@ def test_resolver() -> None:
         NestedField(6, "preferences", MapType(7, StringType(), 8, StringType())),
         schema_id=1,
     )
+
+    location_struct = StructType(
+        NestedField(4, "lat", DoubleType()),
+        NestedField(5, "long", DoubleType()),
+    )
     read_schema = Schema(
         NestedField(
             3,
             "location",
-            StructType(
-                NestedField(4, "lat", DoubleType()),
-                NestedField(5, "long", DoubleType()),
-            ),
+            location_struct,
         ),
         NestedField(1, "id", LongType()),
         NestedField(6, "preferences", MapType(7, StringType(), 8, StringType())),
@@ -82,11 +92,15 @@ def test_resolver() -> None:
                     (
                         (0, DoubleReader()),
                         (1, DoubleReader()),
-                    )
+                    ),
+                    Record,
+                    location_struct,
                 ),
             ),
             (2, MapReader(StringReader(), StringReader())),
-        )
+        ),
+        Record,
+        read_schema.as_struct(),
     )
 
 
@@ -101,7 +115,7 @@ def test_resolver_new_required_field() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "2: data: required string is non-optional, and not part of the file schema" in str(exc_info.value)
@@ -117,7 +131,7 @@ def test_resolver_invalid_evolution() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
     assert "Cannot promote long to double" in str(exc_info.value)
@@ -157,69 +171,112 @@ def test_resolver_change_type() -> None:
         schema_id=1,
     )
 
-    with pytest.raises(ResolveException) as exc_info:
+    with pytest.raises(ResolveError) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
+    assert "File/read schema are not aligned for list, got map<string, string>" in str(exc_info.value)
 
 
-def test_promote_int_to_long() -> None:
-    assert promote(IntegerType(), LongType()) == IntegerReader()
+def test_resolve_int_to_long() -> None:
+    assert resolve(IntegerType(), LongType()) == IntegerReader()
 
 
-def test_promote_float_to_double() -> None:
+def test_resolve_float_to_double() -> None:
     # We should still read floats, because it is encoded in 4 bytes
-    assert promote(FloatType(), DoubleType()) == FloatReader()
+    assert resolve(FloatType(), DoubleType()) == FloatReader()
 
 
-def test_promote_decimal_to_decimal() -> None:
+def test_resolve_decimal_to_decimal() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
+    assert resolve(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(19, 25)
 
 
 def test_struct_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(StructType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(StructType(), StringType())
 
 
 def test_map_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(MapType(1, StringType(), 2, IntegerType()), StringType())
 
 
 def test_primitive_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
+    with pytest.raises(ResolveError):
+        assert resolve(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
 
 
 def test_integer_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(IntegerType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(IntegerType(), StringType())
 
 
 def test_float_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(FloatType(), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(FloatType(), StringType())
 
 
 def test_string_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(StringType(), FloatType())
+    with pytest.raises(ResolveError):
+        assert resolve(StringType(), FloatType())
 
 
 def test_binary_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(BinaryType(), FloatType())
+    with pytest.raises(ResolveError):
+        assert resolve(BinaryType(), FloatType())
 
 
 def test_decimal_not_aligned() -> None:
-    with pytest.raises(ResolveException):
-        assert promote(DecimalType(22, 19), StringType())
+    with pytest.raises(ResolveError):
+        assert resolve(DecimalType(22, 19), StringType())
 
 
-def test_promote_decimal_to_decimal_reduce_precision() -> None:
+def test_resolve_decimal_to_decimal_reduce_precision() -> None:
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
-    with pytest.raises(ResolveException) as exc_info:
-        _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
+    with pytest.raises(ResolveError) as exc_info:
+        _ = resolve(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
 
     assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)
+
+
+def test_column_assignment() -> None:
+    int_schema = {
+        "type": "record",
+        "name": "ints",
+        "fields": [
+            {"name": "a", "type": "int", "field-id": 1},
+            {"name": "b", "type": "int", "field-id": 2},
+            {"name": "c", "type": "int", "field-id": 3},
+        ],
+    }
+
+    from fastavro import parse_schema, writer
+
+    parsed_schema = parse_schema(int_schema)
+
+    int_records = [
+        {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+        }
+    ]
+
+    with TemporaryDirectory() as tmpdir:
+        tmp_avro_file = tmpdir + "/manifest.avro"
+        with open(tmp_avro_file, "wb") as out:
+            writer(out, parsed_schema, int_records)
+
+        class Ints(Record):
+            c: int = Field()
+            d: Optional[int] = Field()
+
+        MANIFEST_ENTRY_SCHEMA = Schema(
+            NestedField(3, "c", IntegerType(), required=True),
+            NestedField(4, "d", IntegerType(), required=False),
+        )
+
+        with AvroFile[Ints](PyArrowFileIO().new_input(tmp_avro_file), MANIFEST_ENTRY_SCHEMA, {-1: Ints}) as reader:
+            records = list(reader)
+
+    assert repr(records) == "[Ints[c=3, d=None]]"

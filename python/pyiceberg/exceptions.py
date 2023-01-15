@@ -86,3 +86,7 @@ class NotInstalledError(Exception):
 
 class SignError(Exception):
     """Raises when unable to sign a S3 request"""
+
+
+class ResolveError(Exception):
+    pass

@@ -19,7 +19,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel
 
 MAIN_BRANCH = "main"
 

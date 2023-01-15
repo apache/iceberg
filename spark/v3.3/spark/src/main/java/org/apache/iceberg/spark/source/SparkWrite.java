@@ -383,7 +383,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     private List<DataFile> overwrittenFiles() {
-      return scan.tasks().stream().map(FileScanTask::file).collect(Collectors.toList());
+      if (scan == null) {
+        return ImmutableList.of();
+      } else {
+        return scan.tasks().stream().map(FileScanTask::file).collect(Collectors.toList());
+      }
     }
 
     private Expression conflictDetectionFilter() {
@@ -415,12 +419,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         overwriteFiles.addFile(file);
       }
 
-      if (isolationLevel == SERIALIZABLE) {
-        commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
-      } else if (isolationLevel == SNAPSHOT) {
-        commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+      // the scan may be null if the optimizer replaces it with an empty relation (e.g. false cond)
+      // no validation is needed in this case as the command does not depend on the table state
+      if (scan != null) {
+        if (isolationLevel == SERIALIZABLE) {
+          commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+        } else if (isolationLevel == SNAPSHOT) {
+          commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+        } else {
+          throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+        }
+
       } else {
-        throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+        commitOperation(
+            overwriteFiles,
+            String.format("overwrite with %d new data files (no validation)", numAddedFiles));
       }
     }
 

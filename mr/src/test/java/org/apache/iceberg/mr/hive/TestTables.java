@@ -48,7 +48,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
@@ -422,7 +422,7 @@ abstract class TestTables {
       this(
           conf,
           temp,
-          (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "")
+          (HiveVersion.min(HiveVersion.HIVE_3) ? "file:" : "")
               + temp.newFolder("custom", "warehouse").toString(),
           catalogName);
     }
@@ -457,7 +457,7 @@ abstract class TestTables {
       this(
           conf,
           temp,
-          (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "")
+          (HiveVersion.min(HiveVersion.HIVE_3) ? "file:" : "")
               + temp.newFolder("hadoop", "warehouse").toString(),
           catalogName);
     }

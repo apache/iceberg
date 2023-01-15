@@ -57,8 +57,7 @@ from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import EMPTY_DICT
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
 ICEBERG_REST_SPEC_VERSION = "0.14.1"
 

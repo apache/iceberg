@@ -62,6 +62,7 @@ from pyiceberg.transforms import (
     VoidTransform,
     YearTransform,
 )
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -87,7 +88,6 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 @pytest.mark.parametrize(

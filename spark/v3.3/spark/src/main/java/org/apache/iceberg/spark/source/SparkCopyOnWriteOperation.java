@@ -24,7 +24,6 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -81,7 +80,6 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     if (lazyWriteBuilder == null) {
-      Preconditions.checkState(configuredScan != null, "Write must be configured after scan");
       SparkWriteBuilder writeBuilder = new SparkWriteBuilder(spark, table, info);
       lazyWriteBuilder = writeBuilder.overwriteFiles(configuredScan, command, isolationLevel);
     }

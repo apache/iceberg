@@ -27,7 +27,7 @@ from pydantic import Field, PrivateAttr, root_validator
 
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel
 
 OPERATION = "operation"
 

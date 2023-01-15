@@ -109,8 +109,8 @@ public class TestDictionaryRowGroupFilter {
           optional(
               14,
               "decimal_fixed",
-              DecimalType.of(20, 10)) // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
-          );
+              DecimalType.of(20, 10)), // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
+          optional(15, "_nans_and_nulls", DoubleType.get()));
 
   private static final Types.StructType _structFieldType =
       Types.StructType.of(Types.NestedField.required(9, "_int_field", IntegerType.get()));
@@ -131,8 +131,8 @@ public class TestDictionaryRowGroupFilter {
           optional(
               14,
               "_decimal_fixed",
-              DecimalType.of(20, 10)) // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
-          );
+              DecimalType.of(20, 10)), // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
+          optional(15, "_nans_and_nulls", DoubleType.get()));
 
   private static final String TOO_LONG_FOR_STATS;
 
@@ -200,6 +200,8 @@ public class TestDictionaryRowGroupFilter {
           // num-nulls=0
           builder.set(
               "_decimal_fixed", DECIMAL_MIN_VALUE.add(DECIMAL_STEP.multiply(new BigDecimal(i))));
+
+          builder.set("_nans_and_nulls", (i % 10 == 0) ? null : Double.NaN); // only nans and nulls
 
           Record structNotNull = new Record(structSchema);
           structNotNull.put("_int_field", INT_MIN_VALUE + i);
@@ -358,6 +360,33 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("no_nans"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     Assert.assertTrue("Should read: no_nans column will contain non-NaN", shouldRead);
+  }
+
+  @Test
+  public void testNotNaNOnNaNsAndNulls() {
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: _nans_and_nulls column will contain null values", shouldRead);
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue(
+        "Should read: _nans_and_nulls column will contain NaN values which are not null",
+        shouldRead);
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: _nans_and_nulls column will contain NaN values", shouldRead);
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("_nans_and_nulls"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue(
+        "Should read: _nans_and_nulls column will contain null values which are not NaN",
+        shouldRead);
   }
 
   @Test

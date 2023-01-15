@@ -105,13 +105,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   }
 
   tasks.withType(Test) {
-    // For vectorized reads
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-    systemProperty("arrow.enable_unsafe_memory_access", "true")
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    systemProperty("arrow.enable_null_check_for_get", "false")
-
     // Vectorized reads need more memory
     maxHeapSize '2560m'
   }
@@ -222,6 +215,9 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation (project(':iceberg-snowflake')) {
+      exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
