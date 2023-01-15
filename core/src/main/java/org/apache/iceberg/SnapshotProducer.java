@@ -267,28 +267,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     Map<String, String> previousSummary;
-    if (!targetBranch.equals(SnapshotRef.MAIN_BRANCH)) {
-      if (previous.ref(targetBranch) != null) {
-        if (previous.snapshot(previous.ref(targetBranch).snapshotId()).summary() != null) {
-          previousSummary = previous.snapshot(previous.ref(targetBranch).snapshotId()).summary();
-        } else {
-          previousSummary = ImmutableMap.of();
-        }
-      } else {
-        // if there was no previous snapshot, default the summary to start totals at 0
-        ImmutableMap.Builder<String, String> summaryBuilder = ImmutableMap.builder();
-        summaryBuilder
-            .put(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
-            .put(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0")
-            .put(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0")
-            .put(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0")
-            .put(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
-            .put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0");
-        previousSummary = summaryBuilder.build();
-      }
-    } else if (previous.currentSnapshot() != null) {
-      if (previous.currentSnapshot().summary() != null) {
-        previousSummary = previous.currentSnapshot().summary();
+    SnapshotRef previousSnapshot = previous.ref(targetBranch);
+    if (previousSnapshot != null) {
+      if (previous.snapshot(previousSnapshot.snapshotId()).summary() != null) {
+        previousSummary = previous.snapshot(previousSnapshot.snapshotId()).summary();
       } else {
         // previous snapshot had no summary, use an empty summary
         previousSummary = ImmutableMap.of();
