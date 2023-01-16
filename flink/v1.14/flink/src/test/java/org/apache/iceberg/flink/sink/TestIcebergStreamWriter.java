@@ -68,7 +68,6 @@ import org.junit.runners.Parameterized;
 public class TestIcebergStreamWriter {
   @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  private String tablePath;
   private Table table;
 
   private final FileFormat format;
@@ -94,11 +93,10 @@ public class TestIcebergStreamWriter {
   @Before
   public void before() throws IOException {
     File folder = tempFolder.newFolder();
-    tablePath = folder.getAbsolutePath();
 
     // Construct the iceberg table.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
-    table = SimpleDataUtil.createTable(tablePath, props, partitioned);
+    table = SimpleDataUtil.createTable(folder.getAbsolutePath(), props, partitioned);
   }
 
   @Test
@@ -136,7 +134,7 @@ public class TestIcebergStreamWriter {
 
       // Assert the table records.
       SimpleDataUtil.assertTableRecords(
-          tablePath,
+          table,
           Lists.newArrayList(
               SimpleDataUtil.createRecord(1, "hello"),
               SimpleDataUtil.createRecord(2, "world"),
@@ -192,7 +190,7 @@ public class TestIcebergStreamWriter {
   }
 
   private Set<String> scanDataFiles() throws IOException {
-    Path dataDir = new Path(tablePath, "data");
+    Path dataDir = new Path(table.location(), "data");
     FileSystem fs = FileSystem.get(new Configuration());
     if (!fs.exists(dataDir)) {
       return ImmutableSet.of();
@@ -302,7 +300,7 @@ public class TestIcebergStreamWriter {
     }
 
     // Assert the table records.
-    SimpleDataUtil.assertTableRecords(tablePath, records);
+    SimpleDataUtil.assertTableRecords(table, records);
   }
 
   @Test

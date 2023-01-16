@@ -69,7 +69,6 @@ public class TestTaskWriters {
   private final FileFormat format;
   private final boolean partitioned;
 
-  private String path;
   private Table table;
 
   public TestTaskWriters(String format, boolean partitioned) {
@@ -80,11 +79,10 @@ public class TestTaskWriters {
   @Before
   public void before() throws IOException {
     File folder = tempFolder.newFolder();
-    path = folder.getAbsolutePath();
 
     // Construct the iceberg table with the specified file format.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
-    table = SimpleDataUtil.createTable(path, props, partitioned);
+    table = SimpleDataUtil.createTable(folder.getAbsolutePath(), props, partitioned);
   }
 
   @Test
@@ -170,7 +168,7 @@ public class TestTaskWriters {
 
       // Assert the data rows.
       SimpleDataUtil.assertTableRecords(
-          path,
+          table,
           Lists.newArrayList(
               SimpleDataUtil.createRecord(1, "a"),
               SimpleDataUtil.createRecord(2, "b"),
@@ -205,7 +203,7 @@ public class TestTaskWriters {
       appendFiles.commit();
 
       // Assert the data rows.
-      SimpleDataUtil.assertTableRecords(path, records);
+      SimpleDataUtil.assertTableRecords(table, records);
     }
   }
 
@@ -226,7 +224,7 @@ public class TestTaskWriters {
       appendFiles.commit();
 
       // Assert the data rows.
-      SimpleDataUtil.assertTableRows(path, Lists.newArrayList(rows));
+      SimpleDataUtil.assertTableRows(table, Lists.newArrayList(rows));
     }
   }
 
