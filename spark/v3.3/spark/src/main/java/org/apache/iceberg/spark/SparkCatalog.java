@@ -35,6 +35,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.InformationSchemaNamespacesTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
@@ -602,6 +603,12 @@ public class SparkCatalog extends BaseCatalog {
   private Table load(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return loadFromPathIdentifier((PathIdentifier) ident);
+    }
+
+    if (Arrays.equals(new String[] {"information_schema"}, ident.namespace())) {
+      if (ident.name().equalsIgnoreCase("namespaces")) {
+        return new SparkTable(new InformationSchemaNamespacesTable((Catalog) asNamespaceCatalog), false);
+      }
     }
 
     try {

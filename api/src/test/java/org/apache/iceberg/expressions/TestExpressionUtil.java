@@ -814,6 +814,62 @@ public class TestExpressionUtil {
             true));
   }
 
+  @Test
+  public void testExtractByIdInclusiveOr() {
+    Expression expr =
+        Expressions.or(Expressions.equal("id", 5), Expressions.greaterThan("data", "a"));
+    Assert.assertEquals(
+        "Should not split a partial or expression (inclusive)",
+        Expressions.alwaysTrue(),
+        ExpressionUtil.extractByIdInclusive(expr, SCHEMA, true, SCHEMA.findField("id").fieldId()));
+
+    Assert.assertEquals(
+        "Should not split a partial or expression (inclusive)",
+        Expressions.alwaysTrue(),
+        ExpressionUtil.extractByIdInclusive(
+            expr, SCHEMA, true, SCHEMA.findField("data").fieldId()));
+
+    Expression bothFieldsResult =
+        ExpressionUtil.extractByIdInclusive(
+            expr,
+            SCHEMA,
+            true,
+            SCHEMA.findField("id").fieldId(),
+            SCHEMA.findField("data").fieldId());
+    Assert.assertTrue("Should return an or expression", bothFieldsResult instanceof Or);
+    Or orResult = (Or) bothFieldsResult;
+
+    assertEquals(Expressions.equal("id", 5L), orResult.left());
+    assertEquals(Expressions.greaterThan("data", "a"), orResult.right());
+  }
+
+  @Test
+  public void testExtractByIdInclusiveAnd() {
+    Expression expr =
+        Expressions.and(Expressions.equal("id", 5), Expressions.greaterThan("data", "a"));
+    assertEquals(
+        Expressions.equal("id", 5L),
+        ExpressionUtil.extractByIdInclusive(expr, SCHEMA, true, SCHEMA.findField("id").fieldId()));
+
+    assertEquals(
+        Expressions.greaterThan("data", "a"),
+        ExpressionUtil.extractByIdInclusive(
+            expr, SCHEMA, true, SCHEMA.findField("data").fieldId()));
+
+    Expression bothFieldsResult =
+        ExpressionUtil.extractByIdInclusive(
+            expr,
+            SCHEMA,
+            true,
+            SCHEMA.findField("id").fieldId(),
+            SCHEMA.findField("data").fieldId());
+    Assert.assertTrue("Should return an and expression", bothFieldsResult instanceof And);
+    And orResult = (And) bothFieldsResult;
+
+    assertEquals(Expressions.equal("id", 5L), orResult.left());
+    assertEquals(Expressions.greaterThan("data", "a"), orResult.right());
+  }
+
   private void assertEquals(Expression expected, Expression actual) {
     Assertions.assertThat(expected).isInstanceOf(UnboundPredicate.class);
     assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
