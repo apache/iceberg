@@ -27,9 +27,8 @@ import org.apache.iceberg.util.SnapshotUtil;
 abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends BaseScan<ThisT, T, G> implements IncrementalScan<ThisT, T, G> {
 
-  protected BaseIncrementalScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  protected BaseIncrementalScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   protected abstract CloseableIterable<T> doPlanFiles(
@@ -42,7 +41,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         "Cannot find the starting snapshot: %s",
         fromSnapshotId);
     TableScanContext newContext = context().fromSnapshotIdInclusive(fromSnapshotId);
-    return newRefinedScan(tableOps(), table(), schema(), newContext);
+    return newRefinedScan(table(), schema(), newContext);
   }
 
   @Override
@@ -50,7 +49,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
     // for exclusive behavior, table().snapshot(fromSnapshotId) check can't be applied
     // as fromSnapshotId could be matched to a parent snapshot that is already expired
     TableScanContext newContext = context().fromSnapshotIdExclusive(fromSnapshotId);
-    return newRefinedScan(tableOps(), table(), schema(), newContext);
+    return newRefinedScan(table(), schema(), newContext);
   }
 
   @Override
@@ -58,7 +57,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
     Preconditions.checkArgument(
         table().snapshot(toSnapshotId) != null, "Cannot find the end snapshot: %s", toSnapshotId);
     TableScanContext newContext = context().toSnapshotId(toSnapshotId);
-    return newRefinedScan(tableOps(), table(), schema(), newContext);
+    return newRefinedScan(table(), schema(), newContext);
   }
 
   @Override

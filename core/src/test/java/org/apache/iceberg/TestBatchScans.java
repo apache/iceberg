@@ -83,7 +83,7 @@ public class TestBatchScans extends TableTestBase {
             .collect(Collectors.toList());
     Assert.assertEquals("Must have 2 manifests", 2, manifestPaths.size());
 
-    FilesTable filesTable = new FilesTable(table.ops(), table);
+    FilesTable filesTable = new FilesTable(table);
 
     BatchScan scan = filesTable.newBatchScan();
 
