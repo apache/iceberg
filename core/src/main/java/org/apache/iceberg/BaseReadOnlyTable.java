@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 abstract class BaseReadOnlyTable implements Table {
@@ -29,27 +28,32 @@ abstract class BaseReadOnlyTable implements Table {
 
   @Override
   public UpdateSchema updateSchema() {
-    throw new UnsupportedOperationException("Cannot update the schema of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update the schema of a " + descriptor + " table");
   }
 
   @Override
   public UpdatePartitionSpec updateSpec() {
-    throw new UnsupportedOperationException("Cannot update the partition spec of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update the partition spec of a " + descriptor + " table");
   }
 
   @Override
   public UpdateProperties updateProperties() {
-    throw new UnsupportedOperationException("Cannot update the properties of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update the properties of a " + descriptor + " table");
   }
 
   @Override
   public ReplaceSortOrder replaceSortOrder() {
-    throw new UnsupportedOperationException("Cannot update the sort order of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update the sort order of a " + descriptor + " table");
   }
 
   @Override
   public UpdateLocation updateLocation() {
-    throw new UnsupportedOperationException("Cannot update the location of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update the location of a " + descriptor + " table");
   }
 
   @Override
@@ -64,7 +68,8 @@ abstract class BaseReadOnlyTable implements Table {
 
   @Override
   public RewriteManifests rewriteManifests() {
-    throw new UnsupportedOperationException("Cannot rewrite manifests in a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot rewrite manifests in a " + descriptor + " table");
   }
 
   @Override
@@ -74,12 +79,14 @@ abstract class BaseReadOnlyTable implements Table {
 
   @Override
   public RowDelta newRowDelta() {
-    throw new UnsupportedOperationException("Cannot remove or replace rows in a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot remove or replace rows in a " + descriptor + " table");
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    throw new UnsupportedOperationException("Cannot replace partitions in a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot replace partitions in a " + descriptor + " table");
   }
 
   @Override
@@ -89,21 +96,25 @@ abstract class BaseReadOnlyTable implements Table {
 
   @Override
   public UpdateStatistics updateStatistics() {
-    throw new UnsupportedOperationException("Cannot update statistics of a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot update statistics of a " + descriptor + " table");
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    throw new UnsupportedOperationException("Cannot expire snapshots from a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot expire snapshots from a " + descriptor + " table");
   }
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    throw new UnsupportedOperationException("Cannot manage snapshots in a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot manage snapshots in a " + descriptor + " table");
   }
 
   @Override
   public Transaction newTransaction() {
-    throw new UnsupportedOperationException("Cannot create transactions for a " + descriptor + " table");
+    throw new UnsupportedOperationException(
+        "Cannot create transactions for a " + descriptor + " table");
   }
 }
