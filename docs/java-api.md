@@ -156,7 +156,7 @@ First write data to the data file, then submit the data file, the data you write
 For example, add 1000 pieces of data to the table.
 
 ```java
-GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema());
+GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec());
 
 int partitionId = 1, taskId = 1;
 OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(FileFormat.PARQUET).build();
