@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -86,8 +86,9 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean add(int specId, StructLike struct) {
-    Set<StructLike> partitionSet = partitionSetById.computeIfAbsent(specId,
-        id -> StructLikeSet.create(partitionTypeById.get(id)));
+    Set<StructLike> partitionSet =
+        partitionSetById.computeIfAbsent(
+            specId, id -> StructLikeSet.create(partitionTypeById.get(id)));
     return partitionSet.add(struct);
   }
 
@@ -115,8 +116,12 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
 
   @Override
   public Iterator<Pair<Integer, StructLike>> iterator() {
-    Iterable<Iterable<Pair<Integer, StructLike>>> setsAsPairs = Iterables.transform(partitionSetById.entrySet(),
-        idAndSet -> Iterables.transform(idAndSet.getValue(), struct -> Pair.of(idAndSet.getKey(), struct)));
+    Iterable<Iterable<Pair<Integer, StructLike>>> setsAsPairs =
+        Iterables.transform(
+            partitionSetById.entrySet(),
+            idAndSet ->
+                Iterables.transform(
+                    idAndSet.getValue(), struct -> Pair.of(idAndSet.getKey(), struct)));
 
     return Iterables.concat(setsAsPairs).iterator();
   }
@@ -181,6 +186,26 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
       }
     }
     return changed;
+  }
+
+  @Override
+  public String toString() {
+    StringJoiner result = new StringJoiner(", ", "[", "]");
+    for (Map.Entry<Integer, Set<StructLike>> e : partitionSetById.entrySet()) {
+      StringJoiner partitionDataJoiner = new StringJoiner(", ");
+      Types.StructType structType = partitionTypeById.get(e.getKey());
+      for (StructLike s : e.getValue()) {
+        for (int i = 0; i < structType.fields().size(); i++) {
+          StringBuilder partitionStringBuilder = new StringBuilder();
+          partitionStringBuilder.append(structType.fields().get(i).name());
+          partitionStringBuilder.append("=");
+          partitionStringBuilder.append(s.get(i, Object.class).toString());
+          partitionDataJoiner.add(partitionStringBuilder.toString());
+        }
+      }
+      result.add(partitionDataJoiner.toString());
+    }
+    return result.toString();
   }
 
   @Override

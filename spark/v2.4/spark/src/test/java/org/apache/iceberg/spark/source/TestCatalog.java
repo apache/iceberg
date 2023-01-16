@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
@@ -40,8 +39,7 @@ public class TestCatalog implements Catalog, Configurable {
   private Configuration conf;
   private String warehouse;
 
-  public TestCatalog() {
-  }
+  public TestCatalog() {}
 
   @Override
   public String name() {
@@ -51,27 +49,40 @@ public class TestCatalog implements Catalog, Configurable {
   private String tablePath(TableIdentifier identifier) {
     return String.format("%s/%s", warehouse, identifier.name());
   }
+
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Table createTable(TableIdentifier identifier, Schema schema,
-                           PartitionSpec spec, String location, Map<String, String> properties) {
+  public Table createTable(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties) {
     return tables.create(schema, spec, properties, tablePath(identifier));
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier identifier, Schema schema,
-                                               PartitionSpec spec, String location, Map<String, String> properties) {
+  public Transaction newCreateTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema,
-                                                PartitionSpec spec, String location, Map<String, String> properties,
-                                                boolean orCreate) {
+  public Transaction newReplaceTableTransaction(
+      TableIdentifier identifier,
+      Schema schema,
+      PartitionSpec spec,
+      String location,
+      Map<String, String> properties,
+      boolean orCreate) {
     throw new UnsupportedOperationException();
   }
 
@@ -94,11 +105,13 @@ public class TestCatalog implements Catalog, Configurable {
   public void initialize(String name, Map<String, String> properties) {
     String uri = properties.get(CatalogProperties.URI);
     warehouse = properties.get("warehouse");
-    Preconditions.checkArgument(uri != null,
-        "Cannot initialize TestCatalog. The metastore connection uri must be set.");
-    Preconditions.checkArgument(uri.contains("thrift"),
+    Preconditions.checkArgument(
+        uri != null, "Cannot initialize TestCatalog. The metastore connection uri must be set.");
+    Preconditions.checkArgument(
+        uri.contains("thrift"),
         "Cannot initialize TestCatalog. The metastore connection uri must use thrift as the scheme.");
-    Preconditions.checkArgument(warehouse != null,
+    Preconditions.checkArgument(
+        warehouse != null,
         "Cannot initialize TestCatalog. The base path for the catalog's warehouse directory must be set.");
     this.tables = new HadoopTables(conf);
   }
@@ -112,5 +125,4 @@ public class TestCatalog implements Catalog, Configurable {
   public Configuration getConf() {
     return this.conf;
   }
-
 }

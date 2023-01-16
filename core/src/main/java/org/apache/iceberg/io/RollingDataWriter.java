@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
@@ -35,9 +34,13 @@ public class RollingDataWriter<T> extends RollingFileWriter<T, DataWriter<T>, Da
   private final FileWriterFactory<T> writerFactory;
   private final List<DataFile> dataFiles;
 
-  public RollingDataWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                           FileIO io, long targetFileSizeInBytes,
-                           PartitionSpec spec, StructLike partition) {
+  public RollingDataWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      PartitionSpec spec,
+      StructLike partition) {
     super(fileFactory, io, targetFileSizeInBytes, spec, partition);
     this.writerFactory = writerFactory;
     this.dataFiles = Lists.newArrayList();

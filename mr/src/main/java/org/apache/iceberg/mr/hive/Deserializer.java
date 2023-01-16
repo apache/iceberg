@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
 import java.util.List;
@@ -31,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
@@ -40,13 +40,12 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
-
 class Deserializer {
   private FieldDeserializer fieldDeserializer;
 
   /**
-   * Builder to create a Deserializer instance.
-   * Requires an Iceberg Schema and the Hive ObjectInspector for converting the data.
+   * Builder to create a Deserializer instance. Requires an Iceberg Schema and the Hive
+   * ObjectInspector for converting the data.
    */
   static class Builder {
     private Schema schema;
@@ -75,6 +74,7 @@ class Deserializer {
 
   /**
    * Deserializes the Hive result object to an Iceberg record using the provided ObjectInspectors.
+   *
    * @param data The Hive data to deserialize
    * @return The resulting Iceberg Record
    */
@@ -86,20 +86,26 @@ class Deserializer {
     this.fieldDeserializer = DeserializerVisitor.visit(schema, pair);
   }
 
-  private static class DeserializerVisitor extends SchemaWithPartnerVisitor<ObjectInspectorPair, FieldDeserializer> {
+  private static class DeserializerVisitor
+      extends SchemaWithPartnerVisitor<ObjectInspectorPair, FieldDeserializer> {
 
     public static FieldDeserializer visit(Schema schema, ObjectInspectorPair pair) {
-      return visit(schema, new FixNameMappingObjectInspectorPair(schema, pair), new DeserializerVisitor(),
+      return visit(
+          schema,
+          new FixNameMappingObjectInspectorPair(schema, pair),
+          new DeserializerVisitor(),
           new PartnerObjectInspectorByNameAccessors());
     }
 
     @Override
-    public FieldDeserializer schema(Schema schema, ObjectInspectorPair pair, FieldDeserializer deserializer) {
+    public FieldDeserializer schema(
+        Schema schema, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return deserializer;
     }
 
     @Override
-    public FieldDeserializer field(NestedField field, ObjectInspectorPair pair, FieldDeserializer deserializer) {
+    public FieldDeserializer field(
+        NestedField field, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return deserializer;
     }
 
@@ -124,14 +130,21 @@ class Deserializer {
     }
 
     @Override
-    public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+    public FieldDeserializer struct(
+        StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+      Preconditions.checkNotNull(type, "Can not create reader for null type");
+      GenericRecord template = GenericRecord.create(type);
       return o -> {
         if (o == null) {
           return null;
         }
 
-        List<Object> data = ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
-        Record result = GenericRecord.create(type);
+        List<Object> data =
+            ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
+        Record result = template.copy();
 
         for (int i = 0; i < deserializers.size(); i++) {
           Object fieldValue = data.get(i);
@@ -147,7 +160,8 @@ class Deserializer {
     }
 
     @Override
-    public FieldDeserializer list(ListType listTypeInfo, ObjectInspectorPair pair, FieldDeserializer deserializer) {
+    public FieldDeserializer list(
+        ListType listTypeInfo, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return o -> {
         if (o == null) {
           return null;
@@ -165,8 +179,11 @@ class Deserializer {
     }
 
     @Override
-    public FieldDeserializer map(MapType mapType, ObjectInspectorPair pair, FieldDeserializer keyDeserializer,
-                                 FieldDeserializer valueDeserializer) {
+    public FieldDeserializer map(
+        MapType mapType,
+        ObjectInspectorPair pair,
+        FieldDeserializer keyDeserializer,
+        FieldDeserializer valueDeserializer) {
       return o -> {
         if (o == null) {
           return null;
@@ -176,7 +193,8 @@ class Deserializer {
         MapObjectInspector mapObjectInspector = (MapObjectInspector) pair.sourceInspector();
 
         for (Map.Entry<?, ?> entry : mapObjectInspector.getMap(o).entrySet()) {
-          result.put(keyDeserializer.value(entry.getKey()), valueDeserializer.value(entry.getValue()));
+          result.put(
+              keyDeserializer.value(entry.getKey()), valueDeserializer.value(entry.getValue()));
         }
         return result;
       };
@@ -190,8 +208,12 @@ class Deserializer {
     public ObjectInspectorPair fieldPartner(ObjectInspectorPair pair, int fieldId, String name) {
       String sourceName = pair.sourceName(name);
       return new ObjectInspectorPair(
-          ((StructObjectInspector) pair.writerInspector()).getStructFieldRef(name).getFieldObjectInspector(),
-          ((StructObjectInspector) pair.sourceInspector()).getStructFieldRef(sourceName).getFieldObjectInspector());
+          ((StructObjectInspector) pair.writerInspector())
+              .getStructFieldRef(name)
+              .getFieldObjectInspector(),
+          ((StructObjectInspector) pair.sourceInspector())
+              .getStructFieldRef(sourceName)
+              .getFieldObjectInspector());
     }
 
     @Override
@@ -221,10 +243,10 @@ class Deserializer {
   }
 
   /**
-   * Hive query results schema column names do not match the target Iceberg column names.
-   * Instead we have to rely on the column order. To keep the other parts of the code generic we fix this with a
-   * wrapper around the ObjectInspectorPair. This wrapper maps the Iceberg schema column names instead of the Hive
-   * column names.
+   * Hive query results schema column names do not match the target Iceberg column names. Instead we
+   * have to rely on the column order. To keep the other parts of the code generic we fix this with
+   * a wrapper around the ObjectInspectorPair. This wrapper maps the Iceberg schema column names
+   * instead of the Hive column names.
    */
   private static class FixNameMappingObjectInspectorPair extends ObjectInspectorPair {
     private final Map<String, String> sourceNameMap;
@@ -234,7 +256,8 @@ class Deserializer {
 
       this.sourceNameMap = Maps.newHashMapWithExpectedSize(schema.columns().size());
 
-      List<? extends StructField> fields = ((StructObjectInspector) sourceInspector()).getAllStructFieldRefs();
+      List<? extends StructField> fields =
+          ((StructObjectInspector) sourceInspector()).getAllStructFieldRefs();
       for (int i = 0; i < schema.columns().size(); ++i) {
         sourceNameMap.put(schema.columns().get(i).name(), fields.get(i).getFieldName());
       }
@@ -248,12 +271,12 @@ class Deserializer {
 
   /**
    * To get the data for Iceberg {@link Record}s we have to use both ObjectInspectors.
-   * <p>
-   * We use the Hive ObjectInspectors (sourceInspector) to get the Hive primitive types.
-   * <p>
-   * We use the Iceberg ObjectInspectors (writerInspector) only if conversion is needed for
-   * generating the correct type for Iceberg Records. See: {@link WriteObjectInspector} interface on the provided
-   * writerInspector.
+   *
+   * <p>We use the Hive ObjectInspectors (sourceInspector) to get the Hive primitive types.
+   *
+   * <p>We use the Iceberg ObjectInspectors (writerInspector) only if conversion is needed for
+   * generating the correct type for Iceberg Records. See: {@link WriteObjectInspector} interface on
+   * the provided writerInspector.
    */
   private static class ObjectInspectorPair {
     private ObjectInspector writerInspector;

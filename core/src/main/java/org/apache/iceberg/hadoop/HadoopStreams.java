@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -26,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FSInputStream;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -37,12 +37,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Convenience methods to get Parquet abstractions for Hadoop data streams.
  *
- * This class is based on Parquet's HadoopStreams.
+ * <p>This class is based on Parquet's HadoopStreams.
  */
-class HadoopStreams {
+public class HadoopStreams {
 
-  private HadoopStreams() {
-  }
+  private HadoopStreams() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopStreams.class);
 
@@ -68,10 +67,21 @@ class HadoopStreams {
   }
 
   /**
+   * Wraps a {@link SeekableInputStream} in a {@link FSDataOutputStream} implementation for readers.
+   *
+   * @param stream a SeekableInputStream
+   * @return a FSDataOutputStream
+   */
+  public static FSInputStream wrap(SeekableInputStream stream) {
+    return new WrappedSeekableInputStream(stream);
+  }
+
+  /**
    * SeekableInputStream implementation for FSDataInputStream that implements ByteBufferReadable in
    * Hadoop 2.
    */
-  private static class HadoopSeekableInputStream extends SeekableInputStream implements DelegatingInputStream {
+  private static class HadoopSeekableInputStream extends SeekableInputStream
+      implements DelegatingInputStream {
     private final FSDataInputStream stream;
     private final StackTraceElement[] createStack;
     private boolean closed;
@@ -123,17 +133,16 @@ class HadoopStreams {
       super.finalize();
       if (!closed) {
         close(); // releasing resources is more important than printing the warning
-        String trace = Joiner.on("\n\t").join(
-            Arrays.copyOfRange(createStack, 1, createStack.length));
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
         LOG.warn("Unclosed input stream created by:\n\t{}", trace);
       }
     }
   }
 
-  /**
-   * PositionOutputStream implementation for FSDataOutputStream.
-   */
-  private static class HadoopPositionOutputStream extends PositionOutputStream implements DelegatingOutputStream {
+  /** PositionOutputStream implementation for FSDataOutputStream. */
+  private static class HadoopPositionOutputStream extends PositionOutputStream
+      implements DelegatingOutputStream {
     private final FSDataOutputStream stream;
     private final StackTraceElement[] createStack;
     private boolean closed;
@@ -186,10 +195,54 @@ class HadoopStreams {
       super.finalize();
       if (!closed) {
         close(); // releasing resources is more important than printing the warning
-        String trace = Joiner.on("\n\t").join(
-            Arrays.copyOfRange(createStack, 1, createStack.length));
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
         LOG.warn("Unclosed output stream created by:\n\t{}", trace);
       }
+    }
+  }
+
+  private static class WrappedSeekableInputStream extends FSInputStream
+      implements DelegatingInputStream {
+    private final SeekableInputStream inputStream;
+
+    private WrappedSeekableInputStream(SeekableInputStream inputStream) {
+      this.inputStream = inputStream;
+    }
+
+    @Override
+    public void seek(long pos) throws IOException {
+      inputStream.seek(pos);
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return inputStream.getPos();
+    }
+
+    @Override
+    public boolean seekToNewSource(long targetPos) throws IOException {
+      throw new UnsupportedOperationException("seekToNewSource not supported");
+    }
+
+    @Override
+    public int read() throws IOException {
+      return inputStream.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+      return inputStream.read(b, off, len);
+    }
+
+    @Override
+    public void close() throws IOException {
+      inputStream.close();
+    }
+
+    @Override
+    public InputStream getDelegate() {
+      return inputStream;
     }
   }
 }

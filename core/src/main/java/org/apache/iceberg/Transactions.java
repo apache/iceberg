@@ -16,32 +16,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.BaseTransaction.TransactionType;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class Transactions {
-  private Transactions() {
-  }
+  private Transactions() {}
 
   public static Transaction createOrReplaceTableTransaction(
       String tableName, TableOperations ops, TableMetadata start) {
     return new BaseTransaction(tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start);
   }
 
-  public static Transaction replaceTableTransaction(String tableName, TableOperations ops, TableMetadata start) {
+  public static Transaction replaceTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start) {
     return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start);
   }
 
-  public static Transaction createTableTransaction(String tableName, TableOperations ops, TableMetadata start) {
-    Preconditions.checkArgument(ops.current() == null,
-            "Cannot start create table transaction: table already exists");
+  public static Transaction replaceTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start, MetricsReporter reporter) {
+    return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start, reporter);
+  }
+
+  public static Transaction createTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start) {
+    Preconditions.checkArgument(
+        ops.current() == null, "Cannot start create table transaction: table already exists");
     return new BaseTransaction(tableName, ops, TransactionType.CREATE_TABLE, start);
+  }
+
+  public static Transaction createTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start, MetricsReporter reporter) {
+    Preconditions.checkArgument(
+        ops.current() == null, "Cannot start create table transaction: table already exists");
+    return new BaseTransaction(tableName, ops, TransactionType.CREATE_TABLE, start, reporter);
   }
 
   public static Transaction newTransaction(String tableName, TableOperations ops) {
     return new BaseTransaction(tableName, ops, TransactionType.SIMPLE, ops.refresh());
+  }
+
+  public static Transaction newTransaction(
+      String tableName, TableOperations ops, MetricsReporter reporter) {
+    return new BaseTransaction(tableName, ops, TransactionType.SIMPLE, ops.refresh(), reporter);
   }
 }

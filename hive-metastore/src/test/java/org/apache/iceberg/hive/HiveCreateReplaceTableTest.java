@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
+
+import static org.apache.iceberg.PartitionSpec.builderFor;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import org.apache.iceberg.AppendFiles;
@@ -42,23 +44,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.PartitionSpec.builderFor;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
   private static final String TABLE_NAME = "tbl";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
-  private static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get()),
-      required(4, "data", Types.StringType.get())
-  );
-  private static final PartitionSpec SPEC = builderFor(SCHEMA)
-      .identity("id")
-      .build();
+  private static final Schema SCHEMA =
+      new Schema(
+          required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
+  private static final PartitionSpec SPEC = builderFor(SCHEMA).identity("id").build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableLocation;
 
@@ -76,11 +71,10 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
   public void testCreateTableTxn() {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newCreateTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    Transaction txn =
+        catalog.newCreateTableTransaction(
+            TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+    txn.updateProperties().set("prop", "value").commit();
 
     // verify the table is still not visible before the transaction is committed
     Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
@@ -95,8 +89,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
   public void testCreateTableTxnTableCreatedConcurrently() {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newCreateTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+    Transaction txn =
+        catalog.newCreateTableTransaction(
+            TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
 
     // create the table concurrently
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
@@ -113,22 +108,25 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
   public void testCreateTableTxnAndAppend() {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newCreateTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+    Transaction txn =
+        catalog.newCreateTableTransaction(
+            TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
 
     AppendFiles append = txn.newAppend();
-    DataFile dataFile = DataFiles.builder(SPEC)
-        .withPath("/path/to/data-a.parquet")
-        .withFileSizeInBytes(0)
-        .withRecordCount(1)
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(1)
+            .build();
     append.appendFile(dataFile);
     append.commit();
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     Snapshot snapshot = table.currentSnapshot();
-    Assert.assertTrue("Table should have one manifest file", snapshot.allManifests().size() == 1);
+    Assert.assertTrue(
+        "Table should have one manifest file", snapshot.allManifests(table.io()).size() == 1);
   }
 
   @Test
@@ -143,7 +141,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
         "Should not be possible to start a new create table txn",
         AlreadyExistsException.class,
         "Table already exists: hivedb.tbl",
-        () -> catalog.newCreateTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap()));
+        () ->
+            catalog.newCreateTableTransaction(
+                TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap()));
   }
 
   @Test
@@ -155,12 +155,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
-        .alwaysNull("id", "id")
-        .withSpecId(1)
-        .build();
-    Assert.assertEquals("Table should have a spec with one void field",
-        v1Expected, table.spec());
+    PartitionSpec v1Expected =
+        PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
+    Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
   }
 
   @Test
@@ -168,7 +165,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     AssertHelpers.assertThrows(
         "Should not be possible to start a new replace table txn",
         NoSuchTableException.class,
-        "No such table: hivedb.tbl",
+        "Table does not exist: hivedb.tbl",
         () -> catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, false));
   }
 
@@ -181,9 +178,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
     catalog.dropTable(TABLE_IDENTIFIER);
 
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    txn.updateProperties().set("prop", "value").commit();
 
     AssertHelpers.assertThrows(
         "Replace table txn should fail",
@@ -194,19 +189,16 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
   @Test
   public void testReplaceTableTxnTableModifiedConcurrently() {
-    Table table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
+    Table table =
+        catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC, tableLocation, Maps.newHashMap());
     Assert.assertTrue("Table should exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Transaction txn = catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, false);
 
     // update the table concurrently
-    table.updateProperties()
-        .set("another-prop", "another-value")
-        .commit();
+    table.updateProperties().set("another-prop", "another-value").commit();
 
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    txn.updateProperties().set("prop", "value").commit();
     txn.commitTransaction();
 
     // the replace should still succeed
@@ -220,9 +212,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
     Transaction txn = catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, true);
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    txn.updateProperties().set("prop", "value").commit();
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -238,12 +228,9 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
-        .alwaysNull("id", "id")
-        .withSpecId(1)
-        .build();
-    Assert.assertEquals("Table should have a spec with one void field",
-        v1Expected, table.spec());
+    PartitionSpec v1Expected =
+        PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
+    Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
   }
 
   @Test
@@ -253,11 +240,15 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
     Assert.assertTrue("Table should be created", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newReplaceTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned(), tableLocation, Maps.newHashMap(), true);
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    Transaction txn =
+        catalog.newReplaceTableTransaction(
+            TABLE_IDENTIFIER,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            tableLocation,
+            Maps.newHashMap(),
+            true);
+    txn.updateProperties().set("prop", "value").commit();
 
     // drop the table concurrently
     catalog.dropTable(TABLE_IDENTIFIER);
@@ -273,11 +264,15 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
   public void testCreateOrReplaceTableTxnTableCreatedConcurrently() {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newReplaceTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned(), tableLocation, Maps.newHashMap(), true);
-    txn.updateProperties()
-        .set("prop", "value")
-        .commit();
+    Transaction txn =
+        catalog.newReplaceTableTransaction(
+            TABLE_IDENTIFIER,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            tableLocation,
+            Maps.newHashMap(),
+            true);
+    txn.updateProperties().set("prop", "value").commit();
 
     // create the table concurrently
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
@@ -295,21 +290,21 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
   public void testCreateTableTxnWithGlobalTableLocation() {
     Assert.assertFalse("Table should not exist", catalog.tableExists(TABLE_IDENTIFIER));
 
-    Transaction txn = catalog.newCreateTableTransaction(
-        TABLE_IDENTIFIER, SCHEMA, SPEC, "file:///" + tableLocation, Maps.newHashMap());
+    Transaction txn =
+        catalog.newCreateTableTransaction(
+            TABLE_IDENTIFIER, SCHEMA, SPEC, "file:///" + tableLocation, Maps.newHashMap());
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
-    DataFile dataFile = DataFiles.builder(SPEC)
-        .withPath("/path/to/data-a.parquet")
-        .withFileSizeInBytes(0)
-        .withRecordCount(1)
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(1)
+            .build();
 
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     Assert.assertEquals("Write should succeed", 1, Iterables.size(table.snapshots()));
   }

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.ServiceException;
 import com.aliyun.oss.model.GetObjectRequest;
 import com.aliyun.oss.model.PutObjectResult;
 import java.io.ByteArrayInputStream;
@@ -33,6 +33,8 @@ import java.util.UUID;
 import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -42,20 +44,18 @@ import org.junit.Test;
 
 public class TestLocalAliyunOSS {
 
-  @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
+  @ClassRule public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
   private final String bucketName = OSS_TEST_RULE.testBucketName();
   private final Random random = new Random(1);
 
   private static void assertThrows(Runnable runnable, String expectedErrorCode) {
-    try {
-      runnable.run();
-      Assert.fail("No exception was thrown, expected errorCode: " + expectedErrorCode);
-    } catch (OSSException e) {
-      Assert.assertEquals(expectedErrorCode, e.getErrorCode());
-    }
+    Assertions.assertThatThrownBy(runnable::run)
+        .isInstanceOf(OSSException.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(OSSException.class))
+        .extracting(ServiceException::getErrorCode)
+        .isEqualTo(expectedErrorCode);
   }
 
   @Before
@@ -70,7 +70,8 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testBuckets() {
-    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+    Assume.assumeTrue(
+        "Aliyun integration test cannot delete existing bucket from test environment.",
         OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
 
     Assert.assertTrue(doesBucketExist(bucketName));
@@ -85,7 +86,8 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testDeleteBucket() {
-    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+    Assume.assumeTrue(
+        "Aliyun integration test cannot delete existing bucket from test environment.",
         OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
@@ -116,7 +118,8 @@ public class TestLocalAliyunOSS {
     random.nextBytes(bytes);
 
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
-    assertThrows(() -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
+    assertThrows(
+        () -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     PutObjectResult result = oss.putObject(bucketName, "object", wrap(bytes));
     Assert.assertEquals(AliyunOSSMockLocalStore.md5sum(wrap(bytes)), result.getETag());

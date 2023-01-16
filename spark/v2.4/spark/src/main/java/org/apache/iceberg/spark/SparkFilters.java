@@ -16,8 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -45,40 +58,25 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNaN;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notNull;
-import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
-
 public class SparkFilters {
-  private SparkFilters() {
-  }
+  private SparkFilters() {}
 
-  private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
-      .<Class<? extends Filter>, Operation>builder()
-      .put(EqualTo.class, Operation.EQ)
-      .put(EqualNullSafe.class, Operation.EQ)
-      .put(GreaterThan.class, Operation.GT)
-      .put(GreaterThanOrEqual.class, Operation.GT_EQ)
-      .put(LessThan.class, Operation.LT)
-      .put(LessThanOrEqual.class, Operation.LT_EQ)
-      .put(In.class, Operation.IN)
-      .put(IsNull.class, Operation.IS_NULL)
-      .put(IsNotNull.class, Operation.NOT_NULL)
-      .put(And.class, Operation.AND)
-      .put(Or.class, Operation.OR)
-      .put(Not.class, Operation.NOT)
-      .put(StringStartsWith.class, Operation.STARTS_WITH)
-      .build();
+  private static final ImmutableMap<Class<? extends Filter>, Operation> FILTERS =
+      ImmutableMap.<Class<? extends Filter>, Operation>builder()
+          .put(EqualTo.class, Operation.EQ)
+          .put(EqualNullSafe.class, Operation.EQ)
+          .put(GreaterThan.class, Operation.GT)
+          .put(GreaterThanOrEqual.class, Operation.GT_EQ)
+          .put(LessThan.class, Operation.LT)
+          .put(LessThanOrEqual.class, Operation.LT_EQ)
+          .put(In.class, Operation.IN)
+          .put(IsNull.class, Operation.IS_NULL)
+          .put(IsNotNull.class, Operation.NOT_NULL)
+          .put(And.class, Operation.AND)
+          .put(Or.class, Operation.OR)
+          .put(Not.class, Operation.NOT)
+          .put(StringStartsWith.class, Operation.STARTS_WITH)
+          .buildOrThrow();
 
   public static Expression convert(Filter filter) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
@@ -113,8 +111,8 @@ public class SparkFilters {
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
             // comparison with null in normal equality is always null. this is probably a mistake.
-            Preconditions.checkNotNull(eq.value(),
-                "Expression is always false (eq is not null-safe): %s", filter);
+            Preconditions.checkNotNull(
+                eq.value(), "Expression is always false (eq is not null-safe): %s", filter);
             return handleEqual(eq.attribute(), eq.value());
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
@@ -127,7 +125,8 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
-          return in(inFilter.attribute(),
+          return in(
+              inFilter.attribute(),
               Stream.of(inFilter.values())
                   .filter(Objects::nonNull)
                   .map(SparkFilters::convertLiteral)
@@ -141,30 +140,33 @@ public class SparkFilters {
           }
           return null;
 
-        case AND: {
-          And andFilter = (And) filter;
-          Expression left = convert(andFilter.left());
-          Expression right = convert(andFilter.right());
-          if (left != null && right != null) {
-            return and(left, right);
+        case AND:
+          {
+            And andFilter = (And) filter;
+            Expression left = convert(andFilter.left());
+            Expression right = convert(andFilter.right());
+            if (left != null && right != null) {
+              return and(left, right);
+            }
+            return null;
           }
-          return null;
-        }
 
-        case OR: {
-          Or orFilter = (Or) filter;
-          Expression left = convert(orFilter.left());
-          Expression right = convert(orFilter.right());
-          if (left != null && right != null) {
-            return or(left, right);
+        case OR:
+          {
+            Or orFilter = (Or) filter;
+            Expression left = convert(orFilter.left());
+            Expression right = convert(orFilter.right());
+            if (left != null && right != null) {
+              return or(left, right);
+            }
+            return null;
           }
-          return null;
-        }
 
-        case STARTS_WITH: {
-          StringStartsWith stringStartsWith = (StringStartsWith) filter;
-          return startsWith(stringStartsWith.attribute(), stringStartsWith.value());
-        }
+        case STARTS_WITH:
+          {
+            StringStartsWith stringStartsWith = (StringStartsWith) filter;
+            return startsWith(stringStartsWith.attribute(), stringStartsWith.value());
+          }
       }
     }
 

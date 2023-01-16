@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,21 +42,15 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSchemaUnionByFieldName {
 
-  @Rule
-  public ExpectedException thrown = ExpectedException.none();
-
   private static List<? extends PrimitiveType> primitiveTypes() {
-    return Lists.newArrayList(StringType.get(),
+    return Lists.newArrayList(
+        StringType.get(),
         TimeType.get(),
         TimestampType.withoutZone(),
         TimestampType.withZone(),
@@ -67,15 +63,20 @@ public class TestSchemaUnionByFieldName {
         FixedType.ofLength(10),
         DecimalType.of(10, 2),
         LongType.get(),
-        FloatType.get()
-    );
+        FloatType.get());
   }
 
-  private static NestedField[] primitiveFields(Integer initialValue, List<? extends PrimitiveType> primitiveTypes) {
+  private static NestedField[] primitiveFields(
+      Integer initialValue, List<? extends PrimitiveType> primitiveTypes) {
     AtomicInteger atomicInteger = new AtomicInteger(initialValue);
     return primitiveTypes.stream()
-        .map(type -> optional(atomicInteger.incrementAndGet(), type.toString(),
-            Types.fromPrimitiveString(type.toString()))).toArray(NestedField[]::new);
+        .map(
+            type ->
+                optional(
+                    atomicInteger.incrementAndGet(),
+                    type.toString(),
+                    Types.fromPrimitiveString(type.toString())))
+        .toArray(NestedField[]::new);
   }
 
   @Test
@@ -88,7 +89,8 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelListOfPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
-      Schema newSchema = new Schema(optional(1, "aList", Types.ListType.ofOptional(2, primitiveType)));
+      Schema newSchema =
+          new Schema(optional(1, "aList", Types.ListType.ofOptional(2, primitiveType)));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
       Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
     }
@@ -97,7 +99,9 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelMapOfPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
-      Schema newSchema = new Schema(optional(1, "aMap", Types.MapType.ofOptional(2, 3, primitiveType, primitiveType)));
+      Schema newSchema =
+          new Schema(
+              optional(1, "aMap", Types.MapType.ofOptional(2, 3, primitiveType, primitiveType)));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
       Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
     }
@@ -106,8 +110,9 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelStructOfPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
-      Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
-          optional(2, "primitive", primitiveType))));
+      Schema currentSchema =
+          new Schema(
+              optional(1, "aStruct", Types.StructType.of(optional(2, "primitive", primitiveType))));
       Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(currentSchema).apply();
       Assert.assertEquals(currentSchema.asStruct(), applied.asStruct());
     }
@@ -117,8 +122,9 @@ public class TestSchemaUnionByFieldName {
   public void testAddNestedPrimitive() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
       Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of()));
-      Schema newSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
-          optional(2, "primitive", primitiveType))));
+      Schema newSchema =
+          new Schema(
+              optional(1, "aStruct", Types.StructType.of(optional(2, "primitive", primitiveType))));
       Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
       Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
     }
@@ -127,90 +133,153 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddNestedPrimitives() {
     Schema currentSchema = new Schema(optional(1, "aStruct", Types.StructType.of()));
-    Schema newSchema = new Schema(optional(1, "aStruct", Types.StructType.of(
-        primitiveFields(1, primitiveTypes()))));
+    Schema newSchema =
+        new Schema(
+            optional(1, "aStruct", Types.StructType.of(primitiveFields(1, primitiveTypes()))));
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
     Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
   }
 
   @Test
   public void testAddNestedLists() {
-    Schema newSchema = new Schema(optional(1, "aList",
-        Types.ListType.ofOptional(2,
-            Types.ListType.ofOptional(3,
-                Types.ListType.ofOptional(4,
-                    Types.ListType.ofOptional(5,
-                        Types.ListType.ofOptional(6,
-                            Types.ListType.ofOptional(7,
-                                Types.ListType.ofOptional(8,
-                                    Types.ListType.ofOptional(9,
-                                        Types.ListType.ofOptional(10,
-                                            DecimalType.of(11, 20))))))))))));
+    Schema newSchema =
+        new Schema(
+            optional(
+                1,
+                "aList",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.ListType.ofOptional(
+                        3,
+                        Types.ListType.ofOptional(
+                            4,
+                            Types.ListType.ofOptional(
+                                5,
+                                Types.ListType.ofOptional(
+                                    6,
+                                    Types.ListType.ofOptional(
+                                        7,
+                                        Types.ListType.ofOptional(
+                                            8,
+                                            Types.ListType.ofOptional(
+                                                9,
+                                                Types.ListType.ofOptional(
+                                                    10, DecimalType.of(11, 20))))))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
     Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
   }
 
   @Test
   public void testAddNestedStruct() {
-    Schema newSchema = new Schema(optional(1, "struct1", Types.StructType.of(
-            optional(2, "struct2", Types.StructType.of(
-                optional(3, "struct3", Types.StructType.of(
-                    optional(4, "struct4", Types.StructType.of(
-                        optional(5, "struct5", Types.StructType.of(
-                            optional(6, "struct6", Types.StructType.of(
-                                optional(7, "aString", StringType.get()))))))))))))));
+    Schema newSchema =
+        new Schema(
+            optional(
+                1,
+                "struct1",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "struct2",
+                        Types.StructType.of(
+                            optional(
+                                3,
+                                "struct3",
+                                Types.StructType.of(
+                                    optional(
+                                        4,
+                                        "struct4",
+                                        Types.StructType.of(
+                                            optional(
+                                                5,
+                                                "struct5",
+                                                Types.StructType.of(
+                                                    optional(
+                                                        6,
+                                                        "struct6",
+                                                        Types.StructType.of(
+                                                            optional(
+                                                                7,
+                                                                "aString",
+                                                                StringType.get()))))))))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
     Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
   }
 
   @Test
   public void testAddNestedMaps() {
-    Schema newSchema = new Schema(optional(1, "struct", Types.MapType.ofOptional(
-        2, 3, StringType.get(), Types.MapType.ofOptional(
-            4, 5, StringType.get(), Types.MapType.ofOptional(
-                6, 7, StringType.get(), Types.MapType.ofOptional(
-                    8, 9, StringType.get(), Types.MapType.ofOptional(
-                        10, 11, StringType.get(), Types.MapType.ofOptional(
-                            12, 13, StringType.get(), StringType.get()))))))));
+    Schema newSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.MapType.ofOptional(
+                    2,
+                    3,
+                    StringType.get(),
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        StringType.get(),
+                        Types.MapType.ofOptional(
+                            6,
+                            7,
+                            StringType.get(),
+                            Types.MapType.ofOptional(
+                                8,
+                                9,
+                                StringType.get(),
+                                Types.MapType.ofOptional(
+                                    10,
+                                    11,
+                                    StringType.get(),
+                                    Types.MapType.ofOptional(
+                                        12, 13, StringType.get(), StringType.get()))))))));
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
     Assert.assertEquals(newSchema.asStruct(), applied.asStruct());
   }
 
   @Test
   public void testDetectInvalidTopLevelList() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aList.element: string -> long");
-
-    Schema currentSchema = new Schema(optional(1, "aList",
-        Types.ListType.ofOptional(2, StringType.get())));
-    Schema newSchema = new Schema(optional(1, "aList",
-        Types.ListType.ofOptional(2, LongType.get())));
-    new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+    Schema currentSchema =
+        new Schema(optional(1, "aList", Types.ListType.ofOptional(2, StringType.get())));
+    Schema newSchema =
+        new Schema(optional(1, "aList", Types.ListType.ofOptional(2, LongType.get())));
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aList.element: string -> long");
   }
 
   @Test
   public void testDetectInvalidTopLevelMapValue() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aMap.value: string -> long");
 
-    Schema currentSchema = new Schema(optional(1, "aMap",
-        Types.MapType.ofOptional(2, 3, StringType.get(), StringType.get())));
-    Schema newSchema = new Schema(optional(1, "aMap",
-        Types.MapType.ofOptional(2, 3, StringType.get(), LongType.get())));
-    Schema apply = new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
-    System.out.println(apply.toString());
+    Schema currentSchema =
+        new Schema(
+            optional(
+                1, "aMap", Types.MapType.ofOptional(2, 3, StringType.get(), StringType.get())));
+    Schema newSchema =
+        new Schema(
+            optional(1, "aMap", Types.MapType.ofOptional(2, 3, StringType.get(), LongType.get())));
+
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aMap.value: string -> long");
   }
 
   @Test
   public void testDetectInvalidTopLevelMapKey() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aMap.key: string -> uuid");
-
-    Schema currentSchema = new Schema(optional(1, "aMap",
-        Types.MapType.ofOptional(2, 3, StringType.get(), StringType.get())));
-    Schema newSchema = new Schema(optional(1, "aMap",
-        Types.MapType.ofOptional(2, 3, UUIDType.get(), StringType.get())));
-    new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
+    Schema currentSchema =
+        new Schema(
+            optional(
+                1, "aMap", Types.MapType.ofOptional(2, 3, StringType.get(), StringType.get())));
+    Schema newSchema =
+        new Schema(
+            optional(1, "aMap", Types.MapType.ofOptional(2, 3, UUIDType.get(), StringType.get())));
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aMap.key: string -> uuid");
   }
 
   @Test
@@ -241,17 +310,18 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testInvalidTypePromoteDoubleToFloat() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aCol: double -> float");
-
     Schema currentSchema = new Schema(required(1, "aCol", DoubleType.get()));
     Schema newSchema = new Schema(required(1, "aCol", FloatType.get()));
 
-    new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aCol: double -> float");
   }
 
   @Test
-  // decimal(P,S) Fixed-point decimal; precision P, scale S -> Scale is fixed [1], precision must be 38 or less
+  // decimal(P,S) Fixed-point decimal; precision P, scale S -> Scale is fixed [1], precision must be
+  // 38 or less
   public void testTypePromoteDecimalToFixedScaleWithWiderPrecision() {
     Schema currentSchema = new Schema(required(1, "aCol", DecimalType.of(20, 1)));
     Schema newSchema = new Schema(required(1, "aCol", DecimalType.of(22, 1)));
@@ -262,47 +332,81 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testAddPrimitiveToNestedStruct() {
-    Schema schema = new Schema(
-        required(1, "struct1", Types.StructType.of(
-          optional(2, "struct2", Types.StructType.of(
-                  optional(3, "list", Types.ListType.ofOptional(
-                      4, Types.StructType.of(
-                          optional(5, "value", StringType.get())))))))));
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "struct1",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "struct2",
+                        Types.StructType.of(
+                            optional(
+                                3,
+                                "list",
+                                Types.ListType.ofOptional(
+                                    4,
+                                    Types.StructType.of(
+                                        optional(5, "value", StringType.get())))))))));
 
-    Schema newSchema = new Schema(
-        required(1, "struct1", Types.StructType.of(
-            optional(2, "struct2", Types.StructType.of(
-                optional(3, "list", Types.ListType.ofOptional(
-                    4, Types.StructType.of(
-                        optional(5, "time", TimeType.get())))))))));
+    Schema newSchema =
+        new Schema(
+            required(
+                1,
+                "struct1",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "struct2",
+                        Types.StructType.of(
+                            optional(
+                                3,
+                                "list",
+                                Types.ListType.ofOptional(
+                                    4,
+                                    Types.StructType.of(optional(5, "time", TimeType.get())))))))));
 
     Schema applied = new SchemaUpdate(schema, 5).unionByNameWith(newSchema).apply();
 
-    Schema expected = new Schema(
-        required(1, "struct1", Types.StructType.of(
-          optional(2, "struct2", Types.StructType.of(
-              optional(3, "list", Types.ListType.ofOptional(
-                  4, Types.StructType.of(
-                      optional(5, "value", StringType.get()),
-                      optional(6, "time", TimeType.get())))))))));
+    Schema expected =
+        new Schema(
+            required(
+                1,
+                "struct1",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "struct2",
+                        Types.StructType.of(
+                            optional(
+                                3,
+                                "list",
+                                Types.ListType.ofOptional(
+                                    4,
+                                    Types.StructType.of(
+                                        optional(5, "value", StringType.get()),
+                                        optional(6, "time", TimeType.get())))))))));
 
     Assert.assertEquals(expected.asStruct(), applied.asStruct());
   }
 
   @Test
   public void testReplaceListWithPrimitive() {
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Cannot change column type: aColumn: list<string> -> string");
-
-    Schema currentSchema = new Schema(optional(1, "aColumn",
-        Types.ListType.ofOptional(2, StringType.get())));
+    Schema currentSchema =
+        new Schema(optional(1, "aColumn", Types.ListType.ofOptional(2, StringType.get())));
     Schema newSchema = new Schema(optional(1, "aColumn", StringType.get()));
-    new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply();
+    Assertions.assertThatThrownBy(
+            () -> new SchemaUpdate(currentSchema, 2).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aColumn: list<string> -> string");
   }
 
   @Test
   public void testMirroredSchemas() {
-    Schema aSchema = new Schema(optional(9, "struct1", Types.StructType.of(optional(8, "string1", StringType.get()))),
+    Schema aSchema =
+        new Schema(
+            optional(9, "struct1", Types.StructType.of(optional(8, "string1", StringType.get()))),
             optional(6, "list1", Types.ListType.ofOptional(7, StringType.get())),
             optional(5, "string2", StringType.get()),
             optional(4, "string3", StringType.get()),
@@ -311,7 +415,9 @@ public class TestSchemaUnionByFieldName {
             optional(1, "string6", StringType.get()));
 
     // Same schema but the field indices are in reverse order, from lowest to highest
-    Schema mirrored = new Schema(optional(1, "struct1", Types.StructType.of(optional(2, "string1", StringType.get()))),
+    Schema mirrored =
+        new Schema(
+            optional(1, "struct1", Types.StructType.of(optional(2, "string1", StringType.get()))),
             optional(3, "list1", Types.ListType.ofOptional(4, StringType.get())),
             optional(5, "string2", StringType.get()),
             optional(6, "string3", StringType.get()),
@@ -326,20 +432,35 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void addNewTopLevelStruct() {
-    Schema schema = new Schema(optional(1, "map1", Types.MapType.ofOptional(2, 3,
-        Types.StringType.get(),
-        Types.ListType.ofOptional(4,
-            Types.StructType.of(optional(5, "string1", Types.StringType.get()))))));
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "map1",
+                Types.MapType.ofOptional(
+                    2,
+                    3,
+                    Types.StringType.get(),
+                    Types.ListType.ofOptional(
+                        4, Types.StructType.of(optional(5, "string1", Types.StringType.get()))))));
 
-    Schema observed = new Schema(optional(1, "map1", Types.MapType.ofOptional(2, 3,
-        Types.StringType.get(),
-        Types.ListType.ofOptional(4,
-            Types.StructType.of(optional(5, "string1", Types.StringType.get()))))),
-        optional(6, "struct1", Types.StructType.of(
-            optional(7, "d1", Types.StructType.of(
-                optional(8, "d2", Types.StringType.get())
-            ))
-        )));
+    Schema observed =
+        new Schema(
+            optional(
+                1,
+                "map1",
+                Types.MapType.ofOptional(
+                    2,
+                    3,
+                    Types.StringType.get(),
+                    Types.ListType.ofOptional(
+                        4, Types.StructType.of(optional(5, "string1", Types.StringType.get()))))),
+            optional(
+                6,
+                "struct1",
+                Types.StructType.of(
+                    optional(
+                        7, "d1", Types.StructType.of(optional(8, "d2", Types.StringType.get()))))));
 
     Schema union = new SchemaUpdate(schema, 5).unionByNameWith(observed).apply();
     Assert.assertEquals(observed.asStruct(), union.asStruct());
@@ -347,20 +468,50 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testAppendNestedStruct() {
-    Schema schema = new Schema(required(1, "s1", StructType.of(
-        optional(2, "s2", StructType.of(
-            optional(3, "s3", StructType.of(
-                optional(4, "s4", StringType.get()))))))));
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "s1",
+                StructType.of(
+                    optional(
+                        2,
+                        "s2",
+                        StructType.of(
+                            optional(
+                                3, "s3", StructType.of(optional(4, "s4", StringType.get()))))))));
 
-    Schema observed = new Schema(required(1, "s1", StructType.of(
-        optional(2, "s2", StructType.of(
-            optional(3, "s3", StructType.of(
-                optional(4, "s4", StringType.get()))),
-            optional(5, "repeat", StructType.of(
-                optional(6, "s1", StructType.of(
-                    optional(7, "s2", StructType.of(
-                        optional(8, "s3", StructType.of(
-                            optional(9, "s4", StringType.get()))))))))))))));
+    Schema observed =
+        new Schema(
+            required(
+                1,
+                "s1",
+                StructType.of(
+                    optional(
+                        2,
+                        "s2",
+                        StructType.of(
+                            optional(3, "s3", StructType.of(optional(4, "s4", StringType.get()))),
+                            optional(
+                                5,
+                                "repeat",
+                                StructType.of(
+                                    optional(
+                                        6,
+                                        "s1",
+                                        StructType.of(
+                                            optional(
+                                                7,
+                                                "s2",
+                                                StructType.of(
+                                                    optional(
+                                                        8,
+                                                        "s3",
+                                                        StructType.of(
+                                                            optional(
+                                                                9,
+                                                                "s4",
+                                                                StringType.get()))))))))))))));
 
     Schema applied = new SchemaUpdate(schema, 4).unionByNameWith(observed).apply();
     Assert.assertEquals(observed.asStruct(), applied.asStruct());
@@ -368,25 +519,66 @@ public class TestSchemaUnionByFieldName {
 
   @Test
   public void testAppendNestedLists() {
-    Schema schema = new Schema(required(1, "s1", StructType.of(
-        optional(2, "s2", StructType.of(
-            optional(3, "s3", StructType.of(
-                optional(4, "list1", ListType.ofOptional(5, StringType.get())))))))));
+    Schema schema =
+        new Schema(
+            required(
+                1,
+                "s1",
+                StructType.of(
+                    optional(
+                        2,
+                        "s2",
+                        StructType.of(
+                            optional(
+                                3,
+                                "s3",
+                                StructType.of(
+                                    optional(
+                                        4,
+                                        "list1",
+                                        ListType.ofOptional(5, StringType.get())))))))));
 
-    Schema observed = new Schema(required(1, "s1", StructType.of(
-        optional(2, "s2", StructType.of(
-            optional(3, "s3", StructType.of(
-                optional(4, "list2", ListType.ofOptional(5, StringType.get())))))))));
+    Schema observed =
+        new Schema(
+            required(
+                1,
+                "s1",
+                StructType.of(
+                    optional(
+                        2,
+                        "s2",
+                        StructType.of(
+                            optional(
+                                3,
+                                "s3",
+                                StructType.of(
+                                    optional(
+                                        4,
+                                        "list2",
+                                        ListType.ofOptional(5, StringType.get())))))))));
 
     Schema union = new SchemaUpdate(schema, 5).unionByNameWith(observed).apply();
 
-    Schema expected = new Schema(required(1, "s1", StructType.of(
-        optional(2, "s2", StructType.of(
-            optional(3, "s3", StructType.of(
-                optional(4, "list1", ListType.ofOptional(5, StringType.get())),
-                optional(6, "list2", ListType.ofOptional(7, StringType.get())))))))));
+    Schema expected =
+        new Schema(
+            required(
+                1,
+                "s1",
+                StructType.of(
+                    optional(
+                        2,
+                        "s2",
+                        StructType.of(
+                            optional(
+                                3,
+                                "s3",
+                                StructType.of(
+                                    optional(4, "list1", ListType.ofOptional(5, StringType.get())),
+                                    optional(
+                                        6,
+                                        "list2",
+                                        ListType.ofOptional(7, StringType.get())))))))));
 
     Assert.assertEquals(expected.asStruct(), union.asStruct());
   }
-
 }

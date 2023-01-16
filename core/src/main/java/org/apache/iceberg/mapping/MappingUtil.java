@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
 
 import java.util.Collection;
@@ -39,13 +38,12 @@ import org.apache.iceberg.types.Types;
 public class MappingUtil {
   private static final Joiner DOT = Joiner.on('.');
 
-  private MappingUtil() {
-  }
+  private MappingUtil() {}
 
   /**
    * Create a name-based mapping for a schema.
-   * <p>
-   * The mapping returned by this method will use the schema's name for each field.
+   *
+   * <p>The mapping returned by this method will use the schema's name for each field.
    *
    * @param schema a {@link Schema}
    * @return a {@link NameMapping} initialized with the schema's fields and names
@@ -60,11 +58,13 @@ public class MappingUtil {
    * @param mapping a name-based mapping
    * @param updates a map from field ID to updated field definitions
    * @param adds a map from parent field ID to nested fields to be added
-   * @return an updated mapping with names added to renamed fields and the mapping extended for new fields
+   * @return an updated mapping with names added to renamed fields and the mapping extended for new
+   *     fields
    */
-  public static NameMapping update(NameMapping mapping,
-                            Map<Integer, Types.NestedField> updates,
-                            Multimap<Integer, Types.NestedField> adds) {
+  public static NameMapping update(
+      NameMapping mapping,
+      Map<Integer, Types.NestedField> updates,
+      Multimap<Integer, Types.NestedField> adds) {
     return new NameMapping(visit(mapping, new UpdateMapping(updates, adds)));
   }
 
@@ -80,7 +80,8 @@ public class MappingUtil {
     private final Map<Integer, Types.NestedField> updates;
     private final Multimap<Integer, Types.NestedField> adds;
 
-    private UpdateMapping(Map<Integer, Types.NestedField> updates, Multimap<Integer, Types.NestedField> adds) {
+    private UpdateMapping(
+        Map<Integer, Types.NestedField> updates, Multimap<Integer, Types.NestedField> adds) {
       this.updates = updates;
       this.adds = adds;
     }
@@ -94,12 +95,15 @@ public class MappingUtil {
     public MappedFields fields(MappedFields fields, List<MappedField> fieldResults) {
       ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
       fieldResults.stream()
-          .map(MappedField::id).filter(Objects::nonNull)
-          .map(updates::get).filter(Objects::nonNull)
+          .map(MappedField::id)
+          .filter(Objects::nonNull)
+          .map(updates::get)
+          .filter(Objects::nonNull)
           .forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> updateAssignments = builder.build();
 
-      return MappedFields.of(Lists.transform(fieldResults, field -> removeReassignedNames(field, updateAssignments)));
+      return MappedFields.of(
+          Lists.transform(fieldResults, field -> removeReassignedNames(field, updateAssignments)));
     }
 
     @Override
@@ -136,7 +140,8 @@ public class MappingUtil {
       fieldsToAdd.forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> assignments = builder.build();
 
-      // create a copy of fields that can be updated (append new fields, replace existing for reassignment)
+      // create a copy of fields that can be updated (append new fields, replace existing for
+      // reassignment)
       List<MappedField> fields = Lists.newArrayList();
       for (MappedField field : mapping.fields()) {
         fields.add(removeReassignedNames(field, assignments));
@@ -147,7 +152,8 @@ public class MappingUtil {
       return MappedFields.of(fields);
     }
 
-    private static MappedField removeReassignedNames(MappedField field, Map<String, Integer> assignments) {
+    private static MappedField removeReassignedNames(
+        MappedField field, Map<String, Integer> assignments) {
       MappedField newField = field;
       for (String name : field.names()) {
         Integer assignedId = assignments.get(name);
@@ -159,11 +165,13 @@ public class MappingUtil {
     }
 
     private static MappedField removeName(MappedField field, String name) {
-      return MappedField.of(field.id(), Sets.difference(field.names(), Sets.newHashSet(name)), field.nestedMapping());
+      return MappedField.of(
+          field.id(), Sets.difference(field.names(), Sets.newHashSet(name)), field.nestedMapping());
     }
   }
 
-  private static class IndexByName implements Visitor<Map<String, MappedField>, Map<String, MappedField>> {
+  private static class IndexByName
+      implements Visitor<Map<String, MappedField>, Map<String, MappedField>> {
     static final IndexByName INSTANCE = new IndexByName();
 
     @Override
@@ -172,7 +180,8 @@ public class MappingUtil {
     }
 
     @Override
-    public Map<String, MappedField> fields(MappedFields fields, List<Map<String, MappedField>> fieldResults) {
+    public Map<String, MappedField> fields(
+        MappedFields fields, List<Map<String, MappedField>> fieldResults) {
       // merge the results of each field
       ImmutableMap.Builder<String, MappedField> builder = ImmutableMap.builder();
       for (Map<String, MappedField> results : fieldResults) {
@@ -202,22 +211,27 @@ public class MappingUtil {
     }
   }
 
-  private static class IndexById implements Visitor<Map<Integer, MappedField>, Map<Integer, MappedField>> {
+  private static class IndexById
+      implements Visitor<Map<Integer, MappedField>, Map<Integer, MappedField>> {
     private final Map<Integer, MappedField> result = Maps.newHashMap();
 
     @Override
-    public Map<Integer, MappedField> mapping(NameMapping mapping, Map<Integer, MappedField> fieldsResult) {
+    public Map<Integer, MappedField> mapping(
+        NameMapping mapping, Map<Integer, MappedField> fieldsResult) {
       return fieldsResult;
     }
 
     @Override
-    public Map<Integer, MappedField> fields(MappedFields fields, List<Map<Integer, MappedField>> fieldResults) {
+    public Map<Integer, MappedField> fields(
+        MappedFields fields, List<Map<Integer, MappedField>> fieldResults) {
       return result;
     }
 
     @Override
-    public Map<Integer, MappedField> field(MappedField field, Map<Integer, MappedField> fieldResult) {
-      Preconditions.checkState(!result.containsKey(field.id()), "Invalid mapping: ID %s is not unique", field.id());
+    public Map<Integer, MappedField> field(
+        MappedField field, Map<Integer, MappedField> fieldResult) {
+      Preconditions.checkState(
+          !result.containsKey(field.id()), "Invalid mapping: ID %s is not unique", field.id());
       result.put(field.id(), field);
       return result;
     }
@@ -225,7 +239,9 @@ public class MappingUtil {
 
   private interface Visitor<S, T> {
     S mapping(NameMapping mapping, S result);
+
     S fields(MappedFields fields, List<T> fieldResults);
+
     T field(MappedField field, S fieldResult);
   }
 
@@ -249,8 +265,7 @@ public class MappingUtil {
   private static class CreateMapping extends TypeUtil.SchemaVisitor<MappedFields> {
     private static final CreateMapping INSTANCE = new CreateMapping();
 
-    private CreateMapping() {
-    }
+    private CreateMapping() {}
 
     @Override
     public MappedFields schema(Schema schema, MappedFields structResult) {
@@ -284,8 +299,7 @@ public class MappingUtil {
     public MappedFields map(Types.MapType map, MappedFields keyResult, MappedFields valueResult) {
       return MappedFields.of(
           MappedField.of(map.keyId(), "key", keyResult),
-          MappedField.of(map.valueId(), "value", valueResult)
-      );
+          MappedField.of(map.valueId(), "value", valueResult));
     }
 
     @Override

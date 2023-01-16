@@ -16,54 +16,72 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
+import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SerializableFunction;
 
 enum Dates implements Transform<Integer, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
   MONTH(ChronoUnit.MONTHS, "month"),
   DAY(ChronoUnit.DAYS, "day");
 
-  private static final LocalDate EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC).toLocalDate();
+  @Immutable
+  static class Apply implements SerializableFunction<Integer, Integer> {
+    private final ChronoUnit granularity;
+
+    Apply(ChronoUnit granularity) {
+      this.granularity = granularity;
+    }
+
+    @Override
+    public Integer apply(Integer days) {
+      if (days == null) {
+        return null;
+      }
+
+      switch (granularity) {
+        case YEARS:
+          return DateTimeUtil.daysToYears(days);
+        case MONTHS:
+          return DateTimeUtil.daysToMonths(days);
+        case DAYS:
+          return days;
+        default:
+          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+      }
+    }
+  }
+
   private final ChronoUnit granularity;
   private final String name;
+  private final Apply apply;
 
   Dates(ChronoUnit granularity, String name) {
     this.granularity = granularity;
     this.name = name;
+    this.apply = new Apply(granularity);
   }
 
   @Override
   public Integer apply(Integer days) {
-    if (days == null) {
-      return null;
-    }
+    return apply.apply(days);
+  }
 
-    if (granularity == ChronoUnit.DAYS) {
-      return days;
-    }
-
-    if (days >= 0) {
-      LocalDate date = EPOCH.plusDays(days);
-      return (int) granularity.between(EPOCH, date);
-    } else {
-      // add 1 day to the value to account for the case where there is exactly 1 unit between the date and epoch
-      // because the result will always be decremented.
-      LocalDate date = EPOCH.plusDays(days + 1);
-      return (int) granularity.between(EPOCH, date) - 1;
-    }
+  @Override
+  public SerializableFunction<Integer, Integer> bind(Type type) {
+    Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
+    return apply;
   }
 
   @Override
@@ -91,9 +109,11 @@ enum Dates implements Transform<Integer, Integer> {
     }
 
     if (other instanceof Dates) {
-      // test the granularity, in days. day(ts) => 1 day, months(ts) => 30 days, and day satisfies the order of months
+      // test the granularity, in days. day(ts) => 1 day, months(ts) => 30 days, and day satisfies
+      // the order of months
       Dates otherTransform = (Dates) other;
-      return granularity.getDuration().toDays() <= otherTransform.granularity.getDuration().toDays();
+      return granularity.getDuration().toDays()
+          <= otherTransform.granularity.getDuration().toDays();
     }
 
     return false;
@@ -109,7 +129,8 @@ enum Dates implements Transform<Integer, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
 
     } else if (pred.isLiteralPredicate()) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.truncateInteger(fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.truncateInteger(fieldName, pred.asLiteralPredicate(), apply);
       if (this != DAY) {
         return ProjectionUtil.fixInclusiveTimeProjection(projected);
       }
@@ -117,7 +138,8 @@ enum Dates implements Transform<Integer, Integer> {
       return projected;
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), apply);
       if (this != DAY) {
         return ProjectionUtil.fixInclusiveTimeProjection(projected);
       }
@@ -138,8 +160,8 @@ enum Dates implements Transform<Integer, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
 
     } else if (pred.isLiteralPredicate()) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.truncateIntegerStrict(
-          fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.truncateIntegerStrict(fieldName, pred.asLiteralPredicate(), apply);
       if (this != DAY) {
         return ProjectionUtil.fixStrictTimeProjection(projected);
       }
@@ -147,7 +169,8 @@ enum Dates implements Transform<Integer, Integer> {
       return projected;
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), apply);
       if (this != DAY) {
         return ProjectionUtil.fixStrictTimeProjection(projected);
       }
@@ -159,7 +182,7 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
-  public String toHumanString(Integer value) {
+  public String toHumanString(Type outputType, Integer value) {
     if (value == null) {
       return "null";
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
@@ -39,8 +38,13 @@ public class TestS3RequestUtil {
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
     awsProperties.setS3FileIoSseKey("key");
     awsProperties.setS3FileIoSseMd5("md5");
-    S3RequestUtil.configureEncryption(awsProperties, this::setServerSideEncryption, this::setKmsKeyId,
-        this::setCustomAlgorithm, this::setCustomKey, this::setCustomMd5);
+    S3RequestUtil.configureEncryption(
+        awsProperties,
+        this::setServerSideEncryption,
+        this::setKmsKeyId,
+        this::setCustomAlgorithm,
+        this::setCustomKey,
+        this::setCustomMd5);
     Assert.assertNull(serverSideEncryption);
     Assert.assertNull(kmsKeyId);
     Assert.assertEquals(ServerSideEncryption.AES256.name(), customAlgorithm);
@@ -52,8 +56,13 @@ public class TestS3RequestUtil {
   public void testConfigureServerSideS3Encryption() {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_S3);
-    S3RequestUtil.configureEncryption(awsProperties, this::setServerSideEncryption, this::setKmsKeyId,
-        this::setCustomAlgorithm, this::setCustomKey, this::setCustomMd5);
+    S3RequestUtil.configureEncryption(
+        awsProperties,
+        this::setServerSideEncryption,
+        this::setKmsKeyId,
+        this::setCustomAlgorithm,
+        this::setCustomKey,
+        this::setCustomMd5);
     Assert.assertEquals(ServerSideEncryption.AES256, serverSideEncryption);
     Assert.assertNull(kmsKeyId);
     Assert.assertNull(customAlgorithm);
@@ -66,8 +75,13 @@ public class TestS3RequestUtil {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     awsProperties.setS3FileIoSseKey("key");
-    S3RequestUtil.configureEncryption(awsProperties, this::setServerSideEncryption, this::setKmsKeyId,
-        this::setCustomAlgorithm, this::setCustomKey, this::setCustomMd5);
+    S3RequestUtil.configureEncryption(
+        awsProperties,
+        this::setServerSideEncryption,
+        this::setKmsKeyId,
+        this::setCustomAlgorithm,
+        this::setCustomKey,
+        this::setCustomMd5);
     Assert.assertEquals(ServerSideEncryption.AWS_KMS, serverSideEncryption);
     Assert.assertEquals("key", kmsKeyId);
     Assert.assertNull(customAlgorithm);
@@ -80,8 +94,13 @@ public class TestS3RequestUtil {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     awsProperties.setS3FileIoSseKey("key");
-    S3RequestUtil.configureEncryption(awsProperties, v -> null, v -> null,
-        this::setCustomAlgorithm, this::setCustomKey, this::setCustomMd5);
+    S3RequestUtil.configureEncryption(
+        awsProperties,
+        v -> null,
+        v -> null,
+        this::setCustomAlgorithm,
+        this::setCustomKey,
+        this::setCustomMd5);
     Assert.assertNull(serverSideEncryption);
     Assert.assertNull(kmsKeyId);
     Assert.assertNull(customAlgorithm);

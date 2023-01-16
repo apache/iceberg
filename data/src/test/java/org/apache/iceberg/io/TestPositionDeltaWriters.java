@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.File;
@@ -42,11 +41,12 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   @Parameterized.Parameters(name = "FileFormat={0}")
   public static Object[] parameters() {
     return new Object[][] {
-        new Object[]{FileFormat.AVRO},
-        new Object[]{FileFormat.ORC},
-        new Object[]{FileFormat.PARQUET}
+      new Object[] {FileFormat.AVRO},
+      new Object[] {FileFormat.ORC},
+      new Object[] {FileFormat.PARQUET}
     };
   }
+
   private static final int TABLE_FORMAT_VERSION = 2;
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;
 
@@ -79,16 +79,15 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   public void testPositionDeltaInsertOnly() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
-    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
+    ClusteredDataWriter<T> insertWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter =
+        new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.insert(toRow(1, "aaa"), table.spec(), null);
     deltaWriter.close();
@@ -108,9 +107,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     }
     rowDelta.commit();
 
-    List<T> expectedRows = ImmutableList.of(
-        toRow(1, "aaa")
-    );
+    List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
@@ -119,44 +116,32 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
-    ImmutableList<T> rows1 = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(11, "aaa")
-    );
+    ImmutableList<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
     DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
-    table.newFastAppend()
-        .appendFile(dataFile1)
-        .commit();
+    table.newFastAppend().appendFile(dataFile1).commit();
 
     // partition by data
-    table.updateSpec()
-        .addField(Expressions.ref("data"))
-        .commit();
+    table.updateSpec().addField(Expressions.ref("data")).commit();
 
     // add a data file partitioned by data
-    ImmutableList<T> rows2 = ImmutableList.of(
-        toRow(3, "bbb"),
-        toRow(4, "bbb")
-    );
-    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
-    table.newFastAppend()
-        .appendFile(dataFile2)
-        .commit();
+    ImmutableList<T> rows2 = ImmutableList.of(toRow(3, "bbb"), toRow(4, "bbb"));
+    DataFile dataFile2 =
+        writeData(
+            writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
+    table.newFastAppend().appendFile(dataFile2).commit();
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec partitionedSpec = table.specs().get(1);
 
-    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
+    ClusteredDataWriter<T> insertWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter =
+        new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
     deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
@@ -178,11 +163,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     }
     rowDelta.commit();
 
-    List<T> expectedRows = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(3, "bbb")
-    );
+    List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
@@ -191,44 +172,32 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
-    ImmutableList<T> rows1 = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(11, "aaa")
-    );
+    ImmutableList<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
     DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
-    table.newFastAppend()
-        .appendFile(dataFile1)
-        .commit();
+    table.newFastAppend().appendFile(dataFile1).commit();
 
     // partition by data
-    table.updateSpec()
-        .addField(Expressions.ref("data"))
-        .commit();
+    table.updateSpec().addField(Expressions.ref("data")).commit();
 
     // add a data file partitioned by data
-    ImmutableList<T> rows2 = ImmutableList.of(
-        toRow(3, "bbb"),
-        toRow(4, "bbb")
-    );
-    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
-    table.newFastAppend()
-        .appendFile(dataFile2)
-        .commit();
+    ImmutableList<T> rows2 = ImmutableList.of(toRow(3, "bbb"), toRow(4, "bbb"));
+    DataFile dataFile2 =
+        writeData(
+            writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
+    table.newFastAppend().appendFile(dataFile2).commit();
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec partitionedSpec = table.specs().get(1);
 
-    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
+    ClusteredDataWriter<T> insertWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter =
+        new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter =
+        new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
     deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
@@ -254,12 +223,8 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     }
     rowDelta.commit();
 
-    List<T> expectedRows = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(3, "bbb"),
-        toRow(10, "ccc")
-    );
+    List<T> expectedRows =
+        ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"), toRow(10, "ccc"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 }

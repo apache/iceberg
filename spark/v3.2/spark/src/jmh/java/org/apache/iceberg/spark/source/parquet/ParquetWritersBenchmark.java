@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
 
 import org.apache.iceberg.FileFormat;
@@ -25,10 +24,9 @@ import org.apache.iceberg.spark.source.WritersBenchmark;
 /**
  * A benchmark that evaluates the performance of various Iceberg writers for Parquet data.
  *
- * To run this benchmark for either spark-2 or spark-3:
- * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
- *       -PjmhIncludeRegex=ParquetWritersBenchmark
+ * <p>To run this benchmark for spark 3.2: <code>
+ *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh \
+ *       -PjmhIncludeRegex=ParquetWritersBenchmark \
  *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
  * </code>
  */

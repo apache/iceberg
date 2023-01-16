@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -29,7 +28,10 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -43,8 +45,7 @@ public class Util {
 
   private static final Logger LOG = LoggerFactory.getLogger(Util.class);
 
-  private Util() {
-  }
+  private Util() {}
 
   public static FileSystem getFs(Path path, Configuration conf) {
     try {
@@ -71,25 +72,34 @@ public class Util {
     return locationSets.toArray(new String[0]);
   }
 
-  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
+  public static String[] blockLocations(FileIO io, ScanTaskGroup<?> taskGroup) {
     Set<String> locations = Sets.newHashSet();
-    for (FileScanTask f : task.files()) {
-      InputFile in = io.newInputFile(f.file().path().toString());
-      if (in instanceof HadoopInputFile) {
-        Collections.addAll(locations, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
+
+    for (ScanTask task : taskGroup.tasks()) {
+      if (task instanceof ContentScanTask) {
+        Collections.addAll(locations, blockLocations(io, (ContentScanTask<?>) task));
       }
     }
 
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
+  private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
+    InputFile inputFile = io.newInputFile(task.file().path().toString());
+    if (inputFile instanceof HadoopInputFile) {
+      HadoopInputFile hadoopInputFile = (HadoopInputFile) inputFile;
+      return hadoopInputFile.getBlockLocations(task.start(), task.length());
+    } else {
+      return HadoopInputFile.NO_LOCATION_PREFERENCE;
+    }
+  }
+
   /**
    * From Apache Spark
    *
-   * Convert URI to String.
-   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
-   * Here we create a hadoop Path with the given URI, and rely on Path.toString
-   * to decode the uri
+   * <p>Convert URI to String. Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
+   * Here we create a hadoop Path with the given URI, and rely on Path.toString to decode the uri
+   *
    * @param uri the URI of the path
    * @return the String of the path
    */

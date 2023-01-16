@@ -16,19 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
 
   private final long deletedDataFilesCount;
+  private final long deletedPosDeleteFilesCount;
+  private final long deletedEqDeleteFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
 
-  public BaseExpireSnapshotsActionResult(long deletedDataFilesCount,
-                                         long deletedManifestsCount,
-                                         long deletedManifestListsCount) {
+  public BaseExpireSnapshotsActionResult(
+      long deletedDataFilesCount, long deletedManifestsCount, long deletedManifestListsCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedPosDeleteFilesCount = 0;
+    this.deletedEqDeleteFilesCount = 0;
+    this.deletedManifestsCount = deletedManifestsCount;
+    this.deletedManifestListsCount = deletedManifestListsCount;
+  }
+
+  public BaseExpireSnapshotsActionResult(
+      long deletedDataFilesCount,
+      long deletedPosDeleteFilesCount,
+      long deletedEqDeleteFilesCount,
+      long deletedManifestsCount,
+      long deletedManifestListsCount) {
+    this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedPosDeleteFilesCount = deletedPosDeleteFilesCount;
+    this.deletedEqDeleteFilesCount = deletedEqDeleteFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
   }
@@ -36,6 +51,16 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
   @Override
   public long deletedDataFilesCount() {
     return deletedDataFilesCount;
+  }
+
+  @Override
+  public long deletedPositionDeleteFilesCount() {
+    return deletedPosDeleteFilesCount;
+  }
+
+  @Override
+  public long deletedEqualityDeleteFilesCount() {
+    return deletedEqDeleteFilesCount;
   }
 
   @Override

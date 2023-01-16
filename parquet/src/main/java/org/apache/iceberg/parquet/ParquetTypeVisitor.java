@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.util.Deque;
@@ -34,8 +33,7 @@ public class ParquetTypeVisitor<T> {
 
   public static <T> T visit(Type type, ParquetTypeVisitor<T> visitor) {
     if (type instanceof MessageType) {
-      return visitor.message((MessageType) type,
-          visitFields(type.asGroupType(), visitor));
+      return visitor.message((MessageType) type, visitFields(type.asGroupType(), visitor));
 
     } else if (type.isPrimitive()) {
       return visitor.primitive(type.asPrimitiveType());
@@ -61,13 +59,14 @@ public class ParquetTypeVisitor<T> {
   }
 
   private static <T> T visitList(GroupType list, ParquetTypeVisitor<T> visitor) {
-    Preconditions.checkArgument(!list.isRepetition(Type.Repetition.REPEATED),
-        "Invalid list: top-level group is repeated: %s", list);
-    Preconditions.checkArgument(list.getFieldCount() == 1,
-        "Invalid list: does not contain single repeated field: %s", list);
+    Preconditions.checkArgument(
+        list.getFieldCount() == 1,
+        "Invalid list: does not contain single repeated field: %s",
+        list);
 
     Type repeatedElement = list.getFields().get(0);
-    Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
+    Preconditions.checkArgument(
+        repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
 
     Type listElement = ParquetSchemaUtil.determineListElementType(list);
@@ -104,15 +103,19 @@ public class ParquetTypeVisitor<T> {
   }
 
   private static <T> T visitMap(GroupType map, ParquetTypeVisitor<T> visitor) {
-    Preconditions.checkArgument(!map.isRepetition(Type.Repetition.REPEATED),
-        "Invalid map: top-level group is repeated: %s", map);
-    Preconditions.checkArgument(map.getFieldCount() == 1,
-        "Invalid map: does not contain single repeated field: %s", map);
+    Preconditions.checkArgument(
+        !map.isRepetition(Type.Repetition.REPEATED),
+        "Invalid map: top-level group is repeated: %s",
+        map);
+    Preconditions.checkArgument(
+        map.getFieldCount() == 1, "Invalid map: does not contain single repeated field: %s", map);
 
     GroupType repeatedKeyValue = map.getType(0).asGroupType();
-    Preconditions.checkArgument(repeatedKeyValue.isRepetition(Type.Repetition.REPEATED),
+    Preconditions.checkArgument(
+        repeatedKeyValue.isRepetition(Type.Repetition.REPEATED),
         "Invalid map: inner group is not repeated");
-    Preconditions.checkArgument(repeatedKeyValue.getFieldCount() <= 2,
+    Preconditions.checkArgument(
+        repeatedKeyValue.getFieldCount() <= 2,
         "Invalid map: repeated group does not have 2 fields");
 
     visitor.beforeRepeatedKeyValue(repeatedKeyValue);

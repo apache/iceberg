@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -24,14 +23,18 @@ import com.aliyun.oss.model.GetObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OSSInputStream extends SeekableInputStream {
+class OSSInputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(OSSInputStream.class);
   private static final int SKIP_SIZE = 1024 * 1024;
 
@@ -44,10 +47,20 @@ public class OSSInputStream extends SeekableInputStream {
   private long next = 0;
   private boolean closed = false;
 
-  public OSSInputStream(OSS client, OSSURI uri) {
+  private final Counter readBytes;
+  private final Counter readOperations;
+
+  OSSInputStream(OSS client, OSSURI uri) {
+    this(client, uri, MetricsContext.nullMetrics());
+  }
+
+  OSSInputStream(OSS client, OSSURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.createStack = Thread.currentThread().getStackTrace();
+
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
 
   @Override
@@ -71,6 +84,8 @@ public class OSSInputStream extends SeekableInputStream {
 
     pos += 1;
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
 
     return stream.read();
   }
@@ -83,6 +98,8 @@ public class OSSInputStream extends SeekableInputStream {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
+    readBytes.increment(bytesRead);
+    readOperations.increment();
 
     return bytesRead;
   }

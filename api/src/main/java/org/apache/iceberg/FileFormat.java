@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Comparators;
 
-/**
- * Enum of supported file formats.
- */
+/** Enum of supported file formats. */
 public enum FileFormat {
   ORC("orc", true),
   PARQUET("parquet", true),
@@ -58,11 +57,22 @@ public enum FileFormat {
   public static FileFormat fromFileName(CharSequence filename) {
     for (FileFormat format : FileFormat.values()) {
       int extStart = filename.length() - format.ext.length();
-      if (Comparators.charSequences().compare(format.ext, filename.subSequence(extStart, filename.length())) == 0) {
+      if (Comparators.charSequences()
+              .compare(format.ext, filename.subSequence(extStart, filename.length()))
+          == 0) {
         return format;
       }
     }
 
     return null;
+  }
+
+  public static FileFormat fromString(String fileFormat) {
+    Preconditions.checkArgument(null != fileFormat, "Invalid file format: null");
+    try {
+      return FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(String.format("Invalid file format: %s", fileFormat), e);
+    }
   }
 }

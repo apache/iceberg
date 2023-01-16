@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.List;
@@ -83,11 +82,16 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
     Preconditions.checkArgument(sourceType.isStructType(), "Not a struct: %s", sourceType);
 
     Types.StructType sourceStruct = sourceType.asStructType();
-    this.sourceType = sourceStruct.field(field.fieldId()).type();
-    try {
-      return future.get();
-    } finally {
-      sourceType = sourceStruct;
+    Types.NestedField sourceField = sourceStruct.field(field.fieldId());
+    if (sourceField != null) {
+      this.sourceType = sourceField.type();
+      try {
+        return future.get();
+      } finally {
+        sourceType = sourceStruct;
+      }
+    } else {
+      return field.type();
     }
   }
 

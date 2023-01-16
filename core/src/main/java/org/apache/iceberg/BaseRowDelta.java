@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
@@ -78,7 +77,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   @Override
   public RowDelta conflictDetectionFilter(Expression newConflictDetectionFilter) {
-    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    Preconditions.checkArgument(
+        newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
     return this;
   }
@@ -96,11 +96,15 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  protected void validate(TableMetadata base) {
+  protected void validate(TableMetadata base, Snapshot snapshot) {
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
-            base, startingSnapshotId, referencedDataFiles, !validateDeletes, conflictDetectionFilter);
+            base,
+            startingSnapshotId,
+            referencedDataFiles,
+            !validateDeletes,
+            conflictDetectionFilter);
       }
 
       if (validateNewDataFiles) {

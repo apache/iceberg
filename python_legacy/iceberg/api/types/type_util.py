@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from decimal import Decimal
 import math
 from typing import List
 
@@ -103,6 +104,14 @@ def assign_fresh_ids(type_var, next_id):
         schema = type_var
         return Schema(list(visit(schema.as_struct(), AssignFreshIds(next_id))
                            .as_nested_type().fields))
+
+
+def decimal_to_bytes(_, value):
+    scale = abs(value.as_tuple().exponent)
+    quantized_value = value.quantize(Decimal("10")**-scale)
+    unscaled_value = int((quantized_value * 10**scale).to_integral_value())
+    min_num_bytes = (unscaled_value.bit_length() + 7) // 8
+    return unscaled_value.to_bytes(min_num_bytes, 'big', signed=True)
 
 
 def visit(arg, visitor): # noqa: ignore=C901

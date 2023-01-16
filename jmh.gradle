@@ -22,14 +22,11 @@ if (jdkVersion != '8' && jdkVersion != '11') {
 }
 
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
-def jmhProjects = []
+def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+def jmhProjects = [project(":iceberg-core")]
 
 if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark2"))
-}
-
-if (sparkVersions.contains("3.0")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark3"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))
 }
 
 if (sparkVersions.contains("3.1")) {
@@ -37,11 +34,21 @@ if (sparkVersions.contains("3.1")) {
 }
 
 if (sparkVersions.contains("3.2")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_2.12"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
 }
+
+if (sparkVersions.contains("3.3")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}"))
+}
+
+jmhProjects.add(project(":iceberg-data"))
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
+  apply plugin: 'io.morethan.jmhreport'
+
+  def jmhReportDir = project.property("jmhJsonOutputPath").toString().replace(".json", "")
+  mkdir(file(jmhReportDir))
 
   jmh {
     jmhVersion = '1.32'
@@ -49,8 +56,15 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
+    resultsFile = file(jmhJsonOutputPath)
+    resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
     zip64 = true
+  }
+
+  jmhReport {
+    jmhResultPath = file(jmhJsonOutputPath)
+    jmhReportOutput = file(jmhReportDir)
   }
 
   jmhCompileGeneratedClasses {
@@ -58,4 +72,6 @@ configure(jmhProjects) {
       options.errorprone.enabled = false
     }
   }
+
+  tasks.jmh.finalizedBy tasks.jmhReport
 }

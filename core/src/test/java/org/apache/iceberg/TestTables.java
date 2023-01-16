@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 import java.io.File;
 import java.util.Map;
@@ -29,16 +30,14 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-import static org.apache.iceberg.TableMetadata.newTableMetadata;
-
 public class TestTables {
 
-  private TestTables() {
-  }
+  private TestTables() {}
 
   private static TestTable upgrade(File temp, String name, int newFormatVersion) {
     TestTable table = load(temp, name);
@@ -48,50 +47,100 @@ public class TestTables {
     return table;
   }
 
-  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
+  public static TestTable create(
+      File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
     return create(temp, name, schema, spec, SortOrder.unsorted(), formatVersion);
   }
 
-  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec,
-                                 SortOrder sortOrder, int formatVersion) {
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    ops.commit(null, newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+    ops.commit(
+        null,
+        newTableMetadata(
+            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
 
     return new TestTable(ops, name);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
+      MetricsReporter reporter) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
+    }
+
+    ops.commit(
+        null,
+        newTableMetadata(
+            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+
+    return new TestTable(ops, name, reporter);
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
     return beginCreate(temp, name, schema, spec, SortOrder.unsorted());
   }
 
-  public static Transaction beginCreate(File temp, String name, Schema schema,
-                                        PartitionSpec spec, SortOrder sortOrder) {
+  public static Transaction beginCreate(
+      File temp, String name, Schema schema, PartitionSpec spec, SortOrder sortOrder) {
     TableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    TableMetadata metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
+    TableMetadata metadata =
+        newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
 
     return Transactions.createTableTransaction(name, ops, metadata);
   }
 
-  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
-    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of(),
-                        new TestTableOperations(name, temp));
+  public static Transaction beginReplace(
+      File temp, String name, Schema schema, PartitionSpec spec) {
+    return beginReplace(
+        temp,
+        name,
+        schema,
+        spec,
+        SortOrder.unsorted(),
+        ImmutableMap.of(),
+        new TestTableOperations(name, temp));
   }
 
-  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
-      SortOrder sortOrder, Map<String, String> properties) {
-    return beginReplace(temp, name, schema, spec, sortOrder, properties, new TestTableOperations(name, temp));
+  public static Transaction beginReplace(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      Map<String, String> properties) {
+    return beginReplace(
+        temp, name, schema, spec, sortOrder, properties, new TestTableOperations(name, temp));
   }
 
-  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
-                                         SortOrder sortOrder, Map<String, String> properties, TestTableOperations ops) {
+  public static Transaction beginReplace(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      Map<String, String> properties,
+      TestTableOperations ops) {
     TableMetadata current = ops.current();
     TableMetadata metadata;
     if (current != null) {
@@ -128,6 +177,11 @@ public class TestTables {
 
     private TestTable(TestTableOperations ops, String name) {
       super(ops, name);
+      this.ops = ops;
+    }
+
+    private TestTable(TestTableOperations ops, String name, MetricsReporter reporter) {
+      super(ops, name, reporter);
       this.ops = ops;
     }
 
@@ -228,8 +282,8 @@ public class TestTables {
 
     @Override
     public LocationProvider locationProvider() {
-      Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locatinProvider is called");
+      Preconditions.checkNotNull(
+          current, "Current metadata should not be null when locationProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 

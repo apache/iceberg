@@ -29,6 +29,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.SupportsDelete
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.sources
+import org.slf4j.LoggerFactory
 
 /**
  * Checks whether a metadata delete is possible and nullifies the rewrite plan if the source can
@@ -37,6 +38,8 @@ import org.apache.spark.sql.sources
  * Note this rule must be run after expression optimization.
  */
 object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with PredicateHelper {
+
+  val logger = LoggerFactory.getLogger(OptimizeMetadataOnlyDeleteFromTable.getClass)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case d @ DeleteFromIcebergTable(relation: DataSourceV2Relation, cond, Some(_)) =>
@@ -48,6 +51,7 @@ object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with Predic
           val dataSourceFilters = toDataSourceFilters(normalizedPredicates)
           val allPredicatesTranslated = normalizedPredicates.size == dataSourceFilters.length
           if (allPredicatesTranslated && table.canDeleteWhere(dataSourceFilters)) {
+            logger.info(s"Optimizing delete expression: ${dataSourceFilters.mkString(",")} as metadata delete")
             d.copy(rewritePlan = None)
           } else {
             d

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.util.Deque;
@@ -38,12 +37,15 @@ import org.apache.parquet.schema.Type;
 public class ParquetWithFlinkSchemaVisitor<T> {
   private final Deque<String> fieldNames = Lists.newLinkedList();
 
-  public static <T> T visit(LogicalType sType, Type type, ParquetWithFlinkSchemaVisitor<T> visitor) {
+  public static <T> T visit(
+      LogicalType sType, Type type, ParquetWithFlinkSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(sType != null, "Invalid DataType: null");
     if (type instanceof MessageType) {
-      Preconditions.checkArgument(sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
+      Preconditions.checkArgument(
+          sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
       RowType struct = (RowType) sType;
-      return visitor.message(struct, (MessageType) type, visitFields(struct, type.asGroupType(), visitor));
+      return visitor.message(
+          struct, (MessageType) type, visitFields(struct, type.asGroupType(), visitor));
     } else if (type.isPrimitive()) {
       return visitor.primitive(sType, type.asPrimitiveType());
     } else {
@@ -53,21 +55,26 @@ public class ParquetWithFlinkSchemaVisitor<T> {
       if (annotation != null) {
         switch (annotation) {
           case LIST:
-            Preconditions.checkArgument(!group.isRepetition(Type.Repetition.REPEATED),
-                "Invalid list: top-level group is repeated: %s", group);
-            Preconditions.checkArgument(group.getFieldCount() == 1,
-                "Invalid list: does not contain single repeated field: %s", group);
+            Preconditions.checkArgument(
+                group.getFieldCount() == 1,
+                "Invalid list: does not contain single repeated field: %s",
+                group);
 
             GroupType repeatedElement = group.getFields().get(0).asGroupType();
-            Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
+            Preconditions.checkArgument(
+                repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
-                "Invalid list: repeated group is not a single field: %s", group);
+            Preconditions.checkArgument(
+                repeatedElement.getFieldCount() <= 1,
+                "Invalid list: repeated group is not a single field: %s",
+                group);
 
-            Preconditions.checkArgument(sType instanceof ArrayType, "Invalid list: %s is not an array", sType);
+            Preconditions.checkArgument(
+                sType instanceof ArrayType, "Invalid list: %s is not an array", sType);
             ArrayType array = (ArrayType) sType;
-            RowType.RowField element = new RowField(
-                "element", array.getElementType(), "element of " + array.asSummaryString());
+            RowType.RowField element =
+                new RowField(
+                    "element", array.getElementType(), "element of " + array.asSummaryString());
 
             visitor.fieldNames.push(repeatedElement.getName());
             try {
@@ -83,22 +90,30 @@ public class ParquetWithFlinkSchemaVisitor<T> {
             }
 
           case MAP:
-            Preconditions.checkArgument(!group.isRepetition(Type.Repetition.REPEATED),
-                "Invalid map: top-level group is repeated: %s", group);
-            Preconditions.checkArgument(group.getFieldCount() == 1,
-                "Invalid map: does not contain single repeated field: %s", group);
+            Preconditions.checkArgument(
+                !group.isRepetition(Type.Repetition.REPEATED),
+                "Invalid map: top-level group is repeated: %s",
+                group);
+            Preconditions.checkArgument(
+                group.getFieldCount() == 1,
+                "Invalid map: does not contain single repeated field: %s",
+                group);
 
             GroupType repeatedKeyValue = group.getType(0).asGroupType();
-            Preconditions.checkArgument(repeatedKeyValue.isRepetition(Type.Repetition.REPEATED),
+            Preconditions.checkArgument(
+                repeatedKeyValue.isRepetition(Type.Repetition.REPEATED),
                 "Invalid map: inner group is not repeated");
-            Preconditions.checkArgument(repeatedKeyValue.getFieldCount() <= 2,
+            Preconditions.checkArgument(
+                repeatedKeyValue.getFieldCount() <= 2,
                 "Invalid map: repeated group does not have 2 fields");
 
-            Preconditions.checkArgument(sType instanceof MapType, "Invalid map: %s is not a map", sType);
+            Preconditions.checkArgument(
+                sType instanceof MapType, "Invalid map: %s is not a map", sType);
             MapType map = (MapType) sType;
-            RowField keyField = new RowField("key", map.getKeyType(), "key of " + map.asSummaryString());
-            RowField valueField = new RowField(
-                "value", map.getValueType(), "value of " + map.asSummaryString());
+            RowField keyField =
+                new RowField("key", map.getKeyType(), "key of " + map.asSummaryString());
+            RowField valueField =
+                new RowField("value", map.getValueType(), "value of " + map.asSummaryString());
 
             visitor.fieldNames.push(repeatedKeyValue.getName());
             try {
@@ -134,13 +149,15 @@ public class ParquetWithFlinkSchemaVisitor<T> {
           default:
         }
       }
-      Preconditions.checkArgument(sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
+      Preconditions.checkArgument(
+          sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
       RowType struct = (RowType) sType;
       return visitor.struct(struct, group, visitFields(struct, group, visitor));
     }
   }
 
-  private static <T> T visitField(RowType.RowField sField, Type field, ParquetWithFlinkSchemaVisitor<T> visitor) {
+  private static <T> T visitField(
+      RowType.RowField sField, Type field, ParquetWithFlinkSchemaVisitor<T> visitor) {
     visitor.fieldNames.push(field.getName());
     try {
       return visit(sField.getType(), field, visitor);
@@ -149,17 +166,20 @@ public class ParquetWithFlinkSchemaVisitor<T> {
     }
   }
 
-  private static <T> List<T> visitFields(RowType struct, GroupType group,
-                                         ParquetWithFlinkSchemaVisitor<T> visitor) {
+  private static <T> List<T> visitFields(
+      RowType struct, GroupType group, ParquetWithFlinkSchemaVisitor<T> visitor) {
     List<RowType.RowField> sFields = struct.getFields();
-    Preconditions.checkArgument(sFields.size() == group.getFieldCount(),
-        "Structs do not match: %s and %s", struct, group);
+    Preconditions.checkArgument(
+        sFields.size() == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
     for (int i = 0; i < sFields.size(); i += 1) {
       Type field = group.getFields().get(i);
       RowType.RowField sField = sFields.get(i);
-      Preconditions.checkArgument(field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.getName())),
-          "Structs do not match: field %s != %s", field.getName(), sField.getName());
+      Preconditions.checkArgument(
+          field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.getName())),
+          "Structs do not match: field %s != %s",
+          field.getName(),
+          sField.getName());
       results.add(visitField(sField, field, visitor));
     }
 
@@ -195,5 +215,4 @@ public class ParquetWithFlinkSchemaVisitor<T> {
     list.add(name);
     return list.toArray(new String[0]);
   }
-
 }

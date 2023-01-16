@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.glue;
 
 import java.util.Map;
@@ -35,56 +34,47 @@ public class TestGlueToIcebergConverter {
 
   @Test
   public void testToNamespace() {
-    Database database = Database.builder()
-        .name("db")
-        .build();
+    Database database = Database.builder().name("db").build();
     Namespace namespace = Namespace.of("db");
     Assert.assertEquals(namespace, GlueToIcebergConverter.toNamespace(database));
   }
 
   @Test
   public void testToTableId() {
-    Table table = Table.builder()
-        .databaseName("db")
-        .name("name")
-        .build();
+    Table table = Table.builder().databaseName("db").name("name").build();
     TableIdentifier icebergId = TableIdentifier.of("db", "name");
     Assert.assertEquals(icebergId, GlueToIcebergConverter.toTableId(table));
   }
 
   @Test
   public void testValidateTable() {
-    Map<String, String> properties = ImmutableMap.of(
-        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
-    Table table = Table.builder()
-        .parameters(properties)
-        .build();
+    Map<String, String> properties =
+        ImmutableMap.of(
+            BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+    Table table = Table.builder().parameters(properties).build();
     GlueToIcebergConverter.validateTable(table, "name");
   }
 
   @Test
   public void testValidateTableIcebergPropertyNotFound() {
-    Table table = Table.builder()
-        .parameters(ImmutableMap.of())
-        .build();
-    AssertHelpers.assertThrows("Iceberg property not found",
+    Table table = Table.builder().parameters(ImmutableMap.of()).build();
+    AssertHelpers.assertThrows(
+        "Iceberg property not found",
         ValidationException.class,
         "Input Glue table is not an iceberg table",
-        () -> GlueToIcebergConverter.validateTable(table, "name")
-    );
+        () -> GlueToIcebergConverter.validateTable(table, "name"));
   }
 
   @Test
   public void testValidateTableIcebergPropertyValueWrong() {
-    Map<String, String> properties = ImmutableMap.of(BaseMetastoreTableOperations.TABLE_TYPE_PROP, "other");
-    Table table = Table.builder()
-        .parameters(properties)
-        .build();
-    AssertHelpers.assertThrows("Iceberg property value wrong",
+    Map<String, String> properties =
+        ImmutableMap.of(BaseMetastoreTableOperations.TABLE_TYPE_PROP, "other");
+    Table table = Table.builder().parameters(properties).build();
+    AssertHelpers.assertThrows(
+        "Iceberg property value wrong",
         ValidationException.class,
         "Input Glue table is not an iceberg table",
-        () -> GlueToIcebergConverter.validateTable(table, "name")
-    );
+        () -> GlueToIcebergConverter.validateTable(table, "name"));
   }
 }

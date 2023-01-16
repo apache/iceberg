@@ -16,15 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -33,6 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -40,11 +48,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
-public abstract class SparkTestBase {
-
-  protected static final Object ANY = new Object();
+public abstract class SparkTestBase extends SparkTestHelperBase {
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
@@ -57,15 +61,18 @@ public abstract class SparkTestBase {
     metastore.start();
     SparkTestBase.hiveConf = metastore.hiveConf();
 
-    SparkTestBase.spark = SparkSession.builder()
-        .master("local[2]")
-        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .enableHiveSupport()
-        .getOrCreate();
+    SparkTestBase.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .enableHiveSupport()
+            .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
@@ -77,10 +84,14 @@ public abstract class SparkTestBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
-    metastore.stop();
-    SparkTestBase.metastore = null;
-    spark.stop();
-    SparkTestBase.spark = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkTestBase.spark = null;
+    }
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -100,31 +111,6 @@ public abstract class SparkTestBase {
     return rowsToJava(rows);
   }
 
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
-  }
-
-  private Object[] toJava(Row row) {
-    return IntStream.range(0, row.size())
-        .mapToObj(pos -> {
-          if (row.isNullAt(pos)) {
-            return null;
-          }
-
-          Object value = row.get(pos);
-          if (value instanceof Row) {
-            return toJava((Row) value);
-          } else if (value instanceof scala.collection.Seq) {
-            return row.getList(pos);
-          } else if (value instanceof scala.collection.Map) {
-            return row.getJavaMap(pos);
-          } else {
-            return value;
-          }
-        })
-        .toArray(Object[]::new);
-  }
-
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
     Assert.assertEquals("Scalar SQL should return one row", 1, rows.size());
@@ -137,70 +123,78 @@ public abstract class SparkTestBase {
     return values;
   }
 
-  protected void assertEquals(String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(context + ": number of results should match", expectedRows.size(), actualRows.size());
-    for (int row = 0; row < expectedRows.size(); row += 1) {
-      Object[] expected = expectedRows.get(row);
-      Object[] actual = actualRows.get(row);
-      Assert.assertEquals("Number of columns should match", expected.length, actual.length);
-      for (int col = 0; col < actualRows.get(row).length; col += 1) {
-        String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
-        assertEquals(newContext, expected, actual);
-      }
-    }
-  }
-
-  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
-    Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
-    for (int col = 0; col < actualRow.length; col += 1) {
-      Object expectedValue = expectedRow[col];
-      Object actualValue = actualRow[col];
-      if (expectedValue != null && expectedValue.getClass().isArray()) {
-        String newContext = String.format("%s (nested col %d)", context, col + 1);
-        if (expectedValue instanceof byte[]) {
-          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
-        } else {
-          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
-        }
-      } else if (expectedValue != ANY) {
-        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
-      }
-    }
-  }
-
   protected static String dbPath(String dbName) {
     return metastore.getDatabasePath(dbName);
+  }
+
+  protected void withUnavailableFiles(Iterable<? extends ContentFile<?>> files, Action action) {
+    Iterable<String> fileLocations = Iterables.transform(files, file -> file.path().toString());
+    withUnavailableLocations(fileLocations, action);
+  }
+
+  private void move(String location, String newLocation) {
+    Path path = Paths.get(URI.create(location));
+    Path tempPath = Paths.get(URI.create(newLocation));
+
+    try {
+      Files.move(path, tempPath);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to move: " + location, e);
+    }
+  }
+
+  protected void withUnavailableLocations(Iterable<String> locations, Action action) {
+    for (String location : locations) {
+      move(location, location + "_temp");
+    }
+
+    try {
+      action.invoke();
+    } finally {
+      for (String location : locations) {
+        move(location + "_temp", location);
+      }
+    }
   }
 
   protected void withSQLConf(Map<String, String> conf, Action action) {
     SQLConf sqlConf = SQLConf.get();
 
     Map<String, String> currentConfValues = Maps.newHashMap();
-    conf.keySet().forEach(confKey -> {
-      if (sqlConf.contains(confKey)) {
-        String currentConfValue = sqlConf.getConfString(confKey);
-        currentConfValues.put(confKey, currentConfValue);
-      }
-    });
+    conf.keySet()
+        .forEach(
+            confKey -> {
+              if (sqlConf.contains(confKey)) {
+                String currentConfValue = sqlConf.getConfString(confKey);
+                currentConfValues.put(confKey, currentConfValue);
+              }
+            });
 
-    conf.forEach((confKey, confValue) -> {
-      if (SQLConf.isStaticConfigKey(confKey)) {
-        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
-      }
-      sqlConf.setConfString(confKey, confValue);
-    });
+    conf.forEach(
+        (confKey, confValue) -> {
+          if (SQLConf.isStaticConfigKey(confKey)) {
+            throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+          }
+          sqlConf.setConfString(confKey, confValue);
+        });
 
     try {
       action.invoke();
     } finally {
-      conf.forEach((confKey, confValue) -> {
-        if (currentConfValues.containsKey(confKey)) {
-          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
-        } else {
-          sqlConf.unsetConf(confKey);
-        }
-      });
+      conf.forEach(
+          (confKey, confValue) -> {
+            if (currentConfValues.containsKey(confKey)) {
+              sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+            } else {
+              sqlConf.unsetConf(confKey);
+            }
+          });
     }
+  }
+
+  protected Dataset<Row> jsonToDF(String schema, String... records) {
+    Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
+    return spark.read().schema(schema).json(jsonDF);
   }
 
   @FunctionalInterface

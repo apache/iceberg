@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -34,13 +35,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
-/**
- * A utility class that converts Spark values to Iceberg's internal representation.
- */
+/** A utility class that converts Spark values to Iceberg's internal representation. */
 public class SparkValueConverter {
 
-  private SparkValueConverter() {
-  }
+  private SparkValueConverter() {}
 
   public static Record convert(Schema schema, Row row) {
     return convert(schema.asStruct(), row);
@@ -74,9 +72,25 @@ public class SparkValueConverter {
         return convertedMap;
 
       case DATE:
-        return DateTimeUtils.fromJavaDate((Date) object);
+        // if spark.sql.datetime.java8API.enabled is set to true, java.time.LocalDate
+        // for Spark SQL DATE type otherwise java.sql.Date is returned.
+        if (object instanceof Date) {
+          return DateTimeUtils.fromJavaDate((Date) object);
+        } else if (object instanceof LocalDate) {
+          return DateTimeUtils.localDateToDays((LocalDate) object);
+        } else {
+          throw new UnsupportedOperationException("Not a supported date class: " + object);
+        }
       case TIMESTAMP:
-        return DateTimeUtils.fromJavaTimestamp((Timestamp) object);
+        // if spark.sql.datetime.java8API.enabled is set to true, java.time.Instant
+        // for Spark SQL TIMESTAMP type is returned otherwise java.sql.Timestamp is returned.
+        if (object instanceof Timestamp) {
+          return DateTimeUtils.fromJavaTimestamp((Timestamp) object);
+        } else if (object instanceof Instant) {
+          return DateTimeUtils.instantToMicros((Instant) object);
+        } else {
+          throw new UnsupportedOperationException("Not a supported timestamp class: " + object);
+        }
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:
@@ -95,6 +109,10 @@ public class SparkValueConverter {
   }
 
   private static Record convert(Types.StructType struct, Row row) {
+    if (row == null) {
+      return null;
+    }
+
     Record record = GenericRecord.create(struct);
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {

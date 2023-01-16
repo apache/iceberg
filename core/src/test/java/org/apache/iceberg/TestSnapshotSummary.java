@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -33,7 +32,7 @@ public class TestSnapshotSummary extends TableTestBase {
 
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   @Test
@@ -41,24 +40,21 @@ public class TestSnapshotSummary extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     // fast append
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
     Map<String, String> summary = table.currentSnapshot().summary();
     Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
     Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
 
     // merge append
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_B).commit();
     summary = table.currentSnapshot().summary();
     Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
     Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("20", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
 
-    table.newOverwrite()
+    table
+        .newOverwrite()
         .deleteFile(FILE_A)
         .deleteFile(FILE_B)
         .addFile(FILE_C)
@@ -70,13 +66,24 @@ public class TestSnapshotSummary extends TableTestBase {
     Assert.assertEquals("20", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("30", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
 
-    table.newDelete()
-        .deleteFile(FILE_C)
-        .deleteFile(FILE_D)
-        .commit();
+    table.newDelete().deleteFile(FILE_C).deleteFile(FILE_D).commit();
     summary = table.currentSnapshot().summary();
     Assert.assertNull(summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
     Assert.assertEquals("20", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+  }
+
+  @Test
+  public void testFileSizeSummaryWithDeletes() {
+    if (formatVersion == 1) {
+      return;
+    }
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+
+    table.refresh();
+    Map<String, String> summary = table.currentSnapshot().summary();
+    Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP));
+    Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_POS_DELETE_FILES_PROP));
   }
 }

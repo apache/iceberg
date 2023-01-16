@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.AbstractMap;
@@ -84,7 +83,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public T put(StructLike key, T value) {
-    return wrapperMap.put(StructLikeWrapper.forType(type).set(key), value);
+    return wrapperMap.put(wrappers.get().copyFor(key), value);
   }
 
   @Override
@@ -162,8 +161,8 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
         return false;
       } else {
         StructLikeEntry that = (StructLikeEntry<R>) o;
-        return Objects.equals(getKey(), that.getKey()) &&
-            Objects.equals(getValue(), that.getValue());
+        return Objects.equals(getKey(), that.getKey())
+            && Objects.equals(getValue(), that.getValue());
       }
     }
 

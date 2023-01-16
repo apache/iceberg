@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Set;
@@ -29,13 +28,14 @@ import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
-public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
+public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
+    implements OverwriteFiles {
   private final Set<DataFile> deletedDataFiles = Sets.newHashSet();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
   private boolean validateNewDataFiles = false;
-  private boolean validateNewDeleteFiles = false;
+  private boolean validateNewDeletes = false;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -84,7 +84,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
   @Override
   public OverwriteFiles conflictDetectionFilter(Expression newConflictDetectionFilter) {
-    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    Preconditions.checkArgument(
+        newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
     return this;
   }
@@ -98,13 +99,13 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
   @Override
   public OverwriteFiles validateNoConflictingDeletes() {
-    this.validateNewDeleteFiles = true;
+    this.validateNewDeletes = true;
     failMissingDeletePaths();
     return this;
   }
 
   @Override
-  protected void validate(TableMetadata base) {
+  protected void validate(TableMetadata base, Snapshot snapshot) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = dataSpec();
       Expression rowFilter = rowFilter();
@@ -115,33 +116,36 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       Expression strictExpr = Projections.strict(spec).project(rowFilter);
       Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
 
-      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
+      StrictMetricsEvaluator metrics =
+          new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
       for (DataFile file : addedFiles()) {
         // the real test is that the strict or metrics test matches the file, indicating that all
         // records in the file match the filter. inclusive is used to avoid testing the metrics,
         // which is more complicated
         ValidationException.check(
-            inclusive.eval(file.partition()) &&
-                (strict.eval(file.partition()) || metrics.eval(file)),
+            inclusive.eval(file.partition())
+                && (strict.eval(file.partition()) || metrics.eval(file)),
             "Cannot append file with rows that do not match filter: %s: %s",
-            rowFilter, file.path());
+            rowFilter,
+            file.path());
       }
     }
-
 
     if (validateNewDataFiles) {
       validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
     }
 
-    if (validateNewDeleteFiles) {
+    if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
         validateNoNewDeleteFiles(base, startingSnapshotId, filter);
+        validateDeletedDataFiles(base, startingSnapshotId, filter);
       }
 
       if (deletedDataFiles.size() > 0) {
-        validateNoNewDeletesForDataFiles(base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
+        validateNoNewDeletesForDataFiles(
+            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
       }
     }
   }

@@ -16,10 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
-import java.util.Locale;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
+
 import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
@@ -30,13 +35,6 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
 
 class SparkMergeBuilder implements MergeBuilder {
 
@@ -60,15 +58,18 @@ class SparkMergeBuilder implements MergeBuilder {
   private IsolationLevel getIsolationLevel(Map<String, String> props, String operation) {
     String isolationLevelAsString;
     if (operation.equalsIgnoreCase("delete")) {
-      isolationLevelAsString = props.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
+      isolationLevelAsString =
+          props.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
     } else if (operation.equalsIgnoreCase("update")) {
-      isolationLevelAsString = props.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
+      isolationLevelAsString =
+          props.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
     } else if (operation.equalsIgnoreCase("merge")) {
-      isolationLevelAsString = props.getOrDefault(MERGE_ISOLATION_LEVEL, MERGE_ISOLATION_LEVEL_DEFAULT);
+      isolationLevelAsString =
+          props.getOrDefault(MERGE_ISOLATION_LEVEL, MERGE_ISOLATION_LEVEL_DEFAULT);
     } else {
       throw new IllegalArgumentException("Unsupported operation: " + operation);
     }
-    return IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
+    return IsolationLevel.fromName(isolationLevelAsString);
   }
 
   @Override
@@ -78,14 +79,15 @@ class SparkMergeBuilder implements MergeBuilder {
 
   private ScanBuilder scanBuilder() {
     if (lazyScanBuilder == null) {
-      SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, writeInfo.options()) {
-        @Override
-        public Scan build() {
-          Scan scan = super.buildMergeScan();
-          SparkMergeBuilder.this.configuredScan = scan;
-          return scan;
-        }
-      };
+      SparkScanBuilder scanBuilder =
+          new SparkScanBuilder(spark, table, writeInfo.options()) {
+            @Override
+            public Scan build() {
+              Scan scan = super.buildMergeScan();
+              SparkMergeBuilder.this.configuredScan = scan;
+              return scan;
+            }
+          };
       // ignore residuals to ensure we read full files
       lazyScanBuilder = scanBuilder.ignoreResiduals();
     }

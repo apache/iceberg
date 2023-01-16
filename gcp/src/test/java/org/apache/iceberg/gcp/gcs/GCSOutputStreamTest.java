@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -28,12 +30,10 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 
 public class GCSOutputStreamTest {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStreamTest.class);
@@ -46,25 +46,28 @@ public class GCSOutputStreamTest {
   @Test
   public void testWrite() {
     // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach(arrayWrite -> {
-      // Test small file write
-      writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite);
+    Stream.of(true, false)
+        .forEach(
+            arrayWrite -> {
+              // Test small file write
+              writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite);
 
-      // Test large file
-      writeAndVerify(storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite);
-    });
+              // Test large file
+              writeAndVerify(storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite);
+            });
   }
 
   @Test
   public void testMultipleClose() throws IOException {
-    GCSOutputStream stream = new GCSOutputStream(storage, randomBlobId(), properties);
+    GCSOutputStream stream =
+        new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext.nullMetrics());
     stream.close();
     stream.close();
   }
 
-
-  private void writeAndVerify(Storage client, BlobId uri, byte [] data, boolean arrayWrite) {
-    try (GCSOutputStream stream = new GCSOutputStream(client, uri, properties)) {
+  private void writeAndVerify(Storage client, BlobId uri, byte[] data, boolean arrayWrite) {
+    try (GCSOutputStream stream =
+        new GCSOutputStream(client, uri, properties, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());
@@ -87,7 +90,7 @@ public class GCSOutputStreamTest {
   }
 
   private byte[] randomData(int size) {
-    byte [] result = new byte[size];
+    byte[] result = new byte[size];
     random.nextBytes(result);
     return result;
   }

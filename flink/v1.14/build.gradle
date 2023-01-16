@@ -17,18 +17,11 @@
  * under the License.
  */
 
-def flinkProjects = [
-  project(':iceberg-flink:iceberg-flink-1.14'),
-  project(':iceberg-flink:iceberg-flink-runtime-1.14')
-]
+String flinkVersion = '1.14.0'
+String flinkMajorVersion = '1.14'
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
-configure(flinkProjects) {
-  project.ext {
-    flinkVersion = '1.14.0'
-  }
-}
-
-project(':iceberg-flink:iceberg-flink-1.14') {
+project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -40,10 +33,13 @@ project(':iceberg-flink:iceberg-flink-1.14') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
-    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
-    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12:${flinkVersion}"
-    compileOnly "org.apache.flink:flink-table-planner_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-avro:${flinkVersion}"
+    // for dropwizard histogram metrics implementation
+    compileOnly "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}:tests"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_${scalaVersion}:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${flinkVersion}"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
@@ -68,12 +64,13 @@ project(':iceberg-flink:iceberg-flink-1.14') {
     }
 
     testImplementation "org.apache.spark:spark-sql_2.12:3.2.0"
+    testImplementation "org.apache.flink:flink-connector-test-utils:${flinkVersion}"
     testImplementation "org.apache.flink:flink-core:${flinkVersion}"
     testImplementation "org.apache.flink:flink-runtime:${flinkVersion}"
     testImplementation ("org.apache.flink:flink-test-utils-junit:${flinkVersion}") {
       exclude group: 'junit'
     }
-    testImplementation("org.apache.flink:flink-test-utils_2.12:${flinkVersion}") {
+    testImplementation("org.apache.flink:flink-test-utils_${scalaVersion}:${flinkVersion}") {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
@@ -117,14 +114,20 @@ project(':iceberg-flink:iceberg-flink-1.14') {
   }
 }
 
-project(':iceberg-flink:iceberg-flink-runtime-1.14') {
+project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+    }
+  }
+
   configurations {
     implementation {
-      exclude group: 'org.apache.flink'
       // included in Flink
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
@@ -137,7 +140,9 @@ project(':iceberg-flink:iceberg-flink-runtime-1.14') {
   }
 
   dependencies {
-    implementation project(':iceberg-flink:iceberg-flink-1.14')
+    implementation(project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")) {
+      exclude group: 'org.apache.flink'
+    }
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
@@ -145,6 +150,59 @@ project(':iceberg-flink:iceberg-flink-runtime-1.14') {
       exclude group: 'commons-logging', module: 'commons-logging'
     }
     implementation(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
+    // for dropwizard histogram metrics implementation
+    implementation "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
+
+    // for integration testing with the flink-runtime-jar
+    // all of those dependencies are required because the integration test extends FlinkTestBase
+    integrationCompileOnly project(':iceberg-api')
+    integrationImplementation 'org.junit.vintage:junit-vintage-engine'
+    integrationImplementation 'org.assertj:assertj-core'
+    integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")
+    integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    integrationImplementation("org.apache.flink:flink-test-utils_${scalaVersion}:${flinkVersion}") {
+      exclude group: "org.apache.curator", module: 'curator-test'
+      exclude group: 'junit'
+    }
+
+    integrationImplementation "org.apache.flink:flink-table-api-java-bridge_${scalaVersion}:${flinkVersion}"
+    integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${flinkVersion}"
+
+    integrationImplementation "org.apache.hadoop:hadoop-common"
+    integrationImplementation "org.apache.hadoop:hadoop-hdfs"
+    integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    integrationImplementation("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    integrationImplementation("org.apache.hive:hive-exec::core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
   }
@@ -171,9 +229,20 @@ project(':iceberg-flink:iceberg-flink-runtime-1.14') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+    relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
 
     classifier null
   }
+
+  task integrationTest(type: Test) {
+    description = "Test Flink Runtime Jar against Flink ${flinkMajorVersion}"
+    group = "verification"
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
+    inputs.file(shadowJar.archiveFile.get().asFile.path)
+  }
+  integrationTest.dependsOn shadowJar
+  check.dependsOn integrationTest
 
   jar {
     enabled = false

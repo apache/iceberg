@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,26 +37,32 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-
-import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import org.apache.iceberg.util.PartitionSet;
 
 /**
  * Base reader for data and delete manifest files.
  *
  * @param <F> The Java class of files returned by this reader.
  */
-public class ManifestReader<F extends ContentFile<F>>
-    extends CloseableGroup implements CloseableIterable<F> {
+public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
+    implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
-  private static final Set<String> STATS_COLUMNS = ImmutableSet.of(
-      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "record_count");
+  private static final Set<String> STATS_COLUMNS =
+      ImmutableSet.of(
+          "value_counts",
+          "null_value_counts",
+          "nan_value_counts",
+          "lower_bounds",
+          "upper_bounds",
+          "record_count");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
@@ -75,37 +82,43 @@ public class ManifestReader<F extends ContentFile<F>>
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final FileType content;
-  private final Map<String, String> metadata;
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
   // updated by configuration methods
+  private PartitionSet partitionSet = null;
   private Expression partFilter = alwaysTrue();
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
+  private ScanMetrics scanMetrics = ScanMetrics.noop();
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
-  protected ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
-                           InheritableMetadata inheritableMetadata, FileType content) {
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      FileType content) {
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.content = content;
 
-    try {
-      try (AvroIterable<ManifestEntry<F>> headerReader = Avro.read(file)
-          .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-          .classLoader(GenericManifestEntry.class.getClassLoader())
-          .build()) {
-        this.metadata = headerReader.getMetadata();
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
+    if (specsById != null) {
+      this.spec = specsById.get(specId);
+    } else {
+      this.spec = readPartitionSpec(file);
     }
+
+    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  }
+
+  private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
+    Map<String, String> metadata = readMetadata(inputFile);
 
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");
@@ -113,14 +126,24 @@ public class ManifestReader<F extends ContentFile<F>>
       specId = Integer.parseInt(specProperty);
     }
 
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
-    } else {
-      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
-      this.spec = PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-    }
+    Schema schema = SchemaParser.fromJson(metadata.get("schema"));
+    return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
+  }
 
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+  private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    Map<String, String> metadata;
+    try {
+      try (AvroIterable<ManifestEntry<T>> headerReader =
+          Avro.read(inputFile)
+              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+              .classLoader(GenericManifestEntry.class.getClassLoader())
+              .build()) {
+        metadata = headerReader.getMetadata();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+    return metadata;
   }
 
   public boolean isDeleteManifestReader() {
@@ -140,21 +163,27 @@ public class ManifestReader<F extends ContentFile<F>>
   }
 
   public ManifestReader<F> select(Collection<String> newColumns) {
-    Preconditions.checkState(fileProjection == null,
+    Preconditions.checkState(
+        fileProjection == null,
         "Cannot select columns using both select(String...) and project(Schema)");
     this.columns = newColumns;
     return this;
   }
 
   public ManifestReader<F> project(Schema newFileProjection) {
-    Preconditions.checkState(columns == null,
-        "Cannot select columns using both select(String...) and project(Schema)");
+    Preconditions.checkState(
+        columns == null, "Cannot select columns using both select(String...) and project(Schema)");
     this.fileProjection = newFileProjection;
     return this;
   }
 
   public ManifestReader<F> filterPartitions(Expression expr) {
     this.partFilter = Expressions.and(partFilter, expr);
+    return this;
+  }
+
+  public ManifestReader<F> filterPartitions(PartitionSet partitions) {
+    this.partitionSet = partitions;
     return this;
   }
 
@@ -168,24 +197,41 @@ public class ManifestReader<F extends ContentFile<F>>
     return this;
   }
 
+  ManifestReader<F> scanMetrics(ScanMetrics newScanMetrics) {
+    this.scanMetrics = newScanMetrics;
+    return this;
+  }
+
   CloseableIterable<ManifestEntry<F>> entries() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
+    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue())
+        || (partFilter != null && partFilter != Expressions.alwaysTrue())
+        || (partitionSet != null)) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
       // ensure stats columns are present for metrics evaluation
       boolean requireStatsProjection = requireStatsProjection(rowFilter, columns);
-      Collection<String> projectColumns = requireStatsProjection ? withStatsColumns(columns) : columns;
+      Collection<String> projectColumns =
+          requireStatsProjection ? withStatsColumns(columns) : columns;
 
       return CloseableIterable.filter(
+          content == FileType.DATA_FILES
+              ? scanMetrics.skippedDataFiles()
+              : scanMetrics.skippedDeleteFiles(),
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
-          entry -> entry != null &&
-              evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()));
+          entry ->
+              entry != null
+                  && evaluator.eval(entry.file().partition())
+                  && metricsEvaluator.eval(entry.file())
+                  && inPartitionSet(entry.file()));
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
+  }
+
+  private boolean inPartitionSet(F fileToCheck) {
+    return partitionSet == null
+        || partitionSet.contains(fileToCheck.specId(), fileToCheck.partition());
   }
 
   private CloseableIterable<ManifestEntry<F>> open(Schema projection) {
@@ -198,16 +244,17 @@ public class ManifestReader<F extends ContentFile<F>>
 
     switch (format) {
       case AVRO:
-        AvroIterable<ManifestEntry<F>> reader = Avro.read(file)
-            .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
-            .rename("manifest_entry", GenericManifestEntry.class.getName())
-            .rename("partition", PartitionData.class.getName())
-            .rename("r102", PartitionData.class.getName())
-            .rename("data_file", content.fileClass())
-            .rename("r2", content.fileClass())
-            .classLoader(GenericManifestEntry.class.getClassLoader())
-            .reuseContainers()
-            .build();
+        AvroIterable<ManifestEntry<F>> reader =
+            Avro.read(file)
+                .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
+                .rename("manifest_entry", GenericManifestEntry.class.getName())
+                .rename("partition", PartitionData.class.getName())
+                .rename("r102", PartitionData.class.getName())
+                .rename("data_file", content.fileClass())
+                .rename("r2", content.fileClass())
+                .classLoader(GenericManifestEntry.class.getClassLoader())
+                .reuseContainers()
+                .build();
 
         addCloseable(reader);
 
@@ -219,23 +266,23 @@ public class ManifestReader<F extends ContentFile<F>>
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
-    return CloseableIterable.filter(entries(),
+    return CloseableIterable.filter(
+        content == FileType.DATA_FILES
+            ? scanMetrics.skippedDataFiles()
+            : scanMetrics.skippedDeleteFiles(),
+        entries(),
         entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
   }
 
-  /**
-   * @return an Iterator of DataFile. Makes defensive copies of files before returning
-   */
+  /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
   @Override
   public CloseableIterator<F> iterator() {
-    if (dropStats(rowFilter, columns)) {
-      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
-    } else {
-      return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
-    }
+    boolean dropStats = dropStats(columns);
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
-  private static Schema projection(Schema schema, Schema project, Collection<String> columns, boolean caseSensitive) {
+  private static Schema projection(
+      Schema schema, Schema project, Collection<String> columns, boolean caseSensitive) {
     if (columns != null) {
       if (caseSensitive) {
         return schema.select(columns);
@@ -256,7 +303,8 @@ public class ManifestReader<F extends ContentFile<F>>
       if (finalPartFilter != null) {
         this.lazyEvaluator = new Evaluator(spec.partitionType(), finalPartFilter, caseSensitive);
       } else {
-        this.lazyEvaluator = new Evaluator(spec.partitionType(), Expressions.alwaysTrue(), caseSensitive);
+        this.lazyEvaluator =
+            new Evaluator(spec.partitionType(), Expressions.alwaysTrue(), caseSensitive);
       }
     }
     return lazyEvaluator;
@@ -265,11 +313,11 @@ public class ManifestReader<F extends ContentFile<F>>
   private InclusiveMetricsEvaluator metricsEvaluator() {
     if (lazyMetricsEvaluator == null) {
       if (rowFilter != null) {
-        this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
-            spec.schema(), rowFilter, caseSensitive);
+        this.lazyMetricsEvaluator =
+            new InclusiveMetricsEvaluator(spec.schema(), rowFilter, caseSensitive);
       } else {
-        this.lazyMetricsEvaluator = new InclusiveMetricsEvaluator(
-            spec.schema(), Expressions.alwaysTrue(), caseSensitive);
+        this.lazyMetricsEvaluator =
+            new InclusiveMetricsEvaluator(spec.schema(), Expressions.alwaysTrue(), caseSensitive);
       }
     }
     return lazyMetricsEvaluator;
@@ -277,19 +325,20 @@ public class ManifestReader<F extends ContentFile<F>>
 
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {
     // Make sure we have all stats columns for metrics evaluator
-    return rowFilter != Expressions.alwaysTrue() &&
-        columns != null &&
-        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
-        !columns.containsAll(STATS_COLUMNS);
+    return rowFilter != Expressions.alwaysTrue()
+        && columns != null
+        && !columns.containsAll(ManifestReader.ALL_COLUMNS)
+        && !columns.containsAll(STATS_COLUMNS);
   }
 
-  static boolean dropStats(Expression rowFilter, Collection<String> columns) {
+  static boolean dropStats(Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
-    // We do not drop stats even if we had partially added some stats columns, except for record_count column.
-    // Since we don't want to keep stats map which could be huge in size just because we select record_count, which
+    // We do not drop stats even if we had partially added some stats columns, except for
+    // record_count column.
+    // Since we don't want to keep stats map which could be huge in size just because we select
+    // record_count, which
     // is a primitive type.
-    if (rowFilter != Expressions.alwaysTrue() && columns != null &&
-        !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+    if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
       return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
     }

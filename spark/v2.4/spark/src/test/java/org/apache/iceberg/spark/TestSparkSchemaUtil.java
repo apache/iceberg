@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
 import org.apache.iceberg.Schema;
@@ -25,25 +26,23 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestSparkSchemaUtil {
-  private static final Schema TEST_SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
+  private static final Schema TEST_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   @Test
   public void testEstiamteSizeMaxValue() throws IOException {
-    Assert.assertEquals("estimateSize returns Long max value", Long.MAX_VALUE,
-        SparkSchemaUtil.estimateSize(
-            null,
-            Long.MAX_VALUE));
+    Assert.assertEquals(
+        "estimateSize returns Long max value",
+        Long.MAX_VALUE,
+        SparkSchemaUtil.estimateSize(null, Long.MAX_VALUE));
   }
 
   @Test
   public void testEstiamteSizeWithOverflow() throws IOException {
-    long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
+    long tableSize =
+        SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
     Assert.assertEquals("estimateSize handles overflow", Long.MAX_VALUE, tableSize);
   }
 

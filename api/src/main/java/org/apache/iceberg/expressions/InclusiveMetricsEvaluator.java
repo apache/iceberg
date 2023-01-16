@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
+
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -35,21 +36,20 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
- * <p>
- * This evaluation is inclusive: it returns true if a file may match and false if it cannot match.
- * <p>
- * Files are passed to {@link #eval(ContentFile)}, which returns true if the file may contain matching
- * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
- * return value of {@code eval} is false.
- * <p>
- * Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if the first
- * value in a file is NaN, metrics of this file will report NaN for both upper and lower bound despite
- * that the column could contain non-NaN data. Thus in some scenarios explicitly checks for NaN is necessary
- * in order to not skip files that may contain matching data.
+ *
+ * <p>This evaluation is inclusive: it returns true if a file may match and false if it cannot
+ * match.
+ *
+ * <p>Files are passed to {@link #eval(ContentFile)}, which returns true if the file may contain
+ * matching rows and false if the file cannot contain matching rows. Files may be skipped if and
+ * only if the return value of {@code eval} is false.
+ *
+ * <p>Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if
+ * the first value in a file is NaN, metrics of this file will report NaN for both upper and lower
+ * bound despite that the column could contain non-NaN data. Thus in some scenarios explicitly
+ * checks for NaN is necessary in order to not skip files that may contain matching data.
  */
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
@@ -109,10 +109,14 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean handleNonReference(Bound<T> term) {
-      // If the term in any expression is not a direct reference, assume that rows may match. This happens when
-      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0 can't be determined
-      // because this visitor operates on data metrics and not partition values. It may be possible to un-transform
-      // expressions for order preserving transforms in the future, but this is not currently supported.
+      // If the term in any expression is not a direct reference, assume that rows may match. This
+      // happens when
+      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0
+      // can't be determined
+      // because this visitor operates on data metrics and not partition values. It may be possible
+      // to un-transform
+      // expressions for order preserving transforms in the future, but this is not currently
+      // supported.
       return ROWS_MIGHT_MATCH;
     }
 
@@ -349,7 +353,10 @@ public class InclusiveMetricsEvaluator {
           return ROWS_MIGHT_MATCH;
         }
 
-        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(lower, v) <= 0)
+                .collect(Collectors.toList());
         if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
@@ -357,8 +364,13 @@ public class InclusiveMetricsEvaluator {
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(upper, v) >= 0)
+                .collect(Collectors.toList());
+        if (literals
+            .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
+          // match.
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -420,17 +432,22 @@ public class InclusiveMetricsEvaluator {
 
       Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
-      // notStartsWith will match unless all values must start with the prefix. This happens when the lower and upper
+      // notStartsWith will match unless all values must start with the prefix. This happens when
+      // the lower and upper
       // bounds both start with the prefix.
-      if (lowerBounds != null && upperBounds != null &&
-          lowerBounds.containsKey(id) && upperBounds.containsKey(id)) {
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id)) {
         ByteBuffer lower = lowerBounds.get(id);
         // if lower is shorter than the prefix then lower doesn't start with the prefix
         if (lower.remaining() < prefixAsBytes.remaining()) {
           return ROWS_MIGHT_MATCH;
         }
 
-        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
+        int cmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
         if (cmp == 0) {
           ByteBuffer upper = upperBounds.get(id);
           // if upper is shorter than the prefix then upper can't start with the prefix
@@ -438,9 +455,12 @@ public class InclusiveMetricsEvaluator {
             return ROWS_MIGHT_MATCH;
           }
 
-          cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
+          cmp =
+              comparator.compare(
+                  BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
           if (cmp == 0) {
-            // both bounds match the prefix, so all rows must match the prefix and therefore do not satisfy
+            // both bounds match the prefix, so all rows must match the prefix and therefore do not
+            // satisfy
             // the predicate
             return ROWS_CANNOT_MATCH;
           }
@@ -455,14 +475,18 @@ public class InclusiveMetricsEvaluator {
     }
 
     private boolean containsNullsOnly(Integer id) {
-      return valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0;
+      return valueCounts != null
+          && valueCounts.containsKey(id)
+          && nullCounts != null
+          && nullCounts.containsKey(id)
+          && valueCounts.get(id) - nullCounts.get(id) == 0;
     }
 
     private boolean containsNaNsOnly(Integer id) {
-      return nanCounts != null && nanCounts.containsKey(id) &&
-          valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
+      return nanCounts != null
+          && nanCounts.containsKey(id)
+          && valueCounts != null
+          && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
@@ -31,18 +30,21 @@ import org.apache.spark.sql.SparkSession;
 
 /**
  * A class for common Iceberg configs for Spark reads.
- * <p>
- * If a config is set at multiple levels, the following order of precedence is used (top to bottom):
+ *
+ * <p>If a config is set at multiple levels, the following order of precedence is used (top to
+ * bottom):
+ *
  * <ol>
- *   <li>Read options</li>
- *   <li>Session configuration</li>
- *   <li>Table metadata</li>
+ *   <li>Read options
+ *   <li>Session configuration
+ *   <li>Table metadata
  * </ol>
- * The most specific value is set in read options and takes precedence over all other configs.
- * If no read option is provided, this class checks the session configuration for any overrides.
- * If no applicable value is found in the session configuration, this class uses the table metadata.
- * <p>
- * Note this class is NOT meant to be serialized and sent to executors.
+ *
+ * The most specific value is set in read options and takes precedence over all other configs. If no
+ * read option is provided, this class checks the session configuration for any overrides. If no
+ * applicable value is found in the session configuration, this class uses the table metadata.
+ *
+ * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
 public class SparkReadConf {
 
@@ -64,41 +66,31 @@ public class SparkReadConf {
     if (file instanceof HadoopInputFile) {
       String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
       boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
-      return PropertyUtil.propertyAsBoolean(
-          readOptions,
-          SparkReadOptions.LOCALITY,
-          defaultValue);
+      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
     }
 
     return false;
   }
 
   public Long snapshotId() {
-    return confParser.longConf()
-        .option(SparkReadOptions.SNAPSHOT_ID)
-        .parseOptional();
+    return confParser.longConf().option(SparkReadOptions.SNAPSHOT_ID).parseOptional();
   }
 
   public Long asOfTimestamp() {
-    return confParser.longConf()
-        .option(SparkReadOptions.AS_OF_TIMESTAMP)
-        .parseOptional();
+    return confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP).parseOptional();
   }
 
   public Long startSnapshotId() {
-    return confParser.longConf()
-        .option(SparkReadOptions.START_SNAPSHOT_ID)
-        .parseOptional();
+    return confParser.longConf().option(SparkReadOptions.START_SNAPSHOT_ID).parseOptional();
   }
 
   public Long endSnapshotId() {
-    return confParser.longConf()
-        .option(SparkReadOptions.END_SNAPSHOT_ID)
-        .parseOptional();
+    return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
   }
 
   public boolean parquetVectorizationEnabled() {
-    return confParser.booleanConf()
+    return confParser
+        .booleanConf()
         .option(SparkReadOptions.VECTORIZATION_ENABLED)
         .sessionConf(SparkSQLProperties.VECTORIZATION_ENABLED)
         .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED)
@@ -107,7 +99,8 @@ public class SparkReadConf {
   }
 
   public int parquetBatchSize() {
-    return confParser.intConf()
+    return confParser
+        .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
         .tableProperty(TableProperties.PARQUET_BATCH_SIZE)
         .defaultValue(TableProperties.PARQUET_BATCH_SIZE_DEFAULT)
@@ -115,7 +108,8 @@ public class SparkReadConf {
   }
 
   public boolean orcVectorizationEnabled() {
-    return confParser.booleanConf()
+    return confParser
+        .booleanConf()
         .option(SparkReadOptions.VECTORIZATION_ENABLED)
         .sessionConf(SparkSQLProperties.VECTORIZATION_ENABLED)
         .tableProperty(TableProperties.ORC_VECTORIZATION_ENABLED)
@@ -124,7 +118,8 @@ public class SparkReadConf {
   }
 
   public int orcBatchSize() {
-    return confParser.intConf()
+    return confParser
+        .intConf()
         .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE)
         .tableProperty(TableProperties.ORC_BATCH_SIZE)
         .defaultValue(TableProperties.ORC_BATCH_SIZE_DEFAULT)
@@ -132,7 +127,8 @@ public class SparkReadConf {
   }
 
   public long splitSize() {
-    return confParser.longConf()
+    return confParser
+        .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
@@ -140,7 +136,8 @@ public class SparkReadConf {
   }
 
   public int splitLookback() {
-    return confParser.intConf()
+    return confParser
+        .intConf()
         .option(SparkReadOptions.LOOKBACK)
         .tableProperty(TableProperties.SPLIT_LOOKBACK)
         .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT)
@@ -148,7 +145,8 @@ public class SparkReadConf {
   }
 
   public long splitOpenFileCost() {
-    return confParser.longConf()
+    return confParser
+        .longConf()
         .option(SparkReadOptions.FILE_OPEN_COST)
         .tableProperty(TableProperties.SPLIT_OPEN_FILE_COST)
         .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT)
@@ -157,18 +155,20 @@ public class SparkReadConf {
 
   /**
    * Enables reading a timestamp without time zone as a timestamp with time zone.
-   * <p>
-   * Generally, this is not safe as a timestamp without time zone is supposed to represent the wall-clock time,
-   * i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
-   * but a timestamp with time zone represents instant semantics, i.e. the timestamp
-   * is adjusted so that the corresponding time in the reader timezone is displayed.
-   * <p>
-   * When set to false (default), an exception must be thrown while reading a timestamp without time zone.
+   *
+   * <p>Generally, this is not safe as a timestamp without time zone is supposed to represent the
+   * wall-clock time, i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
+   * but a timestamp with time zone represents instant semantics, i.e. the timestamp is adjusted so
+   * that the corresponding time in the reader timezone is displayed.
+   *
+   * <p>When set to false (default), an exception must be thrown while reading a timestamp without
+   * time zone.
    *
    * @return boolean indicating if reading timestamps without timezone is allowed
    */
   public boolean handleTimestampWithoutZone() {
-    return confParser.booleanConf()
+    return confParser
+        .booleanConf()
         .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
         .sessionConf(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
         .defaultValue(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT)

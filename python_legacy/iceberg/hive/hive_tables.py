@@ -71,9 +71,13 @@ class HiveTables(BaseMetastoreTables):
         from urllib.parse import urlparse
         iprot = self.conf.get(HiveTables.IPROT)
         oprot = self.conf.get(HiveTables.OPROT)
-        metastore_uri = urlparse(self.conf[HiveTables.THRIFT_URIS])
-
-        client = hmsclient.HMSClient(iprot=iprot, oprot=oprot, host=metastore_uri.hostname, port=metastore_uri.port)
+        if HiveTables.THRIFT_URIS in self.conf:
+            metastore_uri = urlparse(self.conf[HiveTables.THRIFT_URIS])
+            client = hmsclient.HMSClient(iprot=iprot, oprot=oprot, host=metastore_uri.hostname, port=metastore_uri.port)
+        else:
+            if iprot is None:
+                raise Exception("Error when creating hmsclient, either pass in {} or {}".format(HiveTables.THRIFT_URIS, HiveTables.IPROT))
+            client = hmsclient.HMSClient(iprot=iprot, oprot=oprot, host=None, port=None)
         return client
 
     def drop(self, database: str, table: str, purge: bool = False) -> None:

@@ -16,21 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
-
-import java.util.stream.Collectors;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.Projections;
-import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -43,65 +29,101 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
+
 public class TestDatesProjection {
   private static final Types.DateType TYPE = Types.DateType.get();
   private static final Schema SCHEMA = new Schema(optional(1, "date", TYPE));
 
-  public void assertProjectionStrict(PartitionSpec spec, UnboundPredicate<?> filter,
-                                     Expression.Operation expectedOp, String expectedLiteral) {
+  @SuppressWarnings("unchecked")
+  public void assertProjectionStrict(
+      PartitionSpec spec,
+      UnboundPredicate<?> filter,
+      Expression.Operation expectedOp,
+      String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
+    UnboundPredicate<Integer> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
-    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+    Assert.assertNotEquals(
+        "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
-    Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<?, Integer> transform =
+        (Transform<?, Integer>) spec.getFieldsBySourceId(1).get(0).transform();
+    Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.NOT_IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual = Lists.newArrayList(values).stream().sorted()
-          .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
+      Iterable<Integer> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual =
+          Lists.newArrayList(values).stream()
+              .sorted()
+              .map(v -> transform.toHumanString(type, v))
+              .collect(Collectors.toList())
+              .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString((int) literal.value());
+      Literal<Integer> literal = predicate.literal();
+      String output = transform.toHumanString(type, literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }
 
-  public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                          Expression.Operation expectedOp) {
+  public void assertProjectionStrictValue(
+      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
     Assert.assertEquals(expectedOp, projection.op());
   }
 
-  public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                             Expression.Operation expectedOp) {
+  public void assertProjectionInclusiveValue(
+      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
     Assert.assertEquals(expectedOp, projection.op());
   }
 
-  public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
-                                        Expression.Operation expectedOp, String expectedLiteral) {
+  @SuppressWarnings("unchecked")
+  public void assertProjectionInclusive(
+      PartitionSpec spec,
+      UnboundPredicate<?> filter,
+      Expression.Operation expectedOp,
+      String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
-    UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
+    UnboundPredicate<Integer> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
-    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+    Assert.assertNotEquals(
+        "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
-    Dates transform = (Dates) spec.getFieldsBySourceId(1).get(0).transform();
+    Transform<?, Integer> transform =
+        (Transform<?, Integer>) spec.getFieldsBySourceId(1).get(0).transform();
+    Type type = spec.partitionType().field(spec.getFieldsBySourceId(1).get(0).fieldId()).type();
     if (predicate.op() == Expression.Operation.IN) {
-      Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual = Lists.newArrayList(values).stream().sorted()
-          .map(v -> transform.toHumanString((Integer) v)).collect(Collectors.toList()).toString();
+      Iterable<Integer> values = Iterables.transform(predicate.literals(), Literal::value);
+      String actual =
+          Lists.newArrayList(values).stream()
+              .sorted()
+              .map(v -> transform.toHumanString(type, v))
+              .collect(Collectors.toList())
+              .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
-      Literal literal = predicate.literal();
-      String output = transform.toHumanString((int) literal.value());
+      Literal<Integer> literal = predicate.literal();
+      String output = transform.toHumanString(type, literal.value());
       Assert.assertEquals(expectedLiteral, output);
     }
   }
@@ -114,13 +136,14 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1970-01");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970-02");
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "1970-01");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
+    assertProjectionStrict(
+        spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -130,16 +153,20 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1970-01");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970-01");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970-01");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1970-01");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970-01");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970-01");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1970-01");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "1970-01");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969-12, 1970-01]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[1969-12, 1970-01]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -150,13 +177,14 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "2017-01");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2017-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "2017-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("2017-12-02").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", anotherDate, date),
-        Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
+    assertProjectionStrict(
+        spec, notIn("date", anotherDate, date), Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
     assertProjectionStrictValue(spec, in("date", anotherDate, date), Expression.Operation.FALSE);
   }
 
@@ -168,13 +196,18 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969-01");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1969-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1969-02");
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1969-01");
-    assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-01, 1969-02]");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1969-01");
+    assertProjectionStrict(
+        spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-01, 1969-02]");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969-01, 1969-02, 1969-12, 1970-01]");
+    assertProjectionStrict(
+        spec,
+        notIn("date", date, anotherDate),
+        Expression.Operation.NOT_IN,
+        "[1969-01, 1969-02, 1969-12, 1970-01]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -186,13 +219,14 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "2017-12");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2018-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "2017-12");
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2017-12");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2017-12");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-12");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("2017-01-01").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", anotherDate, date),
-        Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
+    assertProjectionStrict(
+        spec, notIn("date", anotherDate, date), Expression.Operation.NOT_IN, "[2017-01, 2017-12]");
     assertProjectionStrictValue(spec, in("date", anotherDate, date), Expression.Operation.FALSE);
   }
 
@@ -204,13 +238,18 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969-12");
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
-    assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
+    assertProjectionStrict(
+        spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1969-11-01").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969-11, 1969-12, 1970-01]");
+    assertProjectionStrict(
+        spec,
+        notIn("date", date, anotherDate),
+        Expression.Operation.NOT_IN,
+        "[1969-11, 1969-12, 1970-01]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -220,16 +259,20 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2017-11");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-12");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-12");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("2017-01-01").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[2017-01, 2017-12]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[2017-01, 2017-12]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -238,16 +281,24 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1969-01");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1969-02");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1969-01");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-01");
-    assertProjectionInclusive(spec, equal("date", date), Expression.Operation.IN, "[1969-01, 1969-02]");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1969-02");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1969-01");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-01");
+    assertProjectionInclusive(
+        spec, equal("date", date), Expression.Operation.IN, "[1969-01, 1969-02]");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969-01, 1969-02, 1969-12, 1970-01]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec,
+        in("date", date, anotherDate),
+        Expression.Operation.IN,
+        "[1969-01, 1969-02, 1969-12, 1970-01]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -256,16 +307,20 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2017-12");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-12");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018-01");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-12");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-12");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("2017-01-01").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[2017-01, 2017-12]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[2017-01, 2017-12]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -274,16 +329,24 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1970-01");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970-01");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970-01");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-12");
-    assertProjectionInclusive(spec, equal("date", date), Expression.Operation.IN, "[1969-12, 1970-01]");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970-01");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970-01");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-12");
+    assertProjectionInclusive(
+        spec, equal("date", date), Expression.Operation.IN, "[1969-12, 1970-01]");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-01-01").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969-01, 1969-02, 1969-12, 1970-01]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec,
+        in("date", date, anotherDate),
+        Expression.Operation.IN,
+        "[1969-01, 1969-02, 1969-12, 1970-01]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -293,16 +356,21 @@ public class TestDatesProjection {
 
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "2017-01-01");
     // should be the same date for <=
-    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2017-01-02");
+    assertProjectionStrict(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT, "2017-01-02");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "2017-01-01");
     // should be the same date for >=
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12-31");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "2016-12-31");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "2017-01-01");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("2017-12-31").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[2017-01-01, 2017-12-31]");
+    assertProjectionStrict(
+        spec,
+        notIn("date", date, anotherDate),
+        Expression.Operation.NOT_IN,
+        "[2017-01-01, 2017-12-31]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -313,16 +381,21 @@ public class TestDatesProjection {
 
     assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969-12-30");
     // should be the same date for <=
-    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1969-12-31");
+    assertProjectionStrict(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1969-12-31");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1969-12-30");
     // should be the same date for >=
-    assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1969-12-29");
+    assertProjectionStrict(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1969-12-29");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "1969-12-30");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-28").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969-12-28, 1969-12-30]");
+    assertProjectionStrict(
+        spec,
+        notIn("date", date, anotherDate),
+        Expression.Operation.NOT_IN,
+        "[1969-12-28, 1969-12-30]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -331,17 +404,22 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("2017-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
 
-    assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016-12-31");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-01-01");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-01-02");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
+    assertProjectionInclusive(
+        spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016-12-31");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017-01-01");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017-01-02");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017-01-01");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017-01-01");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("2017-12-31").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[2017-01-01, 2017-12-31]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[2017-01-01, 2017-12-31]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -349,17 +427,22 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1969-12-30").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("date").build();
 
-    assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1969-12-29");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1969-12-30");
-    assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1969-12-31");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-12-30");
+    assertProjectionInclusive(
+        spec, lessThan("date", date), Expression.Operation.LT_EQ, "1969-12-29");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1969-12-30");
+    assertProjectionInclusive(
+        spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1969-12-31");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969-12-30");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "1969-12-30");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-28").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969-12-28, 1969-12-30]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[1969-12-28, 1969-12-30]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -375,8 +458,8 @@ public class TestDatesProjection {
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("2016-12-31").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[2016, 2017]");
+    assertProjectionStrict(
+        spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[2016, 2017]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -393,8 +476,8 @@ public class TestDatesProjection {
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969, 1970]");
+    assertProjectionStrict(
+        spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[1969, 1970]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -411,8 +494,8 @@ public class TestDatesProjection {
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("2016-01-01").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[2016, 2017]");
+    assertProjectionStrict(
+        spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[2016, 2017]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -425,12 +508,13 @@ public class TestDatesProjection {
     assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970");
-    assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969, 1970]");
+    assertProjectionStrict(
+        spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969, 1970]");
     assertProjectionStrictValue(spec, equal("date", date), Expression.Operation.FALSE);
 
     Integer anotherDate = (Integer) Literal.of("1970-01-01").to(TYPE).value();
-    assertProjectionStrict(spec, notIn("date", date, anotherDate),
-        Expression.Operation.NOT_IN, "[1969, 1970]");
+    assertProjectionStrict(
+        spec, notIn("date", date, anotherDate), Expression.Operation.NOT_IN, "[1969, 1970]");
     assertProjectionStrictValue(spec, in("date", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -440,16 +524,19 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2016");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017");
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2017");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("2016-12-31").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[2016, 2017]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[2016, 2017]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -458,16 +545,19 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1970");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970");
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1970");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1970");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "1970");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-12-31").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969, 1970]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[1969, 1970]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -476,16 +566,19 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "2017");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "2017");
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "2018");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "2017");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.EQ, "2017");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("2016-01-01").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[2016, 2017]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[2016, 2017]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 
   @Test
@@ -494,15 +587,18 @@ public class TestDatesProjection {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
     assertProjectionInclusive(spec, lessThan("date", date), Expression.Operation.LT_EQ, "1970");
-    assertProjectionInclusive(spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970");
+    assertProjectionInclusive(
+        spec, lessThanOrEqual("date", date), Expression.Operation.LT_EQ, "1970");
     assertProjectionInclusive(spec, greaterThan("date", date), Expression.Operation.GT_EQ, "1970");
-    assertProjectionInclusive(spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969");
+    assertProjectionInclusive(
+        spec, greaterThanOrEqual("date", date), Expression.Operation.GT_EQ, "1969");
     assertProjectionInclusive(spec, equal("date", date), Expression.Operation.IN, "[1969, 1970]");
     assertProjectionInclusiveValue(spec, notEqual("date", date), Expression.Operation.TRUE);
 
     Integer anotherDate = (Integer) Literal.of("1969-01-01").to(TYPE).value();
-    assertProjectionInclusive(spec, in("date", date, anotherDate),
-        Expression.Operation.IN, "[1969, 1970]");
-    assertProjectionInclusiveValue(spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("date", date, anotherDate), Expression.Operation.IN, "[1969, 1970]");
+    assertProjectionInclusiveValue(
+        spec, notIn("date", date, anotherDate), Expression.Operation.TRUE);
   }
 }

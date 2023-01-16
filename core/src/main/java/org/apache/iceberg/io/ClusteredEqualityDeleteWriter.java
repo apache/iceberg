@@ -16,55 +16,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * An equality delete writer capable of writing to multiple specs and partitions that requires
- * the incoming delete records to be properly clustered by partition spec and by partition within each spec.
+ * An equality delete writer capable of writing to multiple specs and partitions that requires the
+ * incoming delete records to be properly clustered by partition spec and by partition within each
+ * spec.
  */
 public class ClusteredEqualityDeleteWriter<T> extends ClusteredWriter<T, DeleteWriteResult> {
 
   private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
-  private final FileFormat fileFormat;
   private final long targetFileSizeInBytes;
   private final List<DeleteFile> deleteFiles;
 
-  public ClusteredEqualityDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                       FileIO io, FileFormat fileFormat, long targetFileSizeInBytes) {
+  public ClusteredEqualityDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
-    this.fileFormat = fileFormat;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.deleteFiles = Lists.newArrayList();
   }
 
   @Override
   protected FileWriter<T, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-    // TODO: support ORC rolling writers
-    if (fileFormat == FileFormat.ORC) {
-      EncryptedOutputFile outputFile = newOutputFile(fileFactory, spec, partition);
-      return writerFactory.newEqualityDeleteWriter(outputFile, spec, partition);
-    } else {
-      return new RollingEqualityDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
-    }
+    return new RollingEqualityDeleteWriter<>(
+        writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
   }
 
   @Override
   protected void addResult(DeleteWriteResult result) {
-    Preconditions.checkArgument(!result.referencesDataFiles(), "Equality deletes cannot reference data files");
+    Preconditions.checkArgument(
+        !result.referencesDataFiles(), "Equality deletes cannot reference data files");
     deleteFiles.addAll(result.deleteFiles());
   }
 

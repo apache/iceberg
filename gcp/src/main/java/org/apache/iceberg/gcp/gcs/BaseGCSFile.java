@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.Blob;
@@ -24,17 +23,20 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import java.net.URI;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 
 abstract class BaseGCSFile {
   private final Storage storage;
   private final GCPProperties gcpProperties;
   private final BlobId blobId;
   private Blob metadata;
+  private final MetricsContext metrics;
 
-  BaseGCSFile(Storage storage, BlobId blobId, GCPProperties gcpProperties) {
+  BaseGCSFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
+    this.metrics = metrics;
   }
 
   public String location() {
@@ -55,6 +57,10 @@ abstract class BaseGCSFile {
 
   protected GCPProperties gcpProperties() {
     return gcpProperties;
+  }
+
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   public boolean exists() {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
@@ -24,24 +23,30 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * An isolation level in a table.
- * <p>
- * Two isolation levels are supported: serializable and snapshot isolation. Both of them provide
+ *
+ * <p>Two isolation levels are supported: serializable and snapshot isolation. Both of them provide
  * a read consistent view of the table to all operations and allow readers to see only already
- * committed data. While serializable is the strongest isolation level in databases,
- * snapshot isolation is beneficial for environments with many concurrent writers.
- * <p>
- * The serializable isolation level guarantees that an ongoing UPDATE/DELETE/MERGE operation
- * fails if a concurrent transaction commits a new file that might contain rows matching
- * the condition used in UPDATE/DELETE/MERGE. For example, if there is an ongoing update
- * on a subset of rows and a concurrent transaction adds a new file with records
- * that potentially match the update condition, the update operation must fail under
- * the serializable isolation but can still commit under the snapshot isolation.
+ * committed data. While serializable is the strongest isolation level in databases, snapshot
+ * isolation is beneficial for environments with many concurrent writers.
+ *
+ * <p>The serializable isolation level guarantees that an ongoing UPDATE/DELETE/MERGE operation
+ * fails if a concurrent transaction commits a new file that might contain rows matching the
+ * condition used in UPDATE/DELETE/MERGE. For example, if there is an ongoing update on a subset of
+ * rows and a concurrent transaction adds a new file with records that potentially match the update
+ * condition, the update operation must fail under the serializable isolation but can still commit
+ * under the snapshot isolation.
  */
 public enum IsolationLevel {
-  SERIALIZABLE, SNAPSHOT;
+  SERIALIZABLE,
+  SNAPSHOT;
 
   public static IsolationLevel fromName(String levelName) {
-    Preconditions.checkArgument(levelName != null, "Level name is null");
-    return IsolationLevel.valueOf(levelName.toUpperCase(Locale.ROOT));
+    Preconditions.checkArgument(levelName != null, "Invalid isolation level: null");
+    try {
+      return IsolationLevel.valueOf(levelName.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid isolation level: %s", levelName), e);
+    }
   }
 }

@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
@@ -27,16 +29,14 @@ import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestMetricsModes {
@@ -45,18 +45,14 @@ public class TestMetricsModes {
 
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestMetricsModes(int formatVersion) {
     this.formatVersion = formatVersion;
   }
 
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @After
   public void after() {
@@ -77,31 +73,41 @@ public class TestMetricsModes {
 
   @Test
   public void testInvalidTruncationLength() {
-    exceptionRule.expect(IllegalArgumentException.class);
-    exceptionRule.expectMessage("length should be positive");
-    MetricsModes.fromString("truncate(0)");
+    Assertions.assertThatThrownBy(() -> MetricsModes.fromString("truncate(0)"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Truncate length should be positive");
   }
 
   @Test
   public void testInvalidColumnModeValue() {
-    Map<String, String> properties = ImmutableMap.of(
-        TableProperties.DEFAULT_WRITE_METRICS_MODE, "full",
-        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)");
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
+            "troncate(5)");
 
     MetricsConfig config = MetricsConfig.fromProperties(properties);
-    Assert.assertEquals("Invalid mode should be defaulted to table default (full)",
-        MetricsModes.Full.get(), config.columnMode("col"));
+    Assert.assertEquals(
+        "Invalid mode should be defaulted to table default (full)",
+        MetricsModes.Full.get(),
+        config.columnMode("col"));
   }
 
   @Test
   public void testInvalidDefaultColumnModeValue() {
-    Map<String, String> properties = ImmutableMap.of(
-        TableProperties.DEFAULT_WRITE_METRICS_MODE, "fuull",
-        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col", "troncate(5)");
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "fuull",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
+            "troncate(5)");
 
     MetricsConfig config = MetricsConfig.fromProperties(properties);
-    Assert.assertEquals("Invalid mode should be defaulted to library default (truncate(16))",
-        MetricsModes.Truncate.withLength(16), config.columnMode("col"));
+    Assert.assertEquals(
+        "Invalid mode should be defaulted to library default (truncate(16))",
+        MetricsModes.Truncate.withLength(16),
+        config.columnMode("col"));
   }
 
   @Test
@@ -109,30 +115,38 @@ public class TestMetricsModes {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    Schema schema = new Schema(
-        required(1, "col1", Types.IntegerType.get()),
-        required(2, "col2", Types.IntegerType.get()),
-        required(3, "col3", Types.IntegerType.get()),
-        required(4, "col4", Types.IntegerType.get())
-    );
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()),
+            required(4, "col4", Types.IntegerType.get()));
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
-    Table testTable = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(),
-        sortOrder, formatVersion);
-    testTable.updateProperties()
+    Table testTable =
+        TestTables.create(
+            tableDir, "test", schema, PartitionSpec.unpartitioned(), sortOrder, formatVersion);
+    testTable
+        .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none")
         .commit();
 
     MetricsConfig config = MetricsConfig.forTable(testTable);
-    Assert.assertEquals("Non-sorted existing column should not be overridden",
-        Counts.get(), config.columnMode("col1"));
-    Assert.assertEquals("Sorted column defaults should not override user specified config",
-        None.get(), config.columnMode("col2"));
-    Assert.assertEquals("Unspecified sorted column should use default",
-        Truncate.withLength(16), config.columnMode("col3"));
-    Assert.assertEquals("Unspecified normal column should use default",
-        Counts.get(), config.columnMode("col4"));
+    Assert.assertEquals(
+        "Non-sorted existing column should not be overridden",
+        Counts.get(),
+        config.columnMode("col1"));
+    Assert.assertEquals(
+        "Sorted column defaults should not override user specified config",
+        None.get(),
+        config.columnMode("col2"));
+    Assert.assertEquals(
+        "Unspecified sorted column should use default",
+        Truncate.withLength(16),
+        config.columnMode("col3"));
+    Assert.assertEquals(
+        "Unspecified normal column should use default", Counts.get(), config.columnMode("col4"));
   }
 
   @Test
@@ -140,24 +154,65 @@ public class TestMetricsModes {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    Schema schema = new Schema(
-        required(1, "col1", Types.IntegerType.get()),
-        required(2, "col2", Types.IntegerType.get()),
-        required(3, "col3", Types.IntegerType.get())
-    );
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()));
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
-    Table testTable = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(),
-        sortOrder, formatVersion);
-    testTable.updateProperties()
+    Table testTable =
+        TestTables.create(
+            tableDir, "test", schema, PartitionSpec.unpartitioned(), sortOrder, formatVersion);
+    testTable
+        .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "full")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "invalid")
         .commit();
 
     MetricsConfig config = MetricsConfig.forTable(testTable);
-    Assert.assertEquals("Non-sorted existing column should not be overridden by sorted column",
-        Full.get(), config.columnMode("col1"));
-    Assert.assertEquals("Original default applies as user entered invalid mode for sorted column",
-        Counts.get(), config.columnMode("col2"));
+    Assert.assertEquals(
+        "Non-sorted existing column should not be overridden by sorted column",
+        Full.get(),
+        config.columnMode("col1"));
+    Assert.assertEquals(
+        "Original default applies as user entered invalid mode for sorted column",
+        Counts.get(),
+        config.columnMode("col2"));
+  }
+
+  @Test
+  public void testMetricsConfigInferredDefaultModeLimit() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()));
+
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first two columns
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Assert.assertEquals(
+        "Should use default mode for col1", Truncate.withLength(16), config.columnMode("col1"));
+    Assert.assertEquals(
+        "Should use default mode for col2", Truncate.withLength(16), config.columnMode("col2"));
+    Assert.assertEquals("Should use None for col3", None.get(), config.columnMode("col3"));
   }
 }

@@ -16,8 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
+
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION_LEVEL;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,33 +66,18 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
-import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
-
 public class Avro {
-  private Avro() {
+  private Avro() {}
+
+  private enum Codec {
+    UNCOMPRESSED,
+    SNAPPY,
+    GZIP,
+    ZSTD
   }
 
-  private enum CodecName {
-    UNCOMPRESSED(CodecFactory.nullCodec()),
-    SNAPPY(CodecFactory.snappyCodec()),
-    GZIP(CodecFactory.deflateCodec(9)),
-    LZ4(null),
-    BROTLI(null),
-    ZSTD(null);
-
-    private final CodecFactory avroCodec;
-
-    CodecName(CodecFactory avroCodec) {
-      this.avroCodec = avroCodec;
-    }
-
-    public CodecFactory get() {
-      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec %s", this);
-      return avroCodec;
-    }
-  }
+  private static final int ZSTD_COMPRESSION_LEVEL_DEFAULT = 1;
+  private static final int GZIP_COMPRESSION_LEVEL_DEFAULT = 9;
 
   private static final GenericData DEFAULT_MODEL = new SpecificData();
 
@@ -172,7 +163,8 @@ public class Avro {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+    private WriteBuilder createContextFunc(
+        Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
@@ -195,7 +187,14 @@ public class Avro {
       CodecFactory codec = context.codec();
 
       return new AvroFileAppender<>(
-          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec, metadata, metricsConfig, overwrite);
+          schema,
+          AvroSchemaUtil.convert(schema, name),
+          file,
+          writerFunc,
+          codec,
+          metadata,
+          metricsConfig,
+          overwrite);
     }
 
     private static class Context {
@@ -207,7 +206,9 @@ public class Avro {
 
       static Context dataContext(Map<String, String> config) {
         String codecAsString = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
-        CodecFactory codec = toCodec(codecAsString);
+        String compressionLevel =
+            config.getOrDefault(AVRO_COMPRESSION_LEVEL, AVRO_COMPRESSION_LEVEL_DEFAULT);
+        CodecFactory codec = toCodec(codecAsString, compressionLevel);
 
         return new Context(codec);
       }
@@ -217,17 +218,48 @@ public class Avro {
         Context dataContext = dataContext(config);
 
         String codecAsString = config.get(DELETE_AVRO_COMPRESSION);
-        CodecFactory codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
+        String compressionLevel =
+            config.getOrDefault(DELETE_AVRO_COMPRESSION_LEVEL, AVRO_COMPRESSION_LEVEL_DEFAULT);
+        CodecFactory codec =
+            codecAsString != null ? toCodec(codecAsString, compressionLevel) : dataContext.codec();
 
         return new Context(codec);
       }
 
-      private static CodecFactory toCodec(String codecAsString) {
+      private static CodecFactory toCodec(String codecAsString, String compressionLevel) {
+        CodecFactory codecFactory;
         try {
-          return CodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH)).get();
+          switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
+            case UNCOMPRESSED:
+              codecFactory = CodecFactory.nullCodec();
+              break;
+            case SNAPPY:
+              codecFactory = CodecFactory.snappyCodec();
+              break;
+            case ZSTD:
+              codecFactory =
+                  CodecFactory.zstandardCodec(
+                      compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
+              break;
+            case GZIP:
+              codecFactory =
+                  CodecFactory.deflateCodec(
+                      compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
+              break;
+            default:
+              throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+          }
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }
+        return codecFactory;
+      }
+
+      private static int compressionLevelAsInt(
+          String tableCompressionLevel, int defaultCompressionLevel) {
+        return tableCompressionLevel != null
+            ? Integer.parseInt(tableCompressionLevel)
+            : defaultCompressionLevel;
       }
 
       CodecFactory codec() {
@@ -322,11 +354,13 @@ public class Avro {
 
     public <T> DataWriter<T> build() throws IOException {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null when creating data writer for partitioned spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();
-      return new DataWriter<>(fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder);
+      return new DataWriter<>(
+          fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder);
     }
   }
 
@@ -433,18 +467,25 @@ public class Avro {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
-      Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
-      Preconditions.checkState(createWriterFunc != null,
+      Preconditions.checkState(
+          rowSchema != null, "Cannot create equality delete file without a schema");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkState(
+          createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
-      Preconditions.checkArgument(spec != null, "Spec must not be null when creating equality delete writer");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
       meta("delete-type", "equality");
-      meta("delete-field-ids", IntStream.of(equalityFieldIds)
-          .mapToObj(Objects::toString)
-          .collect(Collectors.joining(", ")));
+      meta(
+          "delete-field-ids",
+          IntStream.of(equalityFieldIds)
+              .mapToObj(Objects::toString)
+              .collect(Collectors.joining(", ")));
 
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
@@ -452,16 +493,26 @@ public class Avro {
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder,
+          appenderBuilder.build(),
+          FileFormat.AVRO,
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder,
           equalityFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
-      Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkState(
+          equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+      Preconditions.checkArgument(
+          rowSchema == null || createWriterFunc != null,
           "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
@@ -476,7 +527,8 @@ public class Avro {
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
+        // write row data itself
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 
@@ -487,16 +539,13 @@ public class Avro {
     }
   }
 
-  /**
-   * A {@link DatumWriter} implementation that wraps another to produce position deletes.
-   */
+  /** A {@link DatumWriter} implementation that wraps another to produce position deletes. */
   private static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
     private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
     private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
 
     @Override
-    public void setSchema(Schema schema) {
-    }
+    public void setSchema(Schema schema) {}
 
     @Override
     public void write(PositionDelete<?> delete, Encoder out) throws IOException {
@@ -511,11 +560,13 @@ public class Avro {
   }
 
   /**
-   * A {@link DatumWriter} implementation that wraps another to produce position deletes with row data.
+   * A {@link DatumWriter} implementation that wraps another to produce position deletes with row
+   * data.
    *
    * @param <D> the type of datum written as a deleted row
    */
-  private static class PositionAndRowDatumWriter<D> implements MetricsAwareDatumWriter<PositionDelete<D>> {
+  private static class PositionAndRowDatumWriter<D>
+      implements MetricsAwareDatumWriter<PositionDelete<D>> {
     private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
     private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
 
@@ -559,11 +610,15 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
-    private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc = readSchema -> {
-      GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
-      reader.setClassLoader(loader);
-      return reader;
-    };
+
+    @SuppressWarnings("UnnecessaryLambda")
+    private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc =
+        readSchema -> {
+          GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
+          reader.setClassLoader(loader);
+          return reader;
+        };
+
     private Long start = null;
     private Long length = null;
 
@@ -578,7 +633,8 @@ public class Avro {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(
+        BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
       Preconditions.checkState(createReaderFunc == null, "Cannot set multiple createReaderFunc");
       this.createReaderBiFunc = readerFunction;
       return this;
@@ -638,14 +694,18 @@ public class Avro {
         readerFunc = defaultCreateReaderFunc;
       }
 
-      return new AvroIterable<>(file,
+      return new AvroIterable<>(
+          file,
           new ProjectionDatumReader<>(readerFunc, schema, renames, nameMapping),
-          start, length, reuseContainers);
+          start,
+          length,
+          reuseContainers);
     }
   }
 
   /**
    * Returns number of rows in specified Avro file
+   *
    * @param file Avro file
    * @return number of rows in file
    */

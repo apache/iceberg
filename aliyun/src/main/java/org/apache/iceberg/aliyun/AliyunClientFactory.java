@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun;
 
 import com.aliyun.oss.OSS;
@@ -39,8 +38,6 @@ public interface AliyunClientFactory extends Serializable {
    */
   void initialize(Map<String, String> properties);
 
-  /**
-   * Returns an initialized {@link AliyunProperties}
-   */
+  /** Returns an initialized {@link AliyunProperties} */
   AliyunProperties aliyunProperties();
 }

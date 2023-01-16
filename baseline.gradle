@@ -40,21 +40,16 @@ subprojects {
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
+  apply plugin: 'com.diffplug.spotless'
 
-  // Can't use the built-in Baseline spotless format because it's opinionated about the import
-  // order of having static imports after non-static imports, and this cannot be overridden.
-
-  // So we apply Spotless manually to get a similar effect to baseline-format, but change the
-  // import order.
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
+        // we use an older version of google-java-format that is compatible with JDK 8
+        googleJavaFormat("1.7")
         removeUnusedImports()
-        importOrder '', 'static '
-        trimTrailingWhitespace()
-        indentWithSpaces 2
-        endWithNewline()
+        licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
     }
   }
@@ -62,8 +57,8 @@ subprojects {
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
-          // error-prone is slow, don't run on tests and generated src
-          '-XepExcludedPaths:.*/(test|generated-src)/.*',
+          // error-prone is slow, don't run on tests/generated-src/generated
+          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
           // specific to Palantir
           '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
           '-Xep:FinalClass:OFF',
@@ -71,14 +66,24 @@ subprojects {
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:Slf4jLogsafeArgs:OFF',
           '-Xep:RawTypes:OFF',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
+          '-Xep:PreferStaticLoggers:ERROR',
+          '-Xep:Slf4jThrowable:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
+          // prefer method references over lambdas
+          '-Xep:LambdaMethodReference:ERROR',
           // patterns that are allowed
           '-Xep:MissingCasesInEnumSwitch:OFF',
           //Added because it errors out compile, but we need to figure out if we want it
           '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:PreferSafeLogger:OFF',
       )
     }
   }

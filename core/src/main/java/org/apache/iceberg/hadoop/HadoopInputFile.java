@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.FileNotFoundException;
@@ -28,6 +27,8 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
+import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -37,10 +38,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.
- * <p>
- * This class is based on Parquet's HadoopInputFile.
+ *
+ * <p>This class is based on Parquet's HadoopInputFile.
  */
-public class HadoopInputFile implements InputFile {
+public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   public static final String[] NO_LOCATION_PREFERENCE = new String[0];
 
   private final String location;
@@ -49,24 +50,28 @@ public class HadoopInputFile implements InputFile {
   private final Configuration conf;
   private FileStatus stat = null;
   private Long length = null;
+  private NativeFileCryptoParameters nativeDecryptionParameters;
 
   public static HadoopInputFile fromLocation(CharSequence location, Configuration conf) {
     FileSystem fs = Util.getFs(new Path(location.toString()), conf);
     return new HadoopInputFile(fs, location.toString(), conf);
   }
 
-  public static HadoopInputFile fromLocation(CharSequence location, long length,
-                                             Configuration conf) {
+  public static HadoopInputFile fromLocation(
+      CharSequence location, long length, Configuration conf) {
     FileSystem fs = Util.getFs(new Path(location.toString()), conf);
-    return new HadoopInputFile(fs, location.toString(), length, conf);
+    if (length > 0) {
+      return new HadoopInputFile(fs, location.toString(), length, conf);
+    } else {
+      return new HadoopInputFile(fs, location.toString(), conf);
+    }
   }
 
   public static HadoopInputFile fromLocation(CharSequence location, FileSystem fs) {
     return new HadoopInputFile(fs, location.toString(), fs.getConf());
   }
 
-  public static HadoopInputFile fromLocation(CharSequence location, long length,
-                                             FileSystem fs) {
+  public static HadoopInputFile fromLocation(CharSequence location, long length, FileSystem fs) {
     return new HadoopInputFile(fs, location.toString(), length, fs.getConf());
   }
 
@@ -92,7 +97,8 @@ public class HadoopInputFile implements InputFile {
     return new HadoopInputFile(fs, path, conf);
   }
 
-  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs, Configuration conf) {
+  public static HadoopInputFile fromPath(
+      Path path, long length, FileSystem fs, Configuration conf) {
     return new HadoopInputFile(fs, path, length, conf);
   }
 
@@ -112,7 +118,7 @@ public class HadoopInputFile implements InputFile {
   private HadoopInputFile(FileSystem fs, String location, Configuration conf) {
     this.fs = fs;
     this.location = location;
-    this.path =  new Path(location);
+    this.path = new Path(location);
     this.conf = conf;
   }
 
@@ -120,7 +126,7 @@ public class HadoopInputFile implements InputFile {
     Preconditions.checkArgument(length >= 0, "Invalid file length: %s", length);
     this.fs = fs;
     this.location = location;
-    this.path =  new Path(location);
+    this.path = new Path(location);
     this.conf = conf;
     this.length = length;
   }
@@ -154,6 +160,8 @@ public class HadoopInputFile implements InputFile {
     if (stat == null) {
       try {
         this.stat = fs.getFileStatus(path);
+      } catch (FileNotFoundException e) {
+        throw new NotFoundException(e, "File does not exist: %s", path);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
       }
@@ -218,10 +226,20 @@ public class HadoopInputFile implements InputFile {
   @Override
   public boolean exists() {
     try {
-      return fs.exists(path);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
+      return lazyStat() != null;
+    } catch (NotFoundException e) {
+      return false;
     }
+  }
+
+  @Override
+  public NativeFileCryptoParameters nativeCryptoParameters() {
+    return nativeDecryptionParameters;
+  }
+
+  @Override
+  public void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters) {
+    this.nativeDecryptionParameters = nativeCryptoParameters;
   }
 
   @Override

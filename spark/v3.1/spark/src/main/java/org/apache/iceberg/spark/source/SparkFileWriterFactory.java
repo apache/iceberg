@@ -16,10 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
-import java.util.Locale;
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
+
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -40,24 +43,35 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
-
 class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType dataSparkType;
   private StructType equalityDeleteSparkType;
   private StructType positionDeleteSparkType;
 
-  SparkFileWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema, StructType dataSparkType,
-                         SortOrder dataSortOrder, FileFormat deleteFileFormat,
-                         int[] equalityFieldIds, Schema equalityDeleteRowSchema, StructType equalityDeleteSparkType,
-                         SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema,
-                         StructType positionDeleteSparkType) {
+  SparkFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      StructType dataSparkType,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      StructType equalityDeleteSparkType,
+      SortOrder equalityDeleteSortOrder,
+      Schema positionDeleteRowSchema,
+      StructType positionDeleteSparkType) {
 
-    super(table, dataFileFormat, dataSchema, dataSortOrder, deleteFileFormat, equalityFieldIds,
-        equalityDeleteRowSchema, equalityDeleteSortOrder, positionDeleteRowSchema);
+    super(
+        table,
+        dataFileFormat,
+        dataSchema,
+        dataSortOrder,
+        deleteFileFormat,
+        equalityFieldIds,
+        equalityDeleteRowSchema,
+        equalityDeleteSortOrder,
+        positionDeleteRowSchema);
 
     this.dataSparkType = dataSparkType;
     this.equalityDeleteSparkType = equalityDeleteSparkType;
@@ -80,7 +94,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    boolean withRow = positionDeleteSparkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
+    boolean withRow =
+        positionDeleteSparkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
     if (withRow) {
       // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
       StructField rowField = positionDeleteSparkType().apply(DELETE_FILE_ROW_FIELD_NAME);
@@ -96,12 +111,14 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
   }
 
   @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
   }
 
@@ -132,7 +149,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   private StructType equalityDeleteSparkType() {
     if (equalityDeleteSparkType == null) {
-      Preconditions.checkNotNull(equalityDeleteRowSchema(), "Equality delete schema must not be null");
+      Preconditions.checkNotNull(
+          equalityDeleteRowSchema(), "Equality delete schema must not be null");
       this.equalityDeleteSparkType = SparkSchemaUtil.convert(equalityDeleteRowSchema());
     }
 
@@ -141,7 +159,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   private StructType positionDeleteSparkType() {
     if (positionDeleteSparkType == null) {
-      // wrap the optional row schema into the position delete schema that contains path and position
+      // wrap the optional row schema into the position delete schema that contains path and
+      // position
       Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
       this.positionDeleteSparkType = SparkSchemaUtil.convert(positionDeleteSchema);
     }
@@ -168,11 +187,13 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
       Map<String, String> properties = table.properties();
 
-      String dataFileFormatName = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      this.dataFileFormat = FileFormat.valueOf(dataFileFormatName.toUpperCase(Locale.ENGLISH));
+      String dataFileFormatName =
+          properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+      this.dataFileFormat = FileFormat.fromString(dataFileFormatName);
 
-      String deleteFileFormatName = properties.getOrDefault(DELETE_DEFAULT_FILE_FORMAT, dataFileFormatName);
-      this.deleteFileFormat = FileFormat.valueOf(deleteFileFormatName.toUpperCase(Locale.ENGLISH));
+      String deleteFileFormatName =
+          properties.getOrDefault(DELETE_DEFAULT_FILE_FORMAT, dataFileFormatName);
+      this.deleteFileFormat = FileFormat.fromString(deleteFileFormatName);
     }
 
     Builder dataFileFormat(FileFormat newDataFileFormat) {
@@ -233,13 +254,23 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     SparkFileWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
-      Preconditions.checkArgument(noEqualityDeleteConf || fullEqualityDeleteConf,
+      Preconditions.checkArgument(
+          noEqualityDeleteConf || fullEqualityDeleteConf,
           "Equality field IDs and equality delete row schema must be set together");
 
       return new SparkFileWriterFactory(
-          table, dataFileFormat, dataSchema, dataSparkType, dataSortOrder, deleteFileFormat,
-          equalityFieldIds, equalityDeleteRowSchema, equalityDeleteSparkType, equalityDeleteSortOrder,
-          positionDeleteRowSchema, positionDeleteSparkType);
+          table,
+          dataFileFormat,
+          dataSchema,
+          dataSparkType,
+          dataSortOrder,
+          deleteFileFormat,
+          equalityFieldIds,
+          equalityDeleteRowSchema,
+          equalityDeleteSparkType,
+          equalityDeleteSortOrder,
+          positionDeleteRowSchema,
+          positionDeleteSparkType);
     }
   }
 }

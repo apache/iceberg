@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
@@ -30,11 +33,8 @@ import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.Test;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 
 public class GCSInputStreamTest {
 
@@ -51,9 +51,10 @@ public class GCSInputStreamTest {
 
     writeGCSData(uri, data);
 
-    try (SeekableInputStream in = new GCSInputStream(storage, uri, gcpProperties)) {
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, gcpProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
-      byte [] actual = new byte[readSize];
+      byte[] actual = new byte[readSize];
 
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -78,13 +79,14 @@ public class GCSInputStreamTest {
     }
   }
 
-  private void readAndCheck(SeekableInputStream in, long rangeStart, int size, byte [] original, boolean buffered)
+  private void readAndCheck(
+      SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
     in.seek(rangeStart);
     assertEquals(rangeStart, in.getPos());
 
     long rangeEnd = rangeStart + size;
-    byte [] actual = new byte[size];
+    byte[] actual = new byte[size];
 
     if (buffered) {
       IOUtils.readFully(in, actual);
@@ -102,7 +104,8 @@ public class GCSInputStreamTest {
   @Test
   public void testClose() throws Exception {
     BlobId blobId = BlobId.fromGsUtilUri("gs://bucket/path/to/closed.dat");
-    SeekableInputStream closed = new GCSInputStream(storage, blobId, gcpProperties);
+    SeekableInputStream closed =
+        new GCSInputStream(storage, blobId, gcpProperties, MetricsContext.nullMetrics());
     closed.close();
     assertThrows(IllegalStateException.class, () -> closed.seek(0));
   }
@@ -114,13 +117,14 @@ public class GCSInputStreamTest {
 
     writeGCSData(blobId, data);
 
-    try (SeekableInputStream in = new GCSInputStream(storage, blobId, gcpProperties)) {
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, blobId, gcpProperties, MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
-      byte[] actual = new byte[data.length / 2 ];
+      byte[] actual = new byte[data.length / 2];
 
       IOUtils.readFully(in, actual, 0, data.length / 2);
 
-      byte [] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
+      byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
       assertArrayEquals(expected, actual);
     }
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -40,16 +39,19 @@ public abstract class WriterTestBase<T> extends TableTestBase {
     super(formatVersion);
   }
 
-  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                           Schema equalityDeleteRowSchema,
-                                                           Schema positionDeleteRowSchema);
+  protected abstract FileWriterFactory<T> newWriterFactory(
+      Schema dataSchema,
+      List<Integer> equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      Schema positionDeleteRowSchema);
 
-  protected FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                  Schema equalityDeleteRowSchema) {
+  protected FileWriterFactory<T> newWriterFactory(
+      Schema dataSchema, List<Integer> equalityFieldIds, Schema equalityDeleteRowSchema) {
     return newWriterFactory(dataSchema, equalityFieldIds, equalityDeleteRowSchema, null);
   }
 
-  protected FileWriterFactory<T> newWriterFactory(Schema dataSchema, Schema positionDeleteRowSchema) {
+  protected FileWriterFactory<T> newWriterFactory(
+      Schema dataSchema, Schema positionDeleteRowSchema) {
     return newWriterFactory(dataSchema, null, null, positionDeleteRowSchema);
   }
 
@@ -76,8 +78,13 @@ public abstract class WriterTestBase<T> extends TableTestBase {
     return set;
   }
 
-  protected DataFile writeData(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                               List<T> rows, PartitionSpec spec, StructLike partitionKey) throws IOException {
+  protected DataFile writeData(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      List<T> rows,
+      PartitionSpec spec,
+      StructLike partitionKey)
+      throws IOException {
 
     EncryptedOutputFile file = fileFactory.newOutputFile(spec, partitionKey);
     DataWriter<T> writer = writerFactory.newDataWriter(file, spec, partitionKey);

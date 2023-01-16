@@ -16,19 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * A namespace in a {@link Catalog}.
- */
+/** A namespace in a {@link Catalog}. */
 public class Namespace {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
+  private static final Predicate<String> CONTAINS_NULL_CHARACTER =
+      Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
   public static Namespace empty() {
     return EMPTY_NAMESPACE;
@@ -38,6 +39,13 @@ public class Namespace {
     Preconditions.checkArgument(null != levels, "Cannot create Namespace from null array");
     if (levels.length == 0) {
       return empty();
+    }
+
+    for (String level : levels) {
+      Preconditions.checkNotNull(level, "Cannot create a namespace with a null level");
+      Preconditions.checkArgument(
+          !CONTAINS_NULL_CHARACTER.test(level),
+          "Cannot create a namespace with the null-byte character");
     }
 
     return new Namespace(levels);
@@ -59,6 +67,10 @@ public class Namespace {
 
   public boolean isEmpty() {
     return levels.length == 0;
+  }
+
+  public int length() {
+    return levels.length;
   }
 
   @Override

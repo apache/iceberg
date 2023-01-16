@@ -16,8 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
+
+import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.File;
@@ -30,17 +41,20 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,21 +68,9 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-import static org.mockito.AdditionalAnswers.delegatesTo;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 
 @RunWith(MockitoJUnitRunner.class)
 public class TestS3OutputStream {
@@ -76,8 +78,7 @@ public class TestS3OutputStream {
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @ClassRule
-  public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 
   private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
@@ -85,12 +86,21 @@ public class TestS3OutputStream {
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
   private final String newTmpDirectory = "/tmp/newStagingDirectory";
 
-  private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
-      AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
-      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
+  private final AwsProperties properties =
+      new AwsProperties(
+          ImmutableMap.of(
+              AwsProperties.S3FILEIO_MULTIPART_SIZE,
+              Integer.toString(5 * 1024 * 1024),
+              AwsProperties.S3FILEIO_STAGING_DIRECTORY,
+              tmpDir.toString(),
+              "s3.write.tags.abc",
+              "123",
+              "s3.write.tags.def",
+              "789",
+              "s3.delete.tags.xyz",
+              "456"));
 
-  public TestS3OutputStream() throws IOException {
-  }
+  public TestS3OutputStream() throws IOException {}
 
   @Before
   public void before() {
@@ -113,38 +123,56 @@ public class TestS3OutputStream {
 
   @Test
   public void testAbortAfterFailedPartUpload() {
-    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    RuntimeException mockException = new RuntimeException("mock uploadPart failure");
+    doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThatThrownBy(
+            () -> {
+              try (S3OutputStream stream =
+                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+                stream.write(randomData(10 * 1024 * 1024));
+              }
+            })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
   public void testAbortMultipart() {
-    doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
+    RuntimeException mockException = new RuntimeException("mock completeMultipartUpload failure");
+    doThrow(mockException)
+        .when(s3mock)
+        .completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThatThrownBy(
+            () -> {
+              try (S3OutputStream stream =
+                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+                stream.write(randomData(10 * 1024 * 1024));
+              }
+            })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
   public void testMultipleClose() throws IOException {
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics());
     stream.close();
     stream.close();
   }
 
   @Test
   public void testStagingDirectoryCreation() throws IOException {
-    AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
-        AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
+    AwsProperties newStagingDirectoryAwsProperties =
+        new AwsProperties(
+            ImmutableMap.of(AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
+    S3OutputStream stream =
+        new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
   }
 
@@ -154,53 +182,71 @@ public class TestS3OutputStream {
     writeTest();
   }
 
+  @Test
+  public void testDoubleClose() throws IOException {
+    IllegalStateException mockException =
+        new IllegalStateException("mock failure to completeUploads on close");
+    Mockito.doThrow(mockException)
+        .when(s3mock)
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
+    Assertions.assertThatThrownBy(stream::close)
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    Assertions.assertThatNoException().isThrownBy(stream::close);
+  }
+
   private void writeTest() {
     // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach(arrayWrite -> {
-      // Test small file write (less than multipart threshold)
-      byte[] data = randomData(1024);
-      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
-      ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor =
-          ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
-          (RequestBody) any());
-      checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
-      reset(s3mock);
+    Stream.of(true, false)
+        .forEach(
+            arrayWrite -> {
+              // Test small file write (less than multipart threshold)
+              byte[] data = randomData(1024);
+              writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+              ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor =
+                  ArgumentCaptor.forClass(PutObjectRequest.class);
+              verify(s3mock, times(1))
+                  .putObject(putObjectRequestArgumentCaptor.capture(), (RequestBody) any());
+              checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+              checkTags(putObjectRequestArgumentCaptor);
+              reset(s3mock);
 
-      // Test file larger than part size but less than multipart threshold
-      data = randomData(6 * 1024 * 1024);
-      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
-      putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
-          (RequestBody) any());
-      checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
-      reset(s3mock);
+              // Test file larger than part size but less than multipart threshold
+              data = randomData(6 * 1024 * 1024);
+              writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+              putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+              verify(s3mock, times(1))
+                  .putObject(putObjectRequestArgumentCaptor.capture(), (RequestBody) any());
+              checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+              checkTags(putObjectRequestArgumentCaptor);
+              reset(s3mock);
 
-      // Test file large enough to trigger multipart upload
-      data = randomData(10 * 1024 * 1024);
-      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
-      ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor =
-          ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(2)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
-          (RequestBody) any());
-      checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
-      reset(s3mock);
+              // Test file large enough to trigger multipart upload
+              data = randomData(10 * 1024 * 1024);
+              writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+              ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor =
+                  ArgumentCaptor.forClass(UploadPartRequest.class);
+              verify(s3mock, times(2))
+                  .uploadPart(uploadPartRequestArgumentCaptor.capture(), (RequestBody) any());
+              checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
+              reset(s3mock);
 
-      // Test uploading many parts
-      data = randomData(22 * 1024 * 1024);
-      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
-      uploadPartRequestArgumentCaptor =
-          ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(5)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
-          (RequestBody) any());
-      checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
-      reset(s3mock);
-    });
+              // Test uploading many parts
+              data = randomData(22 * 1024 * 1024);
+              writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+              uploadPartRequestArgumentCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+              verify(s3mock, times(5))
+                  .uploadPart(uploadPartRequestArgumentCaptor.capture(), (RequestBody) any());
+              checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
+              reset(s3mock);
+            });
   }
 
   private void checkUploadPartRequestContent(
-      byte[] data,
-      ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor) {
+      byte[] data, ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor) {
     if (properties.isS3ChecksumEnabled()) {
       List<UploadPartRequest> uploadPartRequests =
           uploadPartRequestArgumentCaptor.getAllValues().stream()
@@ -215,12 +261,23 @@ public class TestS3OutputStream {
   }
 
   private void checkPutObjectRequestContent(
-      byte[] data,
-      ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
+      byte[] data, ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
     if (properties.isS3ChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
     }
+  }
+
+  private void checkTags(ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
+    if (properties.isS3ChecksumEnabled()) {
+      List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
+      String tagging = putObjectRequests.get(0).tagging();
+      assertEquals(getTags(properties.s3WriteTags()), tagging);
+    }
+  }
+
+  private String getTags(Set<Tag> objectTags) {
+    return objectTags.stream().map(e -> e.key() + "=" + e.value()).collect(Collectors.joining("&"));
   }
 
   private String getDigest(byte[] data, int offset, int length) {
@@ -234,8 +291,8 @@ public class TestS3OutputStream {
     return null;
   }
 
-  private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
-    try (S3OutputStream stream = new S3OutputStream(client, uri, properties)) {
+  private void writeAndVerify(S3Client client, S3URI uri, byte[] data, boolean arrayWrite) {
+    try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());
@@ -262,14 +319,15 @@ public class TestS3OutputStream {
 
   private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
-        s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
-        ResponseTransformer.toBytes());
+        s3.getObject(
+            GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
+            ResponseTransformer.toBytes());
 
     return data.asByteArray();
   }
 
   private byte[] randomData(int size) {
-    byte [] result = new byte[size];
+    byte[] result = new byte[size];
     random.nextBytes(result);
     return result;
   }

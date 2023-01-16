@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
@@ -24,23 +23,51 @@ import com.google.cloud.storage.Storage;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
-public class GCSInputFile extends BaseGCSFile implements InputFile {
-  public static GCSInputFile fromLocation(String location, Storage storage, GCPProperties gcpProperties) {
-    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties);
+class GCSInputFile extends BaseGCSFile implements InputFile {
+  private Long length;
+
+  static GCSInputFile fromLocation(
+      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
+    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), null, gcpProperties, metrics);
   }
 
-  GCSInputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties) {
-    super(storage, blobId, gcpProperties);
+  static GCSInputFile fromLocation(
+      String location,
+      long length,
+      Storage storage,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
+    return new GCSInputFile(
+        storage,
+        BlobId.fromGsUtilUri(location),
+        length > 0 ? length : null,
+        gcpProperties,
+        metrics);
+  }
+
+  GCSInputFile(
+      Storage storage,
+      BlobId blobId,
+      Long length,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
+    super(storage, blobId, gcpProperties, metrics);
+    this.length = length;
   }
 
   @Override
   public long getLength() {
-    return getBlob().getSize();
+    if (length == null) {
+      this.length = getBlob().getSize();
+    }
+
+    return length;
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return new GCSInputStream(storage(), blobId(), gcpProperties());
+    return new GCSInputStream(storage(), blobId(), gcpProperties(), metrics());
   }
 }

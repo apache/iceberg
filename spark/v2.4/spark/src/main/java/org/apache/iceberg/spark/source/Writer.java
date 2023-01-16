@@ -16,8 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,6 +41,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
@@ -53,15 +62,6 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
@@ -78,13 +78,28 @@ class Writer implements DataSourceWriter {
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
 
-  Writer(SparkSession spark, Table table, SparkWriteConf writeConf, boolean replacePartitions,
-         String applicationId, Schema writeSchema, StructType dsSchema) {
+  private boolean cleanupOnAbort = true;
+
+  Writer(
+      SparkSession spark,
+      Table table,
+      SparkWriteConf writeConf,
+      boolean replacePartitions,
+      String applicationId,
+      Schema writeSchema,
+      StructType dsSchema) {
     this(spark, table, writeConf, replacePartitions, applicationId, null, writeSchema, dsSchema);
   }
 
-  Writer(SparkSession spark, Table table, SparkWriteConf writeConf, boolean replacePartitions,
-         String applicationId, String wapId, Schema writeSchema, StructType dsSchema) {
+  Writer(
+      SparkSession spark,
+      Table table,
+      SparkWriteConf writeConf,
+      boolean replacePartitions,
+      String applicationId,
+      String wapId,
+      Schema writeSchema,
+      StructType dsSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.format = writeConf.dataFileFormat();
@@ -99,15 +114,20 @@ class Writer implements DataSourceWriter {
   }
 
   private boolean isWapTable() {
-    return Boolean.parseBoolean(table.properties().getOrDefault(
-        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+    return Boolean.parseBoolean(
+        table
+            .properties()
+            .getOrDefault(
+                TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
+                TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-    return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
+    return new WriterFactory(
+        tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
   }
 
   @Override
@@ -136,10 +156,15 @@ class Writer implements DataSourceWriter {
       operation.stageOnly();
     }
 
-    long start = System.currentTimeMillis();
-    operation.commit(); // abort is automatically called if this fails
-    long duration = System.currentTimeMillis() - start;
-    LOG.info("Committed in {} ms", duration);
+    try {
+      long start = System.currentTimeMillis();
+      operation.commit(); // abort is automatically called if this fails
+      long duration = System.currentTimeMillis() - start;
+      LOG.info("Committed in {} ms", duration);
+    } catch (CommitStateUnknownException commitStateUnknownException) {
+      cleanupOnAbort = false;
+      throw commitStateUnknownException;
+    }
   }
 
   private void append(WriterCommitMessage[] messages) {
@@ -175,18 +200,27 @@ class Writer implements DataSourceWriter {
 
   @Override
   public void abort(WriterCommitMessage[] messages) {
-    Map<String, String> props = table.properties();
-    Tasks.foreach(files(messages))
-        .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .throwFailureWhenFinished()
-        .run(file -> {
-          table.io().deleteFile(file.path().toString());
-        });
+    if (cleanupOnAbort) {
+      Map<String, String> props = table.properties();
+      Tasks.foreach(files(messages))
+          .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .throwFailureWhenFinished()
+          .run(
+              file -> {
+                table.io().deleteFile(file.path().toString());
+              });
+    } else {
+      LOG.warn(
+          "Skipping cleaning up of data files because Iceberg was unable to determine the final commit state");
+    }
   }
 
   protected Table table() {
@@ -195,9 +229,13 @@ class Writer implements DataSourceWriter {
 
   protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
-          ImmutableList.copyOf(((TaskCommit) message).files()) :
-          ImmutableList.of()));
+      return Iterables.concat(
+          Iterables.transform(
+              Arrays.asList(messages),
+              message ->
+                  message != null
+                      ? ImmutableList.copyOf(((TaskCommit) message).files())
+                      : ImmutableList.of()));
     }
     return ImmutableList.of();
   }
@@ -227,8 +265,13 @@ class Writer implements DataSourceWriter {
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
-    WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
-                  Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
+    WriterFactory(
+        Broadcast<Table> tableBroadcast,
+        FileFormat format,
+        long targetFileSize,
+        Schema writeSchema,
+        StructType dsSchema,
+        boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.targetFileSize = targetFileSize;
@@ -241,28 +284,36 @@ class Writer implements DataSourceWriter {
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
 
-      OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
-      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, writeSchema, dsSchema).build();
+      OutputFileFactory fileFactory =
+          OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
+      SparkAppenderFactory appenderFactory =
+          SparkAppenderFactory.builderFor(table, writeSchema, dsSchema).build();
 
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
 
       if (spec.isUnpartitioned()) {
-        return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+        return new Unpartitioned24Writer(
+            spec, format, appenderFactory, fileFactory, io, targetFileSize);
       } else if (partitionedFanoutEnabled) {
-        return new PartitionedFanout24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
-            writeSchema, dsSchema);
+        return new PartitionedFanout24Writer(
+            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
       } else {
-        return new Partitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
-            writeSchema, dsSchema);
+        return new Partitioned24Writer(
+            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
       }
     }
   }
 
   private static class Unpartitioned24Writer extends UnpartitionedWriter<InternalRow>
       implements DataWriter<InternalRow> {
-    Unpartitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                          OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
+    Unpartitioned24Writer(
+        PartitionSpec spec,
+        FileFormat format,
+        SparkAppenderFactory appenderFactory,
+        OutputFileFactory fileFactory,
+        FileIO fileIo,
+        long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
     }
 
@@ -274,12 +325,20 @@ class Writer implements DataSourceWriter {
     }
   }
 
-  private static class Partitioned24Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
+  private static class Partitioned24Writer extends SparkPartitionedWriter
+      implements DataWriter<InternalRow> {
 
-    Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                        Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
+    Partitioned24Writer(
+        PartitionSpec spec,
+        FileFormat format,
+        SparkAppenderFactory appenderFactory,
+        OutputFileFactory fileFactory,
+        FileIO fileIo,
+        long targetFileSize,
+        Schema schema,
+        StructType sparkSchema) {
+      super(
+          spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
     }
 
     @Override
@@ -293,12 +352,17 @@ class Writer implements DataSourceWriter {
   private static class PartitionedFanout24Writer extends SparkPartitionedFanoutWriter
       implements DataWriter<InternalRow> {
 
-    PartitionedFanout24Writer(PartitionSpec spec, FileFormat format,
-                              SparkAppenderFactory appenderFactory,
-                              OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                              Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema,
-          sparkSchema);
+    PartitionedFanout24Writer(
+        PartitionSpec spec,
+        FileFormat format,
+        SparkAppenderFactory appenderFactory,
+        OutputFileFactory fileFactory,
+        FileIO fileIo,
+        long targetFileSize,
+        Schema schema,
+        StructType sparkSchema) {
+      super(
+          spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
     }
 
     @Override

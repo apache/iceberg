@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.io.Closeable;
@@ -38,8 +37,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
 
-  public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
-                          ExecutorService workerPool) {
+  public ParallelIterable(Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool) {
     this.iterables = iterables;
     this.workerPool = workerPool;
   }
@@ -56,21 +54,26 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private boolean closed = false;
+    private volatile boolean closed = false;
 
-    private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
-                             ExecutorService workerPool) {
-      this.tasks = Iterables.transform(iterables, iterable ->
-          (Runnable) () -> {
-            try (Closeable ignored = (iterable instanceof Closeable) ?
-                (Closeable) iterable : () -> { }) {
-              for (T item : iterable) {
-                queue.add(item);
-              }
-            } catch (IOException e) {
-              throw new RuntimeIOException(e, "Failed to close iterable");
-            }
-          }).iterator();
+    private ParallelIterator(
+        Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool) {
+      this.tasks =
+          Iterables.transform(
+                  iterables,
+                  iterable ->
+                      (Runnable)
+                          () -> {
+                            try (Closeable ignored =
+                                (iterable instanceof Closeable) ? (Closeable) iterable : () -> {}) {
+                              for (T item : iterable) {
+                                queue.add(item);
+                              }
+                            } catch (IOException e) {
+                              throw new RuntimeIOException(e, "Failed to close iterable");
+                            }
+                          })
+              .iterator();
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
       this.taskFutures = new Future[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
@@ -78,19 +81,23 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
     @Override
     public void close() {
+      // close first, avoid new task submit
+      this.closed = true;
+
       // cancel background tasks
-      for (int i = 0; i < taskFutures.length; i += 1) {
-        if (taskFutures[i] != null && !taskFutures[i].isDone()) {
-          taskFutures[i].cancel(true);
+      for (Future<?> taskFuture : taskFutures) {
+        if (taskFuture != null && !taskFuture.isDone()) {
+          taskFuture.cancel(true);
         }
       }
-      this.closed = true;
+      // clean queue
+      this.queue.clear();
     }
 
     /**
      * Checks on running tasks and submits new tasks if needed.
-     * <p>
-     * This should not be called after {@link #close()}.
+     *
+     * <p>This should not be called after {@link #close()}.
      *
      * @return true if there are pending tasks, false otherwise
      */
@@ -123,11 +130,11 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
       }
 
-      return tasks.hasNext() || hasRunningTask;
+      return !closed && (tasks.hasNext() || hasRunningTask);
     }
 
     private Future<?> submitNextTask() {
-      if (tasks.hasNext()) {
+      if (!closed && tasks.hasNext()) {
         return workerPool.submit(tasks.next());
       }
       return null;

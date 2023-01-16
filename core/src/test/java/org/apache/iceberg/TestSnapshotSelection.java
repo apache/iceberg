@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
@@ -32,7 +31,7 @@ import org.junit.runners.Parameterized;
 public class TestSnapshotSelection extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestSnapshotSelection(int formatVersion) {
@@ -43,14 +42,10 @@ public class TestSnapshotSelection extends TableTestBase {
   public void testSnapshotSelectionById() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    table.newFastAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
     Assert.assertEquals("Table should have two snapshots", 2, Iterables.size(table.snapshots()));
@@ -60,26 +55,27 @@ public class TestSnapshotSelection extends TableTestBase {
 
   @Test
   public void testSnapshotStatsForAddedFiles() {
-    DataFile fileWithStats = DataFiles.builder(SPEC)
-        .withPath("/path/to/data-with-stats.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
-        .withRecordCount(10)
-        .withMetrics(new Metrics(3L,
-            null, // no column sizes
-            ImmutableMap.of(1, 3L), // value count
-            ImmutableMap.of(1, 0L), // null count
-            null,
-            ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
-            ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds
-        .build();
+    DataFile fileWithStats =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-with-stats.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(10)
+            .withMetrics(
+                new Metrics(
+                    3L,
+                    null, // no column sizes
+                    ImmutableMap.of(1, 3L), // value count
+                    ImmutableMap.of(1, 0L), // null count
+                    null,
+                    ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
+                    ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds
+            .build();
 
-    table.newFastAppend()
-        .appendFile(fileWithStats)
-        .commit();
+    table.newFastAppend().appendFile(fileWithStats).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedFiles = snapshot.addedFiles();
+    Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
     Assert.assertEquals(1, Iterables.size(addedFiles));
     DataFile dataFile = Iterables.getOnlyElement(addedFiles);
     Assert.assertNotNull("Value counts should be not null", dataFile.valueCounts());

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -24,17 +23,23 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
-public class OSSInputFile extends BaseOSSFile implements InputFile {
+class OSSInputFile extends BaseOSSFile implements InputFile {
 
   private Long length = null;
 
-  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
-    super(client, uri, aliyunProperties);
+  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
+    super(client, uri, aliyunProperties, metrics);
   }
 
-  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, long length) {
-    super(client, uri, aliyunProperties);
+  OSSInputFile(
+      OSS client,
+      OSSURI uri,
+      AliyunProperties aliyunProperties,
+      long length,
+      MetricsContext metrics) {
+    super(client, uri, aliyunProperties, metrics);
     ValidationException.check(length >= 0, "Invalid file length: %s", length);
     this.length = length;
   }
@@ -49,6 +54,6 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new OSSInputStream(client(), uri());
+    return new OSSInputStream(client(), uri(), metrics());
   }
 }

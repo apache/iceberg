@@ -16,8 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet.vectorized;
+
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.pmod;
+import static org.apache.spark.sql.functions.to_date;
+import static org.apache.spark.sql.functions.to_timestamp;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -33,31 +38,26 @@ import org.apache.spark.sql.catalyst.expressions.DateAdd;
 import org.apache.spark.sql.types.DataTypes;
 import org.openjdk.jmh.annotations.Setup;
 
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.lit;
-import static org.apache.spark.sql.functions.pmod;
-import static org.apache.spark.sql.functions.to_date;
-import static org.apache.spark.sql.functions.to_timestamp;
-
 /**
- * Benchmark to compare performance of reading Parquet dictionary encoded data with a flat schema using vectorized
- * Iceberg read path and the built-in file source in Spark.
- * <p>
- * To run this benchmark for either spark-2 or spark-3:
- * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ * Benchmark to compare performance of reading Parquet dictionary encoded data with a flat schema
+ * using vectorized Iceberg read path and the built-in file source in Spark.
+ *
+ * <p>To run this benchmark for spark-2.4: <code>
+ *   ./gradlew -DsparkVersions=2.4 :iceberg-spark:iceberg-spark-2.4:jmh
  *       -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
-public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends VectorizedReadFlatParquetDataBenchmark {
+public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
+    extends VectorizedReadFlatParquetDataBenchmark {
 
   @Setup
   @Override
   public void setupBenchmark() {
     setupSpark(true);
     appendData();
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within
+    // bounds
     System.setProperty("arrow.enable_unsafe_memory_access", "true");
     // Disable expensive null check for every get(index) call.
     // Iceberg manages nullability checks itself instead of relying on arrow.
@@ -83,9 +83,7 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
     df = withTimestampColumnDictEncoded(df);
     df = withStringColumnDictEncoded(df);
     df = df.drop("id");
-    df.write().format("iceberg")
-        .mode(SaveMode.Append)
-        .save(table().location());
+    df.write().format("iceberg").mode(SaveMode.Append).save(table().location());
   }
 
   private static Column modColumn() {
@@ -110,7 +108,6 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
 
   private static Dataset<Row> withFloatColumnDictEncoded(Dataset<Row> df) {
     return df.withColumn("floatCol", modColumn().cast(DataTypes.FloatType));
-
   }
 
   private static Dataset<Row> withDoubleColumnDictEncoded(Dataset<Row> df) {
@@ -129,7 +126,8 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
 
   private static Dataset<Row> withTimestampColumnDictEncoded(Dataset<Row> df) {
     Column days = modColumn().cast(DataTypes.ShortType);
-    return df.withColumn("timestampCol", to_timestamp(date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), days)));
+    return df.withColumn(
+        "timestampCol", to_timestamp(date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), days)));
   }
 
   private static Dataset<Row> withStringColumnDictEncoded(Dataset<Row> df) {

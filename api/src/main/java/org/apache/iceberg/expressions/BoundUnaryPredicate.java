@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.util.NaNUtil;
@@ -55,6 +54,15 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
       default:
         throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
     }
+  }
+
+  @Override
+  public boolean isEquivalentTo(Expression other) {
+    if (op() == other.op()) {
+      return term().isEquivalentTo(((BoundUnaryPredicate<?>) other).term());
+    }
+
+    return false;
   }
 
   @Override

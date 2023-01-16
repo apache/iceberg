@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
@@ -24,43 +23,53 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * FileIO Implementation backed by Google Cloud Storage (GCS)
- * <p>
- * Locations follow the conventions used by
- * {@link com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri}
- * that follow the convention <pre>{@code gs://<bucket>/<blob_path>}</pre>
- * <p>
- * See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage Overview</a>
+ *
+ * <p>Locations follow the conventions used by {@link
+ * com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri} that follow the
+ * convention
+ *
+ * <pre>{@code gs://<bucket>/<blob_path>}</pre>
+ *
+ * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
+ * Overview</a>
  */
 public class GCSFileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
+  private static final String DEFAULT_METRICS_IMPL =
+      "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private SerializableSupplier<Storage> storageSupplier;
   private GCPProperties gcpProperties;
-  private transient Storage storage;
+  private transient volatile Storage storage;
+  private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private SerializableMap<String, String> properties = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
-   * <p>
-   * All fields are initialized by calling {@link GCSFileIO#initialize(Map)} later.
+   *
+   * <p>All fields are initialized by calling {@link GCSFileIO#initialize(Map)} later.
    */
-  public GCSFileIO() {
-  }
+  public GCSFileIO() {}
 
   /**
    * Constructor with custom storage supplier and GCP properties.
-   * <p>
-   * Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this constructor.
+   *
+   * <p>Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param storageSupplier storage supplier
    * @param gcpProperties gcp properties
@@ -72,12 +81,17 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return GCSInputFile.fromLocation(path, client(), gcpProperties);
+    return GCSInputFile.fromLocation(path, client(), gcpProperties, metrics);
+  }
+
+  @Override
+  public InputFile newInputFile(String path, long length) {
+    return GCSInputFile.fromLocation(path, length, client(), gcpProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return GCSOutputFile.fromLocation(path, client(), gcpProperties);
+    return GCSOutputFile.fromLocation(path, client(), gcpProperties, metrics);
   }
 
   @Override
@@ -90,26 +104,53 @@ public class GCSFileIO implements FileIO {
     }
   }
 
+  @Override
+  public Map<String, String> properties() {
+    return properties.immutableMap();
+  }
+
   private Storage client() {
     if (storage == null) {
-      storage = storageSupplier.get();
+      synchronized (this) {
+        if (storage == null) {
+          storage = storageSupplier.get();
+        }
+      }
     }
     return storage;
   }
 
   @Override
-  public void initialize(Map<String, String> properties) {
+  public void initialize(Map<String, String> props) {
+    this.properties = SerializableMap.copyOf(props);
     this.gcpProperties = new GCPProperties(properties);
 
-    this.storageSupplier = () -> {
-      StorageOptions.Builder builder = StorageOptions.newBuilder();
+    this.storageSupplier =
+        () -> {
+          StorageOptions.Builder builder = StorageOptions.newBuilder();
 
-      gcpProperties.projectId().ifPresent(builder::setProjectId);
-      gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
-      gcpProperties.serviceHost().ifPresent(builder::setHost);
+          gcpProperties.projectId().ifPresent(builder::setProjectId);
+          gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
+          gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-      return builder.build().getService();
-    };
+          // Report Hadoop metrics if Hadoop is available
+          try {
+            DynConstructors.Ctor<MetricsContext> ctor =
+                DynConstructors.builder(MetricsContext.class)
+                    .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+                    .buildChecked();
+            MetricsContext context = ctor.newInstance("gcs");
+            context.initialize(properties);
+            this.metrics = context;
+          } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
+            LOG.warn(
+                "Unable to load metrics class: '{}', falling back to null metrics",
+                DEFAULT_METRICS_IMPL,
+                e);
+          }
+
+          return builder.build().getService();
+        };
   }
 
   @Override

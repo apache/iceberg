@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 class CommitCallbackTransaction implements Transaction {
@@ -100,6 +99,11 @@ class CommitCallbackTransaction implements Transaction {
   @Override
   public DeleteFiles newDelete() {
     return wrapped.newDelete();
+  }
+
+  @Override
+  public UpdateStatistics updateStatistics() {
+    return wrapped.updateStatistics();
   }
 
   @Override

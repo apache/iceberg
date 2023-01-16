@@ -16,19 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 
-/**
- * Interface for delete files listed in a table delete manifest.
- */
+/** Interface for delete files listed in a table delete manifest. */
 public interface DeleteFile extends ContentFile<DeleteFile> {
   /**
-   * @return List of recommended split locations, if applicable, null otherwise.
-   * When available, this information is used for planning scan tasks whose boundaries
-   * are determined by these offsets. The returned list must be sorted in ascending order.
+   * @return List of recommended split locations, if applicable, null otherwise. When available,
+   *     this information is used for planning scan tasks whose boundaries are determined by these
+   *     offsets. The returned list must be sorted in ascending order.
    */
   @Override
   default List<Long> splitOffsets() {

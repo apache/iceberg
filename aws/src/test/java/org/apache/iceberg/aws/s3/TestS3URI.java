@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class TestS3URI {
 
@@ -49,27 +50,22 @@ public class TestS3URI {
   }
 
   @Test
-  public void testEmptyPath() {
-    AssertHelpers.assertThrows("Should not allow missing object key",
-        ValidationException.class,
-        "Invalid S3 URI, path is empty",
-        () -> new S3URI("https://bucket/"));
-  }
-
-  @Test
   public void testMissingScheme() {
-    AssertHelpers.assertThrows("Should not allow missing scheme",
+    AssertHelpers.assertThrows(
+        "Should not allow missing scheme",
         ValidationException.class,
         "Invalid S3 URI, cannot determine scheme",
         () -> new S3URI("/path/to/file"));
   }
 
   @Test
-  public void testMissingBucket() {
-    AssertHelpers.assertThrows("Should not allow missing bucket",
-        ValidationException.class,
-        "Invalid S3 URI, cannot determine bucket",
-        () -> new S3URI("https://bucket"));
+  public void testOnlyBucketNameLocation() {
+    String p1 = "s3://bucket";
+    S3URI url1 = new S3URI(p1);
+
+    assertEquals("bucket", url1.bucket());
+    assertEquals("", url1.key());
+    assertEquals(p1, url1.toString());
   }
 
   @Test
@@ -89,5 +85,16 @@ public class TestS3URI {
       assertEquals("bucket", uri.bucket());
       assertEquals("path/to/file", uri.key());
     }
+  }
+
+  @Test
+  public void testS3URIWithBucketToAccessPointMapping() {
+    String p1 = "s3://bucket/path/to/file?query=foo#bar";
+    Map<String, String> bucketToAccessPointMapping = ImmutableMap.of("bucket", "access-point");
+    S3URI uri1 = new S3URI(p1, bucketToAccessPointMapping);
+
+    assertEquals("access-point", uri1.bucket());
+    assertEquals("path/to/file", uri1.key());
+    assertEquals(p1, uri1.toString());
   }
 }

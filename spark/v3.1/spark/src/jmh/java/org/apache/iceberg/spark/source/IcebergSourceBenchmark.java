@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -25,6 +24,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -79,7 +79,8 @@ public abstract class IcebergSourceBenchmark {
 
   protected String dataLocation() {
     Map<String, String> properties = table.properties();
-    return properties.getOrDefault(TableProperties.WRITE_DATA_LOCATION, String.format("%s/data", table.location()));
+    return properties.getOrDefault(
+        TableProperties.WRITE_DATA_LOCATION, String.format("%s/data", table.location()));
   }
 
   protected void cleanupFiles() throws IOException {
@@ -92,12 +93,12 @@ public abstract class IcebergSourceBenchmark {
   }
 
   protected void setupSpark(boolean enableDictionaryEncoding) {
-    SparkSession.Builder builder = SparkSession.builder()
-            .config("spark.ui.enabled", false);
+    SparkSession.Builder builder = SparkSession.builder().config("spark.ui.enabled", false);
     if (!enableDictionaryEncoding) {
-      builder.config("parquet.dictionary.page.size", "1")
-              .config("parquet.enable.dictionary", false)
-              .config(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
+      builder
+          .config("parquet.dictionary.page.size", "1")
+          .config("parquet.enable.dictionary", false)
+          .config(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
     }
     builder.master("local");
     spark = builder.getOrCreate();
@@ -114,13 +115,14 @@ public abstract class IcebergSourceBenchmark {
   }
 
   protected void materialize(Dataset<?> ds) {
-    ds.queryExecution().toRdd().toJavaRDD().foreach(record -> { });
+    ds.queryExecution().toRdd().toJavaRDD().foreach(record -> {});
   }
 
   protected void appendAsFile(Dataset<Row> ds) {
     // ensure the schema is precise (including nullability)
     StructType sparkSchema = SparkSchemaUtil.convert(table.schema());
-    spark.createDataFrame(ds.rdd(), sparkSchema)
+    spark
+        .createDataFrame(ds.rdd(), sparkSchema)
         .coalesce(1)
         .write()
         .format("iceberg")
@@ -132,42 +134,49 @@ public abstract class IcebergSourceBenchmark {
     SQLConf sqlConf = SQLConf.get();
 
     Map<String, String> currentConfValues = Maps.newHashMap();
-    conf.keySet().forEach(confKey -> {
-      if (sqlConf.contains(confKey)) {
-        String currentConfValue = sqlConf.getConfString(confKey);
-        currentConfValues.put(confKey, currentConfValue);
-      }
-    });
+    conf.keySet()
+        .forEach(
+            confKey -> {
+              if (sqlConf.contains(confKey)) {
+                String currentConfValue = sqlConf.getConfString(confKey);
+                currentConfValues.put(confKey, currentConfValue);
+              }
+            });
 
-    conf.forEach((confKey, confValue) -> {
-      if (SQLConf.staticConfKeys().contains(confKey)) {
-        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
-      }
-      sqlConf.setConfString(confKey, confValue);
-    });
+    conf.forEach(
+        (confKey, confValue) -> {
+          if (SQLConf.staticConfKeys().contains(confKey)) {
+            throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+          }
+          sqlConf.setConfString(confKey, confValue);
+        });
 
     try {
       action.invoke();
     } finally {
-      conf.forEach((confKey, confValue) -> {
-        if (currentConfValues.containsKey(confKey)) {
-          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
-        } else {
-          sqlConf.unsetConf(confKey);
-        }
-      });
+      conf.forEach(
+          (confKey, confValue) -> {
+            if (currentConfValues.containsKey(confKey)) {
+              sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+            } else {
+              sqlConf.unsetConf(confKey);
+            }
+          });
     }
   }
 
   protected void withTableProperties(Map<String, String> props, Action action) {
     Map<String, String> tableProps = table.properties();
     Map<String, String> currentPropValues = Maps.newHashMap();
-    props.keySet().forEach(propKey -> {
-      if (tableProps.containsKey(propKey)) {
-        String currentPropValue = tableProps.get(propKey);
-        currentPropValues.put(propKey, currentPropValue);
-      }
-    });
+    props
+        .keySet()
+        .forEach(
+            propKey -> {
+              if (tableProps.containsKey(propKey)) {
+                String currentPropValue = tableProps.get(propKey);
+                currentPropValues.put(propKey, currentPropValue);
+              }
+            });
 
     UpdateProperties updateProperties = table.updateProperties();
     props.forEach(updateProperties::set);
@@ -177,14 +186,19 @@ public abstract class IcebergSourceBenchmark {
       action.invoke();
     } finally {
       UpdateProperties restoreProperties = table.updateProperties();
-      props.forEach((propKey, propValue) -> {
-        if (currentPropValues.containsKey(propKey)) {
-          restoreProperties.set(propKey, currentPropValues.get(propKey));
-        } else {
-          restoreProperties.remove(propKey);
-        }
-      });
+      props.forEach(
+          (propKey, propValue) -> {
+            if (currentPropValues.containsKey(propKey)) {
+              restoreProperties.set(propKey, currentPropValues.get(propKey));
+            } else {
+              restoreProperties.remove(propKey);
+            }
+          });
       restoreProperties.commit();
     }
+  }
+
+  protected FileFormat fileFormat() {
+    throw new UnsupportedOperationException("Unsupported file format");
   }
 }

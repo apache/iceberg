@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Set;
@@ -25,11 +24,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /**
  * API for replacing files in a table.
- * <p>
- * This API accumulates file additions and deletions, produces a new {@link Snapshot} of the
+ *
+ * <p>This API accumulates file additions and deletions, produces a new {@link Snapshot} of the
  * changes, and commits that snapshot as the current.
- * <p>
- * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
+ *
+ * <p>When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  * If any of the deleted files are no longer in the latest snapshot when reattempting, the commit
  * will throw a {@link ValidationException}.
@@ -39,46 +38,45 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * Add a rewrite that replaces one set of data files with another set that contains the same data.
    *
    * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
-   * @param filesToAdd    files that will be added, cannot be null or empty.
+   * @param filesToAdd files that will be added, cannot be null or empty.
    * @return this for method chaining
    */
   default RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
-    return rewriteFiles(
-        filesToDelete,
-        ImmutableSet.of(),
-        filesToAdd,
-        ImmutableSet.of()
-    );
+    return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
 
   /**
    * Add a rewrite that replaces one set of data files with another set that contains the same data.
    * The sequence number provided will be used for all the data files added.
    *
-   * @param filesToDelete  files that will be replaced (deleted), cannot be null or empty.
-   * @param filesToAdd     files that will be added, cannot be null or empty.
+   * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
+   * @param filesToAdd files that will be added, cannot be null or empty.
    * @param sequenceNumber sequence number to use for all data files added
    * @return this for method chaining
    */
-  RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber);
+  RewriteFiles rewriteFiles(
+      Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber);
 
   /**
    * Add a rewrite that replaces one set of files with another set that contains the same data.
    *
-   * @param dataFilesToReplace   data files that will be replaced (deleted).
+   * @param dataFilesToReplace data files that will be replaced (deleted).
    * @param deleteFilesToReplace delete files that will be replaced (deleted).
-   * @param dataFilesToAdd      data files that will be added.
-   * @param deleteFilesToAdd    delete files that will be added.
+   * @param dataFilesToAdd data files that will be added.
+   * @param deleteFilesToAdd delete files that will be added.
    * @return this for method chaining.
    */
-  RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
-                            Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd);
+  RewriteFiles rewriteFiles(
+      Set<DataFile> dataFilesToReplace,
+      Set<DeleteFile> deleteFilesToReplace,
+      Set<DataFile> dataFilesToAdd,
+      Set<DeleteFile> deleteFilesToAdd);
 
   /**
    * Set the snapshot ID used in any reads for this operation.
-   * <p>
-   * Validations will check changes after this snapshot ID. If this is not called, all ancestor snapshots through the
-   * table's initial snapshot are validated.
+   *
+   * <p>Validations will check changes after this snapshot ID. If this is not called, all ancestor
+   * snapshots through the table's initial snapshot are validated.
    *
    * @param snapshotId a snapshot ID
    * @return this for method chaining

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.io.IOException;
@@ -45,14 +44,14 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestOrcDataWriter {
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "data", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()));
 
   private List<Record> records;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createRecords() {
@@ -72,22 +71,20 @@ public class TestOrcDataWriter {
   public void testDataWriter() throws IOException {
     OutputFile file = Files.localOutput(temp.newFile());
 
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA)
-        .withOrderId(10)
-        .asc("id")
-        .build();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
-    DataWriter<Record> dataWriter = ORC.writeData(file)
-        .schema(SCHEMA)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .withSortOrder(sortOrder)
-        .build();
+    DataWriter<Record> dataWriter =
+        ORC.writeData(file)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .withSortOrder(sortOrder)
+            .build();
 
     try {
       for (Record record : records) {
-        dataWriter.add(record);
+        dataWriter.write(record);
       }
     } finally {
       dataWriter.close();
@@ -99,14 +96,16 @@ public class TestOrcDataWriter {
     Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
     Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
     Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals("Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
+    Assert.assertEquals(
+        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
     Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
 
     List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader = ORC.read(file.toInputFile())
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(file.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 

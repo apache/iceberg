@@ -32,9 +32,10 @@ BUILD:
   - "**/*gradle*"
   - versions.props
 DOCS:
-  - site/**/*
+  - docs/**/*
   - "**/*CHANGELOG.md"
   - "**/*README.md"
+  - "**/*CONTRIBUTING.md"
 EXAMPLES:
   - examples/**/*
 COMMON:
@@ -60,7 +61,6 @@ DATA:
   - data/**/*
 SPARK:
   - spark-runtime/**/*
-  - spark3-runtime/**/*
   - spark/**/*
   - spark2/**/*
   - spark3/**/*
@@ -78,3 +78,9 @@ NESSIE:
   - nessie/**/*
 ALIYUN:
   - aliyun/**/*
+GCP:
+  - gcp/**/*
+DELL:
+  - dell/**/*
+SNOWFLAKE:
+  - snowflake/**/*

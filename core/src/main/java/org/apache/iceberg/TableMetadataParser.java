@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -26,7 +25,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -42,6 +40,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -59,12 +58,16 @@ public class TableMetadataParser {
 
     public static Codec fromName(String codecName) {
       Preconditions.checkArgument(codecName != null, "Codec name is null");
-      return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      try {
+        return Codec.valueOf(codecName.toUpperCase(Locale.ENGLISH));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(String.format("Invalid codec name: %s", codecName), e);
+      }
     }
 
     public static Codec fromFileName(String fileName) {
-      Preconditions.checkArgument(fileName.contains(".metadata.json"),
-          "%s is not a valid metadata file", fileName);
+      Preconditions.checkArgument(
+          fileName.contains(".metadata.json"), "%s is not a valid metadata file", fileName);
       // we have to be backward-compatible with .metadata.json.gz files
       if (fileName.endsWith(".metadata.json.gz")) {
         return Codec.GZIP;
@@ -78,8 +81,7 @@ public class TableMetadataParser {
     }
   }
 
-  private TableMetadataParser() {
-  }
+  private TableMetadataParser() {}
 
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
@@ -99,12 +101,14 @@ public class TableMetadataParser {
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+  static final String REFS = "refs";
   static final String SNAPSHOTS = "snapshots";
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
   static final String SNAPSHOT_LOG = "snapshot-log";
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
+  static final String STATISTICS = "statistics";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -119,7 +123,7 @@ public class TableMetadataParser {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
-         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
+        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
@@ -153,7 +157,8 @@ public class TableMetadataParser {
     }
   }
 
-  private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
@@ -166,7 +171,8 @@ public class TableMetadataParser {
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
     // for older readers, continue writing the current schema as "schema".
-    // this is only needed for v1 because support for schemas and current-schema-id is required in v2 and later.
+    // this is only needed for v1 because support for schemas and current-schema-id is required in
+    // v2 and later.
     if (metadata.formatVersion() == 1) {
       generator.writeFieldName(SCHEMA);
       SchemaParser.toJson(metadata.schema(), generator);
@@ -205,18 +211,23 @@ public class TableMetadataParser {
     generator.writeEndArray();
 
     // write properties map
-    generator.writeObjectFieldStart(PROPERTIES);
-    for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-    }
-    generator.writeEndObject();
+    JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
-    generator.writeNumberField(CURRENT_SNAPSHOT_ID,
+    generator.writeNumberField(
+        CURRENT_SNAPSHOT_ID,
         metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+
+    toJson(metadata.refs(), generator);
 
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
+    }
+    generator.writeEndArray();
+
+    generator.writeArrayFieldStart(STATISTICS);
+    for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
+      StatisticsFileParser.toJson(statisticsFile, generator);
     }
     generator.writeEndArray();
 
@@ -241,14 +252,25 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
+  private static void toJson(Map<String, SnapshotRef> refs, JsonGenerator generator)
+      throws IOException {
+    generator.writeObjectFieldStart(REFS);
+    for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
+      generator.writeFieldName(refEntry.getKey());
+      SnapshotRefParser.toJson(refEntry.getValue(), generator);
+    }
+    generator.writeEndObject();
+  }
+
   public static TableMetadata read(FileIO io, String path) {
     return read(io, io.newInputFile(path));
   }
 
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
-    try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+    try (InputStream is =
+        codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -256,46 +278,45 @@ public class TableMetadataParser {
 
   /**
    * Read TableMetadata from a JSON string.
-   * <p>
-   * The TableMetadata's metadata file location will be unset.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
+   * <p>The TableMetadata's metadata file location will be unset.
+   *
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String json) {
-    return fromJson(io, null, json);
+  public static TableMetadata fromJson(String json) {
+    return fromJson(null, json);
   }
 
   /**
    * Read TableMetadata from a JSON string.
    *
-   * @param io a FileIO used by {@link Snapshot} instances
    * @param metadataLocation metadata location for the returned {@link TableMetadata}
    * @param json a JSON string of table metadata
    * @return a TableMetadata object
    */
-  public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(io, metadataLocation, node);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
-    }
+  public static TableMetadata fromJson(String metadataLocation, String json) {
+    return JsonUtil.parse(json, node -> TableMetadataParser.fromJson(metadataLocation, node));
   }
 
-  static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
-    return fromJson(io, file.location(), node);
+  static TableMetadata fromJson(InputFile file, JsonNode node) {
+    return fromJson(file.location(), node);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
-        "Cannot parse metadata from a non-object: %s", node);
+  public static TableMetadata fromJson(JsonNode node) {
+    return fromJson((String) null, node);
+  }
+
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
+  static TableMetadata fromJson(String metadataLocation, JsonNode node) {
+    Preconditions.checkArgument(
+        node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
-    Preconditions.checkArgument(formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
-        "Cannot read unsupported version %s", formatVersion);
+    Preconditions.checkArgument(
+        formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
+        "Cannot read unsupported version %s",
+        formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
@@ -313,8 +334,8 @@ public class TableMetadataParser {
 
     JsonNode schemaArray = node.get(SCHEMAS);
     if (schemaArray != null) {
-      Preconditions.checkArgument(schemaArray.isArray(),
-          "Cannot parse schemas from non-array: %s", schemaArray);
+      Preconditions.checkArgument(
+          schemaArray.isArray(), "Cannot parse schemas from non-array: %s", schemaArray);
       // current schema ID is required when the schema array is present
       currentSchemaId = JsonUtil.getInt(CURRENT_SCHEMA_ID, node);
 
@@ -328,16 +349,20 @@ public class TableMetadataParser {
         builder.add(current);
       }
 
-      Preconditions.checkArgument(schema != null,
-          "Cannot find schema with %s=%s from %s", CURRENT_SCHEMA_ID, currentSchemaId, SCHEMAS);
+      Preconditions.checkArgument(
+          schema != null,
+          "Cannot find schema with %s=%s from %s",
+          CURRENT_SCHEMA_ID,
+          currentSchemaId,
+          SCHEMAS);
 
       schemas = builder.build();
 
     } else {
-      Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%s", SCHEMAS, formatVersion);
+      Preconditions.checkArgument(
+          formatVersion == 1, "%s must exist in format v%s", SCHEMAS, formatVersion);
 
-      schema = SchemaParser.fromJson(node.get(SCHEMA));
+      schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, node));
       currentSchemaId = schema.schemaId();
       schemas = ImmutableList.of(schema);
     }
@@ -346,34 +371,45 @@ public class TableMetadataParser {
     List<PartitionSpec> specs;
     int defaultSpecId;
     if (specArray != null) {
-      Preconditions.checkArgument(specArray.isArray(),
-          "Cannot parse partition specs from non-array: %s", specArray);
+      Preconditions.checkArgument(
+          specArray.isArray(), "Cannot parse partition specs from non-array: %s", specArray);
       // default spec ID is required when the spec array is present
       defaultSpecId = JsonUtil.getInt(DEFAULT_SPEC_ID, node);
 
       // parse the spec array
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
-        builder.add(PartitionSpecParser.fromJson(schema, spec));
+        UnboundPartitionSpec unboundSpec = PartitionSpecParser.fromJson(spec);
+        if (unboundSpec.specId() == defaultSpecId) {
+          builder.add(unboundSpec.bind(schema));
+        } else {
+          builder.add(unboundSpec.bindUnchecked(schema));
+        }
       }
       specs = builder.build();
 
     } else {
-      Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%s", PARTITION_SPECS, formatVersion);
+      Preconditions.checkArgument(
+          formatVersion == 1, "%s must exist in format v%s", PARTITION_SPECS, formatVersion);
       // partition spec is required for older readers, but is always set to the default if the spec
       // array is set. it is only used to default the spec map is missing, indicating that the
       // table metadata was written by an older writer.
       defaultSpecId = TableMetadata.INITIAL_SPEC_ID;
-      specs = ImmutableList.of(PartitionSpecParser.fromJsonFields(
-          schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
+      specs =
+          ImmutableList.of(
+              PartitionSpecParser.fromJsonFields(
+                  schema, TableMetadata.INITIAL_SPEC_ID, JsonUtil.get(PARTITION_SPEC, node)));
     }
 
     Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_PARTITION_ID, node);
     if (lastAssignedPartitionId == null) {
-      Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
-      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
+      Preconditions.checkArgument(
+          formatVersion == 1, "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
+      lastAssignedPartitionId =
+          specs.stream()
+              .mapToInt(PartitionSpec::lastAssignedFieldId)
+              .max()
+              .orElse(PartitionSpec.unpartitioned().lastAssignedFieldId());
     }
 
     // parse the sort orders
@@ -388,8 +424,8 @@ public class TableMetadataParser {
       }
       sortOrders = sortOrdersBuilder.build();
     } else {
-      Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%s", SORT_ORDERS, formatVersion);
+      Preconditions.checkArgument(
+          formatVersion == 1, "%s must exist in format v%s", SORT_ORDERS, formatVersion);
       SortOrder defaultSortOrder = SortOrder.unsorted();
       sortOrders = ImmutableList.of(defaultSortOrder);
       defaultSortOrderId = defaultSortOrder.orderId();
@@ -397,17 +433,36 @@ public class TableMetadataParser {
 
     // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
-    long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
+    long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
-    JsonNode snapshotArray = node.get(SNAPSHOTS);
-    Preconditions.checkArgument(snapshotArray.isArray(),
-        "Cannot parse snapshots from non-array: %s", snapshotArray);
+    Map<String, SnapshotRef> refs;
+    if (node.has(REFS)) {
+      refs = refsFromJson(node.get(REFS));
+    } else if (currentSnapshotId != -1) {
+      // initialize the main branch if there are no refs
+      refs =
+          ImmutableMap.of(
+              SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(currentSnapshotId).build());
+    } else {
+      refs = ImmutableMap.of();
+    }
+
+    JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
+    Preconditions.checkArgument(
+        snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
 
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(iterator.next()));
+    }
+
+    List<StatisticsFile> statisticsFiles;
+    if (node.has(STATISTICS)) {
+      statisticsFiles = statisticsFilesFromJson(node.get(STATISTICS));
+    } else {
+      statisticsFiles = ImmutableList.of();
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
@@ -415,8 +470,10 @@ public class TableMetadataParser {
       Iterator<JsonNode> logIterator = node.get(SNAPSHOT_LOG).elements();
       while (logIterator.hasNext()) {
         JsonNode entryNode = logIterator.next();
-        entries.add(new SnapshotLogEntry(
-            JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getLong(SNAPSHOT_ID, entryNode)));
+        entries.add(
+            new SnapshotLogEntry(
+                JsonUtil.getLong(TIMESTAMP_MS, entryNode),
+                JsonUtil.getLong(SNAPSHOT_ID, entryNode)));
       }
     }
 
@@ -425,14 +482,66 @@ public class TableMetadataParser {
       Iterator<JsonNode> logIterator = node.get(METADATA_LOG).elements();
       while (logIterator.hasNext()) {
         JsonNode entryNode = logIterator.next();
-        metadataEntries.add(new MetadataLogEntry(
-                JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
+        metadataEntries.add(
+            new MetadataLogEntry(
+                JsonUtil.getLong(TIMESTAMP_MS, entryNode),
+                JsonUtil.getString(METADATA_FILE, entryNode)));
       }
     }
 
-    return new TableMetadata(metadataLocation, formatVersion, uuid, location,
-        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build(), ImmutableList.of() /* no changes from the file */);
+    return new TableMetadata(
+        metadataLocation,
+        formatVersion,
+        uuid,
+        location,
+        lastSequenceNumber,
+        lastUpdatedMillis,
+        lastAssignedColumnId,
+        currentSchemaId,
+        schemas,
+        defaultSpecId,
+        specs,
+        lastAssignedPartitionId,
+        defaultSortOrderId,
+        sortOrders,
+        properties,
+        currentSnapshotId,
+        snapshots,
+        entries.build(),
+        metadataEntries.build(),
+        refs,
+        statisticsFiles,
+        ImmutableList.of() /* no changes from the file */);
+  }
+
+  private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {
+    Preconditions.checkArgument(refMap.isObject(), "Cannot parse refs from non-object: %s", refMap);
+
+    ImmutableMap.Builder<String, SnapshotRef> refsBuilder = ImmutableMap.builder();
+    Iterator<String> refNames = refMap.fieldNames();
+    while (refNames.hasNext()) {
+      String refName = refNames.next();
+      JsonNode refNode = JsonUtil.get(refName, refMap);
+      Preconditions.checkArgument(
+          refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
+      SnapshotRef ref = SnapshotRefParser.fromJson(refNode);
+      refsBuilder.put(refName, ref);
+    }
+
+    return refsBuilder.build();
+  }
+
+  private static List<StatisticsFile> statisticsFilesFromJson(JsonNode statisticsFilesList) {
+    Preconditions.checkArgument(
+        statisticsFilesList.isArray(),
+        "Cannot parse statistics files from non-array: %s",
+        statisticsFilesList);
+
+    ImmutableList.Builder<StatisticsFile> statisticsFilesBuilder = ImmutableList.builder();
+    for (JsonNode statisticsFile : statisticsFilesList) {
+      statisticsFilesBuilder.add(StatisticsFileParser.fromJson(statisticsFile));
+    }
+
+    return statisticsFilesBuilder.build();
   }
 }

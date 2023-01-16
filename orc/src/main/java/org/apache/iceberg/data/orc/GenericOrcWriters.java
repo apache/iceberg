@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.io.IOException;
@@ -60,8 +59,7 @@ public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  private GenericOrcWriters() {
-  }
+  private GenericOrcWriters() {}
 
   public static OrcValueWriter<Boolean> booleans() {
     return BooleanWriter.INSTANCE;
@@ -137,12 +135,13 @@ public class GenericOrcWriters {
     return new ListWriter<>(element);
   }
 
-  public static <K, V> OrcValueWriter<Map<K, V>> map(OrcValueWriter<K> key, OrcValueWriter<V> value) {
+  public static <K, V> OrcValueWriter<Map<K, V>> map(
+      OrcValueWriter<K> key, OrcValueWriter<V> value) {
     return new MapWriter<>(key, value);
   }
 
-  public static <T> OrcRowWriter<PositionDelete<T>> positionDelete(OrcRowWriter<T> writer,
-      Function<CharSequence, ?> pathTransformFunc) {
+  public static <T> OrcRowWriter<PositionDelete<T>> positionDelete(
+      OrcRowWriter<T> writer, Function<CharSequence, ?> pathTransformFunc) {
     return new PositionDeleteStructWriter<>(writer, pathTransformFunc);
   }
 
@@ -222,10 +221,14 @@ public class GenericOrcWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       FieldMetrics<Float> metricsWithoutNullCount = floatFieldMetricsBuilder.build();
-      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
-          metricsWithoutNullCount.valueCount() + nullValueCount,
-          nullValueCount, metricsWithoutNullCount.nanValueCount(),
-          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
+      return Stream.of(
+          new FieldMetrics<>(
+              metricsWithoutNullCount.id(),
+              metricsWithoutNullCount.valueCount() + nullValueCount,
+              nullValueCount,
+              metricsWithoutNullCount.nanValueCount(),
+              metricsWithoutNullCount.lowerBound(),
+              metricsWithoutNullCount.upperBound()));
     }
   }
 
@@ -251,10 +254,14 @@ public class GenericOrcWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       FieldMetrics<Double> metricsWithoutNullCount = doubleFieldMetricsBuilder.build();
-      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
-          metricsWithoutNullCount.valueCount() + nullValueCount,
-          nullValueCount, metricsWithoutNullCount.nanValueCount(),
-          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
+      return Stream.of(
+          new FieldMetrics<>(
+              metricsWithoutNullCount.id(),
+              metricsWithoutNullCount.valueCount() + nullValueCount,
+              nullValueCount,
+              metricsWithoutNullCount.nanValueCount(),
+              metricsWithoutNullCount.lowerBound(),
+              metricsWithoutNullCount.upperBound()));
     }
   }
 
@@ -274,8 +281,8 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
       if (data.hasArray()) {
-        ((BytesColumnVector) output).setRef(rowId, data.array(),
-                data.arrayOffset() + data.position(), data.remaining());
+        ((BytesColumnVector) output)
+            .setRef(rowId, data.array(), data.arrayOffset() + data.position(), data.remaining());
       } else {
         byte[] rawData = ByteBuffers.toByteArray(data);
         ((BytesColumnVector) output).setRef(rowId, rawData, 0, rawData.length);
@@ -318,6 +325,7 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzWriter();
 
     @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
     public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       // millis
@@ -331,11 +339,13 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampWriter();
 
     @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
       cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
-      cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
+      cv.nanos[rowId] =
+          (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
     }
   }
 
@@ -350,13 +360,21 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
-      Preconditions.checkArgument(data.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
-      Preconditions.checkArgument(data.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), invalid precision: %s", precision, scale, data);
+      Preconditions.checkArgument(
+          data.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          data);
+      Preconditions.checkArgument(
+          data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), invalid precision: %s",
+          precision,
+          scale,
+          data);
 
-      ((DecimalColumnVector) output).vector[rowId]
-          .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
+      ((DecimalColumnVector) output)
+          .vector[rowId].setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
     }
   }
 
@@ -371,10 +389,18 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
-      Preconditions.checkArgument(data.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
-      Preconditions.checkArgument(data.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), invalid precision: %s", precision, scale, data);
+      Preconditions.checkArgument(
+          data.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          data);
+      Preconditions.checkArgument(
+          data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), invalid precision: %s",
+          precision,
+          scale,
+          data);
 
       ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
     }
@@ -491,7 +517,8 @@ public class GenericOrcWriters {
       implements OrcRowWriter<PositionDelete<T>> {
     private final Function<CharSequence, ?> pathTransformFunc;
 
-    PositionDeleteStructWriter(OrcRowWriter<T> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
+    PositionDeleteStructWriter(
+        OrcRowWriter<T> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
       super(replacedWriter.writers());
       this.pathTransformFunc = pathTransformFunc;
     }
@@ -512,7 +539,8 @@ public class GenericOrcWriters {
     @Override
     public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
       Preconditions.checkArgument(row != null, "value must not be null");
-      Preconditions.checkArgument(writers().size() == 2 || row.row() != null,
+      Preconditions.checkArgument(
+          writers().size() == 2 || row.row() != null,
           "The row in PositionDelete must not be null because it was set row schema in position delete.");
       writeRow(row, output);
     }

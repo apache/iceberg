@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -67,19 +65,18 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
-        new Object[] {"avro", false},
-        new Object[] {"avro", true},
-        new Object[] {"orc", false},
-        new Object[] {"orc", true},
-        new Object[] {"parquet", false},
-        new Object[] {"parquet", true}
+      new Object[] {"avro", false},
+      new Object[] {"avro", true},
+      new Object[] {"orc", false},
+      new Object[] {"orc", true},
+      new Object[] {"parquet", false},
+      new Object[] {"parquet", true}
     };
   }
 
-
   public TestAppenderFactory(String fileFormat, boolean partitioned) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
     this.partitioned = partitioned;
   }
 
@@ -99,14 +96,11 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     this.partition = createPartitionKey();
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
-    table.updateProperties()
-        .defaultFormat(format)
-        .commit();
+    table.updateProperties().defaultFormat(format).commit();
   }
 
-  protected abstract FileAppenderFactory<T> createAppenderFactory(List<Integer> equalityFieldIds,
-                                                                  Schema eqDeleteSchema,
-                                                                  Schema posDeleteRowSchema);
+  protected abstract FileAppenderFactory<T> createAppenderFactory(
+      List<Integer> equalityFieldIds, Schema eqDeleteSchema, Schema posDeleteRowSchema);
 
   protected abstract T createRow(Integer id, String data);
 
@@ -147,15 +141,16 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         createRow(2, "bbb"),
         createRow(3, "ccc"),
         createRow(4, "ddd"),
-        createRow(5, "eee")
-    );
+        createRow(5, "eee"));
   }
 
-  private DataFile prepareDataFile(List<T> rowSet, FileAppenderFactory<T> appenderFactory) throws IOException {
-    DataWriter<T> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, partition);
+  private DataFile prepareDataFile(List<T> rowSet, FileAppenderFactory<T> appenderFactory)
+      throws IOException {
+    DataWriter<T> writer =
+        appenderFactory.newDataWriter(createEncryptedOutputFile(), format, partition);
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rowSet) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 
@@ -169,58 +164,49 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     List<T> rowSet = testRowSet();
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
-    table.newRowDelta()
-        .addRows(dataFile)
-        .commit();
+    table.newRowDelta().addRows(dataFile).commit();
 
-    Assert.assertEquals("Should have the expected records.", expectedRowSet(rowSet), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have the expected records.", expectedRowSet(rowSet), actualRowSet("*"));
   }
 
   @Test
   public void testEqDeleteWriter() throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("id").fieldId());
     Schema eqDeleteRowSchema = table.schema().select("id");
-    FileAppenderFactory<T> appenderFactory = createAppenderFactory(equalityFieldIds, eqDeleteRowSchema, null);
+    FileAppenderFactory<T> appenderFactory =
+        createAppenderFactory(equalityFieldIds, eqDeleteRowSchema, null);
 
     List<T> rowSet = testRowSet();
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
-    table.newRowDelta()
-        .addRows(dataFile)
-        .commit();
+    table.newRowDelta().addRows(dataFile).commit();
 
-    // The equality field is 'id'. No matter what the value  of 'data' field is, we should delete the 1th, 3th, 5th
+    // The equality field is 'id'. No matter what the value  of 'data' field is, we should delete
+    // the 1th, 3th, 5th
     // rows.
-    List<T> deletes = Lists.newArrayList(
-        createRow(1, "aaa"),
-        createRow(3, "bbb"),
-        createRow(5, "ccc")
-    );
+    List<T> deletes =
+        Lists.newArrayList(createRow(1, "aaa"), createRow(3, "bbb"), createRow(5, "ccc"));
     EncryptedOutputFile out = createEncryptedOutputFile();
-    EqualityDeleteWriter<T> eqDeleteWriter = appenderFactory.newEqDeleteWriter(out, format, partition);
+    EqualityDeleteWriter<T> eqDeleteWriter =
+        appenderFactory.newEqDeleteWriter(out, format, partition);
     try (EqualityDeleteWriter<T> closeableWriter = eqDeleteWriter) {
-      closeableWriter.deleteAll(deletes);
+      closeableWriter.write(deletes);
     }
 
     // Check that the delete equality file has the expected equality deletes.
     GenericRecord gRecord = GenericRecord.create(eqDeleteRowSchema);
-    Set<Record> expectedDeletes = Sets.newHashSet(
-        gRecord.copy("id", 1),
-        gRecord.copy("id", 3),
-        gRecord.copy("id", 5)
-    );
-    Assert.assertEquals(expectedDeletes,
+    Set<Record> expectedDeletes =
+        Sets.newHashSet(gRecord.copy("id", 1), gRecord.copy("id", 3), gRecord.copy("id", 5));
+    Assert.assertEquals(
+        expectedDeletes,
         Sets.newHashSet(createReader(eqDeleteRowSchema, out.encryptingOutputFile().toInputFile())));
 
-    table.newRowDelta()
-        .addDeletes(eqDeleteWriter.toDeleteFile())
-        .commit();
+    table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
 
-    List<T> expected = Lists.newArrayList(
-        createRow(2, "bbb"),
-        createRow(4, "ddd")
-    );
-    Assert.assertEquals("Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
+    Assert.assertEquals(
+        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
   }
 
   @Test
@@ -231,43 +217,45 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     List<T> rowSet = testRowSet();
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L),
-        Pair.of(dataFile.path(), 2L),
-        Pair.of(dataFile.path(), 4L)
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L),
+            Pair.of(dataFile.path(), 2L),
+            Pair.of(dataFile.path(), 4L));
 
     EncryptedOutputFile out = createEncryptedOutputFile();
-    PositionDeleteWriter<T> eqDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDeleteWriter<T> eqDeleteWriter =
+        appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        closeableWriter.delete(delete.first(), delete.second());
+        closeableWriter.write(posDelete.set(delete.first(), delete.second(), null));
       }
     }
 
     // Check that the pos delete file has the expected pos deletes.
     Schema pathPosSchema = DeleteSchemaUtil.pathPosSchema();
     GenericRecord gRecord = GenericRecord.create(pathPosSchema);
-    Set<Record> expectedDeletes = Sets.newHashSet(
-        gRecord.copy("file_path", dataFile.path(), "pos", 0L),
-        gRecord.copy("file_path", dataFile.path(), "pos", 2L),
-        gRecord.copy("file_path", dataFile.path(), "pos", 4L)
-    );
-    Assert.assertEquals(expectedDeletes,
+    Set<Record> expectedDeletes =
+        Sets.newHashSet(
+            gRecord.copy("file_path", dataFile.path(), "pos", 0L),
+            gRecord.copy("file_path", dataFile.path(), "pos", 2L),
+            gRecord.copy("file_path", dataFile.path(), "pos", 4L));
+    Assert.assertEquals(
+        expectedDeletes,
         Sets.newHashSet(createReader(pathPosSchema, out.encryptingOutputFile().toInputFile())));
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(eqDeleteWriter.toDeleteFile())
         .validateDataFilesExist(eqDeleteWriter.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
-    List<T> expected = Lists.newArrayList(
-        createRow(2, "bbb"),
-        createRow(4, "ddd")
-    );
-    Assert.assertEquals("Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
+    Assert.assertEquals(
+        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
   }
 
   @Test
@@ -277,17 +265,19 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     List<T> rowSet = testRowSet();
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
-    List<PositionDelete<T>> deletes = Lists.newArrayList(
-        positionDelete(dataFile.path(), 0, rowSet.get(0)),
-        positionDelete(dataFile.path(), 2, rowSet.get(2)),
-        positionDelete(dataFile.path(), 4, rowSet.get(4))
-    );
+    List<PositionDelete<T>> deletes =
+        Lists.newArrayList(
+            positionDelete(dataFile.path(), 0, rowSet.get(0)),
+            positionDelete(dataFile.path(), 2, rowSet.get(2)),
+            positionDelete(dataFile.path(), 4, rowSet.get(4)));
 
     EncryptedOutputFile out = createEncryptedOutputFile();
-    PositionDeleteWriter<T> eqDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDeleteWriter<T> eqDeleteWriter =
+        appenderFactory.newPosDeleteWriter(out, format, partition);
+    PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
-        closeableWriter.delete(delete.path(), delete.pos(), delete.row());
+        closeableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
       }
     }
 
@@ -295,26 +285,44 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     Schema pathPosRowSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
     GenericRecord gRecord = GenericRecord.create(pathPosRowSchema);
     GenericRecord rowRecord = GenericRecord.create(table.schema());
-    Set<Record> expectedDeletes = Sets.newHashSet(
-        gRecord.copy("file_path", dataFile.path(), "pos", 0L, "row", rowRecord.copy("id", 1, "data", "aaa")),
-        gRecord.copy("file_path", dataFile.path(), "pos", 2L, "row", rowRecord.copy("id", 3, "data", "ccc")),
-        gRecord.copy("file_path", dataFile.path(), "pos", 4L, "row", rowRecord.copy("id", 5, "data", "eee"))
-    );
-    Assert.assertEquals(expectedDeletes,
+    Set<Record> expectedDeletes =
+        Sets.newHashSet(
+            gRecord.copy(
+                "file_path",
+                dataFile.path(),
+                "pos",
+                0L,
+                "row",
+                rowRecord.copy("id", 1, "data", "aaa")),
+            gRecord.copy(
+                "file_path",
+                dataFile.path(),
+                "pos",
+                2L,
+                "row",
+                rowRecord.copy("id", 3, "data", "ccc")),
+            gRecord.copy(
+                "file_path",
+                dataFile.path(),
+                "pos",
+                4L,
+                "row",
+                rowRecord.copy("id", 5, "data", "eee")));
+    Assert.assertEquals(
+        expectedDeletes,
         Sets.newHashSet(createReader(pathPosRowSchema, out.encryptingOutputFile().toInputFile())));
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(eqDeleteWriter.toDeleteFile())
         .validateDataFilesExist(eqDeleteWriter.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
-    List<T> expected = Lists.newArrayList(
-        createRow(2, "bbb"),
-        createRow(4, "ddd")
-    );
-    Assert.assertEquals("Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
+    List<T> expected = Lists.newArrayList(createRow(2, "bbb"), createRow(4, "ddd"));
+    Assert.assertEquals(
+        "Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
   }
 
   private CloseableIterable<Record> createReader(Schema schema, InputFile inputFile) {
@@ -326,10 +334,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
             .build();
 
       case AVRO:
-        return Avro.read(inputFile)
-            .project(schema)
-            .createReaderFunc(DataReader::create)
-            .build();
+        return Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
 
       case ORC:
         return ORC.read(inputFile)

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +32,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -39,6 +43,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
@@ -73,21 +79,23 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
- * <p>
- * This supports the following catalog configuration options:
+ *
+ * <p>This supports the following catalog configuration options:
+ *
  * <ul>
- *   <li><code>type</code> - catalog type, "hive" or "hadoop"</li>
- *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
- *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
- *   <li><code>default-namespace</code> - a namespace to use as the default</li>
- *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
- *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from catalog cache.
- *       Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further details and significant values.
- *   </li>
+ *   <li><code>type</code> - catalog type, "hive" or "hadoop". To specify a non-hive or hadoop
+ *       catalog, use the <code>catalog-impl</code> option.
+ *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)
+ *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)
+ *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use
+ *   <li><code>default-namespace</code> - a namespace to use as the default
+ *   <li><code>cache-enabled</code> - whether to enable catalog cache
+ *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from
+ *       catalog cache. Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further
+ *       details and significant values.
  * </ul>
+ *
  * <p>
- * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -113,7 +121,7 @@ public class SparkCatalog extends BaseCatalog {
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    optionsMap.putAll(options);
+    optionsMap.putAll(options.asCaseSensitiveMap());
     optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
     optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
@@ -140,17 +148,18 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public SparkTable createTable(Identifier ident, StructType schema,
-                                Transform[] transforms,
-                                Map<String, String> properties) throws TableAlreadyExistsException {
+  public SparkTable createTable(
+      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+      throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
-      Table icebergTable = builder
-          .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-          .withLocation(properties.get("location"))
-          .withProperties(Spark3Util.rebuildCreateProperties(properties))
-          .create();
+      Table icebergTable =
+          builder
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+              .withLocation(properties.get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .create();
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
@@ -158,15 +167,18 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] transforms,
-                                 Map<String, String> properties) throws TableAlreadyExistsException {
+  public StagedTable stageCreate(
+      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+      throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
-      Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-          .withLocation(properties.get("location"))
-          .withProperties(Spark3Util.rebuildCreateProperties(properties))
-          .createTransaction();
+      Transaction transaction =
+          builder
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+              .withLocation(properties.get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .createTransaction();
       return new StagedSparkTable(transaction);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
@@ -174,15 +186,18 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
-                                  Map<String, String> properties) throws NoSuchTableException {
+  public StagedTable stageReplace(
+      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+      throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
-      Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-          .withLocation(properties.get("location"))
-          .withProperties(Spark3Util.rebuildCreateProperties(properties))
-          .replaceTransaction();
+      Transaction transaction =
+          builder
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+              .withLocation(properties.get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .replaceTransaction();
       return new StagedSparkTable(transaction);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -190,19 +205,22 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
-                                          Map<String, String> properties) {
+  public StagedTable stageCreateOrReplace(
+      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
-    Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-        .withLocation(properties.get("location"))
-        .withProperties(Spark3Util.rebuildCreateProperties(properties))
-        .createOrReplaceTransaction();
+    Transaction transaction =
+        builder
+            .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+            .withLocation(properties.get("location"))
+            .withProperties(Spark3Util.rebuildCreateProperties(properties))
+            .createOrReplaceTransaction();
     return new StagedSparkTable(transaction);
   }
 
   @Override
-  public SparkTable alterTable(Identifier ident, TableChange... changes) throws NoSuchTableException {
+  public SparkTable alterTable(Identifier ident, TableChange... changes)
+      throws NoSuchTableException {
     SetProperty setLocation = null;
     SetProperty setSnapshotId = null;
     SetProperty pickSnapshotId = null;
@@ -219,8 +237,9 @@ public class SparkCatalog extends BaseCatalog {
         } else if ("cherry-pick-snapshot-id".equalsIgnoreCase(set.property())) {
           pickSnapshotId = set;
         } else if ("sort-order".equalsIgnoreCase(set.property())) {
-          throw new UnsupportedOperationException("Cannot specify the 'sort-order' because it's a reserved table " +
-              "property. Please use the command 'ALTER TABLE ... WRITE ORDERED BY' to specify write sort-orders.");
+          throw new UnsupportedOperationException(
+              "Cannot specify the 'sort-order' because it's a reserved table "
+                  + "property. Please use the command 'ALTER TABLE ... WRITE ORDERED BY' to specify write sort-orders.");
         } else {
           propertyChanges.add(set);
         }
@@ -235,7 +254,8 @@ public class SparkCatalog extends BaseCatalog {
 
     try {
       Table table = load(ident).first();
-      commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
+      commitChanges(
+          table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
       return new SparkTable(table, true /* refreshEagerly */);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -244,17 +264,49 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
+    return dropTableWithoutPurging(ident);
+  }
+
+  @Override
+  public boolean purgeTable(Identifier ident) {
     try {
-      return isPathIdentifier(ident) ?
-          tables.dropTable(((PathIdentifier) ident).location()) :
-          icebergCatalog.dropTable(buildIdentifier(ident));
+      Table table = load(ident).first();
+      ValidationException.check(
+          PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+          "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
+      String metadataFileLocation =
+          ((HasTableOperations) table).operations().current().metadataFileLocation();
+
+      boolean dropped = dropTableWithoutPurging(ident);
+
+      if (dropped) {
+        // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables
+        // will drop the
+        // warehouse directly and ignore the `purge` argument.
+        boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
+
+        if (metadataFileExists) {
+          SparkActions.get().deleteReachableFiles(metadataFileLocation).io(table.io()).execute();
+        }
+      }
+
+      return dropped;
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
   }
 
+  private boolean dropTableWithoutPurging(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
+    } else {
+      return icebergCatalog.dropTable(buildIdentifier(ident), false /* don't purge data */);
+    }
+  }
+
   @Override
-  public void renameTable(Identifier from, Identifier to) throws NoSuchTableException, TableAlreadyExistsException {
+  public void renameTable(Identifier from, Identifier to)
+      throws NoSuchTableException, TableAlreadyExistsException {
     try {
       checkNotPathIdentifier(from, "renameTable");
       checkNotPathIdentifier(to, "renameTable");
@@ -316,7 +368,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public Map<String, String> loadNamespaceMetadata(String[] namespace) throws NoSuchNamespaceException {
+  public Map<String, String> loadNamespaceMetadata(String[] namespace)
+      throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
       try {
         return asNamespaceCatalog.loadNamespaceMetadata(Namespace.of(namespace));
@@ -329,10 +382,12 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public void createNamespace(String[] namespace, Map<String, String> metadata) throws NamespaceAlreadyExistsException {
+  public void createNamespace(String[] namespace, Map<String, String> metadata)
+      throws NamespaceAlreadyExistsException {
     if (asNamespaceCatalog != null) {
       try {
-        if (asNamespaceCatalog instanceof HadoopCatalog && DEFAULT_NS_KEYS.equals(metadata.keySet())) {
+        if (asNamespaceCatalog instanceof HadoopCatalog
+            && DEFAULT_NS_KEYS.equals(metadata.keySet())) {
           // Hadoop catalog will reject metadata properties, but Spark automatically adds "owner".
           // If only the automatic properties are present, replace metadata with an empty map.
           asNamespaceCatalog.createNamespace(Namespace.of(namespace), ImmutableMap.of());
@@ -343,12 +398,14 @@ public class SparkCatalog extends BaseCatalog {
         throw new NamespaceAlreadyExistsException(namespace);
       }
     } else {
-      throw new UnsupportedOperationException("Namespaces are not supported by catalog: " + catalogName);
+      throw new UnsupportedOperationException(
+          "Namespaces are not supported by catalog: " + catalogName);
     }
   }
 
   @Override
-  public void alterNamespace(String[] namespace, NamespaceChange... changes) throws NoSuchNamespaceException {
+  public void alterNamespace(String[] namespace, NamespaceChange... changes)
+      throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
       Map<String, String> updates = Maps.newHashMap();
       Set<String> removals = Sets.newHashSet();
@@ -359,7 +416,8 @@ public class SparkCatalog extends BaseCatalog {
         } else if (change instanceof NamespaceChange.RemoveProperty) {
           removals.add(((NamespaceChange.RemoveProperty) change).property());
         } else {
-          throw new UnsupportedOperationException("Cannot apply unknown namespace change: " + change);
+          throw new UnsupportedOperationException(
+              "Cannot apply unknown namespace change: " + change);
         }
       }
 
@@ -395,12 +453,15 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = PropertyUtil.propertyAsBoolean(options,
-        CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
+    this.cacheEnabled =
+        PropertyUtil.propertyAsBoolean(
+            options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
-    long cacheExpirationIntervalMs = PropertyUtil.propertyAsLong(options,
-        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
-        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+    long cacheExpirationIntervalMs =
+        PropertyUtil.propertyAsLong(
+            options,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+            CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
@@ -412,17 +473,24 @@ public class SparkCatalog extends BaseCatalog {
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
-    this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
-    this.tables = new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
+    this.useTimestampsWithoutZone =
+        SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
+    this.tables =
+        new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
+    this.icebergCatalog =
+        cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {
-        this.defaultNamespace = Splitter.on('.')
-            .splitToList(options.get("default-namespace"))
-            .toArray(new String[0]);
+        this.defaultNamespace =
+            Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
     }
+
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
+    EnvironmentContext.put(
+        EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
+    EnvironmentContext.put(CatalogProperties.APP_ID, sparkSession.sparkContext().applicationId());
   }
 
   @Override
@@ -430,12 +498,18 @@ public class SparkCatalog extends BaseCatalog {
     return catalogName;
   }
 
-  private static void commitChanges(Table table, SetProperty setLocation, SetProperty setSnapshotId,
-                                    SetProperty pickSnapshotId, List<TableChange> propertyChanges,
-                                    List<TableChange> schemaChanges) {
-    // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
+  private static void commitChanges(
+      Table table,
+      SetProperty setLocation,
+      SetProperty setSnapshotId,
+      SetProperty pickSnapshotId,
+      List<TableChange> propertyChanges,
+      List<TableChange> schemaChanges) {
+    // don't allow setting the snapshot and picking a commit at the same time because order is
+    // ambiguous and choosing
     // one order leads to different results
-    Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
+    Preconditions.checkArgument(
+        setSnapshotId == null || pickSnapshotId == null,
         "Cannot set the current the current snapshot ID and cherry-pick snapshot changes");
 
     if (setSnapshotId != null) {
@@ -452,9 +526,7 @@ public class SparkCatalog extends BaseCatalog {
     Transaction transaction = table.newTransaction();
 
     if (setLocation != null) {
-      transaction.updateLocation()
-          .setLocation(setLocation.value())
-          .commit();
+      transaction.updateLocation().setLocation(setLocation.value()).commit();
     }
 
     if (!propertyChanges.isEmpty()) {
@@ -474,8 +546,9 @@ public class SparkCatalog extends BaseCatalog {
 
   private static void checkNotPathIdentifier(Identifier identifier, String method) {
     if (identifier instanceof PathIdentifier) {
-      throw new IllegalArgumentException(String.format("Cannot pass path based identifier to %s method. %s is a path.",
-          method, identifier));
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot pass path based identifier to %s method. %s is a path.", method, identifier));
     }
   }
 
@@ -492,7 +565,8 @@ public class SparkCatalog extends BaseCatalog {
         throw e;
       }
 
-      // if the original load didn't work, the identifier may be extended and include a snapshot selector
+      // if the original load didn't work, the identifier may be extended and include a snapshot
+      // selector
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       Table table;
       try {
@@ -556,10 +630,13 @@ public class SparkCatalog extends BaseCatalog {
       }
     }
 
-    Preconditions.checkArgument(asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot-id and as-of-timestamp: %s", ident.location());
+    Preconditions.checkArgument(
+        asOfTimestamp == null || snapshotId == null,
+        "Cannot specify both snapshot-id and as-of-timestamp: %s",
+        ident.location());
 
-    Table table = tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
+    Table table =
+        tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
     if (snapshotId != null) {
       return Pair.of(table, snapshotId);
@@ -571,16 +648,16 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {
-    Preconditions.checkArgument(namespace.length > 0,
-        "Cannot convert empty namespace to identifier");
+    Preconditions.checkArgument(
+        namespace.length > 0, "Cannot convert empty namespace to identifier");
     String[] ns = Arrays.copyOf(namespace, namespace.length - 1);
     String name = namespace[ns.length];
     return Identifier.of(ns, name);
   }
 
   private Catalog.TableBuilder newBuilder(Identifier ident, Schema schema) {
-    return isPathIdentifier(ident) ?
-        tables.buildTable(((PathIdentifier) ident).location(), schema) :
-        icebergCatalog.buildTable(buildIdentifier(ident), schema);
+    return isPathIdentifier(ident)
+        ? tables.buildTable(((PathIdentifier) ident).location(), schema)
+        : icebergCatalog.buildTable(buildIdentifier(ident), schema);
   }
 }

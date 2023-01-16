@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.mockito.Mockito;
@@ -37,6 +36,11 @@ public class MockFileScanTask extends BaseFileScanTask {
 
   public MockFileScanTask(DataFile file, DeleteFile[] deleteFiles) {
     super(file, deleteFiles, null, null, null);
+    this.length = file.fileSizeInBytes();
+  }
+
+  public MockFileScanTask(DataFile file, String schemaString, String specString) {
+    super(file, null, schemaString, specString, null);
     this.length = file.fileSizeInBytes();
   }
 

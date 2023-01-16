@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -25,6 +24,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -35,8 +35,7 @@ public class ReachableFileUtil {
   private static final Logger LOG = LoggerFactory.getLogger(ReachableFileUtil.class);
   private static final String METADATA_FOLDER_NAME = "metadata";
 
-  private ReachableFileUtil() {
-  }
+  private ReachableFileUtil() {}
 
   /**
    * Returns the location of the version hint file
@@ -54,9 +53,9 @@ public class ReachableFileUtil {
   /**
    * Returns locations of JSON metadata files in a table.
    *
-   * @param table     Table to get JSON metadata files from
-   * @param recursive When true, recursively retrieves all the reachable JSON metadata files.
-   *                  When false, gets the all the JSON metadata files only from the current metadata.
+   * @param table Table to get JSON metadata files from
+   * @param recursive When true, recursively retrieves all the reachable JSON metadata files. When
+   *     false, gets the all the JSON metadata files only from the current metadata.
    * @return locations of JSON metadata files
    */
   public static Set<String> metadataFileLocations(Table table, boolean recursive) {
@@ -68,8 +67,8 @@ public class ReachableFileUtil {
     return metadataFileLocations;
   }
 
-  private static void metadataFileLocations(TableMetadata metadata, Set<String> metadataFileLocations,
-                                            FileIO io, boolean recursive) {
+  private static void metadataFileLocations(
+      TableMetadata metadata, Set<String> metadataFileLocations, FileIO io, boolean recursive) {
     List<MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
     if (metadataLogEntries.size() > 0) {
       for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
@@ -84,7 +83,8 @@ public class ReachableFileUtil {
     }
   }
 
-  private static TableMetadata findFirstExistentPreviousMetadata(List<MetadataLogEntry> metadataLogEntries, FileIO io) {
+  private static TableMetadata findFirstExistentPreviousMetadata(
+      List<MetadataLogEntry> metadataLogEntries, FileIO io) {
     TableMetadata metadata = null;
     for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
       try {
@@ -101,10 +101,25 @@ public class ReachableFileUtil {
    * Returns locations of manifest lists in a table.
    *
    * @param table table for which manifestList needs to be fetched
-   * @return the location of manifest Lists
+   * @return the location of manifest lists
    */
   public static List<String> manifestListLocations(Table table) {
+    return manifestListLocations(table, null);
+  }
+
+  /**
+   * Returns locations of manifest lists in a table.
+   *
+   * @param table table for which manifestList needs to be fetched
+   * @param snapshotIds ids of snapshots for which manifest lists will be returned
+   * @return the location of manifest lists
+   */
+  public static List<String> manifestListLocations(Table table, Set<Long> snapshotIds) {
     Iterable<Snapshot> snapshots = table.snapshots();
+    if (snapshotIds != null) {
+      snapshots = Iterables.filter(snapshots, s -> snapshotIds.contains(s.snapshotId()));
+    }
+
     List<String> manifestListLocations = Lists.newArrayList();
     for (Snapshot snapshot : snapshots) {
       String manifestListLocation = snapshot.manifestListLocation();
@@ -113,5 +128,20 @@ public class ReachableFileUtil {
       }
     }
     return manifestListLocations;
+  }
+
+  /**
+   * Returns locations of statistics files in a table.
+   *
+   * @param table table for which statistics files needs to be listed
+   * @return the location of statistics files
+   */
+  public static List<String> statisticsFilesLocations(Table table) {
+    List<String> statisticsFilesLocations = Lists.newArrayList();
+    for (StatisticsFile statisticsFile : table.statisticsFiles()) {
+      statisticsFilesLocations.add(statisticsFile.path());
+    }
+
+    return statisticsFilesLocations;
   }
 }

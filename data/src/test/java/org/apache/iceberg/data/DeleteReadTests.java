@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.io.IOException;
@@ -48,28 +47,25 @@ import org.junit.rules.TemporaryFolder;
 
 public abstract class DeleteReadTests {
   // Schema passed to create tables
-  public static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.IntegerType.get()),
-      Types.NestedField.required(2, "data", Types.StringType.get())
-  );
+  public static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()));
 
-  public static final Schema DATE_SCHEMA = new Schema(
-      Types.NestedField.required(1, "dt", Types.DateType.get()),
-      Types.NestedField.required(2, "data", Types.StringType.get()),
-      Types.NestedField.required(3, "id", Types.IntegerType.get())
-  );
+  public static final Schema DATE_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "dt", Types.DateType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()),
+          Types.NestedField.required(3, "id", Types.IntegerType.get()));
 
   // Partition spec used to create tables
-  public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
-      .build();
+  public static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
 
-  public static final PartitionSpec DATE_SPEC = PartitionSpec.builderFor(DATE_SCHEMA)
-      .day("dt")
-      .build();
+  public static final PartitionSpec DATE_SPEC =
+      PartitionSpec.builderFor(DATE_SCHEMA).day("dt").build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   protected String tableName = null;
   protected String dateTableName = null;
@@ -95,11 +91,10 @@ public abstract class DeleteReadTests {
     records.add(record.copy("id", 121, "data", "f"));
     records.add(record.copy("id", 122, "data", "g"));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+    this.dataFile =
+        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
 
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
   }
 
   @After
@@ -115,30 +110,47 @@ public abstract class DeleteReadTests {
 
     GenericRecord record = GenericRecord.create(dateTable.schema());
 
-    this.dateRecords = Lists.newArrayList(
-        record.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
-        record.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
-        record.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3),
-        record.copy("dt", LocalDate.parse("2021-09-04"), "data", "d", "id", 4),
-        record.copy("dt", LocalDate.parse("2021-09-05"), "data", "e", "id", 5));
+    this.dateRecords =
+        Lists.newArrayList(
+            record.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+            record.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+            record.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3),
+            record.copy("dt", LocalDate.parse("2021-09-04"), "data", "d", "id", 4),
+            record.copy("dt", LocalDate.parse("2021-09-05"), "data", "e", "id", 5));
 
-    DataFile dataFile1 = FileHelpers.writeDataFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dateRecords.subList(0, 1));
-    DataFile dataFile2 = FileHelpers.writeDataFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dateRecords.subList(1, 2));
-    DataFile dataFile3 = FileHelpers.writeDataFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dateRecords.subList(2, 3));
-    DataFile dataFile4 = FileHelpers.writeDataFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))), dateRecords.subList(3, 4));
-    DataFile dataFile5 = FileHelpers.writeDataFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))), dateRecords.subList(4, 5));
+    DataFile dataFile1 =
+        FileHelpers.writeDataFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
+            dateRecords.subList(0, 1));
+    DataFile dataFile2 =
+        FileHelpers.writeDataFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
+            dateRecords.subList(1, 2));
+    DataFile dataFile3 =
+        FileHelpers.writeDataFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
+            dateRecords.subList(2, 3));
+    DataFile dataFile4 =
+        FileHelpers.writeDataFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))),
+            dateRecords.subList(3, 4));
+    DataFile dataFile5 =
+        FileHelpers.writeDataFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))),
+            dateRecords.subList(4, 5));
 
-    dateTable.newAppend()
+    dateTable
+        .newAppend()
         .appendFile(dataFile1)
         .appendFile(dataFile2)
         .appendFile(dataFile3)
@@ -147,37 +159,60 @@ public abstract class DeleteReadTests {
         .commit();
   }
 
-  protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
+  protected abstract Table createTable(String name, Schema schema, PartitionSpec spec)
+      throws IOException;
 
   protected abstract void dropTable(String name) throws IOException;
 
-  protected abstract StructLikeSet rowSet(String name, Table testTable, String... columns) throws IOException;
+  protected abstract StructLikeSet rowSet(String name, Table testTable, String... columns)
+      throws IOException;
 
   protected boolean expectPruned() {
     return true;
+  }
+
+  protected boolean countDeletes() {
+    return false;
+  }
+
+  /**
+   * This will only be called after calling rowSet(String, Table, String...), and only if
+   * countDeletes() is true.
+   */
+  protected long deleteCount() {
+    return 0L;
+  }
+
+  protected void checkDeleteCount(long expectedDeletes) {
+    if (countDeletes()) {
+      long actualDeletes = deleteCount();
+      Assert.assertEquals(
+          "Table should contain expected number of deletes", expectedDeletes, actualDeletes);
+    }
   }
 
   @Test
   public void testEqualityDeletes() throws IOException {
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -186,23 +221,36 @@ public abstract class DeleteReadTests {
 
     Schema deleteRowSchema = dateTable.schema().select("*");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
-        dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
-        dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3));
 
-    DeleteFile eqDeletes1 = FileHelpers.writeDeleteFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dataDeletes.subList(0, 1), deleteRowSchema);
-    DeleteFile eqDeletes2 = FileHelpers.writeDeleteFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dataDeletes.subList(1, 2), deleteRowSchema);
-    DeleteFile eqDeletes3 = FileHelpers.writeDeleteFile(
-        dateTable, Files.localOutput(temp.newFile()),
-        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dataDeletes.subList(2, 3), deleteRowSchema);
+    DeleteFile eqDeletes1 =
+        FileHelpers.writeDeleteFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
+            dataDeletes.subList(0, 1),
+            deleteRowSchema);
+    DeleteFile eqDeletes2 =
+        FileHelpers.writeDeleteFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
+            dataDeletes.subList(1, 2),
+            deleteRowSchema);
+    DeleteFile eqDeletes3 =
+        FileHelpers.writeDeleteFile(
+            dateTable,
+            Files.localOutput(temp.newFile()),
+            Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
+            dataDeletes.subList(2, 3),
+            deleteRowSchema);
 
-    dateTable.newRowDelta()
+    dateTable
+        .newRowDelta()
         .addDeletes(eqDeletes1)
         .addDeletes(eqDeletes2)
         .addDeletes(eqDeletes3)
@@ -213,24 +261,25 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(dateTableName, dateTable, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
   public void testEqualityDeletesWithRequiredEqColumn() throws IOException {
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 29, 89, 122), "id");
     StructLikeSet actual = rowSet(tableName, table, "id");
@@ -238,9 +287,13 @@ public abstract class DeleteReadTests {
     if (expectPruned()) {
       Assert.assertEquals("Table should contain expected rows", expected, actual);
     } else {
-      // data is added by the reader to apply the eq deletes, use StructProjection to remove it from comparison
-      Assert.assertEquals("Table should contain expected rows", expected, selectColumns(actual, "id"));
+      // data is added by the reader to apply the eq deletes, use StructProjection to remove it from
+      // comparison
+      Assert.assertEquals(
+          "Table should contain expected rows", expected, selectColumns(actual, "id"));
     }
+
+    checkDeleteCount(3L);
   }
 
   @Test
@@ -249,45 +302,50 @@ public abstract class DeleteReadTests {
     GenericRecord record = GenericRecord.create(table.schema());
     records.add(record.copy("id", 144, "data", "a"));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+    this.dataFile =
+        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
 
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    // At this point, the table has two data files, with 7 and 8 rows respectively, of which all but
+    // one are in duplicate.
+    table.newAppend().appendFile(dataFile).commit();
 
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29, 144
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29, 144
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    // At this point, 3 rows in the first data file and 4 rows in the second data file are deleted.
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122, 144);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(7L);
   }
 
   @Test
   public void testPositionDeletes() throws IOException {
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L), // id = 29
-        Pair.of(dataFile.path(), 3L), // id = 89
-        Pair.of(dataFile.path(), 6L) // id = 122
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 3L), // id = 89
+            Pair.of(dataFile.path(), 6L) // id = 122
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -296,31 +354,36 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
   public void testMultiplePosDeleteFiles() throws IOException {
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L), // id = 29
-        Pair.of(dataFile.path(), 3L) // id = 89
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 3L) // id = 89
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 6L) // id = 122
-    );
+    deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 6L) // id = 122
+            );
 
-    posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+    posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -329,30 +392,35 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
   public void testMixedPositionAndEqualityDeletes() throws IOException {
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 3L), // id = 89
-        Pair.of(dataFile.path(), 5L) // id = 121
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 3L), // id = 89
+            Pair.of(dataFile.path(), 5L) // id = 121
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(eqDeletes)
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
@@ -362,77 +430,80 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
   public void testMultipleEqualityDeleteSchemas() throws IOException {
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile dataEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+    DeleteFile dataEqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
     Schema idSchema = table.schema().select("id");
     Record idDelete = GenericRecord.create(idSchema);
-    List<Record> idDeletes = Lists.newArrayList(
-        idDelete.copy("id", 121), // id = 121
-        idDelete.copy("id", 29) // id = 29
-    );
+    List<Record> idDeletes =
+        Lists.newArrayList(
+            idDelete.copy("id", 121), // id = 121
+            idDelete.copy("id", 29) // id = 29
+            );
 
-    DeleteFile idEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
+    DeleteFile idEqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
 
-    table.newRowDelta()
-        .addDeletes(dataEqDeletes)
-        .addDeletes(idEqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(dataEqDeletes).addDeletes(idEqDeletes).commit();
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(4L);
   }
 
   @Test
   public void testEqualityDeleteByNull() throws IOException {
     // data is required in the test table; make it optional for this test
-    table.updateSchema()
-        .makeColumnOptional("data")
-        .commit();
+    table.updateSchema().makeColumnOptional("data").commit();
 
     // add a new data file with a record where data is null
     Record record = GenericRecord.create(table.schema());
-    DataFile dataFileWithNull = FileHelpers.writeDataFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0),
-        Lists.newArrayList(record.copy("id", 131, "data", null)));
+    DataFile dataFileWithNull =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            Row.of(0),
+            Lists.newArrayList(record.copy("id", 131, "data", null)));
 
-    table.newAppend()
-        .appendFile(dataFileWithNull)
-        .commit();
+    table.newAppend().appendFile(dataFileWithNull).commit();
 
     // delete where data is null
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", null) // id = 131
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", null) // id = 131
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = rowSetWithoutIds(table, records, 131);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(1L);
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
@@ -444,7 +515,8 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  protected static StructLikeSet rowSetWithoutIds(Table table, List<Record> recordList, int... idsToRemove) {
+  protected static StructLikeSet rowSetWithoutIds(
+      Table table, List<Record> recordList, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     recordList.stream()
@@ -457,9 +529,7 @@ public abstract class DeleteReadTests {
   protected StructLikeSet rowSetWithIds(int... idsToRetain) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRetain));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    records.stream()
-        .filter(row -> deletedIds.contains(row.getField("id")))
-        .forEach(set::add);
+    records.stream().filter(row -> deletedIds.contains(row.getField("id"))).forEach(set::add);
     return set;
   }
 }

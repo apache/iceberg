@@ -28,6 +28,21 @@ from tests.api.test_helpers import MockHMSTable, MockManifest, MockManifestEntry
     MockSnapshot, MockTableOperations
 
 
+@mock.patch("iceberg.hive.hive_tables.hmsclient")
+def test_get_client(mock_hmsclient):
+    conf = {"hive.metastore.uris": 'thrift://hms:123'}
+    tables = HiveTables(conf)
+    tables.get_client()
+    mock_hmsclient.HMSClient.assert_called_with(iprot=None, oprot=None, host="hms", port=123)
+
+    mock_iprot = mock.Mock()
+    mock_oprot = mock.Mock()
+    conf = {HiveTables.IPROT: mock_iprot, HiveTables.OPROT: mock_oprot}
+    tables = HiveTables(conf)
+    tables.get_client()
+    mock_hmsclient.HMSClient.assert_called_with(iprot=mock_iprot, oprot=mock_oprot, host=None, port=None)
+
+
 @mock.patch("iceberg.hive.HiveTableOperations.refresh_from_metadata_location")
 @mock.patch("iceberg.hive.HiveTableOperations.current")
 @mock.patch("iceberg.hive.HiveTables.get_client")

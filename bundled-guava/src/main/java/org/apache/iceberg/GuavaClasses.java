@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -25,6 +24,8 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.base.Stopwatch;
+import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
@@ -48,11 +49,14 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.io.Files;
+import com.google.common.io.Resources;
 import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-// inspired in part by https://github.com/apache/avro/blob/release-1.8.2/lang/java/guava/src/main/java/org/apache/avro/GuavaClasses.java
+// inspired in part by
+// https://github.com/apache/avro/blob/release-1.8.2/lang/java/guava/src/main/java/org/apache/avro/GuavaClasses.java
+@SuppressWarnings("ReturnValueIgnored")
 public class GuavaClasses {
 
   /*
@@ -88,11 +92,12 @@ public class GuavaClasses {
     Hashing.class.getName();
     Files.class.getName();
     Bytes.class.getName();
+    Resources.class.getName();
     MoreExecutors.class.getName();
     ThreadFactoryBuilder.class.getName();
     Iterables.class.getName();
     CountingOutputStream.class.getName();
+    Suppliers.class.getName();
+    Stopwatch.class.getName();
   }
-
 }
-

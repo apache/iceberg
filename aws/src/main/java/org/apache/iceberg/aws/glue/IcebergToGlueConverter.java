@@ -16,22 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.glue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -50,8 +54,7 @@ class IcebergToGlueConverter {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergToGlueConverter.class);
 
-  private IcebergToGlueConverter() {
-  }
+  private IcebergToGlueConverter() {}
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
@@ -60,11 +63,27 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
+  private static final List<String> ADDITIONAL_LOCATION_PROPERTIES =
+      ImmutableList.of(
+          TableProperties.WRITE_DATA_LOCATION,
+          TableProperties.WRITE_METADATA_LOCATION,
+          TableProperties.OBJECT_STORE_PATH,
+          TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+
+  // Attempt to set additionalLocations if available on the given AWS SDK version
+  private static final DynMethods.UnboundMethod SET_ADDITIONAL_LOCATIONS =
+      DynMethods.builder("additionalLocations")
+          .hiddenImpl(
+              "software.amazon.awssdk.services.glue.model.StorageDescriptor$Builder",
+              Collection.class)
+          .orNoop()
+          .build();
 
   /**
-   * A Glue database name cannot be longer than 252 characters.
-   * The only acceptable characters are lowercase letters, numbers, and the underscore character.
-   * More details: https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   * A Glue database name cannot be longer than 252 characters. The only acceptable characters are
+   * lowercase letters, numbers, and the underscore character. More details:
+   * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   *
    * @param namespace namespace
    * @return if namespace can be accepted by Glue
    */
@@ -78,59 +97,76 @@ class IcebergToGlueConverter {
 
   /**
    * Validate if an Iceberg namespace is valid in Glue
+   *
    * @param namespace namespace
    * @throws NoSuchNamespaceException if namespace is not valid in Glue
    */
   static void validateNamespace(Namespace namespace) {
-    ValidationException.check(isValidNamespace(namespace), "Cannot convert namespace %s to Glue database name, " +
-        "because it must be 1-252 chars of lowercase letters, numbers, underscore", namespace);
+    ValidationException.check(
+        isValidNamespace(namespace),
+        "Cannot convert namespace %s to Glue database name, "
+            + "because it must be 1-252 chars of lowercase letters, numbers, underscore",
+        namespace);
   }
 
   /**
    * Validate and convert Iceberg namespace to Glue database name
+   *
    * @param namespace Iceberg namespace
+   * @param skipNameValidation should skip name validation
    * @return database name
    */
-  static String toDatabaseName(Namespace namespace) {
-    validateNamespace(namespace);
+  static String toDatabaseName(Namespace namespace, boolean skipNameValidation) {
+    if (!skipNameValidation) {
+      validateNamespace(namespace);
+    }
+
     return namespace.level(0);
   }
 
   /**
    * Validate and get Glue database name from Iceberg TableIdentifier
+   *
    * @param tableIdentifier Iceberg table identifier
+   * @param skipNameValidation should skip name validation
    * @return database name
    */
-  static String getDatabaseName(TableIdentifier tableIdentifier) {
-    return toDatabaseName(tableIdentifier.namespace());
+  static String getDatabaseName(TableIdentifier tableIdentifier, boolean skipNameValidation) {
+    return toDatabaseName(tableIdentifier.namespace(), skipNameValidation);
   }
 
   /**
    * Validate and convert Iceberg name to Glue DatabaseInput
+   *
    * @param namespace Iceberg namespace
    * @param metadata metadata map
+   * @param skipNameValidation should skip name validation
    * @return Glue DatabaseInput
    */
-  static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata) {
-    DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace));
+  static DatabaseInput toDatabaseInput(
+      Namespace namespace, Map<String, String> metadata, boolean skipNameValidation) {
+    DatabaseInput.Builder builder =
+        DatabaseInput.builder().name(toDatabaseName(namespace, skipNameValidation));
     Map<String, String> parameters = Maps.newHashMap();
-    metadata.forEach((k, v) -> {
-      if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
-        builder.description(v);
-      } else if (GLUE_DB_LOCATION_KEY.equals(k)) {
-        builder.locationUri(v);
-      } else {
-        parameters.put(k, v);
-      }
-    });
+    metadata.forEach(
+        (k, v) -> {
+          if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
+            builder.description(v);
+          } else if (GLUE_DB_LOCATION_KEY.equals(k)) {
+            builder.locationUri(v);
+          } else {
+            parameters.put(k, v);
+          }
+        });
 
     return builder.parameters(parameters).build();
   }
 
   /**
-   * A Glue table name cannot be longer than 255 characters.
-   * The only acceptable characters are lowercase letters, numbers, and the underscore character.
-   * More details: https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   * A Glue table name cannot be longer than 255 characters. The only acceptable characters are
+   * lowercase letters, numbers, and the underscore character. More details:
+   * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   *
    * @param tableName table name
    * @return if a table name can be accepted by Glue
    */
@@ -140,26 +176,36 @@ class IcebergToGlueConverter {
 
   /**
    * Validate if a table name is valid in Glue
+   *
    * @param tableName table name
    * @throws NoSuchTableException if table name not valid in Glue
    */
   static void validateTableName(String tableName) {
-    ValidationException.check(isValidTableName(tableName), "Cannot use %s as Glue table name, " +
-        "because it must be 1-255 chars of lowercase letters, numbers, underscore", tableName);
+    ValidationException.check(
+        isValidTableName(tableName),
+        "Cannot use %s as Glue table name, "
+            + "because it must be 1-255 chars of lowercase letters, numbers, underscore",
+        tableName);
   }
 
   /**
    * Validate and get Glue table name from Iceberg TableIdentifier
+   *
    * @param tableIdentifier table identifier
+   * @param skipNameValidation should skip name validation
    * @return table name
    */
-  static String getTableName(TableIdentifier tableIdentifier) {
-    validateTableName(tableIdentifier.name());
+  static String getTableName(TableIdentifier tableIdentifier, boolean skipNameValidation) {
+    if (!skipNameValidation) {
+      validateTableName(tableIdentifier.name());
+    }
+
     return tableIdentifier.name();
   }
 
   /**
    * Validate Iceberg TableIdentifier is valid in Glue
+   *
    * @param tableIdentifier Iceberg table identifier
    */
   static void validateTableIdentifier(TableIdentifier tableIdentifier) {
@@ -169,31 +215,43 @@ class IcebergToGlueConverter {
 
   /**
    * Set Glue table input information based on Iceberg table metadata.
-   * <p>
-   * A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg information in Glue,
-   * but such information is only intended for informational human read access through tools like UI or CLI,
-   * and should never be used by any query processing engine to infer information like schema, partition spec, etc.
-   * The source of truth is stored in the actual Iceberg metadata file defined by the metadata_location table property.
+   *
+   * <p>A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg
+   * information in Glue, but such information is only intended for informational human read access
+   * through tools like UI or CLI, and should never be used by any query processing engine to infer
+   * information like schema, partition spec, etc. The source of truth is stored in the actual
+   * Iceberg metadata file defined by the metadata_location table property.
+   *
    * @param tableInputBuilder Glue TableInput builder
    * @param metadata Iceberg table metadata
    */
-  static void setTableInputInformation(TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+  static void setTableInputInformation(
+      TableInput.Builder tableInputBuilder, TableMetadata metadata) {
     try {
-      tableInputBuilder
-          .storageDescriptor(StorageDescriptor.builder()
-              .location(metadata.location())
-              .columns(toColumns(metadata))
-              .build());
+      StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
+      if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
+        SET_ADDITIONAL_LOCATIONS.invoke(
+            storageDescriptor,
+            ADDITIONAL_LOCATION_PROPERTIES.stream()
+                .map(metadata.properties()::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+      }
+
+      tableInputBuilder.storageDescriptor(
+          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
     } catch (RuntimeException e) {
-      LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
+      LOG.warn(
+          "Encountered unexpected exception while converting Iceberg metadata to Glue table information",
+          e);
     }
   }
 
   /**
    * Converting from an Iceberg type to a type string that can be displayed in Glue.
-   * <p>
-   * Such conversion is only used for informational purpose,
-   * DO NOT reference this method for any actual data processing type conversion.
+   *
+   * <p>Such conversion is only used for informational purpose, DO NOT reference this method for any
+   * actual data processing type conversion.
    *
    * @param type Iceberg type
    * @return type string
@@ -226,16 +284,18 @@ class IcebergToGlueConverter {
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
       case STRUCT:
         final Types.StructType structType = type.asStructType();
-        final String nameToType = structType.fields().stream()
-            .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
-            .collect(Collectors.joining(","));
+        final String nameToType =
+            structType.fields().stream()
+                .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
+                .collect(Collectors.joining(","));
         return String.format("struct<%s>", nameToType);
       case LIST:
         final Types.ListType listType = type.asListType();
         return String.format("array<%s>", toTypeString(listType.elementType()));
       case MAP:
         final Types.MapType mapType = type.asMapType();
-        return String.format("map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
+        return String.format(
+            "map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
       default:
         return type.typeId().name().toLowerCase(Locale.ENGLISH);
     }
@@ -260,19 +320,20 @@ class IcebergToGlueConverter {
     return columns;
   }
 
-  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe,
-                                          NestedField field, boolean isCurrent) {
+  private static void addColumnWithDedupe(
+      List<Column> columns, Set<String> dedupe, NestedField field, boolean isCurrent) {
     if (!dedupe.contains(field.name())) {
-      columns.add(Column.builder()
-          .name(field.name())
-          .type(toTypeString(field.type()))
-          .comment(field.doc())
-          .parameters(ImmutableMap.of(
-              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
-              ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)
-          ))
-          .build());
+      columns.add(
+          Column.builder()
+              .name(field.name())
+              .type(toTypeString(field.type()))
+              .comment(field.doc())
+              .parameters(
+                  ImmutableMap.of(
+                      ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+                      ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+                      ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)))
+              .build());
       dedupe.add(field.name());
     }
   }

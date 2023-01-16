@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -28,46 +27,87 @@ import org.apache.iceberg.types.Types.NestedField;
 
 public class MetadataColumns {
 
-  private MetadataColumns() {
-  }
+  private MetadataColumns() {}
 
   // IDs Integer.MAX_VALUE - (1-100) are used for metadata columns
-  public static final NestedField FILE_PATH = NestedField.required(
-      Integer.MAX_VALUE - 1, "_file", Types.StringType.get(), "Path of the file in which a row is stored");
-  public static final NestedField ROW_POSITION = NestedField.required(
-      Integer.MAX_VALUE - 2, "_pos", Types.LongType.get(), "Ordinal position of a row in the source data file");
-  public static final NestedField IS_DELETED = NestedField.required(
-      Integer.MAX_VALUE - 3, "_deleted", Types.BooleanType.get(), "Whether the row has been deleted");
-  public static final NestedField SPEC_ID = NestedField.required(
-      Integer.MAX_VALUE - 4, "_spec_id", Types.IntegerType.get(), "Spec ID used to track the file containing a row");
+  public static final NestedField FILE_PATH =
+      NestedField.required(
+          Integer.MAX_VALUE - 1,
+          "_file",
+          Types.StringType.get(),
+          "Path of the file in which a row is stored");
+  public static final NestedField ROW_POSITION =
+      NestedField.required(
+          Integer.MAX_VALUE - 2,
+          "_pos",
+          Types.LongType.get(),
+          "Ordinal position of a row in the source data file");
+  public static final NestedField IS_DELETED =
+      NestedField.required(
+          Integer.MAX_VALUE - 3,
+          "_deleted",
+          Types.BooleanType.get(),
+          "Whether the row has been deleted");
+  public static final NestedField SPEC_ID =
+      NestedField.required(
+          Integer.MAX_VALUE - 4,
+          "_spec_id",
+          Types.IntegerType.get(),
+          "Spec ID used to track the file containing a row");
   // the partition column type is not static and depends on all specs in the table
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";
   public static final String PARTITION_COLUMN_DOC = "Partition to which a row belongs to";
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
-  public static final NestedField DELETE_FILE_PATH = NestedField.required(
-      Integer.MAX_VALUE - 101, "file_path", Types.StringType.get(), "Path of a file in which a deleted row is stored");
-  public static final NestedField DELETE_FILE_POS = NestedField.required(
-      Integer.MAX_VALUE - 102, "pos", Types.LongType.get(), "Ordinal position of a deleted row in the data file");
+  public static final NestedField DELETE_FILE_PATH =
+      NestedField.required(
+          Integer.MAX_VALUE - 101,
+          "file_path",
+          Types.StringType.get(),
+          "Path of a file in which a deleted row is stored");
+  public static final NestedField DELETE_FILE_POS =
+      NestedField.required(
+          Integer.MAX_VALUE - 102,
+          "pos",
+          Types.LongType.get(),
+          "Ordinal position of a deleted row in the data file");
   public static final String DELETE_FILE_ROW_FIELD_NAME = "row";
   public static final int DELETE_FILE_ROW_FIELD_ID = Integer.MAX_VALUE - 103;
   public static final String DELETE_FILE_ROW_DOC = "Deleted row values";
+  public static final NestedField CHANGE_TYPE =
+      NestedField.required(
+          Integer.MAX_VALUE - 104,
+          "_change_type",
+          Types.StringType.get(),
+          "Record type in changelog");
+  public static final NestedField CHANGE_ORDINAL =
+      NestedField.optional(
+          Integer.MAX_VALUE - 105,
+          "_change_ordinal",
+          Types.IntegerType.get(),
+          "Change ordinal in changelog");
+  public static final NestedField COMMIT_SNAPSHOT_ID =
+      NestedField.optional(
+          Integer.MAX_VALUE - 106,
+          "_commit_snapshot_id",
+          Types.LongType.get(),
+          "Commit snapshot ID");
 
-  private static final Map<String, NestedField> META_COLUMNS = ImmutableMap.of(
-      FILE_PATH.name(), FILE_PATH,
-      ROW_POSITION.name(), ROW_POSITION,
-      IS_DELETED.name(), IS_DELETED,
-      SPEC_ID.name(), SPEC_ID
-  );
+  private static final Map<String, NestedField> META_COLUMNS =
+      ImmutableMap.of(
+          FILE_PATH.name(), FILE_PATH,
+          ROW_POSITION.name(), ROW_POSITION,
+          IS_DELETED.name(), IS_DELETED,
+          SPEC_ID.name(), SPEC_ID);
 
-  private static final Set<Integer> META_IDS = ImmutableSet.of(
-      FILE_PATH.fieldId(),
-      ROW_POSITION.fieldId(),
-      IS_DELETED.fieldId(),
-      SPEC_ID.fieldId(),
-      PARTITION_COLUMN_ID
-  );
+  private static final Set<Integer> META_IDS =
+      ImmutableSet.of(
+          FILE_PATH.fieldId(),
+          ROW_POSITION.fieldId(),
+          IS_DELETED.fieldId(),
+          SPEC_ID.fieldId(),
+          PARTITION_COLUMN_ID);
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;

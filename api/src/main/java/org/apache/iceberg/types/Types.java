@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.io.Serializable;
@@ -36,24 +35,23 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 
 public class Types {
 
-  private Types() {
-  }
+  private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap
-      .<String, PrimitiveType>builder()
-      .put(BooleanType.get().toString(), BooleanType.get())
-      .put(IntegerType.get().toString(), IntegerType.get())
-      .put(LongType.get().toString(), LongType.get())
-      .put(FloatType.get().toString(), FloatType.get())
-      .put(DoubleType.get().toString(), DoubleType.get())
-      .put(DateType.get().toString(), DateType.get())
-      .put(TimeType.get().toString(), TimeType.get())
-      .put(TimestampType.withZone().toString(), TimestampType.withZone())
-      .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
-      .put(StringType.get().toString(), StringType.get())
-      .put(UUIDType.get().toString(), UUIDType.get())
-      .put(BinaryType.get().toString(), BinaryType.get())
-      .build();
+  private static final ImmutableMap<String, PrimitiveType> TYPES =
+      ImmutableMap.<String, PrimitiveType>builder()
+          .put(BooleanType.get().toString(), BooleanType.get())
+          .put(IntegerType.get().toString(), IntegerType.get())
+          .put(LongType.get().toString(), LongType.get())
+          .put(FloatType.get().toString(), FloatType.get())
+          .put(DoubleType.get().toString(), DoubleType.get())
+          .put(DateType.get().toString(), DateType.get())
+          .put(TimeType.get().toString(), TimeType.get())
+          .put(TimestampType.withZone().toString(), TimestampType.withZone())
+          .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
+          .put(StringType.get().toString(), StringType.get())
+          .put(UUIDType.get().toString(), UUIDType.get())
+          .put(BinaryType.get().toString(), BinaryType.get())
+          .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[(\\d+)\\]");
   private static final Pattern DECIMAL = Pattern.compile("decimal\\((\\d+),\\s+(\\d+)\\)");
@@ -71,9 +69,7 @@ public class Types {
 
     Matcher decimal = DECIMAL.matcher(lowerTypeString);
     if (decimal.matches()) {
-      return DecimalType.of(
-          Integer.parseInt(decimal.group(1)),
-          Integer.parseInt(decimal.group(2)));
+      return DecimalType.of(Integer.parseInt(decimal.group(1)), Integer.parseInt(decimal.group(2)));
     }
 
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
@@ -194,8 +190,7 @@ public class Types {
       return INSTANCE;
     }
 
-    private TimeType() {
-    }
+    private TimeType() {}
 
     @Override
     public TypeID typeId() {
@@ -368,8 +363,10 @@ public class Types {
     private final int precision;
 
     private DecimalType(int precision, int scale) {
-      Preconditions.checkArgument(precision <= 38,
-          "Decimals with precision larger than 38 are not supported: %s", precision);
+      Preconditions.checkArgument(
+          precision <= 38,
+          "Decimals with precision larger than 38 are not supported: %s",
+          precision);
       this.scale = scale;
       this.precision = precision;
     }
@@ -494,9 +491,8 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%d: %s: %s %s",
-          id, name, isOptional ? "optional" : "required", type) +
-          (doc != null ? " (" + doc + ")" : "");
+      return String.format("%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
+          + (doc != null ? " (" + doc + ")" : "");
     }
 
     @Override

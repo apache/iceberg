@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
@@ -29,7 +28,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -57,7 +55,6 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,22 +70,27 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
-  private final CaseInsensitiveStringMap options;
 
   // lazy variables
   private StructType readSchema = null;
 
-  SparkBatchScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
-                 Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = readConf.localityEnabled();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
-    this.options = options;
   }
 
   protected Table table() {
@@ -123,8 +125,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
-              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+      Preconditions.checkArgument(
+          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
+          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
@@ -135,7 +138,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast =
+        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
     InputPartition[] readTasks = new InputPartition[scanTasks.size()];
@@ -143,9 +147,15 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(index -> readTasks[index] = new ReadTask(
-            scanTasks.get(index), tableBroadcast, expectedSchemaString,
-            caseSensitive, localityPreferred));
+        .run(
+            index ->
+                readTasks[index] =
+                    new ReadTask(
+                        scanTasks.get(index),
+                        tableBroadcast,
+                        expectedSchemaString,
+                        caseSensitive,
+                        localityPreferred));
 
     return readTasks;
   }
@@ -154,28 +164,41 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   public PartitionReaderFactory createReaderFactory() {
     boolean allParquetFileScanTasks =
         tasks().stream()
-            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                .stream()
-                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                    FileFormat.PARQUET)));
+            .allMatch(
+                combinedScanTask ->
+                    !combinedScanTask.isDataTask()
+                        && combinedScanTask.files().stream()
+                            .allMatch(
+                                fileScanTask ->
+                                    fileScanTask.file().format().equals(FileFormat.PARQUET)));
 
     boolean allOrcFileScanTasks =
         tasks().stream()
-            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                .stream()
-                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                    FileFormat.ORC)));
+            .allMatch(
+                combinedScanTask ->
+                    !combinedScanTask.isDataTask()
+                        && combinedScanTask.files().stream()
+                            .allMatch(
+                                fileScanTask ->
+                                    fileScanTask.file().format().equals(FileFormat.ORC)));
 
     boolean atLeastOneColumn = expectedSchema.columns().size() > 0;
 
-    boolean onlyPrimitives = expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType());
+    boolean onlyPrimitives =
+        expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+    boolean hasNoEqDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasEqDeletes);
+
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
-    boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+    boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
+
+    boolean batchReadParquet =
+        hasNoEqDeleteFiles && allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
+
+    boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
 
     int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
 
@@ -209,21 +232,25 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
+    // unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      return new Stats(
-          SparkSchemaUtil.estimateSize(readSchema(), totalRecords),
-          totalRecords);
+      long totalRecords =
+          PropertyUtil.propertyAsLong(
+              table.currentSnapshot().summary(),
+              SnapshotSummary.TOTAL_RECORDS_PROP,
+              Long.MAX_VALUE);
+      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
     long numRows = 0L;
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        numRows += file.file().recordCount();
+        // TODO: if possible, take deletes also into consideration.
+        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
+        numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
 
@@ -233,7 +260,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public String description() {
-    String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+    String filters =
+        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
     return String.format("%s [filters=%s]", table, filters);
   }
 
@@ -274,7 +302,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
   }
 
-  private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
+  private static class BatchReader extends BatchDataReader
+      implements PartitionReader<ColumnarBatch> {
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
     }
@@ -289,8 +318,12 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     private transient Schema expectedSchema = null;
     private transient String[] preferredLocations = null;
 
-    ReadTask(CombinedScanTask task, Broadcast<Table> tableBroadcast, String expectedSchemaString,
-             boolean caseSensitive, boolean localityPreferred) {
+    ReadTask(
+        CombinedScanTask task,
+        Broadcast<Table> tableBroadcast,
+        String expectedSchemaString,
+        boolean caseSensitive,
+        boolean localityPreferred) {
       this.task = task;
       this.tableBroadcast = tableBroadcast;
       this.expectedSchemaString = expectedSchemaString;

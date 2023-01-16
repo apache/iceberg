@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -62,16 +60,12 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
   @Parameterized.Parameters(name = "FileFormat={0}")
   public static Object[] parameters() {
-    return new Object[][] {
-        new Object[] {"avro"},
-        new Object[] {"orc"},
-        new Object[] {"parquet"}
-    };
+    return new Object[][] {new Object[] {"avro"}, new Object[] {"orc"}, new Object[] {"parquet"}};
   }
 
   public TestGenericSortedPosDeleteWriter(String fileFormat) {
     super(FORMAT_V2);
-    this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.format = FileFormat.fromString(fileFormat);
   }
 
   @Override
@@ -86,9 +80,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
-    table.updateProperties()
-        .defaultFormat(format)
-        .commit();
+    table.updateProperties().defaultFormat(format).commit();
   }
 
   private EncryptedOutputFile createEncryptedOutputFile() {
@@ -97,10 +89,11 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
   private DataFile prepareDataFile(FileAppenderFactory<Record> appenderFactory, List<Record> rowSet)
       throws IOException {
-    DataWriter<Record> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, null);
+    DataWriter<Record> writer =
+        appenderFactory.newDataWriter(createEncryptedOutputFile(), format, null);
     try (DataWriter<Record> closeableWriter = writer) {
       for (Record record : rowSet) {
-        closeableWriter.add(record);
+        closeableWriter.write(record);
       }
     }
 
@@ -130,19 +123,20 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
   @Test
   public void testSortedPosDelete() throws IOException {
-    List<Record> rowSet = Lists.newArrayList(
-        createRow(0, "aaa"),
-        createRow(1, "bbb"),
-        createRow(2, "ccc"),
-        createRow(3, "ddd"),
-        createRow(4, "eee")
-    );
+    List<Record> rowSet =
+        Lists.newArrayList(
+            createRow(0, "aaa"),
+            createRow(1, "bbb"),
+            createRow(2, "ccc"),
+            createRow(3, "ddd"),
+            createRow(4, "eee"));
 
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        null, null, null);
+    FileAppenderFactory<Record> appenderFactory =
+        new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
-    SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
+    SortedPosDeleteWriter<Record> writer =
+        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
         closeableWriter.delete(dataFile.path(), index);
@@ -156,68 +150,68 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     // Check whether the path-pos pairs are sorted as expected.
     Schema pathPosSchema = DeleteSchemaUtil.pathPosSchema();
     Record record = GenericRecord.create(pathPosSchema);
-    List<Record> expectedDeletes = Lists.newArrayList(
-        record.copy("file_path", dataFile.path(), "pos", 0L),
-        record.copy("file_path", dataFile.path(), "pos", 2L),
-        record.copy("file_path", dataFile.path(), "pos", 4L)
-    );
+    List<Record> expectedDeletes =
+        Lists.newArrayList(
+            record.copy("file_path", dataFile.path(), "pos", 0L),
+            record.copy("file_path", dataFile.path(), "pos", 2L),
+            record.copy("file_path", dataFile.path(), "pos", 4L));
     Assert.assertEquals(expectedDeletes, readRecordsAsList(pathPosSchema, deleteFile.path()));
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(deleteFiles.get(0))
         .validateDataFilesExist(writer.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
-    List<Record> expectedData = Lists.newArrayList(
-        createRow(1, "bbb"),
-        createRow(3, "ddd")
-    );
-    Assert.assertEquals("Should have the expected records", expectedRowSet(expectedData), actualRowSet("*"));
+    List<Record> expectedData = Lists.newArrayList(createRow(1, "bbb"), createRow(3, "ddd"));
+    Assert.assertEquals(
+        "Should have the expected records", expectedRowSet(expectedData), actualRowSet("*"));
   }
 
   @Test
   public void testSortedPosDeleteWithSchemaAndNullRow() throws IOException {
-    List<Record> rowSet = Lists.newArrayList(
-        createRow(0, "aaa"),
-        createRow(1, "bbb"),
-        createRow(2, "ccc")
-    );
+    List<Record> rowSet =
+        Lists.newArrayList(createRow(0, "aaa"), createRow(1, "bbb"), createRow(2, "ccc"));
 
     // Create a FileAppenderFactory which requires pos-delete row schema.
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        null, null, table.schema());
+    FileAppenderFactory<Record> appenderFactory =
+        new GenericAppenderFactory(table.schema(), table.spec(), null, null, table.schema());
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
-    SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 1);
+    SortedPosDeleteWriter<Record> writer =
+        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 1);
     boolean caughtError = false;
     try {
       writer.delete(dataFile.path(), 0L);
     } catch (Exception e) {
       caughtError = true;
     }
-    Assert.assertTrue("Should fail because the appender are required non-null rows to write", caughtError);
+    Assert.assertTrue(
+        "Should fail because the appender are required non-null rows to write", caughtError);
   }
 
   @Test
   public void testSortedPosDeleteWithRow() throws IOException {
-    List<Record> rowSet = Lists.newArrayList(
-        createRow(0, "aaa"),
-        createRow(1, "bbb"),
-        createRow(2, "ccc"),
-        createRow(3, "ddd"),
-        createRow(4, "eee")
-    );
+    List<Record> rowSet =
+        Lists.newArrayList(
+            createRow(0, "aaa"),
+            createRow(1, "bbb"),
+            createRow(2, "ccc"),
+            createRow(3, "ddd"),
+            createRow(4, "eee"));
 
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        null, null, table.schema());
+    FileAppenderFactory<Record> appenderFactory =
+        new GenericAppenderFactory(table.schema(), table.spec(), null, null, table.schema());
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
-    SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
+    SortedPosDeleteWriter<Record> writer =
+        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
-        closeableWriter.delete(dataFile.path(), index, rowSet.get(index)); // Write deletes with row.
+        closeableWriter.delete(
+            dataFile.path(), index, rowSet.get(index)); // Write deletes with row.
       }
     }
 
@@ -228,31 +222,30 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     // Check whether the path-pos pairs are sorted as expected.
     Schema pathPosSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
     Record record = GenericRecord.create(pathPosSchema);
-    List<Record> expectedDeletes = Lists.newArrayList(
-        record.copy("file_path", dataFile.path(), "pos", 0L, "row", createRow(0, "aaa")),
-        record.copy("file_path", dataFile.path(), "pos", 2L, "row", createRow(2, "ccc")),
-        record.copy("file_path", dataFile.path(), "pos", 4L, "row", createRow(4, "eee"))
-    );
+    List<Record> expectedDeletes =
+        Lists.newArrayList(
+            record.copy("file_path", dataFile.path(), "pos", 0L, "row", createRow(0, "aaa")),
+            record.copy("file_path", dataFile.path(), "pos", 2L, "row", createRow(2, "ccc")),
+            record.copy("file_path", dataFile.path(), "pos", 4L, "row", createRow(4, "eee")));
     Assert.assertEquals(expectedDeletes, readRecordsAsList(pathPosSchema, deleteFile.path()));
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(deleteFiles.get(0))
         .validateDataFilesExist(writer.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
-    List<Record> expectedData = Lists.newArrayList(
-        createRow(1, "bbb"),
-        createRow(3, "ddd")
-    );
-    Assert.assertEquals("Should have the expected records", expectedRowSet(expectedData), actualRowSet("*"));
+    List<Record> expectedData = Lists.newArrayList(createRow(1, "bbb"), createRow(3, "ddd"));
+    Assert.assertEquals(
+        "Should have the expected records", expectedRowSet(expectedData), actualRowSet("*"));
   }
 
   @Test
   public void testMultipleFlush() throws IOException {
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        null, null, null);
+    FileAppenderFactory<Record> appenderFactory =
+        new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
 
     // It will produce 5 record lists, each list will write into a separate data file:
     // The 1th file has: <0  , val-0>   , <1  , val-1>   , ... , <99 , val-99>
@@ -277,7 +270,8 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     dataFiles.forEach(rowDelta::addRows);
     rowDelta.commit();
 
-    SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 50);
+    SortedPosDeleteWriter<Record> writer =
+        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 50);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int pos = 0; pos < 100; pos++) {
         for (int fileIndex = 4; fileIndex >= 0; fileIndex--) {
@@ -308,7 +302,8 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
 
-    Assert.assertEquals("Should have no record.", expectedRowSet(ImmutableList.of()), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have no record.", expectedRowSet(ImmutableList.of()), actualRowSet("*"));
   }
 
   private List<Record> readRecordsAsList(Schema schema, CharSequence path) throws IOException {
@@ -317,24 +312,25 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     InputFile inputFile = Files.localInput(path.toString());
     switch (format) {
       case PARQUET:
-        iterable = Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-            .build();
+        iterable =
+            Parquet.read(inputFile)
+                .project(schema)
+                .createReaderFunc(
+                    fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                .build();
         break;
 
       case AVRO:
-        iterable = Avro.read(inputFile)
-            .project(schema)
-            .createReaderFunc(DataReader::create)
-            .build();
+        iterable =
+            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
         break;
 
       case ORC:
-        iterable = ORC.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-            .build();
+        iterable =
+            ORC.read(inputFile)
+                .project(schema)
+                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                .build();
         break;
 
       default:

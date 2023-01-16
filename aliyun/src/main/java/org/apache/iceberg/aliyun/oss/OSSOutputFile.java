@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -25,15 +24,18 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
 class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
-  OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
-    super(client, uri, aliyunProperties);
+  OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
+    super(client, uri, aliyunProperties, metrics);
   }
 
-  static OSSOutputFile fromLocation(OSS client, String location, AliyunProperties aliyunProperties) {
-    return new OSSOutputFile(client, new OSSURI(location), aliyunProperties);
+  static OSSOutputFile fromLocation(
+      OSS client, String location, AliyunProperties aliyunProperties) {
+    return new OSSOutputFile(
+        client, new OSSURI(location), aliyunProperties, MetricsContext.nullMetrics());
   }
 
   @Override
@@ -47,11 +49,11 @@ class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return new OSSOutputStream(client(), uri(), aliyunProperties());
+    return new OSSOutputStream(client(), uri(), aliyunProperties(), metrics());
   }
 
   @Override
   public InputFile toInputFile() {
-    return new OSSInputFile(client(), uri(), aliyunProperties());
+    return new OSSInputFile(client(), uri(), aliyunProperties(), metrics());
   }
 }

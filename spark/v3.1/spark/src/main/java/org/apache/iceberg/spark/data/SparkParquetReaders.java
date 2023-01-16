@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
@@ -66,25 +65,25 @@ import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkParquetReaders {
-  private SparkParquetReaders() {
-  }
+  private SparkParquetReaders() {}
 
-  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
-                                                            MessageType fileSchema) {
+  public static ParquetValueReader<InternalRow> buildReader(
+      Schema expectedSchema, MessageType fileSchema) {
     return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
-                                                            MessageType fileSchema,
-                                                            Map<Integer, ?> idToConstant) {
+  public static ParquetValueReader<InternalRow> buildReader(
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<InternalRow>)
-          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema, idToConstant));
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(), fileSchema, new ReadBuilder(fileSchema, idToConstant));
     } else {
       return (ParquetValueReader<InternalRow>)
-          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
               new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
@@ -95,18 +94,18 @@ public class SparkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
-                                         List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> message(
+        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       // the top level matches by ID, but the remaining IDs are missing
       return super.struct(expected, message, fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType ignored, GroupType struct,
-                                        List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> struct(
+        Types.StructType ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // the expected struct is ignored because nested fields are never found when the
-      List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
-          fieldReaders.size());
+      List<ParquetValueReader<?>> newFields =
+          Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
@@ -130,17 +129,18 @@ public class SparkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
-                                         List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> message(
+        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
-                                        List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> struct(
+        Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
+      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
@@ -149,19 +149,27 @@ public class SparkParquetReaders {
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
           typesById.put(id, fieldType);
+          if (idToConstant.containsKey(id)) {
+            maxDefinitionLevelsById.put(id, fieldD);
+          }
         }
       }
 
-      List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
-      List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
-          expectedFields.size());
+      List<Types.NestedField> expectedFields =
+          expected != null ? expected.fields() : ImmutableList.of();
+      List<ParquetValueReader<?>> reorderedFields =
+          Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
+      // Defaulting to parent max definition level
+      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
-          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
+          int fieldMaxDefinitionLevel =
+              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
+          reorderedFields.add(
+              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
           types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
@@ -185,8 +193,8 @@ public class SparkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
-                                      ParquetValueReader<?> elementReader) {
+    public ParquetValueReader<?> list(
+        Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -196,13 +204,16 @@ public class SparkParquetReaders {
       Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ArrayReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
+      return new ArrayReader<>(
+          repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
-                                     ParquetValueReader<?> keyReader,
-                                     ParquetValueReader<?> valueReader) {
+    public ParquetValueReader<?> map(
+        Types.MapType expectedMap,
+        GroupType map,
+        ParquetValueReader<?> keyReader,
+        ParquetValueReader<?> valueReader) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -214,14 +225,16 @@ public class SparkParquetReaders {
       Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
-      return new MapReader<>(repeatedD, repeatedR,
+      return new MapReader<>(
+          repeatedD,
+          repeatedR,
           ParquetValueReaders.option(keyType, keyD, keyReader),
           ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
-                                           PrimitiveType primitive) {
+    public ParquetValueReader<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {
@@ -377,12 +390,13 @@ public class SparkParquetReaders {
 
     @Override
     public long readLong() {
-      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       final long timeOfDayNanos = byteBuffer.getLong();
       final int julianDay = byteBuffer.getInt();
 
-      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
-              TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
+          + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
     }
   }
 
@@ -456,15 +470,19 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class MapReader<K, V> extends RepeatedKeyValueReader<MapData, ReusableMapData, K, V> {
+  private static class MapReader<K, V>
+      extends RepeatedKeyValueReader<MapData, ReusableMapData, K, V> {
     private int readPos = 0;
     private int writePos = 0;
 
     private final ReusableEntry<K, V> entry = new ReusableEntry<>();
     private final ReusableEntry<K, V> nullEntry = new ReusableEntry<>();
 
-    MapReader(int definitionLevel, int repetitionLevel,
-              ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
+    MapReader(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueReader<K> keyReader,
+        ParquetValueReader<V> valueReader) {
       super(definitionLevel, repetitionLevel, keyReader, valueReader);
     }
 

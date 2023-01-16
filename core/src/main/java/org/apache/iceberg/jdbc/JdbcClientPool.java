@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.jdbc;
 
 import java.sql.Connection;
@@ -28,17 +27,22 @@ import java.util.Properties;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPoolImpl;
 
-class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
+public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
 
   private final String dbUrl;
   private final Map<String, String> properties;
 
-  JdbcClientPool(String dbUrl, Map<String, String> props) {
-    this(Integer.parseInt(props.getOrDefault(CatalogProperties.CLIENT_POOL_SIZE,
-        String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))), dbUrl, props);
+  public JdbcClientPool(String dbUrl, Map<String, String> props) {
+    this(
+        Integer.parseInt(
+            props.getOrDefault(
+                CatalogProperties.CLIENT_POOL_SIZE,
+                String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))),
+        dbUrl,
+        props);
   }
 
-  JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
+  public JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
     super(poolSize, SQLNonTransientConnectionException.class, true);
     properties = props;
     this.dbUrl = dbUrl;

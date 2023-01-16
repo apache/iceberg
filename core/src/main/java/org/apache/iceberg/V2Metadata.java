@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -27,34 +28,31 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 class V2Metadata {
-  private V2Metadata() {
-  }
+  private V2Metadata() {}
 
-  static final Schema MANIFEST_LIST_SCHEMA = new Schema(
-      ManifestFile.PATH,
-      ManifestFile.LENGTH,
-      ManifestFile.SPEC_ID,
-      ManifestFile.MANIFEST_CONTENT.asRequired(),
-      ManifestFile.SEQUENCE_NUMBER.asRequired(),
-      ManifestFile.MIN_SEQUENCE_NUMBER.asRequired(),
-      ManifestFile.SNAPSHOT_ID.asRequired(),
-      ManifestFile.ADDED_FILES_COUNT.asRequired(),
-      ManifestFile.EXISTING_FILES_COUNT.asRequired(),
-      ManifestFile.DELETED_FILES_COUNT.asRequired(),
-      ManifestFile.ADDED_ROWS_COUNT.asRequired(),
-      ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
-      ManifestFile.DELETED_ROWS_COUNT.asRequired(),
-      ManifestFile.PARTITION_SUMMARIES
-  );
+  static final Schema MANIFEST_LIST_SCHEMA =
+      new Schema(
+          ManifestFile.PATH,
+          ManifestFile.LENGTH,
+          ManifestFile.SPEC_ID,
+          ManifestFile.MANIFEST_CONTENT.asRequired(),
+          ManifestFile.SEQUENCE_NUMBER.asRequired(),
+          ManifestFile.MIN_SEQUENCE_NUMBER.asRequired(),
+          ManifestFile.SNAPSHOT_ID.asRequired(),
+          ManifestFile.ADDED_FILES_COUNT.asRequired(),
+          ManifestFile.EXISTING_FILES_COUNT.asRequired(),
+          ManifestFile.DELETED_FILES_COUNT.asRequired(),
+          ManifestFile.ADDED_ROWS_COUNT.asRequired(),
+          ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
+          ManifestFile.DELETED_ROWS_COUNT.asRequired(),
+          ManifestFile.PARTITION_SUMMARIES);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v2 write schema.
    *
-   * This is used to maintain compatibility with v2 by writing manifest list files with the old schema, instead of
-   * writing a sequence number into metadata files in v2 tables.
+   * <p>This is used to maintain compatibility with v2 by writing manifest list files with the old
+   * schema, instead of writing a sequence number into metadata files in v2 tables.
    */
   static class IndexedManifestFile implements ManifestFile, IndexedRecord {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
@@ -97,10 +95,13 @@ class V2Metadata {
           return wrapped.content().id();
         case 4:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
-            // if the sequence number is being assigned here, then the manifest must be created by the current
+            // if the sequence number is being assigned here, then the manifest must be created by
+            // the current
             // operation. to validate this, check that the snapshot id matches the current commit
-            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
-                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
+            Preconditions.checkState(
+                commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s",
+                wrapped.snapshotId());
             return sequenceNumber;
           } else {
             return wrapped.sequenceNumber();
@@ -108,10 +109,14 @@ class V2Metadata {
         case 5:
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
-            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
-                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
-            // if the min sequence number is not determined, then there was no assigned sequence number for any file
-            // written to the wrapped manifest. replace the unassigned sequence number with the one for this commit
+            Preconditions.checkState(
+                commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s",
+                wrapped.snapshotId());
+            // if the min sequence number is not determined, then there was no assigned sequence
+            // number for any file
+            // written to the wrapped manifest. replace the unassigned sequence number with the one
+            // for this commit
             return sequenceNumber;
           } else {
             return wrapped.minSequenceNumber();
@@ -242,7 +247,10 @@ class V2Metadata {
   static Schema wrapFileSchema(Types.StructType fileSchema) {
     // this is used to build projection schemas
     return new Schema(
-        ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID, ManifestEntry.SEQUENCE_NUMBER,
+        ManifestEntry.STATUS,
+        ManifestEntry.SNAPSHOT_ID,
+        ManifestEntry.SEQUENCE_NUMBER,
+        ManifestEntry.FILE_SEQUENCE_NUMBER,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
@@ -251,7 +259,8 @@ class V2Metadata {
         DataFile.CONTENT.asRequired(),
         DataFile.FILE_PATH,
         DataFile.FILE_FORMAT,
-        required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
+        required(
+            DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
         DataFile.RECORD_COUNT,
         DataFile.FILE_SIZE,
         DataFile.COLUMN_SIZES,
@@ -263,11 +272,11 @@ class V2Metadata {
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
-        DataFile.SORT_ORDER_ID
-    );
+        DataFile.SORT_ORDER_ID);
   }
 
-  static class IndexedManifestEntry<F extends ContentFile<F>> implements ManifestEntry<F>, IndexedRecord {
+  static class IndexedManifestEntry<F extends ContentFile<F>>
+      implements ManifestEntry<F>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final Long commitSnapshotId;
     private final IndexedDataFile<?> fileWrapper;
@@ -302,17 +311,27 @@ class V2Metadata {
         case 1:
           return wrapped.snapshotId();
         case 2:
-          if (wrapped.sequenceNumber() == null) {
-            // if the entry's sequence number is null, then it will inherit the sequence number of the current commit.
-            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
-            // that it matches the id of the current commit.
+          if (wrapped.dataSequenceNumber() == null) {
+            // if the entry's data sequence number is null,
+            // then it will inherit the sequence number of the current commit.
+            // to validate that this is correct, check that the snapshot id is either null (will
+            // also be inherited) or that it matches the id of the current commit.
             Preconditions.checkState(
                 wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
-                "Found unassigned sequence number for an entry from snapshot: %s", wrapped.snapshotId());
+                "Found unassigned sequence number for an entry from snapshot: %s",
+                wrapped.snapshotId());
+
+            // inheritance should work only for ADDED entries
+            Preconditions.checkState(
+                wrapped.status() == Status.ADDED,
+                "Only entries with status ADDED can have null sequence number");
+
             return null;
           }
-          return wrapped.sequenceNumber();
+          return wrapped.dataSequenceNumber();
         case 3:
+          return wrapped.fileSequenceNumber();
+        case 4:
           return fileWrapper.wrap(wrapped.file());
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
@@ -335,13 +354,23 @@ class V2Metadata {
     }
 
     @Override
-    public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
     }
 
     @Override
-    public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
     }
 
     @Override
@@ -360,9 +389,7 @@ class V2Metadata {
     }
   }
 
-  /**
-   * Wrapper used to write DataFile or DeleteFile to v2 metadata.
-   */
+  /** Wrapper used to write DataFile or DeleteFile to v2 metadata. */
   static class IndexedDataFile<F> implements ContentFile<F>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedStructLike partitionWrapper;

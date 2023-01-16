@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.deletes;
 
 import java.io.IOException;
@@ -44,9 +43,15 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final SortOrder sortOrder;
   private DeleteFile deleteFile = null;
 
-  public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
-                              PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
-                              SortOrder sortOrder, int... equalityFieldIds) {
+  public EqualityDeleteWriter(
+      FileAppender<T> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      EncryptionKeyMetadata keyMetadata,
+      SortOrder sortOrder,
+      int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
     this.location = location;
@@ -62,26 +67,6 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
     appender.add(row);
   }
 
-  /**
-   * Writes equality deletes.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(Iterable)} instead.
-   */
-  @Deprecated
-  public void deleteAll(Iterable<T> rows) {
-    appender.addAll(rows);
-  }
-
-  /**
-   * Writes an equality delete.
-   *
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #write(Object)} instead.
-   */
-  @Deprecated
-  public void delete(T row) {
-    appender.add(row);
-  }
-
   @Override
   public long length() {
     return appender.length();
@@ -91,16 +76,17 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   public void close() throws IOException {
     if (deleteFile == null) {
       appender.close();
-      this.deleteFile = FileMetadata.deleteFileBuilder(spec)
-          .ofEqualityDeletes(equalityFieldIds)
-          .withFormat(format)
-          .withPath(location)
-          .withPartition(partition)
-          .withEncryptionKeyMetadata(keyMetadata)
-          .withFileSizeInBytes(appender.length())
-          .withMetrics(appender.metrics())
-          .withSortOrder(sortOrder)
-          .build();
+      this.deleteFile =
+          FileMetadata.deleteFileBuilder(spec)
+              .ofEqualityDeletes(equalityFieldIds)
+              .withFormat(format)
+              .withPath(location)
+              .withPartition(partition)
+              .withEncryptionKeyMetadata(keyMetadata)
+              .withFileSizeInBytes(appender.length())
+              .withMetrics(appender.metrics())
+              .withSortOrder(sortOrder)
+              .build();
     }
   }
 

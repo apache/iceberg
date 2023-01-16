@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.schema;
 
 import java.util.List;
@@ -28,34 +27,56 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * Visitor class that accumulates the set of changes needed to evolve an existing schema into the union of the
- * existing and a new schema. Changes are added to an {@link UpdateSchema} operation.
+ * Visitor class that accumulates the set of changes needed to evolve an existing schema into the
+ * union of the existing and a new schema. Changes are added to an {@link UpdateSchema} operation.
  */
 public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolean> {
 
   private final UpdateSchema api;
   private final Schema partnerSchema;
+  private boolean caseSensitive;
 
-  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema) {
+  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
     this.api = api;
     this.partnerSchema = partnerSchema;
+    this.caseSensitive = caseSensitive;
   }
 
   /**
    * Adds changes needed to produce a union of two schemas to an {@link UpdateSchema} operation.
-   * <p>
-   * Changes are accumulated to evolve the existingSchema into a union with newSchema.
+   *
+   * <p>Changes are accumulated to evolve the existingSchema into a union with newSchema.
    *
    * @param api an UpdateSchema for adding changes
    * @param existingSchema an existing schema
    * @param newSchema a new schema to compare with the existing
    */
   public static void visit(UpdateSchema api, Schema existingSchema, Schema newSchema) {
-    visit(newSchema, -1, new UnionByNameVisitor(api, existingSchema), new PartnerIdByNameAccessors(existingSchema));
+    visit(api, existingSchema, newSchema, true);
+  }
+
+  /**
+   * Adds changes needed to produce a union of two schemas to an {@link UpdateSchema} operation.
+   *
+   * <p>Changes are accumulated to evolve the existingSchema into a union with newSchema.
+   *
+   * @param api an UpdateSchema for adding changes
+   * @param existingSchema an existing schema
+   * @param caseSensitive when false, the case of schema's fields are ignored
+   * @param newSchema a new schema to compare with the existing
+   */
+  public static void visit(
+      UpdateSchema api, Schema existingSchema, Schema newSchema, boolean caseSensitive) {
+    visit(
+        newSchema,
+        -1,
+        new UnionByNameVisitor(api, existingSchema, caseSensitive),
+        new PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
   @Override
-  public Boolean struct(Types.StructType struct, Integer partnerId, List<Boolean> missingPositions) {
+  public Boolean struct(
+      Types.StructType struct, Integer partnerId, List<Boolean> missingPositions) {
     if (partnerId == null) {
       return true;
     }
@@ -63,15 +84,20 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     List<Types.NestedField> fields = struct.fields();
     Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
     IntStream.range(0, missingPositions.size())
-        .forEach(pos -> {
-          Boolean isMissing = missingPositions.get(pos);
-          Types.NestedField field = fields.get(pos);
-          if (isMissing) {
-            addColumn(partnerId, field);
-          } else {
-            updateColumn(field, partnerStruct.field(field.name()));
-          }
-        });
+        .forEach(
+            pos -> {
+              Boolean isMissing = missingPositions.get(pos);
+              Types.NestedField field = fields.get(pos);
+              if (isMissing) {
+                addColumn(partnerId, field);
+              } else {
+                Types.NestedField nestedField =
+                    caseSensitive
+                        ? partnerStruct.field(field.name())
+                        : partnerStruct.caseInsensitiveField(field.name());
+                updateColumn(field, nestedField);
+              }
+            });
 
     return false;
   }
@@ -87,7 +113,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
       return true;
     }
 
-    Preconditions.checkState(!isElementMissing, "Error traversing schemas: element is missing, but list is present");
+    Preconditions.checkState(
+        !isElementMissing, "Error traversing schemas: element is missing, but list is present");
 
     Types.ListType partnerList = findFieldType(partnerId).asListType();
     updateColumn(list.fields().get(0), partnerList.fields().get(0));
@@ -96,13 +123,16 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   }
 
   @Override
-  public Boolean map(Types.MapType map, Integer partnerId, Boolean isKeyMissing, Boolean isValueMissing) {
+  public Boolean map(
+      Types.MapType map, Integer partnerId, Boolean isKeyMissing, Boolean isValueMissing) {
     if (partnerId == null) {
       return true;
     }
 
-    Preconditions.checkState(!isKeyMissing, "Error traversing schemas: key is missing, but map is present");
-    Preconditions.checkState(!isValueMissing, "Error traversing schemas: value is missing, but map is present");
+    Preconditions.checkState(
+        !isKeyMissing, "Error traversing schemas: key is missing, but map is present");
+    Preconditions.checkState(
+        !isValueMissing, "Error traversing schemas: value is missing, but map is present");
 
     Types.MapType partnerMap = findFieldType(partnerId).asMapType();
     updateColumn(map.fields().get(0), partnerMap.fields().get(0));
@@ -133,7 +163,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate = field.type().isPrimitiveType() && !field.type().equals(existingField.type());
+    boolean needsTypeUpdate =
+        field.type().isPrimitiveType() && !field.type().equals(existingField.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -151,9 +182,15 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {
     private final Schema partnerSchema;
+    private boolean caseSensitive = true;
 
     private PartnerIdByNameAccessors(Schema partnerSchema) {
       this.partnerSchema = partnerSchema;
+    }
+
+    private PartnerIdByNameAccessors(Schema partnerSchema, boolean caseSensitive) {
+      this(partnerSchema);
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -165,7 +202,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
         struct = partnerSchema.findField(partnerFieldId).type().asStructType();
       }
 
-      Types.NestedField field = struct.field(name);
+      Types.NestedField field =
+          caseSensitive ? struct.field(name) : struct.caseInsensitiveField(name);
       if (field != null) {
         return field.fieldId();
       }

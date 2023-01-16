@@ -16,22 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
+import java.io.Serializable;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 
 /**
- * A {@link PathFilter} that filters out hidden paths. A path is considered to
- * be hidden when the path name starts with a period ('.') or an underscore ('_').
+ * A {@link PathFilter} that filters out hidden paths. A path is considered to be hidden when the
+ * path name starts with a period ('.') or an underscore ('_').
  */
-public class HiddenPathFilter implements PathFilter {
+public class HiddenPathFilter implements PathFilter, Serializable {
 
   private static final HiddenPathFilter INSTANCE = new HiddenPathFilter();
 
-  private HiddenPathFilter() {
-  }
+  private HiddenPathFilter() {}
 
   public static HiddenPathFilter get() {
     return INSTANCE;

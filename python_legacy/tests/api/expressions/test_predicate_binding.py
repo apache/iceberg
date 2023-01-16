@@ -64,7 +64,7 @@ def test_comparison_predicate_binding(op, assert_and_unwrap):
     assert op == bound.op
 
 
-def test_literal_converison(op, assert_and_unwrap):
+def test_literal_conversion(op, assert_and_unwrap):
     struct = StructType.of([NestedField.required(15, "d", DecimalType.of(9, 2))])
     unbound = UnboundPredicate(op, Expressions.ref("d"), "12.40")
     bound = assert_and_unwrap(unbound.bind(struct))

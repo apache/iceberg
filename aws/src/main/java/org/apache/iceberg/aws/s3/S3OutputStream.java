@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.io.BufferedInputStream;
@@ -37,13 +36,19 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicates;
@@ -55,7 +60,9 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.internal.util.Mimetype;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.ContentStreamProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -63,6 +70,8 @@ import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.BinaryUtils;
@@ -77,6 +86,7 @@ class S3OutputStream extends PositionOutputStream {
   private final S3Client s3;
   private final S3URI location;
   private final AwsProperties awsProperties;
+  private final Set<Tag> writeTags;
 
   private CountingOutputStream stream;
   private final List<FileAndDigest> stagingFiles = Lists.newArrayList();
@@ -90,21 +100,27 @@ class S3OutputStream extends PositionOutputStream {
   private final MessageDigest completeMessageDigest;
   private MessageDigest currentPartMessageDigest;
 
+  private final Counter writeBytes;
+  private final Counter writeOperations;
+
   private long pos = 0;
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
+      throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
-          executorService = MoreExecutors.getExitingExecutorService(
-              (ThreadPoolExecutor) Executors.newFixedThreadPool(
-                  awsProperties.s3FileIoMultipartUploadThreads(),
-                  new ThreadFactoryBuilder()
-                      .setDaemon(true)
-                      .setNameFormat("iceberg-s3fileio-upload-%d")
-                      .build()));
+          executorService =
+              MoreExecutors.getExitingExecutorService(
+                  (ThreadPoolExecutor)
+                      Executors.newFixedThreadPool(
+                          awsProperties.s3FileIoMultipartUploadThreads(),
+                          new ThreadFactoryBuilder()
+                              .setDaemon(true)
+                              .setNameFormat("iceberg-s3fileio-upload-%d")
+                              .build()));
         }
       }
     }
@@ -112,18 +128,25 @@ class S3OutputStream extends PositionOutputStream {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
+    this.writeTags = awsProperties.s3WriteTags();
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.createStack = Thread.currentThread().getStackTrace();
 
-    multiPartSize = awsProperties.s3FileIoMultiPartSize();
-    multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
-    stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
-    isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
+    this.multiPartSize = awsProperties.s3FileIoMultiPartSize();
+    this.multiPartThresholdSize =
+        (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
+    this.stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
+    this.isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
     try {
-      completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+      this.completeMessageDigest =
+          isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks", e);
+      throw new RuntimeException(
+          "Failed to create message digest needed for s3 checksum checks", e);
     }
+
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
 
     newStream();
   }
@@ -147,6 +170,8 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b);
     pos += 1;
+    writeBytes.increment();
+    writeOperations.increment();
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
@@ -176,6 +201,8 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b, relativeOffset, remaining);
     pos += len;
+    writeBytes.increment(len);
+    writeOperations.increment();
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
@@ -193,9 +220,11 @@ class S3OutputStream extends PositionOutputStream {
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
     try {
-      currentPartMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+      currentPartMessageDigest =
+          isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
+      throw new RuntimeException(
+          "Failed to create message digest needed for s3 checksum checks.", e);
     }
 
     stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
@@ -205,16 +234,24 @@ class S3OutputStream extends PositionOutputStream {
 
       // if switched over to multipart threshold already, no need to update complete message digest
       if (multipartUploadId != null) {
-        digestOutputStream = new DigestOutputStream(new BufferedOutputStream(
-            new FileOutputStream(currentStagingFile)), currentPartMessageDigest);
+        digestOutputStream =
+            new DigestOutputStream(
+                new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
+                currentPartMessageDigest);
       } else {
-        digestOutputStream = new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
-            new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest);
+        digestOutputStream =
+            new DigestOutputStream(
+                new DigestOutputStream(
+                    new BufferedOutputStream(new FileOutputStream(currentStagingFile)),
+                    currentPartMessageDigest),
+                completeMessageDigest);
       }
 
       stream = new CountingOutputStream(digestOutputStream);
     } else {
-      stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+      stream =
+          new CountingOutputStream(
+              new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
     }
   }
 
@@ -229,7 +266,6 @@ class S3OutputStream extends PositionOutputStream {
 
     try {
       stream.close();
-
       completeUploads();
     } finally {
       cleanUpStagingFiles();
@@ -237,8 +273,12 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void initializeMultiPartUpload() {
-    CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
-        .bucket(location.bucket()).key(location.key());
+    CreateMultipartUploadRequest.Builder requestBuilder =
+        CreateMultipartUploadRequest.builder().bucket(location.bucket()).key(location.key());
+    if (writeTags != null && !writeTags.isEmpty()) {
+      requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+    }
+
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
     S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
@@ -257,67 +297,88 @@ class S3OutputStream extends PositionOutputStream {
         .filter(f -> closed || !f.file().equals(currentStagingFile))
         // do not upload any files that have already been processed
         .filter(Predicates.not(f -> multiPartMap.containsKey(f.file())))
-        .forEach(fileAndDigest -> {
-          File f = fileAndDigest.file();
-          UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
-              .bucket(location.bucket())
-              .key(location.key())
-              .uploadId(multipartUploadId)
-              .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
-              .contentLength(f.length());
+        .forEach(
+            fileAndDigest -> {
+              File f = fileAndDigest.file();
+              UploadPartRequest.Builder requestBuilder =
+                  UploadPartRequest.builder()
+                      .bucket(location.bucket())
+                      .key(location.key())
+                      .uploadId(multipartUploadId)
+                      .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
+                      .contentLength(f.length());
 
-          if (fileAndDigest.hasDigest()) {
-            requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
-          }
+              if (fileAndDigest.hasDigest()) {
+                requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
+              }
 
-          S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+              S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
-          UploadPartRequest uploadRequest = requestBuilder.build();
+              UploadPartRequest uploadRequest = requestBuilder.build();
 
-          CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
-              () -> {
-                UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
-                return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
-              },
-              executorService
-          ).whenComplete((result, thrown) -> {
-            try {
-              Files.deleteIfExists(f.toPath());
-            } catch (IOException e) {
-              LOG.warn("Failed to delete staging file: {}", f, e);
-            }
+              CompletableFuture<CompletedPart> future =
+                  CompletableFuture.supplyAsync(
+                          () -> {
+                            UploadPartResponse response =
+                                s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
+                            return CompletedPart.builder()
+                                .eTag(response.eTag())
+                                .partNumber(uploadRequest.partNumber())
+                                .build();
+                          },
+                          executorService)
+                      .whenComplete(
+                          (result, thrown) -> {
+                            try {
+                              Files.deleteIfExists(f.toPath());
+                            } catch (IOException e) {
+                              LOG.warn("Failed to delete staging file: {}", f, e);
+                            }
 
-            if (thrown != null) {
-              LOG.error("Failed to upload part: {}", uploadRequest, thrown);
-              abortUpload();
-            }
-          });
+                            if (thrown != null) {
+                              // Exception observed here will be thrown as part of
+                              // CompletionException
+                              // when we will join completable futures.
+                              LOG.error("Failed to upload part: {}", uploadRequest, thrown);
+                            }
+                          });
 
-          multiPartMap.put(f, future);
-        });
+              multiPartMap.put(f, future);
+            });
   }
 
   private void completeMultiPartUpload() {
     Preconditions.checkState(closed, "Complete upload called on open stream: " + location);
 
-    List<CompletedPart> completedParts =
-        multiPartMap.values()
-            .stream()
-            .map(CompletableFuture::join)
-            .sorted(Comparator.comparing(CompletedPart::partNumber))
-            .collect(Collectors.toList());
+    List<CompletedPart> completedParts;
+    try {
+      completedParts =
+          multiPartMap.values().stream()
+              .map(CompletableFuture::join)
+              .sorted(Comparator.comparing(CompletedPart::partNumber))
+              .collect(Collectors.toList());
+    } catch (CompletionException ce) {
+      // cancel the remaining futures.
+      multiPartMap.values().forEach(c -> c.cancel(true));
+      abortUpload();
+      throw ce;
+    }
 
-    CompleteMultipartUploadRequest request = CompleteMultipartUploadRequest.builder()
-        .bucket(location.bucket()).key(location.key())
-        .uploadId(multipartUploadId)
-        .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build();
+    CompleteMultipartUploadRequest request =
+        CompleteMultipartUploadRequest.builder()
+            .bucket(location.bucket())
+            .key(location.key())
+            .uploadId(multipartUploadId)
+            .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())
+            .build();
 
     Tasks.foreach(request)
         .noRetry()
-        .onFailure((r, thrown) -> {
-          LOG.error("Failed to complete multipart upload request: {}", r, thrown);
-          abortUpload();
-        })
+        .onFailure(
+            (r, thrown) -> {
+              LOG.error("Failed to complete multipart upload request: {}", r, thrown);
+              abortUpload();
+            })
         .throwFailureWhenFinished()
         .run(s3::completeMultipartUpload);
   }
@@ -325,8 +386,12 @@ class S3OutputStream extends PositionOutputStream {
   private void abortUpload() {
     if (multipartUploadId != null) {
       try {
-        s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
-            .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
+        s3.abortMultipartUpload(
+            AbortMultipartUploadRequest.builder()
+                .bucket(location.bucket())
+                .key(location.key())
+                .uploadId(multipartUploadId)
+                .build());
       } finally {
         cleanUpStagingFiles();
       }
@@ -342,16 +407,23 @@ class S3OutputStream extends PositionOutputStream {
 
   private void completeUploads() {
     if (multipartUploadId == null) {
-      long contentLength = stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
-      InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
-          .map(FileAndDigest::file)
-          .map(S3OutputStream::uncheckedInputStream)
-          .reduce(SequenceInputStream::new)
-          .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
+      long contentLength =
+          stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
+      ContentStreamProvider contentProvider =
+          () ->
+              new BufferedInputStream(
+                  stagingFiles.stream()
+                      .map(FileAndDigest::file)
+                      .map(S3OutputStream::uncheckedInputStream)
+                      .reduce(SequenceInputStream::new)
+                      .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
 
-      PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
-          .bucket(location.bucket())
-          .key(location.key());
+      PutObjectRequest.Builder requestBuilder =
+          PutObjectRequest.builder().bucket(location.bucket()).key(location.key());
+
+      if (writeTags != null && !writeTags.isEmpty()) {
+        requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+      }
 
       if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
@@ -360,7 +432,10 @@ class S3OutputStream extends PositionOutputStream {
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-      s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
+      s3.putObject(
+          requestBuilder.build(),
+          RequestBody.fromContentProvider(
+              contentProvider, contentLength, Mimetype.MIMETYPE_OCTET_STREAM));
     } else {
       uploadParts();
       completeMultiPartUpload();
@@ -377,19 +452,21 @@ class S3OutputStream extends PositionOutputStream {
 
   private void createStagingDirectoryIfNotExists() throws IOException, SecurityException {
     if (!stagingDirectory.exists()) {
-      LOG.info("Staging directory does not exist, trying to create one: {}",
+      LOG.info(
+          "Staging directory does not exist, trying to create one: {}",
           stagingDirectory.getAbsolutePath());
       boolean createdStagingDirectory = stagingDirectory.mkdirs();
       if (createdStagingDirectory) {
         LOG.info("Successfully created staging directory: {}", stagingDirectory.getAbsolutePath());
       } else {
         if (stagingDirectory.exists()) {
-          LOG.info("Successfully created staging directory by another process: {}",
+          LOG.info(
+              "Successfully created staging directory by another process: {}",
               stagingDirectory.getAbsolutePath());
         } else {
           throw new IOException(
-              "Failed to create staging directory due to some unknown reason: " + stagingDirectory
-                  .getAbsolutePath());
+              "Failed to create staging directory due to some unknown reason: "
+                  + stagingDirectory.getAbsolutePath());
         }
       }
     }
@@ -401,8 +478,7 @@ class S3OutputStream extends PositionOutputStream {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
+      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
     }
   }

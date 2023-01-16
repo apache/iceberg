@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -24,6 +23,7 @@ import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
 import org.apache.iceberg.aliyun.AliyunProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 abstract class BaseOSSFile {
@@ -31,11 +31,13 @@ abstract class BaseOSSFile {
   private final OSSURI uri;
   private AliyunProperties aliyunProperties;
   private SimplifiedObjectMeta metadata;
+  private final MetricsContext metrics;
 
-  BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+  BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.aliyunProperties = aliyunProperties;
+    this.metrics = metrics;
   }
 
   public String location() {
@@ -59,8 +61,8 @@ abstract class BaseOSSFile {
       return objectMetadata() != null;
     } catch (OSSException e) {
 
-      if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET) ||
-          e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
+      if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET)
+          || e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
         return false;
       }
 
@@ -76,10 +78,12 @@ abstract class BaseOSSFile {
     return metadata;
   }
 
+  protected MetricsContext metrics() {
+    return metrics;
+  }
+
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("file", uri)
-        .toString();
+    return MoreObjects.toStringHelper(this).add("file", uri).toString();
   }
 }

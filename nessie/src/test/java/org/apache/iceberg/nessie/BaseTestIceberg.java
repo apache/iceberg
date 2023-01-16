@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
@@ -50,9 +52,11 @@ import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
+import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -63,27 +67,26 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter
+  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
   static DatabaseAdapter databaseAdapter;
+
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  @TempDir
-  public Path temp;
+  @TempDir public Path temp;
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
   protected Configuration hadoopConfig;
   protected final String branch;
+  private String initialHashOfDefaultBranch;
   protected String uri;
 
   public BaseTestIceberg(String branch) {
@@ -91,27 +94,34 @@ public abstract class BaseTestIceberg {
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
+    Branch defaultBranch = api.getDefaultBranch();
     for (Reference r : api.getAllReferences().get().getReferences()) {
-      if (r instanceof Branch) {
+      if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
-      } else {
+      }
+      if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
-    api.createReference().reference(Branch.of("main", null)).create();
+
+    // Reset default branch "main", if necessary
+    if (!defaultBranch.getHash().equals(initialHashOfDefaultBranch)) {
+      api.assignBranch()
+          .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
+          .branch(defaultBranch)
+          .assign();
+    }
   }
 
   @BeforeEach
-  public void beforeEach() throws IOException {
-    uri = server.getURI().toString();
-    this.api = HttpClientBuilder.builder().withUri(uri).build(NessieApiV1.class);
+  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
+    this.uri = nessieUri.toString();
+    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
-    resetData();
-
-    try {
+    Branch defaultBranch = api.getDefaultBranch();
+    initialHashOfDefaultBranch = defaultBranch.getHash();
+    if (!branch.equals(defaultBranch.getName())) {
       api.createReference().reference(Branch.of(branch, null)).create();
-    } catch (Exception e) {
-      // ignore, already created. Can't run this in BeforeAll as quarkus hasn't disabled auth
     }
 
     hadoopConfig = new Configuration();
@@ -119,13 +129,22 @@ public abstract class BaseTestIceberg {
   }
 
   NessieCatalog initCatalog(String ref) {
+    return initCatalog(ref, null);
+  }
+
+  NessieCatalog initCatalog(String ref, String hash) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
-        CatalogProperties.URI, uri,
-        "auth-type", "NONE",
-        CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString()
-    ));
+    ImmutableMap.Builder<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .put("ref", ref)
+            .put(CatalogProperties.URI, uri)
+            .put("auth-type", "NONE")
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+    if (null != hash) {
+      options.put("ref.hash", hash);
+    }
+    newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;
   }
 
@@ -133,7 +152,7 @@ public abstract class BaseTestIceberg {
     try {
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOGGER.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create " + tableIdentifier.toString(), t);
       throw t;
     }
   }
@@ -163,6 +182,8 @@ public abstract class BaseTestIceberg {
 
   @AfterEach
   public void afterEach() throws Exception {
+    resetData();
+
     try {
       if (catalog != null) {
         catalog.close();
@@ -183,15 +204,12 @@ public abstract class BaseTestIceberg {
     return icebergOps.currentMetadataLocation();
   }
 
-  static String writeRecordsToFile(Table table, Schema schema, String filename,
-      List<Record> records)
-      throws IOException {
-    String fileLocation = table.location().replace("file:", "") +
-        String.format("/data/%s.avro", filename);
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
+  static String writeRecordsToFile(
+      Table table, Schema schema, String filename, List<Record> records) throws IOException {
+    String fileLocation =
+        table.location().replace("file:", "") + String.format("/data/%s.avro", filename);
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(fileLocation)).schema(schema).named("test").build()) {
       for (Record rec : records) {
         writer.add(rec);
       }
