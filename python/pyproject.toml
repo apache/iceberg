@@ -80,7 +80,7 @@ pytest = "7.2.0"
 pytest-checkdocs = "2.9.0"
 pre-commit = "2.21.0"
 fastavro = "1.7.0"
-coverage = { version = "^7.0.4", extras = ["toml"] }
+coverage = { version = "^7.0.5", extras = ["toml"] }
 requests-mock = "1.10.0"
 moto = "^4.0.13"
 typing-extensions = '4.4.0'
