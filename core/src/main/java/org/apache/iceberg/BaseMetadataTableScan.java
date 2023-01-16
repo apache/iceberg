@@ -25,7 +25,7 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
   private final MetadataTableType tableType;
 
   protected BaseMetadataTableScan(Table table, Schema schema, MetadataTableType tableType) {
-    super(table, schema);
+    super(table, schema, new TableScanContext());
     this.tableType = tableType;
   }
 

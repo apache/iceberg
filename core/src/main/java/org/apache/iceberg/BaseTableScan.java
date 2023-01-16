@@ -48,10 +48,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
   private ScanMetrics scanMetrics;
 
-  protected BaseTableScan(Table table, Schema schema) {
-    this(table, schema, new TableScanContext());
-  }
-
   protected BaseTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
   }

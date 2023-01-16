@@ -25,6 +25,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
+  /**
+   * @deprecated will be removed in 1.3.0; use DataTableScan(Table, Schema, TableScanContext)
+   *     instead.
+   */
+  @Deprecated
+  public DataTableScan(TableOperations ignored, Table table) {
+    this(table, table.schema(), new TableScanContext());
+  }
+
+  /**
+   * @deprecated will be removed in 1.3.0; use DataTableScan(Table, Schema, TableScanContext)
+   *     instead.
+   */
+  @Deprecated
+  protected DataTableScan(
+      TableOperations ignored, Table table, Schema schema, TableScanContext context) {
+    this(table, schema, context);
+  }
+
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
   }
