@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -49,5 +51,26 @@ public class TestOAuth2Util {
     Assert.assertTrue(
         "Should accept scope token with n-z", OAuth2Util.isValidScopeToken("nopqrstuvwxyz"));
     Assert.assertTrue("Should accept scope token with {-~", OAuth2Util.isValidScopeToken("{|}~"));
+  }
+
+  @Test
+  public void testExpiresAt() {
+    assertThat(OAuth2Util.expiresAtMillis(null)).isNull();
+    assertThat(OAuth2Util.expiresAtMillis("not a token")).isNull();
+
+    // expires at epoch second = 1
+    String token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.gQADTbdEv-rpDWKSkGLbmafyB5UUjTdm9B_1izpuZ6E";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isEqualTo(1000L);
+
+    // expires at epoch second = 19999999999
+    token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE5OTk5OTk5OTk5fQ._3k92KJi2NTyTG6V1s2mzJ__GiQtL36DnzsZSkBdYPw";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isEqualTo(19999999999000L);
+
+    // no expiration
+    token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    assertThat(OAuth2Util.expiresAtMillis(token)).isNull();
   }
 }
