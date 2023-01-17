@@ -35,6 +35,7 @@ from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
+from pyiceberg.utils.config import Config
 from tests.conftest import EXAMPLE_TABLE_METADATA_V2
 
 
@@ -138,13 +139,14 @@ def test_missing_uri(empty_home_dir_path: str) -> None:
 
     # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
     with mock.patch.dict(os.environ, {"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path}):
-        runner = CliRunner()
-        result = runner.invoke(run, ["list"])
-        assert result.exit_code == 1
-        assert (
-            result.output
-            == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
-        )
+        with mock.patch('pyiceberg.catalog._ENV_CONFIG', Config()):
+            runner = CliRunner()
+            result = runner.invoke(run, ["list"])
+            assert result.exit_code == 1
+            assert (
+                result.output
+                == "URI missing, please provide using --uri, the config or environment variable \nPYICEBERG_CATALOG__DEFAULT__URI\n"
+            )
 
 
 @mock.patch.dict(os.environ, MOCK_ENVIRONMENT)
