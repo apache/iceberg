@@ -51,6 +51,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -1412,6 +1413,96 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             eq(LoadTableResponse.class),
             eq(refreshedCatalogHeader),
+            any());
+  }
+
+  @Test
+  public void testCatalogWithCustomTokenScope() throws Exception {
+    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    Answer<OAuthTokenResponse> addOneSecondExpiration =
+        invocation -> {
+          OAuthTokenResponse response = (OAuthTokenResponse) invocation.callRealMethod();
+          return OAuthTokenResponse.builder()
+              .withToken(response.token())
+              .withTokenType(response.tokenType())
+              .withIssuedTokenType(response.issuedTokenType())
+              .addScopes(response.scopes())
+              .setExpirationInSeconds(1)
+              .build();
+        };
+
+    Mockito.doAnswer(addOneSecondExpiration)
+        .when(adapter)
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/oauth/tokens"),
+            any(),
+            any(),
+            eq(OAuthTokenResponse.class),
+            any(),
+            any());
+
+    Map<String, String> contextCredentials = ImmutableMap.of();
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
+
+    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    String scope = "custom_catalog_scope";
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            OAuth2Properties.SCOPE,
+            scope));
+
+    Thread.sleep(1_100);
+
+    // call client credentials with no initial auth
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/oauth/tokens"),
+            any(),
+            any(),
+            eq(OAuthTokenResponse.class),
+            eq(emptyHeaders),
+            any());
+
+    // use the client credential token for config
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            eq(catalogHeaders),
+            any());
+
+    // verify the token exchange uses the right scope
+    Map<String, String> firstRefreshRequest =
+        ImmutableMap.of(
+            "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
+            "subject_token", "client-credentials-token:sub=catalog",
+            "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
+            "scope", scope);
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/oauth/tokens"),
+            any(),
+            Mockito.argThat(firstRefreshRequest::equals),
+            eq(OAuthTokenResponse.class),
+            eq(catalogHeaders),
             any());
   }
 }

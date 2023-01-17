@@ -359,24 +359,30 @@ public class OAuth2Util {
     private String tokenType;
     private Long expiresAtMillis;
     private final String credential;
+    private final String scope;
     private volatile boolean keepRefreshed = true;
 
     /**
      * @deprecated will be removed in 1.3.0; use {@link AuthSession#AuthSession(Map, String, String,
-     *     String)} instead.
+     *     String, String)} instead.
      */
     @Deprecated
     public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
-      this(baseHeaders, token, tokenType, null);
+      this(baseHeaders, token, tokenType, null, OAuth2Properties.CATALOG_SCOPE);
     }
 
     public AuthSession(
-        Map<String, String> baseHeaders, String token, String tokenType, String credential) {
+        Map<String, String> baseHeaders,
+        String token,
+        String tokenType,
+        String credential,
+        String scope) {
       this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
       this.token = token;
       this.tokenType = tokenType;
       this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
       this.credential = credential;
+      this.scope = scope;
     }
 
     public Map<String, String> headers() {
@@ -393,6 +399,10 @@ public class OAuth2Util {
 
     public Long expiresAtMillis() {
       return expiresAtMillis;
+    }
+
+    public String scope() {
+      return scope;
     }
 
     public void stopRefreshing() {
@@ -414,7 +424,7 @@ public class OAuth2Util {
      * @return A new {@link AuthSession} with empty headers.
      */
     public static AuthSession empty() {
-      return new AuthSession(ImmutableMap.of(), null, null, null);
+      return new AuthSession(ImmutableMap.of(), null, null, null, OAuth2Properties.CATALOG_SCOPE);
     }
 
     /**
@@ -469,7 +479,7 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE);
+        return refreshToken(client, headers(), token, tokenType, scope);
       }
     }
 
@@ -480,7 +490,7 @@ public class OAuth2Util {
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential != null) {
         Map<String, String> basicHeaders = RESTUtil.merge(headers(), basicAuthHeaders(credential));
-        return refreshToken(client, basicHeaders, token, tokenType, OAuth2Properties.CATALOG_SCOPE);
+        return refreshToken(client, basicHeaders, token, tokenType, scope);
       }
 
       return null;
@@ -566,7 +576,11 @@ public class OAuth2Util {
         AuthSession parent) {
       AuthSession session =
           new AuthSession(
-              parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE, parent.credential());
+              parent.headers(),
+              token,
+              OAuth2Properties.ACCESS_TOKEN_TYPE,
+              parent.credential(),
+              parent.scope());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -596,10 +610,10 @@ public class OAuth2Util {
         RESTClient client,
         ScheduledExecutorService executor,
         String credential,
-        AuthSession parent,
-        String scope) {
+        AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
-      OAuthTokenResponse response = fetchToken(client, parent.headers(), credential, scope);
+      OAuthTokenResponse response =
+          fetchToken(client, parent.headers(), credential, parent.scope());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
     }
 
@@ -622,7 +636,11 @@ public class OAuth2Util {
         String credential) {
       AuthSession session =
           new AuthSession(
-              parent.headers(), response.token(), response.issuedTokenType(), credential);
+              parent.headers(),
+              response.token(),
+              response.issuedTokenType(),
+              credential,
+              parent.scope());
       if (response.expiresInSeconds() != null) {
         scheduleTokenRefresh(
             client,
@@ -644,8 +662,7 @@ public class OAuth2Util {
         ScheduledExecutorService executor,
         String token,
         String tokenType,
-        AuthSession parent,
-        String scope) {
+        AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
       OAuthTokenResponse response =
           exchangeToken(
@@ -655,7 +672,7 @@ public class OAuth2Util {
               tokenType,
               parent.token(),
               parent.tokenType(),
-              scope);
+              parent.scope());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent);
     }
   }
