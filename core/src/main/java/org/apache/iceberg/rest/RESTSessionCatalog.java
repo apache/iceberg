@@ -172,7 +172,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     } else if (initToken != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresInMs(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
     }
 
     String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
@@ -765,7 +765,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             client,
             tokenRefreshExecutor(),
             credentials.get(OAuth2Properties.TOKEN),
-            expiresInMs(properties),
+            expiresAtMillis(properties),
             parent);
       }
 
@@ -787,12 +787,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return parent;
   }
 
-  private Long expiresInMs(Map<String, String> properties) {
+  private Long expiresAtMillis(Map<String, String> properties) {
     if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      return PropertyUtil.propertyAsLong(
-          properties,
-          OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-          OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+      long expiresInMillis =
+          PropertyUtil.propertyAsLong(
+              properties,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+      return System.currentTimeMillis() + expiresInMillis;
     } else {
       return null;
     }
