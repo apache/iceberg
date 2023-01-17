@@ -102,16 +102,18 @@ public class TestIcebergSourceBoundedGenericRecord {
 
   @Test
   public void testPartitionedTable() throws Exception {
+    String dateStr = "2020-03-20";
     Table table =
         catalogResource
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     for (int i = 0; i < expectedRecords.size(); ++i) {
-      expectedRecords.get(i).setField("dt", "2020-03-20");
+      expectedRecords.get(i).setField("dt", dateStr);
     }
+
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
-        .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
+        .appendToTable(org.apache.iceberg.TestHelpers.Row.of(dateStr, 0), expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
@@ -174,7 +176,7 @@ public class TestIcebergSourceBoundedGenericRecord {
     }
 
     sourceBuilder.filters(filters);
-    sourceBuilder.properties(options);
+    sourceBuilder.setAll(options);
 
     Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
     RowType rowType = FlinkSchemaUtil.convert(readSchema);

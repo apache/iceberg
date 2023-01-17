@@ -632,16 +632,7 @@ try (TableLoader loader = tableLoader) {
     table = loader.loadTable();
 }
 
-AvroGenericRecordReaderFunction readerFunction =
-    new AvroGenericRecordReaderFunction(
-        table.name(),
-        new Configuration(),
-        table.schema(),
-        null,
-        null,
-        false,
-        table.io(),
-        table.encryption());
+AvroGenericRecordReaderFunction readerFunction = AvroGenericRecordReaderFunction.fromTable(table);
 
 IcebergSource<GenericRecord> source =
     IcebergSource.<GenericRecord>builder()
