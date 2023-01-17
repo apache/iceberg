@@ -107,7 +107,7 @@ This type of representation stores the original view definition in SQL and its S
 | Required/Optional | Field Name | Description |
 |-------------------|------------|-------------|
 | Required | type | A string indicating the type of representation. It is set to "sql" for this type. |
-| Required | sql | A string representing the original view definition in SQL |
+| Required | query | A string representing the original view definition in SQL |
 | Required | dialect | A string specifying the dialect of the ‘sql’ field. It can be used by the engines to detect the SQL dialect. |
 | Optional | schema-id | ID of the view's schema when the version was created |
 | Optional | default-catalog | A string specifying the catalog to use when the table or view references in the view definition do not contain an explicit catalog. |
