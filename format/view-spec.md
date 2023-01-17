@@ -109,7 +109,7 @@ This type of representation stores the original view definition in SQL and its S
 | Required | type | A string indicating the type of representation. It is set to "sql" for this type. |
 | Required | sql | A string representing the original view definition in SQL |
 | Required | dialect | A string specifying the dialect of the ‘sql’ field. It can be used by the engines to detect the SQL dialect. |
-| Optional | schema-id | ID of the view's schema when the version was created |
+| Required | schema-id | ID of the view's schema when the version was created |
 | Optional | default-catalog | A string specifying the catalog to use when the table or view references in the view definition do not contain an explicit catalog. |
 | Optional | default-namespace | The namespace to use when the table or view references in the view definition do not contain an explicit namespace. Since the namespace may contain multiple parts, it is serialized as a list of strings. |
 | Optional | field-aliases | A list of strings of field aliases optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
