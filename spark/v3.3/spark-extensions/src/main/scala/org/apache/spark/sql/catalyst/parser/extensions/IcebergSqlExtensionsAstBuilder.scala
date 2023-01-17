@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -37,14 +38,24 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.AlterBranchRefRetention
+import org.apache.spark.sql.catalyst.plans.logical.AlterBranchSnapshotRetention
+import org.apache.spark.sql.catalyst.plans.logical.AlterTagRefRetention
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateTag
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.RemoveBranch
+import org.apache.spark.sql.catalyst.plans.logical.RemoveTag
+import org.apache.spark.sql.catalyst.plans.logical.RenameBranch
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
@@ -82,6 +93,124 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
+   * Create an ADD BRANCH logical command.
+   */
+  override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
+    CreateBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an REPLACE BRANCH logical command.
+   */
+  override def visitReplaceBranch(ctx: ReplaceBranchContext): ReplaceBranch = withOrigin(ctx) {
+    ReplaceBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an REMOVE BRANCH logical command.
+   */
+  override def visitRemoveBranch(ctx: RemoveBranchContext): RemoveBranch = withOrigin(ctx) {
+    RemoveBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText
+    )
+  }
+
+  /**
+   * Create an RENAME BRANCH logical command.
+   */
+  override def visitRenameBranch(ctx: RenameBranchContext): RenameBranch =  withOrigin(ctx) {
+    RenameBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      ctx.newIdentifier().getText)
+  }
+
+  /**
+   * Create an ALTER BRANCH RETENTION logical command.
+   */
+  override def visitAlterBranchRetention(ctx: AlterBranchRetentionContext): AlterBranchRefRetention = withOrigin(ctx) {
+    AlterBranchRefRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an ALTER BRANCH SNAPSHOT RETENTION logical command.
+   */
+  override def visitAlterBranchSnapshotRetention(
+                                                  ctx: AlterBranchSnapshotRetentionContext
+                                                ): AlterBranchSnapshotRetention = withOrigin(ctx) {
+    AlterBranchSnapshotRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an CREATE TAG logical command.
+   */
+  override def visitCreateTag(ctx: CreateTagContext): CreateTag =  withOrigin(ctx) {
+    CreateTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an REPLACE TAG logical command.
+   */
+  override def visitReplaceTag(ctx: ReplaceTagContext): ReplaceTag =  withOrigin(ctx) {
+    ReplaceTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an REMOVE TAG logical command.
+   */
+  override def visitRemoveTag(ctx: RemoveTagContext): RemoveTag = withOrigin(ctx) {
+    RemoveTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText
+    )
+  }
+
+  /**
+   * Create an ALTER TAG RETENTION logical command.
+   */
+  override def visitAlterTagRetention(ctx: AlterTagRetentionContext): AlterTagRefRetention =  withOrigin(ctx) {
+    AlterTagRefRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
    * Create a DROP PARTITION FIELD logical command.
    */
   override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = withOrigin(ctx) {
@@ -89,7 +218,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
   }
-
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
@@ -266,6 +394,16 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
+  }
+
+  private val timeUnit = (unit: String) => {
+    unit.toUpperCase(Locale.ENGLISH) match {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 60 * 1000L
+      case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
+    }
   }
 }
 

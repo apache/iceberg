@@ -73,6 +73,16 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #createBranch
+    | ALTER TABLE multipartIdentifier REPLACE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #replaceBranch
+    | ALTER TABLE multipartIdentifier CREATE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #createTag
+    | ALTER TABLE multipartIdentifier REPLACE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #replaceTag
+    | ALTER TABLE multipartIdentifier DROP BRANCH identifier #removeBranch
+    | ALTER TABLE multipartIdentifier DROP TAG identifier #removeTag
+    | ALTER TABLE multipartIdentifier ALTER BRANCH identifier SET SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)) #alterBranchSnapshotRetention
+    | ALTER TABLE multipartIdentifier ALTER BRANCH identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterBranchRetention
+    | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
+    | ALTER TABLE multipartIdentifier RENAME BRANCH identifier TO newIdentifier #renameBranch
     ;
 
 writeSpec
@@ -159,6 +169,10 @@ identifier
     | nonReserved             #unquotedIdentifier
     ;
 
+newIdentifier
+    : identifier
+    ;
+
 quotedIdentifier
     : BACKQUOTED_IDENTIFIER
     ;
@@ -168,18 +182,44 @@ fieldList
     ;
 
 nonReserved
-    : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
-    | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
-    | TRUE | FALSE
+    : ADD | ALTER | AS | ASC | BRANCH | BY | CALL | CREATE |  DESC | DROP | FIELD | FIRST | LAST | NULLS | OF | ORDERED
+    | PARTITION | TABLE | WRITE | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | VERSION | WITH | IDENTIFIER_KW | FIELDS
+    | SET | SNAPSHOT | SNAPSHOTS | TRUE | TAG | FALSE
     | MAP
+    ;
+
+snapshotId
+    : number
+    ;
+
+numSnapshots
+    : number
+    ;
+
+snapshotRetain
+    : number
+    ;
+
+snapshotRefRetain
+    : number
+    ;
+
+snapshotRefRetainTimeUnit
+    : identifier
+    ;
+
+snapshotRetainTimeUnit
+    : identifier
     ;
 
 ADD: 'ADD';
 ALTER: 'ALTER';
 AS: 'AS';
 ASC: 'ASC';
+BRANCH: 'BRANCH';
 BY: 'BY';
 CALL: 'CALL';
+CREATE: 'CREATE';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
@@ -189,15 +229,25 @@ FIRST: 'FIRST';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
 NULLS: 'NULLS';
+OF: 'OF';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 REPLACE: 'REPLACE';
+RETAIN: 'RETAIN';
+RETENTION: 'RETENTION';
 IDENTIFIER_KW: 'IDENTIFIER';
 SET: 'SET';
+SNAPSHOT: 'SNAPSHOT';
+SNAPSHOTS: 'SNAPSHOTS';
 TABLE: 'TABLE';
+TAG: 'TAG';
 UNORDERED: 'UNORDERED';
+VERSION: 'VERSION';
 WITH: 'WITH';
 WRITE: 'WRITE';
+RENAME: 'RENAME';
+TO: 'TO';
+FOR: 'FOR';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';

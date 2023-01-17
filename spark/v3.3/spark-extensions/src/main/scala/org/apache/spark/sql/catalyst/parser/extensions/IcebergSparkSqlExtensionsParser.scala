@@ -196,16 +196,27 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       .replaceAll("/\\*.*?\\*/", " ")
       .trim()
     normalized.startsWith("call") || (
-        normalized.startsWith("alter table") && (
-            normalized.contains("add partition field") ||
-            normalized.contains("drop partition field") ||
-            normalized.contains("replace partition field") ||
-            normalized.contains("write ordered by") ||
-            normalized.contains("write locally ordered by") ||
-            normalized.contains("write distributed by") ||
-            normalized.contains("write unordered") ||
-            normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields")))
+      normalized.startsWith("alter table") && (
+        normalized.contains("add partition field") ||
+          normalized.contains("drop partition field") ||
+          normalized.contains("replace partition field") ||
+          normalized.contains("write ordered by") ||
+          normalized.contains("write locally ordered by") ||
+          normalized.contains("write distributed by") ||
+          normalized.contains("write unordered") ||
+          normalized.contains("set identifier fields") ||
+          normalized.contains("drop identifier fields") ||
+          normalized.contains("create branch") ||
+          normalized.contains("replace branch") ||
+          normalized.contains("create tag") ||
+          normalized.contains("replace tag")) ||
+          normalized.contains("drop branch") ||
+          normalized.contains("drop tag") ||
+          normalized.contains("drop tag") ||
+          normalized.contains("alter branch") ||
+          normalized.contains("alter tag") ||
+          normalized.contains("rename branch")
+      )
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
