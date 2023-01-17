@@ -22,6 +22,7 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,7 @@ import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.SparkContext;
@@ -71,6 +73,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.JavaConverters;
 
 abstract class BaseSparkAction<ThisT> {
 
@@ -230,13 +233,10 @@ abstract class BaseSparkAction<ThisT> {
 
     boolean createdDefaultDeleteService = false;
     if (deleteService == null) {
-      int numThreads =
-          Integer.parseInt(
-              spark
-                  .conf()
-                  .get(
-                      SparkSQLProperties.DELETE_PARALLELISM,
-                      SparkSQLProperties.DELETE_PARALLELISM_DEFAULT));
+      int numThreads = PropertyUtil.propertyAsInt(
+              JavaConverters.mapAsJavaMap(spark.conf().getAll()),
+              SparkSQLProperties.DELETE_PARALLELISM,
+              SparkSQLProperties.DELETE_PARALLELISM_DEFAULT);
       deleteService = ThreadPools.newWorkerPool(this + "-default-delete-service", numThreads);
       createdDefaultDeleteService = true;
     }
