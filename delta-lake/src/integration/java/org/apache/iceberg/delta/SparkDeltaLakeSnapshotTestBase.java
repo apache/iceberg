@@ -18,27 +18,12 @@
  */
 package org.apache.iceberg.delta;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 
 @SuppressWarnings("VisibilityModifier")
@@ -46,9 +31,6 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
-  protected static HiveCatalog catalog = null;
-  private static File warehouse = null;
-  protected final String catalogName;
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -64,26 +46,13 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
                 "spark.hadoop." + HiveConf.ConfVars.METASTOREURIS.varname,
                 hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-            // Needed for Delta Lake tests
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .enableHiveSupport()
             .getOrCreate();
-
-    SparkDeltaLakeSnapshotTestBase.catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
-
-    try {
-      catalog.createNamespace(Namespace.of("default"));
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
-    }
   }
 
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
-    SparkDeltaLakeSnapshotTestBase.catalog = null;
     if (metastore != null) {
       metastore.stop();
       SparkDeltaLakeSnapshotTestBase.metastore = null;
@@ -94,68 +63,11 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
     }
   }
 
-  @BeforeClass
-  public static void createWarehouse() throws IOException {
-    SparkDeltaLakeSnapshotTestBase.warehouse = File.createTempFile("warehouse", null);
-    Assert.assertTrue(warehouse.delete());
-  }
-
-  @AfterClass
-  public static void dropWarehouse() throws IOException {
-    if (warehouse != null && warehouse.exists()) {
-      Path warehousePath = new Path(warehouse.getAbsolutePath());
-      FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(warehousePath, true));
-    }
-  }
-
   public SparkDeltaLakeSnapshotTestBase(
       String catalogName, String implementation, Map<String, String> config) {
-    this.catalogName = catalogName;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     config.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
-
-    if (config.get("type").equalsIgnoreCase("hadoop")) {
-      spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
-    }
-
-    sql("CREATE NAMESPACE IF NOT EXISTS default");
-  }
-
-  protected List<Object[]> sql(String query, Object... args) {
-    List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
-    if (rows.size() < 1) {
-      return ImmutableList.of();
-    }
-
-    return rowsToJava(rows);
-  }
-
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
-  }
-
-  private Object[] toJava(Row row) {
-    return IntStream.range(0, row.size())
-        .mapToObj(
-            pos -> {
-              if (row.isNullAt(pos)) {
-                return null;
-              }
-
-              Object value = row.get(pos);
-              if (value instanceof Row) {
-                return toJava((Row) value);
-              } else if (value instanceof scala.collection.Seq) {
-                return row.getList(pos);
-              } else if (value instanceof scala.collection.Map) {
-                return row.getJavaMap(pos);
-              } else {
-                return value;
-              }
-            })
-        .toArray(Object[]::new);
   }
 }
