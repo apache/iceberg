@@ -163,18 +163,19 @@ The HMS table locking is a 2-step process:
 1. Lock Creation: Create lock in HMS and queue for acquisition
 2. Lock Check: Check if lock successfully acquired
 
-| Property                                  | Default         | Description                                                                  |
-|-------------------------------------------|-----------------|------------------------------------------------------------------------------|
-| iceberg.hive.client-pool-size             | 5               | The size of the Hive client pool when tracking tables in HMS                 |
-| iceberg.hive.lock-creation-timeout-ms     | 180000 (3 min)  | Maximum time in milliseconds to create a lock in the HMS                     |
-| iceberg.hive.lock-creation-min-wait-ms    | 50              | Minimum time in milliseconds between retries of creating the lock in the HMS |
-| iceberg.hive.lock-creation-max-wait-ms    | 5000            | Maximum time in milliseconds between retries of creating the lock in the HMS |
-| iceberg.hive.lock-timeout-ms              | 180000 (3 min)  | Maximum time in milliseconds to acquire a lock                               |
-| iceberg.hive.lock-check-min-wait-ms       | 50              | Minimum time in milliseconds between checking the acquisition of the lock    |
-| iceberg.hive.lock-check-max-wait-ms       | 5000            | Maximum time in milliseconds between checking the acquisition of the lock    |
-| iceberg.hive.lock-heartbeat-interval-ms   | 240000 (4 min)  | The heartbeat interval for the HMS locks.                                    |
-| iceberg.hive.metadata-refresh-max-retries | 2               | Maximum number of retries when the metadata file is missing                  |
-| iceberg.hive.table-level-lock-evict-ms    | 600000 (10 min) | The timeout for the JVM table lock is                                        |
+| Property                                     | Default         | Description                                                                  |
+|----------------------------------------------|-----------------|------------------------------------------------------------------------------|
+| iceberg.hive.client-pool-size                | 5               | The size of the Hive client pool when tracking tables in HMS                 |
+| iceberg.hive.lock-creation-timeout-ms        | 180000 (3 min)  | Maximum time in milliseconds to create a lock in the HMS                     |
+| iceberg.hive.lock-creation-min-wait-ms       | 50              | Minimum time in milliseconds between retries of creating the lock in the HMS |
+| iceberg.hive.lock-creation-max-wait-ms       | 5000            | Maximum time in milliseconds between retries of creating the lock in the HMS |
+| iceberg.hive.lock-timeout-ms                 | 180000 (3 min)  | Maximum time in milliseconds to acquire a lock                               |
+| iceberg.hive.lock-check-min-wait-ms          | 50              | Minimum time in milliseconds between checking the acquisition of the lock    |
+| iceberg.hive.lock-check-max-wait-ms          | 5000            | Maximum time in milliseconds between checking the acquisition of the lock    |
+| iceberg.hive.lock-heartbeat-interval-ms      | 240000 (4 min)  | The heartbeat interval for the HMS locks.                                    |
+| iceberg.hive.lock-heartbeat-threadpool-size  | 2               | The heartbeat thread pool size for the HMS locks.                            |
+| iceberg.hive.metadata-refresh-max-retries    | 2               | Maximum number of retries when the metadata file is missing                  |
+| iceberg.hive.table-level-lock-evict-ms       | 600000 (10 min) | The timeout for the JVM table lock is                                        |
 
 Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
 of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 

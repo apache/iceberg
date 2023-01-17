@@ -82,9 +82,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,6 +107,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       "iceberg.hive.lock-creation-max-wait-ms";
   private static final String HIVE_LOCK_HEARTBEAT_INTERVAL_MS =
       "iceberg.hive.lock-heartbeat-interval-ms";
+  private static final String HIVE_LOCK_HEARTBEAT_THREADPOOL_SIZE =
+      "iceberg.hive.lock-heartbeat-threadpool-size";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
       "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS =
@@ -125,6 +127,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final long HIVE_LOCK_CREATION_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 4 * 60 * 1000; // 4 minutes
+  private static final int HIVE_LOCK_HEARTBEAT_THREADPOOL_SIZE_DEFAULT = 2;
   private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION =
@@ -134,11 +137,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           GC_ENABLED, "external.table.purge");
 
   private static Cache<String, ReentrantLock> commitLockCache;
+  private static ScheduledExecutorService hiveLockHeartbeatExecutorService;
 
   private static synchronized void initTableLevelLockCache(long evictionTimeout) {
     if (commitLockCache == null) {
       commitLockCache =
           Caffeine.newBuilder().expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS).build();
+    }
+  }
+
+  private static synchronized void initHiveLockHeartbeatScheduledExecutorService(int threadPoolSize) {
+    if (hiveLockHeartbeatExecutorService == null) {
+      hiveLockHeartbeatExecutorService = ThreadPools.newScheduledPool("iceberg-hive-lock-heartbeat", threadPoolSize);
     }
   }
 
@@ -182,7 +192,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
-  private final ScheduledExecutorService exitingScheduledExecutorService;
 
   protected HiveTableOperations(
       Configuration conf,
@@ -219,13 +228,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
-    this.exitingScheduledExecutorService =
-        Executors.newSingleThreadScheduledExecutor(
-            new ThreadFactoryBuilder()
-                .setDaemon(true)
-                .setNameFormat("iceberg-hive-lock-heartbeat-%d")
-                .build());
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
+    int hiveLockHeartbeatThreadPoolSize =
+        conf.getInt(HIVE_LOCK_HEARTBEAT_THREADPOOL_SIZE, HIVE_LOCK_HEARTBEAT_THREADPOOL_SIZE_DEFAULT);
+    initHiveLockHeartbeatScheduledExecutorService(hiveLockHeartbeatThreadPoolSize);
   }
 
   @Override
@@ -289,7 +295,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       lockId = Optional.of(acquireLock(agentInfo));
       hiveLockHeartbeat =
           new HiveLockHeartbeat(metaClients, lockId.get(), lockHeartbeatIntervalTime);
-      hiveLockHeartbeat.schedule(exitingScheduledExecutorService);
+      hiveLockHeartbeat.schedule(hiveLockHeartbeatExecutorService);
 
       Table tbl = loadHmsTable();
 
