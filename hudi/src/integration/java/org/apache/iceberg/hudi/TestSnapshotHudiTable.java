@@ -233,8 +233,9 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
 
   @Test
   public void TestHudiMetaClientAlpha() {
+    LOG.info("Alpha test reference: hoodie table path: {}", partitionedLocation);
     SnapshotHudiTable.Result result =
-        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(spark, unpartitionedLocation)
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(spark, partitionedLocation)
             .execute();
   }
 
