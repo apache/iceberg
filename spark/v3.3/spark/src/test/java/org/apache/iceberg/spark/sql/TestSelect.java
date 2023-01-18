@@ -259,6 +259,28 @@ public class TestSelect extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testUseSnapshotIdForTagReferenceAsOf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    // create a second snapshot, read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(Long.toString(snapshotId1), snapshotId2).commit();
+
+    // currently Spark version travel ignores the type of the AS OF
+    // this means if a tag name matches a snapshot ID, it will always choose snapshotID to travel to.
+    List<Object[]> travelWithStringResult = sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, snapshotId1);
+    assertEquals("Snapshot at specific tag reference name", actual, travelWithStringResult);
+
+    List<Object[]> travelWithLongResult = sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId1);
+    assertEquals("Snapshot at specific tag reference name", actual, travelWithLongResult);
+  }
+
+  @Test
   public void testBranchReferenceAsOf() {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -291,7 +313,7 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testUnknownReferenceAsOf() {
     Assertions.assertThatThrownBy(
             () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
-        .as("Cannot find matching snapshot ID or reference name for version")
+        .hasMessage("Cannot find matching snapshot ID or reference name for version")
         .isInstanceOf(ValidationException.class);
   }
 
