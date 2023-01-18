@@ -119,6 +119,50 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     spark.conf().set("spark.sql.catalog." + defaultSparkCatalog, HoodieCatalog.class.getName());
   }
 
+  /**
+   * The test hardcode a nested dataframe to test the snapshot feature. The schema of created
+   * dataframe is:
+   *
+   * <pre>
+   *  root
+   *  |-- address_nested: struct (nullable = true)
+   *  |    |-- current: struct (nullable = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |    |-- previous: struct (nullable = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |-- addresses: array (nullable = true)
+   *  |    |-- element: struct (containsNull = true)
+   *  |    |    |-- city: string (nullable = true)
+   *  |    |    |-- state: string (nullable = true)
+   *  |-- id: long (nullable = true)
+   *  |-- magic_number: double (nullable = true)
+   *  |-- name: string (nullable = true)
+   *  |-- properties: struct (nullable = true)
+   *  |    |-- eye: string (nullable = true)
+   *  |    |-- hair: string (nullable = true)
+   *  |-- secondProp: struct (nullable = true)
+   *  |    |-- height: string (nullable = true)
+   *  |-- subjects: array (nullable = true)
+   *  |    |-- element: array (containsNull = true)
+   *  |    |    |-- element: string (containsNull = true)
+   * </pre>
+   *
+   * The dataframe content is (by calling df.show()):
+   *
+   * <pre>
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * |      address_nested|           addresses| id|  magic_number|   name|          properties|secondProp|            subjects|
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * |{{NewYork, NY}, {...|[{SanJose, CA}, {...|  1|1.123123123123|Michael|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |{{NewY1231ork, N1...|[{SanJos123123e, ...|  2|2.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |                null|[{SanJose, CA}, {...|  3|3.123123123123|   Test|      {black, brown}|       {6}|[[Java, Scala, C+...|
+   * |{{NewYork, NY}, {...|[{LA, CA}, {Sandi...|  4|4.123123123123|   John|{bla3221ck, b12rown}|     {633}|     [[Spark, Java]]|
+   * |{{Haha, PA}, {nul...|[{Pittsburgh, PA}...|  5|5.123123123123|  Jonas|      {black, black}|       {7}|[[Java, Scala, C+...|
+   * +--------------------+--------------------+---+--------------+-------+--------------------+----------+--------------------+
+   * </pre>
+   */
   @Before
   public void before() throws IOException {
     File partitionedFolder = temp1.newFolder();
@@ -155,7 +199,17 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     df.write()
         .format("hudi")
         .options(QuickstartUtils.getQuickstartWriteConfigs())
-        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "id")
+        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
+        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
+        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "id")
+        .option(HoodieWriteConfig.TABLE_NAME, partitionedIdentifier)
+        .mode(SaveMode.Overwrite)
+        .save(partitionedLocation);
+
+    df.write()
+        .format("hudi")
+        .options(QuickstartUtils.getQuickstartWriteConfigs())
+        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
         .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
         .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "")
         .option(HoodieWriteConfig.TABLE_NAME, unpartitionedIdentifier)
@@ -164,11 +218,17 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   }
 
   @Test
-  public void TestHudiTableWrite() {
+  public void TestHudiUnpartitionedTableWrite() {
     Dataset<Row> df = spark.read().format("hudi").load(unpartitionedLocation);
-    LOG.info("Generated dataframe shcema: {}", df.schema().treeString());
-    LOG.info("Generated dataframe: {}", df.showString(10, 20,false));
-    df.show();
+    LOG.info("Generated unpartitioned dataframe shcema: {}", df.schema().treeString());
+    LOG.info("Generated unpartitioned dataframe: {}", df.showString(10, 20, false));
+  }
+
+  @Test
+  public void TestHudiPartitionedTableWrite() {
+    Dataset<Row> df = spark.read().format("hudi").load(partitionedLocation);
+    LOG.info("Generated partitioned dataframe shcema: {}", df.schema().treeString());
+    LOG.info("Generated partitioned dataframe: {}", df.showString(10, 20, false));
   }
 
   private String destName(String catalogName, String dest) {
