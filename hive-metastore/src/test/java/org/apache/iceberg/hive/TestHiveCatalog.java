@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -247,17 +249,28 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testCreateTableWithOwner() throws Exception {
+    createTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_specified_owner",
+        ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, "some_owner"),
+        "some_owner");
+    createTableAndVerifyOwner(
+        DB_NAME,
+        "tbl_default_owner",
+        ImmutableMap.of(),
+        UserGroupInformation.getCurrentUser().getUserName());
+  }
+
+  private void createTableAndVerifyOwner(
+      String db, String tbl, Map<String, String> properties, String owner)
+      throws IOException, TException {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
-    String owner = "some_owner";
-    ImmutableMap<String, String> properties = ImmutableMap.of(HiveCatalog.HMS_TABLE_OWNER, owner);
-
+    TableIdentifier tableIdent = TableIdentifier.of(db, tbl);
+    String location = temp.newFolder(tbl).toString();
     try {
       Table table = catalog.createTable(tableIdent, schema, spec, location, properties);
-      org.apache.hadoop.hive.metastore.api.Table hmsTable =
-          metastoreClient.getTable(DB_NAME, "tbl");
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(db, tbl);
       Assert.assertEquals(owner, hmsTable.getOwner());
       Map<String, String> hmsTableParams = hmsTable.getParameters();
       Assert.assertFalse(hmsTableParams.containsKey(HiveCatalog.HMS_TABLE_OWNER));
@@ -354,6 +367,20 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testCreateNamespaceWithOwnership() throws Exception {
+    createNamespaceAndVerifyOwnership(
+        "default_ownership_1",
+        ImmutableMap.of(),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        PrincipalType.USER);
+
+    createNamespaceAndVerifyOwnership(
+        "default_ownership_2",
+        ImmutableMap.of(
+            "non_owner_prop1", "value1",
+            "non_owner_prop2", "value2"),
+        UserGroupInformation.getCurrentUser().getUserName(),
+        PrincipalType.USER);
+
     createNamespaceAndVerifyOwnership(
         "individual_ownership_1",
         ImmutableMap.of(
@@ -619,7 +646,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testSetNamespaceOwnershipNoop() throws TException {
+  public void testSetNamespaceOwnershipNoop() throws TException, IOException {
     setNamespaceOwnershipAndVerify(
         "set_ownership_noop_1",
         ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_individual_owner"),
@@ -654,9 +681,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         "set_ownership_noop_3",
         ImmutableMap.of(),
         ImmutableMap.of(),
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER,
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER);
 
     setNamespaceOwnershipAndVerify(
@@ -715,14 +742,14 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testRemoveNamespaceOwnership() throws TException {
+  public void testRemoveNamespaceOwnership() throws TException, IOException {
     removeNamespaceOwnershipAndVerify(
         "remove_individual_ownership",
         ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
         ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
         "some_owner",
         PrincipalType.USER,
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER);
 
     removeNamespaceOwnershipAndVerify(
@@ -735,25 +762,25 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
         "some_group_owner",
         PrincipalType.GROUP,
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER);
 
     removeNamespaceOwnershipAndVerify(
         "remove_ownership_on_default_noop_1",
         ImmutableMap.of(),
         ImmutableSet.of(HiveCatalog.HMS_DB_OWNER, HiveCatalog.HMS_DB_OWNER_TYPE),
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER,
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER);
 
     removeNamespaceOwnershipAndVerify(
         "remove_ownership_on_default_noop_2",
         ImmutableMap.of(),
         ImmutableSet.of(),
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER,
-        System.getProperty("user.name"),
+        UserGroupInformation.getCurrentUser().getUserName(),
         PrincipalType.USER);
 
     removeNamespaceOwnershipAndVerify(
