@@ -83,9 +83,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     return closed;
   }
 
-  /**
-   * Turn on the closed pool again and reuse it
-   */
+  /** Turn on the closed pool again and reuse it */
   public void reuse() {
     closed = false;
   }

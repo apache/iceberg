@@ -258,7 +258,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   /**
-   * Check that pool is off and turn it back on if it is off, in case others turn it off and cannot use pool.
+   * Check that pool is off and turn it back on if it is off, in case others turn it off and cannot
+   * use pool.
    */
   private void checkIsClosedOtherwiseReuse() {
     if (connections != null && connections.isClosed()) {
