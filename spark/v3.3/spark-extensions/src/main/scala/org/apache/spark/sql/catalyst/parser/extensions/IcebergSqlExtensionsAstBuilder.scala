@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -39,6 +40,7 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -90,6 +92,22 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform))
   }
 
+  /**
+   * Create an ADD BRANCH logical command.
+   */
+  override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
+    val snapshotRetention = Option(ctx.snapshotRetentionClause())
+
+    CreateBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(
+        _.getText.toLong * timeUnit(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong *
+        timeUnit(ctx.snapshotRefRetainTimeUnit().getText)))
+  }
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
@@ -266,6 +284,16 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
+  }
+
+  private val timeUnit = (unit: String) => {
+    unit.toUpperCase(Locale.ENGLISH) match {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 60 * 1000L
+      case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
+    }
   }
 }
 
