@@ -231,6 +231,13 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     LOG.info("Generated partitioned dataframe: {}", df.showString(10, 20, false));
   }
 
+  @Test
+  public void TestHudiMetaClientAlpha() {
+    SnapshotHudiTable.Result result =
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(spark, unpartitionedLocation)
+            .execute();
+  }
+
   private String destName(String catalogName, String dest) {
     if (catalogName.equals(defaultSparkCatalog)) {
       return NAMESPACE + "." + catalogName + "_" + dest;

@@ -458,6 +458,7 @@ project(':iceberg-hudi') {
     implementation project(':iceberg-orc')
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
+    compileOnly("org.apache.hudi:hudi-common:0.12.2")
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
