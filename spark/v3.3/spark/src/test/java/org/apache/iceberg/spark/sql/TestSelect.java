@@ -316,7 +316,7 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testUnknownReferenceAsOf() {
     Assertions.assertThatThrownBy(
             () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
-        .hasMessage("Cannot find matching snapshot ID or reference name for version")
+        .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
         .isInstanceOf(ValidationException.class);
   }
 
