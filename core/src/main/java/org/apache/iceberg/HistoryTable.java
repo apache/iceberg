@@ -41,17 +41,17 @@ public class HistoryTable extends BaseMetadataTable {
           Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
           Types.NestedField.required(4, "is_current_ancestor", Types.BooleanType.get()));
 
-  HistoryTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".history");
+  HistoryTable(Table table) {
+    this(table, table.name() + ".history");
   }
 
-  HistoryTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  HistoryTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new HistoryScan(operations(), table());
+    return new HistoryScan(table());
   }
 
   @Override
@@ -65,29 +65,26 @@ public class HistoryTable extends BaseMetadataTable {
   }
 
   private DataTask task(TableScan scan) {
-    TableOperations ops = operations();
     return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        table().io().newInputFile(table().operations().current().metadataFileLocation()),
         schema(),
         scan.schema(),
-        ops.current().snapshotLog(),
+        table().history(),
         convertHistoryEntryFunc(table()));
   }
 
   private class HistoryScan extends StaticTableScan {
-    HistoryScan(TableOperations ops, Table table) {
-      super(ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task);
+    HistoryScan(Table table) {
+      super(table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task);
     }
 
-    HistoryScan(TableOperations ops, Table table, TableScanContext context) {
-      super(
-          ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task, context);
+    HistoryScan(Table table, TableScanContext context) {
+      super(table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new HistoryScan(ops, table, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new HistoryScan(table, context);
     }
 
     @Override

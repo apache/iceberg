@@ -39,8 +39,8 @@ import org.apache.iceberg.util.StructProjection;
 /** Base class logic for entries metadata tables */
 abstract class BaseEntriesTable extends BaseMetadataTable {
 
-  BaseEntriesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  BaseEntriesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override

@@ -44,7 +44,7 @@ public interface CommitMetricsResult {
   String ADDED_FILE_SIZE_BYTES = "added-files-size-bytes";
   String REMOVED_FILE_SIZE_BYTES = "removed-files-size-bytes";
   String TOTAL_FILE_SIZE_BYTES = "total-files-size-bytes";
-  String ADDED_POS_DELETES = "added-position-deletes";
+  String ADDED_POS_DELETES = "added-positional-deletes";
   String REMOVED_POS_DELETES = "removed-positional-deletes";
   String TOTAL_POS_DELETES = "total-positional-deletes";
   String ADDED_EQ_DELETES = "added-equality-deletes";

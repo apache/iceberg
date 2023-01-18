@@ -40,8 +40,8 @@ import org.apache.iceberg.types.Types.StructType;
 /** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
 
-  BaseFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  BaseFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
@@ -94,18 +94,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
 
-    protected BaseFilesTableScan(
-        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-      super(ops, table, schema, tableType);
+    protected BaseFilesTableScan(Table table, Schema schema, MetadataTableType tableType) {
+      super(table, schema, tableType);
     }
 
     protected BaseFilesTableScan(
-        TableOperations ops,
-        Table table,
-        Schema schema,
-        MetadataTableType tableType,
-        TableScanContext context) {
-      super(ops, table, schema, tableType, context);
+        Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+      super(table, schema, tableType, context);
     }
 
     /** Returns an iterable of manifest files to explore for this files metadata table scan */
@@ -119,18 +114,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   abstract static class BaseAllFilesTableScan extends BaseAllMetadataTableScan {
 
-    protected BaseAllFilesTableScan(
-        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-      super(ops, table, schema, tableType);
+    protected BaseAllFilesTableScan(Table table, Schema schema, MetadataTableType tableType) {
+      super(table, schema, tableType);
     }
 
     protected BaseAllFilesTableScan(
-        TableOperations ops,
-        Table table,
-        Schema schema,
-        MetadataTableType tableType,
-        TableScanContext context) {
-      super(ops, table, schema, tableType, context);
+        Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+      super(table, schema, tableType, context);
     }
 
     /** Returns an iterable of manifest files to explore for this all files metadata table scan */

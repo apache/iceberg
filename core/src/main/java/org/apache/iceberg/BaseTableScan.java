@@ -48,13 +48,8 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
   private ScanMetrics scanMetrics;
 
-  protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, schema, new TableScanContext());
-  }
-
-  protected BaseTableScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  protected BaseTableScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   protected Long snapshotId() {
@@ -95,11 +90,10 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
     Preconditions.checkArgument(
-        tableOps().current().snapshot(scanSnapshotId) != null,
+        table().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s",
         scanSnapshotId);
-    return newRefinedScan(
-        tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
+    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
@@ -108,8 +102,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
         snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
-    return newRefinedScan(
-        tableOps(), table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
   }
 
   @Override
@@ -174,9 +167,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   @Override
   public Snapshot snapshot() {
-    return snapshotId() != null
-        ? tableOps().current().snapshot(snapshotId())
-        : tableOps().current().currentSnapshot();
+    return snapshotId() != null ? table().snapshot(snapshotId()) : table().currentSnapshot();
   }
 
   @Override

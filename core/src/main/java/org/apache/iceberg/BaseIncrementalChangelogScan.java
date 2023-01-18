@@ -38,19 +38,18 @@ class BaseIncrementalChangelogScan
         IncrementalChangelogScan, ChangelogScanTask, ScanTaskGroup<ChangelogScanTask>>
     implements IncrementalChangelogScan {
 
-  BaseIncrementalChangelogScan(TableOperations ops, Table table) {
-    this(ops, table, table.schema(), new TableScanContext());
+  BaseIncrementalChangelogScan(Table table) {
+    this(table, table.schema(), new TableScanContext());
   }
 
-  BaseIncrementalChangelogScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context);
+  private BaseIncrementalChangelogScan(Table table, Schema schema, TableScanContext context) {
+    super(table, schema, context);
   }
 
   @Override
   protected IncrementalChangelogScan newRefinedScan(
-      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext) {
-    return new BaseIncrementalChangelogScan(newOps, newTable, newSchema, newContext);
+      Table newTable, Schema newSchema, TableScanContext newContext) {
+    return new BaseIncrementalChangelogScan(newTable, newSchema, newContext);
   }
 
   @Override

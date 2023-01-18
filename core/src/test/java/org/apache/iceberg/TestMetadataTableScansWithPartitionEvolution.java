@@ -66,7 +66,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testManifestsTableWithAddPartitionOnNestedField() throws IOException {
-    Table manifestsTable = new ManifestsTable(table.ops(), table);
+    Table manifestsTable = new ManifestsTable(table);
     TableScan scan = manifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -77,7 +77,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testDataFilesTableWithAddPartitionOnNestedField() throws IOException {
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+    Table dataFilesTable = new DataFilesTable(table);
     TableScan scan = dataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -88,7 +88,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testManifestEntriesWithAddPartitionOnNestedField() throws IOException {
-    Table manifestEntriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table manifestEntriesTable = new ManifestEntriesTable(table);
     TableScan scan = manifestEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -99,7 +99,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testAllDataFilesTableWithAddPartitionOnNestedField() throws IOException {
-    Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
+    Table allDataFilesTable = new AllDataFilesTable(table);
     TableScan scan = allDataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -110,7 +110,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testAllEntriesTableWithAddPartitionOnNestedField() throws IOException {
-    Table allEntriesTable = new AllEntriesTable(table.ops(), table);
+    Table allEntriesTable = new AllEntriesTable(table);
     TableScan scan = allEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -121,7 +121,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testAllManifestsTableWithAddPartitionOnNestedField() throws IOException {
-    Table allManifestsTable = new AllManifestsTable(table.ops(), table);
+    Table allManifestsTable = new AllManifestsTable(table);
     TableScan scan = allManifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -132,7 +132,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @Test
   public void testPartitionsTableScanWithAddPartitionOnNestedField() throws IOException {
-    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    Table partitionsTable = new PartitionsTable(table);
     Types.StructType idPartition =
         new Schema(
                 required(

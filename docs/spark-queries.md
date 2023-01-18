@@ -122,7 +122,7 @@ SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
 
 #### DataFrame
 
-To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports two Spark read options:
+To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
 
 * `snapshot-id` selects a specific table snapshot
 * `as-of-timestamp` selects the current snapshot at a timestamp, in milliseconds
