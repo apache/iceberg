@@ -42,9 +42,9 @@ public class SystemProperties {
   public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
   public static final String DELETE_POS_FILES_THREAD_POOL_SIZE =
-      "iceberg.delete-pos.worker.num-threads";
+      "iceberg.worker.delete-num-threads";
 
-  public static boolean getBoolean(String systemProperty, boolean defaultValue) {
+  static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);
     if (value != null) {
       return Boolean.parseBoolean(value);

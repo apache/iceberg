@@ -68,7 +68,7 @@ public class ThreadPools {
    * Return an {@link ExecutorService} that uses "delete worker" thread-pool.
    *
    * <p>The size of this thread-pool is controlled by the Java system property {@code
-   * iceberg.delete-pos.worker.num-threads}.
+   * iceberg.worker.delete-num-threads}.
    *
    * @return an {@link ExecutorService} that uses delete worker pool
    */

@@ -33,7 +33,6 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FilterIterator;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -52,8 +51,6 @@ public class Deletes {
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
   private static final Accessor<StructLike> POSITION_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
-
-  private static ExecutorService deletePosThreadPool = ThreadPools.getDeleteWorkerPool();
 
   private Deletes() {}
 
@@ -141,13 +138,15 @@ public class Deletes {
     }
   }
 
-  @VisibleForTesting
-  static void setDeletePosThreadPool(ExecutorService threadPool) {
-    deletePosThreadPool = threadPool;
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
+      CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
+    return toPositionIndex(dataLocation, deleteFiles, ThreadPools.getDeleteWorkerPool());
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
-      CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
+      CharSequence dataLocation,
+      List<CloseableIterable<T>> deleteFiles,
+      ExecutorService deletePosThreadPool) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions =
         Lists.transform(

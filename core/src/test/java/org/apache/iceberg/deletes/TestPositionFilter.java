@@ -285,21 +285,16 @@ public class TestPositionFilter {
 
   @Test
   public void testCombinedPositionSetRowFilter() {
-    testCombinedPositionSetRowFilter(0);
-  }
+    testCombinedPositionSetRowFilter(null);
 
-  @Test
-  public void testCombinedPositionSetRowFilterInParallel() {
-    testCombinedPositionSetRowFilter(4);
-  }
-
-  void testCombinedPositionSetRowFilter(int threadPoolSize) {
+    // Test with custom threadpool
     ExecutorService executorService =
-        (threadPoolSize == 0)
-            ? null
-            : MoreExecutors.getExitingExecutorService(
-                (ThreadPoolExecutor) Executors.newFixedThreadPool(threadPoolSize));
-    Deletes.setDeletePosThreadPool(executorService);
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(4));
+    testCombinedPositionSetRowFilter(executorService);
+  }
+
+  void testCombinedPositionSetRowFilter(ExecutorService executorService) {
     CloseableIterable<StructLike> positionDeletes1 =
         CloseableIterable.withNoopClose(
             Lists.newArrayList(
@@ -331,12 +326,22 @@ public class TestPositionFilter {
                 Row.of(8L, "i"),
                 Row.of(9L, "j")));
 
-    Predicate<StructLike> isDeleted =
-        row ->
-            Deletes.toPositionIndex(
-                    "file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2))
-                .isDeleted(row.get(0, Long.class));
-
+    Predicate<StructLike> isDeleted;
+    if (executorService == null) {
+      isDeleted =
+          row ->
+              Deletes.toPositionIndex(
+                      "file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2))
+                  .isDeleted(row.get(0, Long.class));
+    } else {
+      isDeleted =
+          row ->
+              Deletes.toPositionIndex(
+                      "file_a.avro",
+                      ImmutableList.of(positionDeletes1, positionDeletes2),
+                      executorService)
+                  .isDeleted(row.get(0, Long.class));
+    }
     CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, isDeleted.negate());
 
     Assert.assertEquals(
