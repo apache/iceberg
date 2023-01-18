@@ -605,7 +605,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       PartitionSet partitionSet,
       Snapshot parent) {
     // if there is no current table state, no files have been deleted
-    if (base.currentSnapshot() == null) {
+    if (parent == null) {
       return CloseableIterable.empty();
     }
 
