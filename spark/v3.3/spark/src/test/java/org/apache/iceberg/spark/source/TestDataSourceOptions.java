@@ -448,4 +448,37 @@ public class TestDataSourceOptions {
     Assert.assertTrue(threadNames.contains(null));
     Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
   }
+
+  @Test
+  public void testExtraSnapshotMetadataForSqlInPySpark() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+
+    Table table =
+        tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+    spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
+    spark.conf().set("spark.snapshot-property.extra-key", "someValue");
+    spark.conf().set("spark.snapshot-property.another-key", "anotherValue");
+    spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
+
+    Set<String> extraKeys = Sets.newHashSet();
+    Set<String> anotherKeys = Sets.newHashSet();
+    for (Snapshot snapshot : table.snapshots()) {
+      extraKeys.add(snapshot.summary().get("extra-key"));
+      anotherKeys.add(snapshot.summary().get("another-key"));
+    }
+    Assert.assertEquals(2, extraKeys.size());
+    Assert.assertTrue(extraKeys.contains(null));
+    Assert.assertTrue(extraKeys.contains("someValue"));
+    Assert.assertEquals(2, anotherKeys.size());
+    Assert.assertTrue(anotherKeys.contains(null));
+    Assert.assertTrue(anotherKeys.contains("anotherValue"));
+    spark.conf().unset("spark.snapshot-property.extra-key");
+    spark.conf().unset("spark.snapshot-property.another-key");
+  }
 }

@@ -34,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
+import scala.Tuple2;
+import scala.collection.Iterator;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -192,6 +194,14 @@ public class SparkWriteConf {
           }
         });
 
+    final Iterator<Tuple2<String, String>> it = sessionConf.getAll().iterator();
+    while (it.hasNext()) {
+      final Tuple2<String, String> entry = it.next();
+      if (entry._1.startsWith("spark." + SnapshotSummary.EXTRA_METADATA_PREFIX)) {
+        extraSnapshotMetadata.put(
+            entry._1.substring(6 + SnapshotSummary.EXTRA_METADATA_PREFIX.length()), entry._2);
+      }
+    }
     return extraSnapshotMetadata;
   }
 
