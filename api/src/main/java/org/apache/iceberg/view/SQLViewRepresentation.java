@@ -30,7 +30,7 @@ public interface SQLViewRepresentation extends ViewRepresentation {
   }
 
   /** The view query SQL text. */
-  String query();
+  String sql();
 
   /** The view query SQL dialect. */
   String dialect();
