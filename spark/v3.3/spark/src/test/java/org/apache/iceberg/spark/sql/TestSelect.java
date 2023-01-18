@@ -272,11 +272,14 @@ public class TestSelect extends SparkCatalogTestBase {
     table.manageSnapshots().createTag(Long.toString(snapshotId1), snapshotId2).commit();
 
     // currently Spark version travel ignores the type of the AS OF
-    // this means if a tag name matches a snapshot ID, it will always choose snapshotID to travel to.
-    List<Object[]> travelWithStringResult = sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, snapshotId1);
+    // this means if a tag name matches a snapshot ID, it will always choose snapshotID to travel
+    // to.
+    List<Object[]> travelWithStringResult =
+        sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, snapshotId1);
     assertEquals("Snapshot at specific tag reference name", actual, travelWithStringResult);
 
-    List<Object[]> travelWithLongResult = sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId1);
+    List<Object[]> travelWithLongResult =
+        sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId1);
     assertEquals("Snapshot at specific tag reference name", actual, travelWithLongResult);
   }
 
