@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.sink.shuffle.statistics;
 import org.apache.flink.annotation.Internal;
 
 /**
- * MapDataStatisticsFactory creates MapDataStatistics to track traffic volume for low-cardinality
- * key in hash mode
+ * MapDataStatisticsFactory creates {@link MapDataStatistics} to track traffic volume for
+ * low-cardinality key in hash mode
  */
 @Internal
 public class MapDataStatisticsFactory<K> implements DataStatisticsFactory<K> {

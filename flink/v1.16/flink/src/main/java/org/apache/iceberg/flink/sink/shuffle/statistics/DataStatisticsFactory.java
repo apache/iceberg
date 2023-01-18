@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.sink.shuffle.statistics;
 import org.apache.flink.annotation.Internal;
 
 /**
- * DataStatisticsFactory defines the interface to create DataStatistics.
+ * DataStatisticsFactory defines the interface to create {@link DataStatistics}.
  *
  * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
  * MapDataStatistics.

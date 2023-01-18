@@ -93,7 +93,7 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
   @Override
   public void open() throws Exception {
     if (!globalStatistics.isEmpty()) {
-      output.collect(new StreamRecord<>(ShuffleRecordWrapper.fromStatistics(globalStatistics)));
+      output.collect(new StreamRecord<>(ShuffleRecordWrapper.fromDataStatistics(globalStatistics)));
     }
   }
 

@@ -52,7 +52,7 @@ public class ShuffleRecordWrapper<T, K> implements Serializable {
     return new ShuffleRecordWrapper<>(record, null);
   }
 
-  static <T, K> ShuffleRecordWrapper<T, K> fromStatistics(DataStatistics<K> statistics) {
+  static <T, K> ShuffleRecordWrapper<T, K> fromDataStatistics(DataStatistics<K> statistics) {
     return new ShuffleRecordWrapper<>(null, statistics);
   }
 
