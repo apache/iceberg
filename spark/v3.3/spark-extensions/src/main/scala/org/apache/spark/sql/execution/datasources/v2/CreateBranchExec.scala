@@ -40,13 +40,22 @@ case class CreateBranchExec(
       case iceberg: SparkTable =>
 
         val snapshotId = createBranch.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
-        iceberg.table.manageSnapshots()
+        val manageSnapshot = iceberg.table.manageSnapshots()
           .createBranch(createBranch.branch, snapshotId)
-          .setMinSnapshotsToKeep(createBranch.branch, createBranch.numSnapshots.getOrElse(1L).toInt)
-          // 5 days
-          .setMaxSnapshotAgeMs(createBranch.branch, createBranch.snapshotRetain.getOrElse(5 * 24 * 60 * 60 * 1000L))
-          .setMaxRefAgeMs(createBranch.branch, createBranch.snapshotRefRetain.getOrElse(Long.MaxValue))
-          .commit()
+
+        if (createBranch.numSnapshots.nonEmpty) {
+          manageSnapshot.setMinSnapshotsToKeep(createBranch.branch, createBranch.numSnapshots.get.toInt)
+        }
+
+        if (createBranch.snapshotRetain.nonEmpty) {
+          manageSnapshot.setMaxSnapshotAgeMs(createBranch.branch, createBranch.snapshotRetain.get)
+        }
+
+        if (createBranch.snapshotRefRetain.nonEmpty) {
+          manageSnapshot.setMaxRefAgeMs(createBranch.branch, createBranch.snapshotRefRetain.get)
+        }
+
+        manageSnapshot.commit()
 
       case table =>
         throw new UnsupportedOperationException(s"Cannot add branch to non-Iceberg table: $table")

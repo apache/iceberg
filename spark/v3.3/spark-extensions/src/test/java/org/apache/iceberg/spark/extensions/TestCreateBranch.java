@@ -34,7 +34,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
+public class TestCreateBranch extends SparkExtensionsTestBase {
 
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
@@ -47,7 +47,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     };
   }
 
-  public TestSnapshotRefSQL(String catalogName, String implementation, Map<String, String> config) {
+  public TestCreateBranch(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -89,9 +89,9 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
-    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+    Assert.assertNull(ref.minSnapshotsToKeep());
+    Assert.assertNull(ref.maxSnapshotAgeMs());
+    Assert.assertNull(ref.maxRefAgeMs());
   }
 
   @Test
@@ -106,8 +106,8 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
     Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
-    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+    Assert.assertNull(ref.maxSnapshotAgeMs());
+    Assert.assertNull(ref.maxRefAgeMs());
   }
 
   @Test
@@ -121,9 +121,9 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
+    Assert.assertNull(ref.minSnapshotsToKeep());
     Assert.assertEquals(maxSnapshotAge * 24 * 60 * 60 * 1000L, ref.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+    Assert.assertNull(ref.maxRefAgeMs());
   }
 
   @Test
@@ -135,8 +135,8 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
-    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertNull(ref.minSnapshotsToKeep());
+    Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref.maxRefAgeMs().longValue());
   }
 
