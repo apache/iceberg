@@ -459,6 +459,9 @@ project(':iceberg-hudi') {
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
     compileOnly("org.apache.hudi:hudi-spark3.3-bundle_2.12:0.12.2")
+    implementation("org.apache.avro:avro") {
+      exclude group: 'org.tukaani' // xz compression is not supported
+    }
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'

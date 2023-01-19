@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.QuickstartUtils;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -229,6 +230,58 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     Dataset<Row> df = spark.read().format("hudi").load(partitionedLocation);
     LOG.info("Generated partitioned dataframe shcema: {}", df.schema().treeString());
     LOG.info("Generated partitioned dataframe: {}", df.showString(10, 20, false));
+  }
+
+  @Test
+  public void TestHudiMetaClientExploration() {
+    HoodieTableMetaClient hoodieTableMetaClient =
+        HoodieTableMetaClient.builder()
+            .setConf(spark.sessionState().newHadoopConf())
+            .setBasePath(partitionedLocation)
+            .setLoadActiveTimelineOnLoad(true)
+            .build();
+
+    LOG.info("Alpha test: hoodie table base path: {}", hoodieTableMetaClient.getBasePathV2());
+    LOG.info(
+        "Alpha test: hoodie getBootStrapIndexByFileId: {}",
+        hoodieTableMetaClient.getBootstrapIndexByFileIdFolderNameFolderPath());
+    LOG.info(
+        "Alpha test: hoodie getBootStrapIndexByPartitionPath: {}",
+        hoodieTableMetaClient.getBootstrapIndexByPartitionFolderPath());
+    LOG.info(
+        "Alpha test: hoodie getCommitActionType: {}", hoodieTableMetaClient.getCommitActionType());
+    LOG.info(
+        "Alpha test: hoodie getCommitsAndCompactionTimeline: {}",
+        hoodieTableMetaClient.getCommitsAndCompactionTimeline());
+    LOG.info(
+        "Alpha test: hoodie getCommitsTimeline: {}", hoodieTableMetaClient.getCommitsTimeline());
+    LOG.info("Alpha test: hoodie getCommitTimeline: {}", hoodieTableMetaClient.getCommitTimeline());
+    LOG.info(
+        "Alpha test: hoodie getConsistencyGuardConfig: {}",
+        hoodieTableMetaClient.getConsistencyGuardConfig().toString());
+    LOG.info(
+        "Alpha test: hoodie getFileSystemRetryConfig: {}",
+        hoodieTableMetaClient.getFileSystemRetryConfig().toString());
+    LOG.info(
+        "Alpha test: hoodie getHashingMetadataPath: {}",
+        hoodieTableMetaClient.getHashingMetadataPath());
+    LOG.info(
+        "Alpha test: hoodie getMetaAuxiliaryPath: {}",
+        hoodieTableMetaClient.getMetaAuxiliaryPath());
+    LOG.info("Alpha test: hoodie getMetaPath: {}", hoodieTableMetaClient.getMetaPath());
+    LOG.info(
+        "Alpha test: hoodie getMetastoreConfig: {}",
+        hoodieTableMetaClient.getMetastoreConfig().toString());
+    LOG.info(
+        "Alpha test: hoodie getSchemaFolderName: {}", hoodieTableMetaClient.getSchemaFolderName());
+    LOG.info(
+        "Alpha test: hoodie getTableConfig: {}", hoodieTableMetaClient.getTableConfig().toString());
+    LOG.info(
+        "Alpha test: hoodie getTableType: {}", hoodieTableMetaClient.getTableType().toString());
+    LOG.info("Alpha test: hoodie getTempFolderPath: {}", hoodieTableMetaClient.getTempFolderPath());
+    LOG.info(
+        "Alpha test: hoodie getTimelineLayoutVersion: {}",
+        hoodieTableMetaClient.getTimelineLayoutVersion());
   }
 
   @Test
