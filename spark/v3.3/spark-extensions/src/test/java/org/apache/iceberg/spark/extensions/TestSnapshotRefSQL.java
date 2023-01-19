@@ -79,46 +79,65 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "already exists",
         () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
+  }
 
-    String branchName2 = "b2";
-    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName2);
+  @Test
+  public void testCreateBranchUseDefaultConfig() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
-    SnapshotRef ref2 = table.refs().get(branchName2);
-    Assert.assertNotNull(ref2);
-    Assert.assertEquals(1L, ref2.minSnapshotsToKeep().longValue());
-    Assert.assertEquals(432000000L, ref2.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref2.maxRefAgeMs().longValue());
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
+    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+  }
 
-    String branchName3 = "b3";
+  @Test
+  public void testCreateBranchUseCustomMinSnapshotsToKeep() throws NoSuchTableException {
+    Integer minSnapshotsToKeep = 2;
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS",
-        tableName, branchName3, minSnapshotsToKeep);
+        tableName, branchName, minSnapshotsToKeep);
     table.refresh();
-    SnapshotRef ref3 = table.refs().get(branchName3);
-    Assert.assertNotNull(ref3);
-    Assert.assertEquals(minSnapshotsToKeep, ref3.minSnapshotsToKeep());
-    Assert.assertEquals(432000000L, ref3.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref3.maxRefAgeMs().longValue());
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
+    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+  }
 
-    String branchName4 = "b4";
+  @Test
+  public void testCreateBranchUseCustomMaxSnapshotAge() throws NoSuchTableException {
+    long maxSnapshotAge = 2L;
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d DAYS",
-        tableName, branchName4, maxSnapshotAge);
+        tableName, branchName, maxSnapshotAge);
     table.refresh();
-    SnapshotRef ref4 = table.refs().get(branchName4);
-    Assert.assertNotNull(ref4);
-    Assert.assertEquals(1L, ref2.minSnapshotsToKeep().longValue());
-    Assert.assertEquals(maxSnapshotAge * 24 * 60 * 60 * 1000L, ref4.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(Long.MAX_VALUE, ref4.maxRefAgeMs().longValue());
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
+    Assert.assertEquals(maxSnapshotAge * 24 * 60 * 60 * 1000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(Long.MAX_VALUE, ref.maxRefAgeMs().longValue());
+  }
 
-    String branchName5 = "b5";
-    sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName5, maxRefAge);
+  @Test
+  public void testCreateBranchUseCustomMaxRefAge() throws NoSuchTableException {
+    long maxRefAge = 10L;
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, maxRefAge);
     table.refresh();
-    SnapshotRef ref5 = table.refs().get(branchName5);
-    Assert.assertNotNull(ref5);
-    Assert.assertEquals(1L, ref5.minSnapshotsToKeep().longValue());
-    Assert.assertEquals(432000000L, ref5.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref5.maxRefAgeMs().longValue());
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(1L, ref.minSnapshotsToKeep().longValue());
+    Assert.assertEquals(432000000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref.maxRefAgeMs().longValue());
   }
 
   private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {
